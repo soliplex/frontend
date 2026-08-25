@@ -142,7 +142,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('FEATURES'), findsOneWidget);
-      expect(find.text('Enabled'), findsOneWidget); // attachments
+      // One attachments row per scope.
+      expect(find.text('Enabled'), findsNWidgets(2));
     });
 
     testWidgets('shows tools section', (tester) async {

@@ -244,7 +244,7 @@ class _RoomInfoBody extends StatelessWidget {
               contentOf: (e) => _buildToolsetContent(e.value),
             ),
             ClientToolsCard(clientToolsFuture: clientToolsFuture),
-            if (room.supportsAttachments)
+            if (room.supportsRoomAttachments)
               _UploadedFilesCard(
                 uploadRegistry: uploadRegistry,
                 serverEntry: serverEntry,

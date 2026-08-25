@@ -1454,6 +1454,16 @@ void main() {
       expect(message, "This file type isn't supported.");
     });
 
+    test('405 ApiException surfaces as uploads-not-configured message', () {
+      final message = uploadErrorMessage(
+        const ApiException(
+          statusCode: 405,
+          message: 'Room uploads not configured',
+        ),
+      );
+      expect(message, "File uploads aren't configured on this server.");
+    });
+
     test('5xx ApiException surfaces as temporarily-unavailable message', () {
       for (final statusCode in [500, 502, 503, 504]) {
         final message = uploadErrorMessage(
@@ -1500,10 +1510,14 @@ void main() {
       expect(message, 'Session expired. Please sign in again.');
     });
 
-    test('AuthException(statusCode: 403) surfaces as no-permission message',
-        () {
+    // 403 arrives as PermissionDeniedException — HttpTransport reserves
+    // AuthException for 401 — so this is the type production feeds.
+    test('PermissionDeniedException surfaces as no-permission message', () {
       final message = uploadErrorMessage(
-        const AuthException(statusCode: 403, message: 'forbidden'),
+        const PermissionDeniedException(
+          statusCode: 403,
+          message: 'Admin access required',
+        ),
       );
       expect(message, "You don't have permission to upload here.");
     });

@@ -1,7 +1,6 @@
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 
-import 'package:soliplex_client/src/domain/attachments.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
 
@@ -51,18 +50,6 @@ class ThreadHistory {
   /// when no run carries one. The backend keeps no merged filter state, so this
   /// (not any state event) is the only record of the thread's active filter.
   final String? documentFilter;
-
-  /// Whether this thread's resolved AG-UI state carries the [sandboxSkillName]
-  /// namespace, i.e. attachments are available for this thread.
-  ///
-  /// `null` when history carried no AG-UI state to resolve (empty state) —
-  /// chiefly a freshly created thread whose only run is unfinished: it has no
-  /// replayable events, and the backend omits `run_input` for unfinished runs
-  /// on the history endpoint, so history alone cannot tell. Callers must fall
-  /// back to the room-level capability rather than treating this as a
-  /// definitive `false`.
-  bool? get supportsAttachments =>
-      aguiState.isEmpty ? null : aguiState.containsKey(sandboxSkillName);
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.

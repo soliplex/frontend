@@ -142,13 +142,13 @@ void main() {
 
     group('getThreadHistory', () {
       test(
-        'reports undetermined attachment support for a freshly created thread '
-        '(unfinished run, no run_input on GET)',
+        'replays a run whose run_input is null without throwing '
+        '(unfinished run on GET)',
         () async {
           // Real backend shape: the GET history endpoint omits `run_input`
-          // for an unfinished run, so there is no state to judge from. The
-          // capability is undetermined (null) and the caller falls back to
-          // the room-level capability rather than reporting a false negative.
+          // for an unfinished run. Everything read from it — the document
+          // filter above all — must tolerate its absence rather than fail
+          // the whole history load.
           when(
             () => mockTransport.request<Map<String, dynamic>>(
               'GET',
@@ -178,7 +178,7 @@ void main() {
 
           final history = await api.getThreadHistory('room-123', 'thread-456');
 
-          expect(history.supportsAttachments, isNull);
+          expect(history.documentFilter, isNull);
           expect(history.messages, isEmpty);
         },
       );

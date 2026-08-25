@@ -10,6 +10,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- The file-attach button no longer disappears from a thread once that thread
+  has a finished run. Attachment support was read from a `bubble-sandbox`
+  namespace in the thread's replayed AG-UI state, which the backend no longer
+  writes, so any thread whose state carried another namespace resolved to a
+  hard "unsupported". Both scopes now read the room's capability, which is what
+  the server actually gates uploads on.
+- An upload refused for lack of permission now says so. The 403 branch tested
+  `AuthException`, but the transport raises `PermissionDeniedException` for
+  403, so the branch never ran and the server's own wording was shown instead.
+- An upload to a scope the server has no upload path configured for (405) now
+  reports that, rather than passing the backend's internal wording through.
 - Tearing down a cancelled SSE subscription now observes the future
   `StreamSubscription.cancel()` returns, so an error raised while the stream
   generator unwinds — the transport's injected `CancelledException` among them
@@ -62,6 +73,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- **Breaking (library):** `Room.supportsAttachments` is replaced by
+  `Room.supportsRoomAttachments` and `Room.supportsThreadAttachments`. The
+  server gates room and thread uploads on separate installation settings, so an
+  unqualified name had to silently pick one. Both currently answer the same
+  room-level condition.
+- **Breaking (library):** `ThreadHistory.supportsAttachments` is removed.
+  Nothing produces the state it read, and it has no replacement — attachment
+  support is a property of the room, not of one of its threads.
+- Room Information reports attachments per scope, as `Room attachments` and
+  `Thread attachments`, instead of a single row that could not show a
+  deployment configured for one scope but not the other.
 - **Breaking (library):** `AgentSession.cancelToken` is now scoped to the
   session rather than the active request: it is one instance for the session's
   lifetime, cancelled by `cancel()` or `dispose()`. It previously answered a

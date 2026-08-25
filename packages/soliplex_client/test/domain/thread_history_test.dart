@@ -138,32 +138,6 @@ void main() {
         equals("id = 'x'"),
       );
     });
-
-    group('supportsAttachments', () {
-      test('is true when aguiState carries the sandbox namespace', () {
-        final history = ThreadHistory(
-          messages: const [],
-          aguiState: const {sandboxSkillName: <String, dynamic>{}},
-        );
-        expect(history.supportsAttachments, isTrue);
-      });
-
-      test('is false when state is known but lacks the sandbox namespace', () {
-        final history = ThreadHistory(
-          messages: const [],
-          aguiState: const {'rag': <String, dynamic>{}},
-        );
-        expect(history.supportsAttachments, isFalse);
-      });
-
-      test('is null (undetermined) when no AG-UI state was resolved', () {
-        // A freshly created thread whose only run is unfinished carries no
-        // replayable state; the backend omits run_input on GET, so history
-        // alone cannot tell — callers fall back to the room capability.
-        final history = ThreadHistory(messages: const []);
-        expect(history.supportsAttachments, isNull);
-      });
-    });
   });
 
   group('RunEventBundle', () {

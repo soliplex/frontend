@@ -184,8 +184,10 @@ void main() {
       expect(str, contains('Test Room'));
     });
 
-    group('supportsAttachments', () {
-      test('is true when the sandbox skill is present', () {
+    // Both scopes read the same room-level condition, so every case asserts
+    // both. That is what makes a later divergence between them deliberate.
+    group('attachment scopes', () {
+      test('both are true when the sandbox skill is present', () {
         const room = Room(
           id: 'r1',
           name: 'Test',
@@ -196,15 +198,17 @@ void main() {
             ),
           },
         );
-        expect(room.supportsAttachments, isTrue);
+        expect(room.supportsRoomAttachments, isTrue);
+        expect(room.supportsThreadAttachments, isTrue);
       });
 
-      test('is false when the sandbox skill is absent', () {
+      test('both are false when the sandbox skill is absent', () {
         const room = Room(id: 'r1', name: 'Test');
-        expect(room.supportsAttachments, isFalse);
+        expect(room.supportsRoomAttachments, isFalse);
+        expect(room.supportsThreadAttachments, isFalse);
       });
 
-      test('is false when only a different skill is present', () {
+      test('both are false when only a different skill is present', () {
         const room = Room(
           id: 'r1',
           name: 'Test',
@@ -212,7 +216,8 @@ void main() {
             'other-skill': RoomSkill(name: 'other-skill', description: 'Other'),
           },
         );
-        expect(room.supportsAttachments, isFalse);
+        expect(room.supportsRoomAttachments, isFalse);
+        expect(room.supportsThreadAttachments, isFalse);
       });
     });
   });
