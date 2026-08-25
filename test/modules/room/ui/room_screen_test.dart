@@ -1366,113 +1366,50 @@ void main() {
       expect(find.byTooltip('Add image'), findsOneWidget);
     });
 
-    testWidgets(
-        'active thread shows attach from thread AG-UI state, not room '
-        'skill', (tester) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+    // A thread's replayed AG-UI state does not decide attachment support; the
+    // room capability does. Both fixtures were shipped bugs: `{}` is the
+    // freshly created thread whose only run is unfinished, and `{'rag': ...}`
+    // is what a real sandbox+RAG room replays.
+    for (final (label, aguiState) in const <(String, Map<String, dynamic>)>[
+      ('empty', {}),
+      ('rag-only', {'rag': <String, dynamic>{}}),
+    ]) {
+      testWidgets(
+          'active thread with $label AG-UI state shows attach when the room '
+          'has the skill', (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      // Room WITHOUT the skill; thread state WITH the namespace. Attach must
-      // still appear, proving the active thread reads thread state.
-      api.nextRoom = const Room(id: 'room-1', name: 'Plain');
-      api.nextThreads = const [];
-      api.nextThreadHistory = ThreadHistory(
-        messages: const [],
-        aguiState: const {sandboxSkillName: <String, dynamic>{}},
-      );
+        api.nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          skills: {sandboxSkillName: _sandboxSkill},
+        );
+        api.nextThreads = const [];
+        api.nextThreadHistory = ThreadHistory(
+          messages: const [],
+          aguiState: aguiState,
+        );
 
-      await tester.pumpWidget(MaterialApp(
-        home: RoomScreen(
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.attach_file), findsOneWidget);
-    });
+        expect(find.byIcon(Icons.attach_file), findsOneWidget);
+      });
+    }
 
-    testWidgets(
-        'active thread with room skill shows attach when thread history is '
-        'undetermined (falls back to room capability)', (tester) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      // Empty history = undetermined thread state: a freshly created thread
-      // whose only run is unfinished carries no replayable state, and the
-      // backend omits run_input for unfinished runs on GET. The composer must
-      // fall back to the room capability rather than reporting a false
-      // negative and hiding attach.
-      api.nextRoom = const Room(
-        id: 'room-1',
-        name: 'Attachable',
-        skills: {sandboxSkillName: _sandboxSkill},
-      );
-      api.nextThreads = const [];
-      api.nextThreadHistory = ThreadHistory(messages: const []);
-
-      await tester.pumpWidget(MaterialApp(
-        home: RoomScreen(
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.attach_file), findsOneWidget);
-    });
-
-    testWidgets(
-        'active thread with resolved state lacking the namespace hides attach '
-        'even when the room has the skill', (tester) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      // Resolved (non-empty) thread state that lacks the sandbox namespace is
-      // authoritative: it hides attach even though the room advertises the
-      // skill. Contrast the empty/undetermined case above, which falls back to
-      // the room capability.
-      api.nextRoom = const Room(
-        id: 'room-1',
-        name: 'Attachable',
-        skills: {sandboxSkillName: _sandboxSkill},
-      );
-      api.nextThreads = const [];
-      api.nextThreadHistory = ThreadHistory(
-        messages: const [],
-        aguiState: const {'rag': <String, dynamic>{}},
-      );
-
-      await tester.pumpWidget(MaterialApp(
-        home: RoomScreen(
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.attach_file), findsNothing);
-    });
-
-    testWidgets('registry-restored thread falls back to room skill for attach',
+    testWidgets('registry-restored thread shows attach from the room skill',
         (tester) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
@@ -1480,8 +1417,8 @@ void main() {
 
       // Room has the skill; a live session is pre-registered so ThreadViewState
       // restores from the registry and never fetches history (the sendToNewThread
-      // / return-to-running-thread path). The Map has no entry → the composer
-      // must fall back to room capability and still show attach.
+      // / return-to-running-thread path). The gate depends entirely on the room
+      // having loaded, so attach must still show.
       api.nextRoom = const Room(
         id: 'room-1',
         name: 'Attachable',

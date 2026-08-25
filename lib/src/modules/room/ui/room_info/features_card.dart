@@ -29,8 +29,12 @@ class FeaturesCard extends StatelessWidget {
       title: 'FEATURES',
       children: [
         InfoRow(
-          label: 'Attachments',
-          value: room.supportsAttachments ? 'Enabled' : 'Disabled',
+          label: 'Room attachments',
+          value: room.supportsRoomAttachments ? 'Enabled' : 'Disabled',
+        ),
+        InfoRow(
+          label: 'Thread attachments',
+          value: room.supportsThreadAttachments ? 'Enabled' : 'Disabled',
         ),
         InfoRow(
           label: 'Allow MCP',

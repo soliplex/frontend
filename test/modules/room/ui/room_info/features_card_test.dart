@@ -27,7 +27,7 @@ void main() {
   const baseRoom = Room(id: 'r1', name: 'Test Room');
 
   group('FeaturesCard', () {
-    testWidgets('shows attachments status row', (tester) async {
+    testWidgets('shows a status row per attachment scope', (tester) async {
       final api = FakeSoliplexApi();
       await tester.pumpWidget(wrap(
         FeaturesCard(
@@ -45,8 +45,9 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.text('Attachments'), findsOneWidget);
-      expect(find.text('Enabled'), findsOneWidget);
+      expect(find.text('Room attachments'), findsOneWidget);
+      expect(find.text('Thread attachments'), findsOneWidget);
+      expect(find.text('Enabled'), findsNWidgets(2));
     });
 
     testWidgets('shows attachments disabled', (tester) async {
@@ -60,7 +61,9 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.text('Disabled'), findsOneWidget);
+      expect(find.text('Room attachments'), findsOneWidget);
+      expect(find.text('Thread attachments'), findsOneWidget);
+      expect(find.text('Disabled'), findsNWidgets(2));
     });
 
     testWidgets('shows MCP row when allowMcp is true', (tester) async {

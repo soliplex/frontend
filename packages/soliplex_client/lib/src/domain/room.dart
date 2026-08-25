@@ -94,9 +94,21 @@ class Room {
   /// Whether the room has any AG-UI feature names.
   bool get hasAguiFeatures => aguiFeatureNames.isNotEmpty;
 
-  /// Whether this room is configured for file attachments (it carries the
-  /// [sandboxSkillName] skill).
-  bool get supportsAttachments => skills.containsKey(sandboxSkillName);
+  /// Whether this room can accept uploads scoped to the room itself.
+  ///
+  /// Covers only the room-level condition — the room carries the
+  /// [sandboxSkillName] skill. The server also requires a configured room
+  /// upload path and an administrator caller, neither of which the rooms API
+  /// reports, so `true` means "not ruled out by anything readable here".
+  bool get supportsRoomAttachments => skills.containsKey(sandboxSkillName);
+
+  /// Whether this room can accept uploads scoped to one of its threads.
+  ///
+  /// Covers only the room-level condition — the room carries the
+  /// [sandboxSkillName] skill. The server also requires a configured thread
+  /// upload path, which the rooms API does not report, so `true` means "not
+  /// ruled out by anything readable here".
+  bool get supportsThreadAttachments => skills.containsKey(sandboxSkillName);
 
   /// Creates a copy of this room with the given fields replaced.
   Room copyWith({

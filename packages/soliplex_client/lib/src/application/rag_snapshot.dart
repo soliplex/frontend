@@ -271,9 +271,9 @@ class RagSnapshot {
       raw is Map<String, dynamic> && raw[_citationIndexKey] is Map;
 
   /// Every citation-bearing namespace block in a full agent-state map,
-  /// identified by a [`_citationIndexKey`] map. Non-citation namespaces
-  /// (e.g. `bubble-sandbox`) and non-Map or mistyped blocks are skipped,
-  /// so this is the single place that knows how a citation block is shaped.
+  /// identified by a [`_citationIndexKey`] map. Namespaces without one, and
+  /// non-Map or mistyped blocks, are skipped, so this is the single place that
+  /// knows how a citation block is shaped.
   ///
   /// When [namespaces] is given, only blocks under those keys are considered;
   /// otherwise every namespace in [state] is.

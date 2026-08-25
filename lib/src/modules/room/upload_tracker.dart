@@ -91,6 +91,11 @@ String uploadErrorMessage(Object error) {
     // of whether the body said anything useful.
     if (error.statusCode == 413) return 'File is too large to upload.';
     if (error.statusCode == 415) return "This file type isn't supported.";
+    // The server accepts uploads for this scope only when the installation
+    // configures a path for it. Nothing the user can act on.
+    if (error.statusCode == 405) {
+      return "File uploads aren't configured on this server.";
+    }
     if (error.statusCode >= 500) {
       return 'Server is temporarily unavailable. '
           'Try uploading again in a moment.';
@@ -115,13 +120,12 @@ String uploadErrorMessage(Object error) {
     }
   }
 
-  if (error is AuthException) {
-    if (error.statusCode == 401) {
-      return 'Session expired. Please sign in again.';
-    }
-    if (error.statusCode == 403) {
-      return "You don't have permission to upload here.";
-    }
+  if (error is AuthException && error.statusCode == 401) {
+    return 'Session expired. Please sign in again.';
+  }
+
+  if (error is PermissionDeniedException) {
+    return "You don't have permission to upload here.";
   }
 
   if (error is SoliplexException) return error.message;
