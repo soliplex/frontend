@@ -117,6 +117,89 @@ void main() {
   });
 
   group('fetch failure', () {
+    test('a 404 is an empty shelf, not a failure', () async {
+      // The scope's upload path is not configured, which the server reports by
+      // having no list to give rather than by failing to give one. Rendering
+      // that as an error puts a permanent red row on every visit to a room
+      // that is simply not set up for uploads to this scope.
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenThrow(
+        const NotFoundException(message: 'Room uploads not configured'),
+      );
+
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      final status = tracker.roomUploads('room-1').value;
+      expect(status, isA<UploadsLoaded>());
+      expect((status as UploadsLoaded).uploads, isEmpty);
+    });
+
+    test('a 404 after a successful load keeps the list', () async {
+      // The same bare 404 answers three server conditions: no upload path, an
+      // unknown room, and a room this user may no longer read — the membership
+      // check runs ahead of the path check. Only the first is an empty shelf,
+      // and it never reaches a loaded scope. Reading the others as empty would
+      // retract rows already on screen and say nothing about why.
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) async => [_fileUpload('shared.pdf')]);
+
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+      expect(
+        (tracker.roomUploads('room-1').value as UploadsLoaded).uploads,
+        hasLength(1),
+      );
+
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenThrow(const NotFoundException(message: 'No such room'));
+
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      final status = tracker.roomUploads('room-1').value;
+      expect(status, isA<UploadsLoaded>());
+      expect((status as UploadsLoaded).uploads, hasLength(1));
+    });
+
+    test('a 404 on a scope carrying only a local failure is still empty',
+        () async {
+      // The arm asks `persisted == null` — has a server list ever been shown —
+      // and a pick failure filed against the scope is not one. Asking instead
+      // whether the signal is Loaded conflates the two: such a scope would take
+      // the keep-the-list path and leave `persisted` null, so dismissing that
+      // row would leave nothing to emit and `_emit`'s no-list-and-nothing-local
+      // guard would hold the dismissed row on screen.
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenThrow(const NotFoundException(message: 'not configured'));
+
+      tracker.recordClientError(
+        roomId: 'room-1',
+        filename: 'notes.pdf',
+        message: 'Could not read the file.',
+      );
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      final failed = (tracker.roomUploads('room-1').value as UploadsLoaded)
+          .uploads
+          .whereType<FailedUpload>()
+          .single;
+      tracker.dismissFailed(failed.id);
+
+      final status = tracker.roomUploads('room-1').value;
+      expect(status, isA<UploadsLoaded>());
+      expect((status as UploadsLoaded).uploads, isEmpty);
+    });
+
     test('emits UploadsFailed from a non-Loaded state', () async {
       when(() => mockApi.getRoomUploads(
             any(),

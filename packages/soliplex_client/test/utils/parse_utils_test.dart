@@ -51,6 +51,20 @@ void main() {
     });
   });
 
+  group('boolOrNull', () {
+    test('returns the value when it is a bool', () {
+      expect(boolOrNull(true, 'field'), isTrue);
+    });
+
+    test('returns null when absent', () {
+      expect(boolOrNull(null, 'field'), isNull);
+    });
+
+    test('degrades a wrong-typed value to null', () {
+      expect(boolOrNull('true', 'field'), isNull);
+    });
+  });
+
   group('stringList', () {
     test('returns an empty list when absent', () {
       expect(stringList(null, 'field'), isEmpty);

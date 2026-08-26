@@ -4,6 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../interfaces/auth_state.dart';
+import 'admin_status.dart';
 import 'auth_session.dart';
 import 'auth_tokens.dart';
 import 'server_entry.dart';
@@ -136,6 +137,7 @@ class ServerManager {
       auth: auth,
       httpClient: httpClient,
       connection: connection,
+      adminStatus: AdminStatus(api: connection.api, serverId: serverId),
       requiresAuth: requiresAuth,
       name: name,
       description: description,
@@ -309,6 +311,13 @@ class ServerManager {
   }
 
   void _onSessionChanged(String serverId, ServerEntry entry) {
+    // A refresh and an expiry keep the same user, so neither invalidates the
+    // answer. Signing out does not tear this entry down, so without this the
+    // next user on this device would read the previous one's answer. This is
+    // half the guard: signing in from an expired session never reaches a
+    // signed-out state, and `UserSwitchTeardown` catches that wherever the
+    // token carries an identity to compare.
+    if (entry.auth.session.value is NoSession) entry.adminStatus.clear();
     if (_restoring) return;
     Future<void> persist() async {
       switch (entry.auth.session.value) {

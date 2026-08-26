@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/features_card.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/room_info/room_info_widgets.dart';
 
 import '../../../../helpers/fakes.dart';
 
@@ -27,44 +28,39 @@ void main() {
   const baseRoom = Room(id: 'r1', name: 'Test Room');
 
   group('FeaturesCard', () {
-    testWidgets('shows a status row per attachment scope', (tester) async {
-      final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(
-            skills: const {
-              sandboxSkillName: RoomSkill(
-                name: sandboxSkillName,
-                description: 'Sandbox',
-              ),
-            },
+    // The two rows differ only in which field they read, so a fixture that
+    // sets both alike cannot catch them swapped. Mirrored cases cover all four
+    // cells.
+    for (final (room, thread) in const [(true, false), (false, true)]) {
+      testWidgets('reports room=$room thread=$thread from its own field',
+          (tester) async {
+        final api = FakeSoliplexApi();
+        await tester.pumpWidget(wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(
+              acceptsRoomUploads: room,
+              acceptsThreadUploads: thread,
+            ),
+            api: api,
+            roomId: 'r1',
           ),
-          api: api,
-          roomId: 'r1',
-        ),
-      ));
-      await tester.pump();
+        ));
+        await tester.pump();
 
-      expect(find.text('Room attachments'), findsOneWidget);
-      expect(find.text('Thread attachments'), findsOneWidget);
-      expect(find.text('Enabled'), findsNWidgets(2));
-    });
+        Finder valueOf(String label, String value) => find.descendant(
+              of: find.ancestor(
+                of: find.text(label),
+                matching: find.byType(InfoRow),
+              ),
+              matching: find.text(value),
+            );
 
-    testWidgets('shows attachments disabled', (tester) async {
-      final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom,
-          api: api,
-          roomId: 'r1',
-        ),
-      ));
-      await tester.pump();
-
-      expect(find.text('Room attachments'), findsOneWidget);
-      expect(find.text('Thread attachments'), findsOneWidget);
-      expect(find.text('Disabled'), findsNWidgets(2));
-    });
+        expect(valueOf('Room attachments', room ? 'Enabled' : 'Disabled'),
+            findsOneWidget);
+        expect(valueOf('Thread attachments', thread ? 'Enabled' : 'Disabled'),
+            findsOneWidget);
+      });
+    }
 
     testWidgets('shows MCP row when allowMcp is true', (tester) async {
       final api = FakeSoliplexApi();

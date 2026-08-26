@@ -1,5 +1,6 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'admin_status.dart';
 import 'auth_session.dart';
 
 /// Canonical server identity: scheme + host + port (default ports omitted).
@@ -36,6 +37,7 @@ class ServerEntry {
     required this.auth,
     required this.httpClient,
     required this.connection,
+    required this.adminStatus,
     this.requiresAuth = true,
     this.name,
     this.description,
@@ -47,6 +49,12 @@ class ServerEntry {
   final AuthSession auth;
   final SoliplexHttpClient httpClient;
   final ServerConnection connection;
+
+  /// Asks whether the signed-in user administers this server, on demand, and
+  /// keeps a verdict the installation delivered. See [AdminStatus] for which
+  /// answers are kept and what clears them.
+  final AdminStatus adminStatus;
+
   final bool requiresAuth;
 
   /// Human-readable server name (e.g., "Demo Server"), or `null` when the

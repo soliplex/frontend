@@ -244,7 +244,7 @@ class _RoomInfoBody extends StatelessWidget {
               contentOf: (e) => _buildToolsetContent(e.value),
             ),
             ClientToolsCard(clientToolsFuture: clientToolsFuture),
-            if (room.supportsRoomAttachments)
+            if (room.acceptsRoomUploads)
               _UploadedFilesCard(
                 uploadRegistry: uploadRegistry,
                 serverEntry: serverEntry,
@@ -378,6 +378,21 @@ class _UploadedFilesCard extends StatefulWidget {
 class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   late final UploadTracker _tracker;
 
+  /// Whether the signed-in user may upload to this room: `null` while the
+  /// answer is outstanding, and `false` only once the server has answered that
+  /// they are not an administrator.
+  ///
+  /// Each state renders: `null` the controls in their loading state, so a
+  /// slow answer shows a control on its way rather than no control at all;
+  /// `true` the controls; `false` a line naming who adds the files, in the
+  /// slot the controls would have taken, whether or not the list is empty.
+  /// A question that could not be answered reads as permission —
+  /// withholding the controls on a failed request would strip an
+  /// administrator of a capability they have, and the server still refuses
+  /// anyone else. [_permissionWait] bounds how long `null` can last, so that
+  /// reading is reached in bounded time rather than only on a failed request.
+  bool? _mayUpload;
+
   @override
   void initState() {
     super.initState();
@@ -385,6 +400,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       entry: widget.serverEntry,
       roomId: widget.roomId,
     );
+    unawaited(_resolveUploadPermission());
     // Refresh only if no other screen has populated the shared tracker
     // yet. When `RoomState` is already mounted it has refreshed on room
     // entry, so navigating Room → Info skips a redundant GET.
@@ -394,6 +410,61 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   }
 
   // Not disposed here — the registry owns the tracker's lifecycle.
+
+  /// How long the controls may stay in their loading state before the answer
+  /// is treated as one that did not arrive.
+  ///
+  /// The request's own timeout does not bound this: it starts only once the
+  /// request holds one of the six connection slots shared with every other
+  /// request to this server, and an upload already running can hold one for
+  /// the whole 600 seconds the transport allows it. Loading renders as
+  /// disabled, so an unbounded wait would withhold from an administrator a
+  /// capability they have — the outcome the `null` reading exists to avoid.
+  static const Duration _permissionWait = Duration(seconds: 3);
+
+  /// Uploading to a room needs an administrator, which is a fact about the
+  /// user rather than the room, so it arrives separately from the room itself.
+  ///
+  /// `AdminStatus.read` never completes with an error, so nothing here needs a
+  /// guard beyond [mounted].
+  Future<void> _resolveUploadPermission() async {
+    final answer = widget.serverEntry.adminStatus.read();
+    final bounded = await answer.timeout(
+      _permissionWait,
+      onTimeout: () => null,
+    );
+    if (!mounted) return;
+    // Answered within the bound. [answer] completes once, so awaiting it again
+    // below could only yield this same value; returning here is what says so.
+    if (bounded != null) {
+      setState(() => _mayUpload = bounded);
+      return;
+    }
+
+    // Records the decision, not its cause: a request that failed is already
+    // described by `AdminStatus`, but one still queued at the bound says
+    // nothing, and that is the branch reachable under load. Granting the
+    // capability on a guess is worth a line either way — paired with the cause
+    // when there is one, and the only trace when there is not. After the
+    // [mounted] check, so the record is written only where the controls it
+    // describes are actually rendered.
+    _logger.warning(
+      'Showing the room upload controls without an answer on whether the user '
+      'administers this room',
+      attributes: {'roomId': widget.roomId},
+    );
+    setState(() => _mayUpload = true);
+
+    // The request outlives the bound, and only a definite refusal corrects the
+    // guess it produced: leaving that guess to stand for the life of the
+    // screen would hand someone two controls whose every use the server
+    // refuses. An answer that never came leaves it exactly as it is — reading
+    // that as permission would grant on the strength of a request `clear`
+    // retired precisely because it describes a different user.
+    final settled = await answer;
+    if (!mounted || settled != false) return;
+    setState(() => _mayUpload = false);
+  }
 
   Future<void> _pickAndUpload(
     Future<PickFilesResult?> Function() pick,
@@ -416,6 +487,21 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       return;
     }
     if (result == null || !mounted) return;
+    // The pick outlives the tap that opened it. That tap cannot have happened
+    // while the answer was outstanding — loading renders the controls
+    // unpressable — but it can have happened on the grant [_permissionWait]
+    // hands out when the answer has not arrived, with the definite refusal
+    // landing since. The controls are already gone by now. Sending anyway
+    // would upload every file in full to have each one refused in turn, so the
+    // refusal is recorded once here instead of once per file by the server.
+    if (_mayUpload == false) {
+      _tracker.recordClientError(
+        roomId: widget.roomId,
+        filename: '(unknown)',
+        message: "You don't have permission to upload here.",
+      );
+      return;
+    }
     for (final itemError in result.errors) {
       _logger.error(
         'Pick failed',
@@ -454,26 +540,41 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       title: title,
       children: [
         _buildBody(status, theme),
+        // The controls and the sentence that stands in for them share this
+        // slot, so whichever the answer withholds, the other is in its place.
+        // Present but loading while the answer is outstanding, because an
+        // absent control would read as a refusal. [_permissionWait] is what
+        // keeps that state from outlasting the user's patience.
         const SizedBox(height: SoliplexSpacing.s2),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Wrap(
-            spacing: SoliplexSpacing.s2,
-            runSpacing: SoliplexSpacing.s2,
-            children: [
-              SoliplexButton.filled(
-                onPressed: () => _pickAndUpload(pickFiles),
-                icon: const Icon(Icons.upload_file, size: 18),
-                child: const Text('Upload files to room'),
-              ),
-              SoliplexButton.filled(
-                onPressed: () => _pickAndUpload(pickFolder),
-                icon: const Icon(Icons.drive_folder_upload, size: 18),
-                child: const Text('Upload folder to room'),
-              ),
-            ],
+        if (_mayUpload == false)
+          Text(
+            'An administrator adds files to this room.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: SoliplexSpacing.s2,
+              runSpacing: SoliplexSpacing.s2,
+              children: [
+                SoliplexButton.filled(
+                  onPressed: () => _pickAndUpload(pickFiles),
+                  isLoading: _mayUpload == null,
+                  icon: const Icon(Icons.upload_file, size: 18),
+                  child: const Text('Upload files to room'),
+                ),
+                SoliplexButton.filled(
+                  onPressed: () => _pickAndUpload(pickFolder),
+                  isLoading: _mayUpload == null,
+                  icon: const Icon(Icons.drive_folder_upload, size: 18),
+                  child: const Text('Upload folder to room'),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }

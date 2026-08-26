@@ -1184,6 +1184,70 @@ void main() {
       expect(ran, ['filter', 'files', 'folder']);
     });
 
+    testWidgets('a collapsed item refuses once a run takes the composer',
+        (tester) async {
+      // The menu route outlives the build that filled it, so the state it was
+      // enabled under can change while it is open. The buttons it stands in
+      // for go read-only in that window, and a pick started here would land in
+      // a composer that cannot show it.
+      final ran = <String>[];
+      final sessionState = signal<AgentSessionState?>(null);
+
+      await tester.pumpWidget(
+        composer(
+          width: SoliplexBreakpoints.mobile,
+          controller: newController(),
+          filter: true,
+          upload: true,
+          onFiles: () => ran.add('files'),
+          sessionState: sessionState,
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      sessionState.value = AgentSessionState.running;
+      await tester.pump();
+
+      await tester.tap(find.text('Upload files…'));
+      await tester.pumpAndSettle();
+
+      expect(ran, isEmpty);
+    });
+
+    testWidgets('an attach item refuses once a run takes the composer',
+        (tester) async {
+      // The same window as the collapsed menu above, on the layout that keeps
+      // its own attach menu: wide enough that the actions are not collapsed,
+      // so the choice arrives through the attach submenu rather than the
+      // combined one. Both routes outlive the build that filled them, and only
+      // one of them was covered.
+      final ran = <String>[];
+      final sessionState = signal<AgentSessionState?>(null);
+
+      await tester.pumpWidget(
+        composer(
+          width: SoliplexBreakpoints.desktop,
+          controller: newController(),
+          upload: true,
+          onFiles: () => ran.add('files'),
+          sessionState: sessionState,
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.attach_file));
+      await tester.pumpAndSettle();
+
+      sessionState.value = AgentSessionState.running;
+      await tester.pump();
+
+      await tester.tap(find.text('Files…'));
+      await tester.pumpAndSettle();
+
+      expect(ran, isEmpty);
+    });
+
     testWidgets('a composer with no folder picker collapses to two items',
         (tester) async {
       // A caller that offers file upload but no folder pick: the pair still

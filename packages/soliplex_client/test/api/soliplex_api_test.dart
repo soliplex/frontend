@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 // Hide ag_ui's CancelToken to avoid ambiguity.
 import 'package:soliplex_client/soliplex_client.dart' hide CancelToken;
 import 'package:soliplex_client/src/utils/cancel_token.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 class MockHttpTransport extends Mock implements HttpTransport {}
@@ -26,6 +27,17 @@ void main() {
 
     when(() => mockTransport.close()).thenReturn(null);
   });
+
+  /// Attaches a sink for the duration of one test and returns the upload
+  /// capability records written into it.
+  List<LogRecord> Function() captureCapabilityRecords() {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    return () => sink.records
+        .where((r) => r.message.contains('upload capability'))
+        .toList();
+  }
 
   tearDown(() {
     api.close();
@@ -232,6 +244,64 @@ void main() {
         expect(rooms, isEmpty);
       });
 
+      test('records once that the server reported no upload capability',
+          () async {
+        // Absence withholds every upload control, which looks exactly like an
+        // installation that has no upload path. Nothing else survives to say
+        // which of the two it was.
+        final capabilityRecords = captureCapabilityRecords();
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room-1': {'id': 'room-1', 'name': 'Room 1'},
+            'room-2': {'id': 'room-2', 'name': 'Room 2'},
+          },
+        );
+
+        await api.getRooms();
+        await api.getRooms();
+
+        // Once per server, not once per room per response: the omission
+        // belongs to the release the server runs.
+        expect(capabilityRecords(), hasLength(1));
+      });
+
+      test('says nothing when the server reported a capability', () async {
+        final capabilityRecords = captureCapabilityRecords();
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room-1': {
+              'id': 'room-1',
+              'name': 'Room 1',
+              'has_thread_uploads': false,
+            },
+          },
+        );
+
+        await api.getRooms();
+
+        expect(capabilityRecords(), isEmpty);
+      });
+
       test('propagates exceptions', () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -351,6 +421,34 @@ void main() {
 
       test('validates non-empty roomId', () {
         expect(() => api.getRoom(''), throwsA(isA<ArgumentError>()));
+      });
+
+      test('records the omission for a room reached without the listing',
+          () async {
+        // A deep link opens a room without ever listing one, so checking only
+        // the listing would leave the whole path silent.
+        final capabilityRecords = captureCapabilityRecords();
+        when(
+          () => mockTransport.request<Room>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          // The transport is what applies `fromJson`, and the capability is
+          // read there so a malformed payload still surfaces as one.
+          final fromJson = invocation.namedArguments[#fromJson]! as Room
+              Function(Map<String, dynamic>);
+          return fromJson(<String, dynamic>{'id': 'room-1', 'name': 'Room 1'});
+        });
+
+        await api.getRoom('room-1');
+
+        expect(capabilityRecords(), hasLength(1));
       });
 
       test('propagates NotFoundException', () async {
@@ -6220,6 +6318,76 @@ void main() {
     // ============================================================
     // Installation Info
     // ============================================================
+
+    group('getIsAdminUser', () {
+      for (final verdict in [true, false]) {
+        test('reports the flag the server sent ($verdict)', () async {
+          // Both directions: answering a fixed verdict would withdraw the
+          // capability from an administrator, or hand it to everyone.
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com/api/v1/user/authz'),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => {'is_admin_user': verdict});
+
+          expect(await api.getIsAdminUser(), verdict);
+        });
+      }
+
+      test('bounds the wait well below the transport default', () async {
+        // The caller bounds its own wait at three seconds and goes live on a
+        // guess when that expires, so the spinner is never the cost. This
+        // timeout is what keeps the answer that overturns the guess from
+        // arriving minutes later and pulling two live controls out from under
+        // the user mid-session.
+        final captured = <Object?>[];
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          captured.add(invocation.namedArguments[#timeout]);
+          return {'is_admin_user': true};
+        });
+
+        await api.getIsAdminUser();
+
+        expect(captured.single, const Duration(seconds: 15));
+      });
+
+      test('rejects a response with no verdict in it', () async {
+        // Reading a missing flag as "not an admin" would silently withdraw a
+        // capability; the caller must be able to tell it was never answered.
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => <String, dynamic>{});
+
+        expect(
+          () => api.getIsAdminUser(),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+    });
 
     group('getBackendVersionInfo', () {
       test('returns version info', () async {

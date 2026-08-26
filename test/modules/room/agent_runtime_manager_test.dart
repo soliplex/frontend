@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/admin_status.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
@@ -13,14 +14,18 @@ ServerConnection _connection(String serverId) => ServerConnection(
       agUiStreamClient: FakeAgUiStreamClient(),
     );
 
-ServerEntry _entry(String serverId) => ServerEntry(
-      serverId: serverId,
-      alias: serverId,
-      serverUrl: Uri.parse('https://$serverId.example.com'),
-      auth: AuthSession(refreshService: FakeTokenRefreshService()),
-      httpClient: FakeHttpClient(),
-      connection: _connection(serverId),
-    );
+ServerEntry _entry(String serverId) {
+  final connection = _connection(serverId);
+  return ServerEntry(
+    serverId: serverId,
+    alias: serverId,
+    serverUrl: Uri.parse('https://$serverId.example.com'),
+    auth: AuthSession(refreshService: FakeTokenRefreshService()),
+    httpClient: FakeHttpClient(),
+    connection: connection,
+    adminStatus: AdminStatus(api: connection.api, serverId: serverId),
+  );
+}
 
 void main() {
   late AgentRuntimeManager manager;

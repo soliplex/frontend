@@ -23,6 +23,7 @@ import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
@@ -33,8 +34,6 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
 import '../../../helpers/fakes.dart';
 import '../../../helpers/test_server_entry.dart';
-
-const _sandboxSkill = RoomSkill(name: sandboxSkillName, description: 'Sandbox');
 
 class _BlockingThreadsApi extends FakeSoliplexApi {
   final _completer = Completer<List<ThreadInfo>>();
@@ -670,7 +669,8 @@ void main() {
       api.nextRoom = const Room(
         id: 'room-1',
         name: 'Attachable',
-        skills: {sandboxSkillName: _sandboxSkill},
+        acceptsRoomUploads: true,
+        acceptsThreadUploads: true,
       );
       api.nextThreads = const [];
       api.nextRoomUploads = [
@@ -1076,7 +1076,8 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      skills: {sandboxSkillName: _sandboxSkill},
+      acceptsRoomUploads: true,
+      acceptsThreadUploads: true,
     );
     api.nextThreads = const [];
     // nextRoomUploads / nextThreadUploads default to empty → the chip
@@ -1110,7 +1111,8 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      skills: {sandboxSkillName: _sandboxSkill},
+      acceptsRoomUploads: true,
+      acceptsThreadUploads: true,
     );
     api.nextThreads = const [];
     api.nextRoomUploads = [
@@ -1151,7 +1153,8 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      skills: {sandboxSkillName: _sandboxSkill},
+      acceptsRoomUploads: true,
+      acceptsThreadUploads: true,
     );
     api.nextThreads = const [];
     api.nextRoomUploads = [
@@ -1188,7 +1191,8 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      skills: {sandboxSkillName: _sandboxSkill},
+      acceptsRoomUploads: true,
+      acceptsThreadUploads: true,
     );
     api.nextThreads = const [];
     api.nextRoomUploadsError =
@@ -1245,16 +1249,25 @@ void main() {
   });
 
   group('attachment detection', () {
-    testWidgets('welcome composer shows attach when room has sandbox skill',
-        (tester) async {
+    testWidgets(
+        'the room scope renders when only threads '
+        'accept uploads', (tester) async {
+      // Records into the scope directly rather than through a pick: there is
+      // no seam to drive the picker, so what this pins is the rendering gate,
+      // not the routing into it. The routing is why the gate matters — a pick
+      // made in the welcome composer is filed against the room scope, there
+      // being no thread yet to route it to — and it has no coverage.
+      //
+      // The surface is the attached-files control and its panel, not the event
+      // banner, which only reports transitions of uploads it saw start.
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
       api.nextRoom = const Room(
         id: 'room-1',
-        name: 'Attachable',
-        skills: {sandboxSkillName: _sandboxSkill},
+        name: 'Plain',
+        acceptsThreadUploads: true,
       );
       api.nextThreads = const [];
 
@@ -1271,16 +1284,224 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+      uploadRegistry
+          .trackerFor(entry: entry, roomId: 'room-1')
+          .recordClientError(
+            roomId: 'room-1',
+            filename: 'notes.pdf',
+            message: 'Could not read the file.',
+          );
+      await tester.pumpAndSettle();
+
+      // The control reports the failure before it is opened, and opening it
+      // names the file that failed.
+      await tester.tap(find.byIcon(Icons.error_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('notes.pdf'), findsOneWidget);
+      expect(find.text('Could not read the file.'), findsOneWidget);
     });
 
-    testWidgets('welcome composer hides attach without the sandbox skill',
+    testWidgets('the attached-files panel closes with its last row',
+        (tester) async {
+      // The control that opens the panel is the only thing that closes it, and
+      // it is withdrawn once neither scope has anything to show. Dismissing
+      // the last row is the ordinary way to reach that, so a panel that
+      // outlived the control would hold the viewport for the rest of the visit.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Plain',
+        acceptsThreadUploads: true,
+      );
+      api.nextThreads = const [];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      uploadRegistry
+          .trackerFor(entry: entry, roomId: 'room-1')
+          .recordClientError(
+            roomId: 'room-1',
+            filename: 'notes.pdf',
+            message: 'Could not read the file.',
+          );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.error_outline));
+      await tester.pumpAndSettle();
+      expect(find.text('notes.pdf'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('notes.pdf'), findsNothing);
+      // The panel renders nothing of its own once both scopes are empty, so
+      // its absence is only observable through its key.
+      expect(find.byKey(filePanelKey), findsNothing);
+
+      // And the ask lapsed with it. Left set, the flag would reopen the panel
+      // over the conversation the moment anything landed in either scope —
+      // taking 40% of the viewport with no tap behind it.
+      uploadRegistry
+          .trackerFor(entry: entry, roomId: 'room-1')
+          .recordClientError(
+            roomId: 'room-1',
+            filename: 'later.pdf',
+            message: 'Could not read the file.',
+          );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(filePanelKey), findsNothing);
+      // The control is back, so the user can still open it deliberately.
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    });
+
+    testWidgets(
+        'the attached-files panel does not follow the user into '
+        'another thread', (tester) async {
+      // The panel is opened over one conversation, and the flag that holds it
+      // open is not the panel. A scope fetched for the first time reads as
+      // content while it loads, so a flag left set would pop a spinner over
+      // the arriving thread and close again when the fetch landed.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Plain',
+        acceptsThreadUploads: true,
+      );
+      api.nextThreads = const [];
+
+      Widget screen(String? threadId) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: entry,
+              roomId: 'room-1',
+              threadId: threadId,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      await tester.pumpWidget(screen(null));
+      await tester.pumpAndSettle();
+
+      uploadRegistry
+          .trackerFor(entry: entry, roomId: 'room-1')
+          .recordClientError(
+            roomId: 'room-1',
+            filename: 'notes.pdf',
+            message: 'Could not read the file.',
+          );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.error_outline));
+      await tester.pumpAndSettle();
+      expect(find.byKey(filePanelKey), findsOneWidget);
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pump();
+
+      expect(find.byKey(filePanelKey), findsNothing);
+    });
+
+    testWidgets('the thread view keeps the room-scope banner', (tester) async {
+      // Inside a thread there is only one banner, and it subscribes to both
+      // scopes. Gating it on the thread capability alone drops room-scope
+      // events in a room that takes room uploads and not thread ones — the
+      // shape the welcome view's banner comment reasons about, which does not
+      // transfer here because that one subscribes to the room scope only.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'RoomUploadsOnly',
+        acceptsRoomUploads: true,
+      );
+      api.nextThreads = const [];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UploadEventBanner), findsOneWidget);
+    });
+
+    testWidgets('the room upload banner is wired into the welcome view',
+        (tester) async {
+      // Presence, deliberately: this pins that the banner is mounted at all.
+      // The gate's other direction is unobservable — the banner reports only
+      // transitions of uploads it saw start, and the sole producer of a
+      // room-scope pending row is the room-info card, which is itself gated on
+      // the room capability. So a room without it has nothing to show whether
+      // the banner is mounted or not.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Plain',
+        acceptsRoomUploads: true,
+      );
+      api.nextThreads = const [];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UploadEventBanner), findsOneWidget);
+    });
+
+    testWidgets(
+        'welcome composer hides attach when the room accepts no thread uploads',
         (tester) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      api.nextRoom = const Room(id: 'room-1', name: 'Plain');
+      // Room capability on, thread capability off: the composer gate is
+      // thread-scoped, so reading the room field would wrongly show attach.
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Plain',
+        acceptsRoomUploads: true,
+      );
       api.nextThreads = const [];
 
       await tester.pumpWidget(MaterialApp(
@@ -1338,10 +1559,43 @@ void main() {
       expect(first, isNot(welcome));
     });
 
-    testWidgets('a room without the sandbox skill can still add an image',
+    testWidgets(
+        'welcome composer shows attach when the room accepts thread uploads',
         (tester) async {
-      // An inline image is a property of the model, not of the room's skills,
-      // so the affordance this room has no paperclip for must still be here.
+      // The mirror of the hiding case above: room capability off, thread
+      // capability on. The pair is what catches the two fields being swapped,
+      // which either one alone would read as correct.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        acceptsThreadUploads: true,
+      );
+      api.nextThreads = const [];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    });
+
+    testWidgets('a room that accepts no uploads can still add an image',
+        (tester) async {
+      // An inline image travels in the message, not as a file uploaded to the
+      // thread, so the affordance this room has no paperclip for must remain.
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -1364,86 +1618,6 @@ void main() {
 
       expect(find.byIcon(Icons.attach_file), findsNothing);
       expect(find.byTooltip('Add image'), findsOneWidget);
-    });
-
-    // A thread's replayed AG-UI state does not decide attachment support; the
-    // room capability does. Both fixtures were shipped bugs: `{}` is the
-    // freshly created thread whose only run is unfinished, and `{'rag': ...}`
-    // is what a real sandbox+RAG room replays.
-    for (final (label, aguiState) in const <(String, Map<String, dynamic>)>[
-      ('empty', {}),
-      ('rag-only', {'rag': <String, dynamic>{}}),
-    ]) {
-      testWidgets(
-          'active thread with $label AG-UI state shows attach when the room '
-          'has the skill', (tester) async {
-        tester.view.physicalSize = const Size(1200, 800);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-
-        api.nextRoom = const Room(
-          id: 'room-1',
-          name: 'Attachable',
-          skills: {sandboxSkillName: _sandboxSkill},
-        );
-        api.nextThreads = const [];
-        api.nextThreadHistory = ThreadHistory(
-          messages: const [],
-          aguiState: aguiState,
-        );
-
-        await tester.pumpWidget(MaterialApp(
-          home: RoomScreen(
-            serverEntry: entry,
-            roomId: 'room-1',
-            threadId: 'thread-1',
-            runtimeManager: runtimeManager,
-            registry: registry,
-            uploadRegistry: uploadRegistry,
-            documentSelections: DocumentSelections(),
-          ),
-        ));
-        await tester.pumpAndSettle();
-
-        expect(find.byIcon(Icons.attach_file), findsOneWidget);
-      });
-    }
-
-    testWidgets('registry-restored thread shows attach from the room skill',
-        (tester) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      // Room has the skill; a live session is pre-registered so ThreadViewState
-      // restores from the registry and never fetches history (the sendToNewThread
-      // / return-to-running-thread path). The gate depends entirely on the room
-      // having loaded, so attach must still show.
-      api.nextRoom = const Room(
-        id: 'room-1',
-        name: 'Attachable',
-        skills: {sandboxSkillName: _sandboxSkill},
-      );
-      api.nextThreads = const [];
-      final key =
-          (serverId: entry.serverId, roomId: 'room-1', threadId: 'thread-1');
-      registry.register(key, ManualAgentSession(key));
-
-      await tester.pumpWidget(MaterialApp(
-        home: RoomScreen(
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.byIcon(Icons.attach_file), findsOneWidget);
     });
   });
 

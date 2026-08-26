@@ -10,6 +10,24 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- The attached-files panel no longer strands open, and no longer reopens by
+  itself. The control that opens it is the only one that closes it, and it is
+  withdrawn once neither upload scope has anything left to show — so dismissing
+  the last row left the panel holding up to 40% of the viewport for the rest of
+  the visit with nothing able to collapse it. The request to open it is now
+  withdrawn with the control, so a later upload no longer springs the panel back
+  open over the conversation with no tap behind it.
+- A room's uploaded-file list no longer shows a permanent error row when the
+  installation configures no upload path for that scope. The server reports
+  that by having no list to give, which read as a failure to reach one. The same
+  bare 404 also answers an unknown room and one the caller may no longer read,
+  so a list already on screen is kept and the refusal recorded instead of being
+  silently emptied.
+- A file picked in the welcome composer, before the thread it was destined for
+  exists, no longer fails silently. Such a pick is recorded against the room
+  scope, there being no thread yet to route it to, and that scope's surfaces
+  were shown only for rooms that accept room uploads — so in a room that
+  accepts only thread uploads the failure had nowhere to render.
 - The file-attach button no longer disappears from a thread once that thread
   has a finished run. Attachment support was read from a `bubble-sandbox`
   namespace in the thread's replayed AG-UI state, which the backend no longer
@@ -64,6 +82,36 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- `Room.acceptsRoomUploads` and `Room.acceptsThreadUploads` carry the server's
+  per-scope upload capability, each folding in the sandbox skill and the
+  installation's upload path for that scope. They replace inferring the answer
+  from the room's skill list, which could not see the upload path at all.
+- Uploading to a room is offered only to administrators. The server has always
+  required one, and the refusal used to arrive after the user had chosen a file.
+  Members still see the room's uploaded files — the agent cites them — and the
+  controls are replaced in place by a line naming who adds them, so a room that
+  already has files explains the absence as readily as an empty one. The answer
+  is asked once per signed-in
+  session and dropped both when that session ends and when the signed-in
+  identity changes — signing in from an expired session never passes through a
+  signed-out state, so neither trigger covers the other. The controls render in
+  their loading state until the answer arrives, for at most three seconds — the
+  request queues behind every other one to that server, so waiting on it
+  without a bound would leave an administrator unable to press a control they
+  are entitled to. A request that cannot be answered, or that outruns that
+  bound, reads as permission rather than withdrawing the controls, and an
+  answer that lands afterwards still withdraws them. A request the server
+  *refuses* is different: a refusal is an answer, so it withholds the controls
+  — the gate must not loosen as the installation tightens — but it is not kept
+  for the session the way a refusal delivered over 200 is: that one is the
+  installation's, while a 403 may be a gateway's, so the next screen asks
+  again rather than locking out an administrator it was never about. Failures
+  are recorded.
+- A server that reports no upload capability is recorded once, rather than
+  silently withholding every attach control. Both the room listing and a
+  single-room fetch report it, so a deep link into a room is covered too, and a
+  field of the wrong type costs its own value instead of dropping the whole
+  room from the lobby.
 - `installUncaughtErrorLogging()` records errors no `catch` in the app saw —
   the framework's, via `FlutterError.onError`, and the root zone's unhandled
   asynchronous ones, via `PlatformDispatcher.onError` — into the same log sinks
@@ -74,10 +122,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Changed
 
 - **Breaking (library):** `Room.supportsAttachments` is replaced by
-  `Room.supportsRoomAttachments` and `Room.supportsThreadAttachments`. The
-  server gates room and thread uploads on separate installation settings, so an
-  unqualified name had to silently pick one. Both currently answer the same
-  room-level condition.
+  `Room.acceptsRoomUploads` and `Room.acceptsThreadUploads`. The server gates
+  room and thread uploads on separate installation settings, so an unqualified
+  name had to silently pick one.
+- **Breaking (library):** `sandboxSkillName` is removed. Nothing infers upload
+  capability from the skill list any more, so it named a wire key no decision
+  reads. This requires a backend that publishes `has_room_uploads` and
+  `has_thread_uploads`.
 - **Breaking (library):** `ThreadHistory.supportsAttachments` is removed.
   Nothing produces the state it read, and it has no replacement — attachment
   support is a property of the room, not of one of its threads.

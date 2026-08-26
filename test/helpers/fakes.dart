@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
@@ -30,6 +32,31 @@ AppIdentity testIdentity() => const AppIdentity(
       appName: 'Test App',
       logoLight: Icon(Icons.bolt),
     );
+
+/// Hands out clients that answer only `GET /user/authz`, counting the asks
+/// across all of them.
+///
+/// One client per server, because a `ServerManager` builds one per entry and a
+/// shared instance would let a second server's unrelated request reach the
+/// stub. The count is shared, and is what a test asserts when it cares whether
+/// an answer was reused or re-fetched — the backend writes an audit record per
+/// ask, so a second ask is a server-side side effect, not a wasted round trip.
+class AuthzOnlyClients {
+  int calls = 0;
+
+  FakeHttpClient create() => FakeHttpClient()
+    ..onRequest = (method, uri) async {
+      if (!uri.path.endsWith('/user/authz')) {
+        throw UnimplementedError(uri.path);
+      }
+      calls++;
+      return HttpResponse(
+        statusCode: 200,
+        bodyBytes: Uint8List.fromList(utf8.encode('{"is_admin_user": true}')),
+        headers: const {'content-type': 'application/json'},
+      );
+    };
+}
 
 /// Minimal HTTP client with configurable responses.
 ///
@@ -205,6 +232,31 @@ class FakeSoliplexApi extends SoliplexApi {
   /// When set, [getRooms] awaits this before returning, letting a test hold a
   /// rooms fetch in flight (e.g. to exercise the rail's staleness guard).
   Completer<void>? roomsGate;
+
+  /// The answer [getIsAdminUser] returns. Defaults to an administrator, so a
+  /// test that does not set it still exercises the upload controls.
+  bool nextIsAdminUser = true;
+
+  /// Thrown by [getIsAdminUser] when set and [isAdminUserGate] is not — a
+  /// gated request fails through its own completer instead. Not typed
+  /// [Exception]: a closed client throws an [Error], and that path is the one
+  /// worth feeding.
+  Object? nextIsAdminUserThrow;
+
+  /// When set, [getIsAdminUser] awaits this before answering, so a test can
+  /// hold a request in flight.
+  Completer<bool>? isAdminUserGate;
+
+  int getIsAdminUserCallCount = 0;
+
+  @override
+  Future<bool> getIsAdminUser({CancelToken? cancelToken}) async {
+    getIsAdminUserCallCount++;
+    final gate = isAdminUserGate;
+    if (gate != null) return gate.future;
+    if (nextIsAdminUserThrow != null) throw nextIsAdminUserThrow!;
+    return nextIsAdminUser;
+  }
 
   List<RagDocument>? nextDocuments;
   Exception? nextDocumentsError;

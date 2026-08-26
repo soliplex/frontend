@@ -364,6 +364,34 @@ class UploadTracker {
         error: error,
       );
       _auth.markSessionExpired();
+    } on NotFoundException {
+      // Must precede the SoliplexException arm. A scope the installation
+      // configures no upload path for has no list to give, and the server says
+      // so with a 404 — an empty shelf rather than a failure to reach one.
+      // Rendering that as a failure put a permanent error row on every visit to
+      // a room not set up for uploads to this scope.
+      //
+      // Only where nothing has loaded yet, which is that room on every refresh.
+      // The same bare 404 also answers an unknown room and one this user may no
+      // longer read, because the membership check runs ahead of the path check,
+      // and a list already on screen must not be retracted on either. Those
+      // keep the list, on the same terms as any other refresh failure.
+      //
+      // The empty shelf is deliberately unrecorded: for such a room it is the
+      // answer every time, so a record would be one line per room entry
+      // describing a configuration working as intended. A 404 arriving after a
+      // load cannot be that configuration, so that one is recorded. Neither
+      // touches `pending`, so a pick failure already filed here survives.
+      if (token.isCancelled || _isDisposed) return;
+      scope.fetchToken = null;
+      if (scope.persisted == null) {
+        scope.persisted = const [];
+        _emit(scope);
+        return;
+      }
+      // The exception carries the server's own text and the path it was built
+      // from, and neither adds to what this line already says.
+      _logger.warning('Upload list refresh 404d after a load; keeping it');
     } on SoliplexException catch (error) {
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;

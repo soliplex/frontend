@@ -140,7 +140,7 @@ RoomTool roomToolFromJson(String name, Map<String, dynamic> json) {
     description: (json['tool_description'] as String?) ?? '',
     kind: (json['kind'] as String?) ?? '',
     toolRequires: (json['tool_requires'] as String?) ?? '',
-    allowMcp: json['allow_mcp'] as bool? ?? false,
+    allowMcp: boolOrNull(json['allow_mcp'], 'allow_mcp') ?? false,
     extraParameters:
         (json['extra_parameters'] as Map<String, dynamic>?) ?? const {},
     aguiFeatureNames:
@@ -337,7 +337,7 @@ Room roomFromJson(Map<String, dynamic> json) {
     quizzes: quizzes,
     suggestions: suggestions,
     welcomeMessage: (json['welcome_message'] as String?) ?? '',
-    allowMcp: json['allow_mcp'] as bool? ?? false,
+    allowMcp: boolOrNull(json['allow_mcp'], 'allow_mcp') ?? false,
     agent: agent,
     skills: skills,
     tools: tools,
@@ -345,14 +345,40 @@ Room roomFromJson(Map<String, dynamic> json) {
     toolDefinitions: toolDefinitions,
     aguiFeatureNames:
         stringList(json['agui_feature_names'], 'agui_feature_names'),
+    // Absent — or wrongly typed — reads as no capability, which withholds
+    // every upload control. That is a default, not a deduction: a server too
+    // old to publish these can still have upload paths configured, and
+    // nothing readable here distinguishes it from a server that has none.
+    // [roomOmitsUploadCapability] is what lets a caller record the difference.
+    acceptsRoomUploads:
+        boolOrNull(json[_roomUploadsKey], _roomUploadsKey) ?? false,
+    acceptsThreadUploads:
+        boolOrNull(json[_threadUploadsKey], _threadUploadsKey) ?? false,
   );
 }
 
+/// The rooms API's per-scope upload capability keys.
+///
+/// Named once so the reader below cannot drift from the parser above.
+const _roomUploadsKey = 'has_room_uploads';
+const _threadUploadsKey = 'has_thread_uploads';
+
+/// Whether a room payload reported neither upload scope.
+///
+/// Absent and explicitly null read alike, because both mean the server did not
+/// say and both withhold every upload control. A present-but-wrongly-typed
+/// value is not an omission and is left to [boolOrNull], which records it
+/// against the field it arrived in.
+bool roomOmitsUploadCapability(Map<String, dynamic> json) =>
+    json[_roomUploadsKey] == null && json[_threadUploadsKey] == null;
+
 /// Converts a [Room] to JSON.
 ///
-/// This is a partial serialization — fields like [Room.agent],
-/// [Room.mcpClientToolsets], [Room.allowMcp], and [Room.suggestions]
-/// are not yet serialized. Add them here when round-trip fidelity is needed.
+/// This is a partial serialization — [Room.agent], [Room.mcpClientToolsets],
+/// [Room.allowMcp], [Room.suggestions], [Room.quizzes], [Room.tools],
+/// [Room.acceptsRoomUploads] and [Room.acceptsThreadUploads] are not
+/// serialized. Add them here when round-trip fidelity is needed; until then a
+/// round trip reports a room as accepting no uploads.
 Map<String, dynamic> roomToJson(Room room) {
   return {
     'id': room.id,

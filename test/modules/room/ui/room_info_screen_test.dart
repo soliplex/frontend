@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/shared/selectable_content.dart';
@@ -12,14 +13,13 @@ import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart'
 import '../../../helpers/fakes.dart';
 import '../../../helpers/test_server_entry.dart';
 
-const _sandboxSkill = RoomSkill(name: sandboxSkillName, description: 'Sandbox');
-
 const _testRoom = Room(
   id: 'room-1',
   name: 'Test Room',
   description: 'A test room',
-  skills: {sandboxSkillName: _sandboxSkill},
   allowMcp: true,
+  acceptsRoomUploads: true,
+  acceptsThreadUploads: true,
   agent: DefaultRoomAgent(
     id: 'agent-1',
     modelName: 'gpt-4o',
@@ -142,8 +142,192 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('FEATURES'), findsOneWidget);
-      // One attachments row per scope.
-      expect(find.text('Enabled'), findsNWidgets(2));
+    });
+
+    group('room upload controls', () {
+      // Uploading to a room needs an administrator; reading the list does not.
+      Future<void> pumpAs(WidgetTester tester, FakeSoliplexApi api) async {
+        await tester.pumpWidget(_buildScreen(api: api));
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          // Not the exact string: the card titles itself 'UPLOADED FILES (n)'
+          // once it has any, and this group scrolls to it with and without.
+          find.textContaining('UPLOADED FILES'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+      }
+
+      SoliplexButton buttonFor(WidgetTester tester, String label) =>
+          tester.widget<SoliplexButton>(
+            find.ancestor(
+              of: find.text(label),
+              matching: find.byType(SoliplexButton),
+            ),
+          );
+
+      testWidgets('an administrator gets the plain empty message',
+          (tester) async {
+        // The other arm names who adds the files. Saying that to the person
+        // who does would be wrong, and it is the only thing that tells the two
+        // empty states apart.
+        final api = FakeSoliplexApi()..nextIsAdminUser = true;
+
+        await pumpAs(tester, api);
+
+        expect(find.text('No uploaded files in this room.'), findsOneWidget);
+        expect(
+          find.text('An administrator adds files to this room.'),
+          findsNothing,
+        );
+      });
+
+      testWidgets('everyone else gets the list and an explanation',
+          (tester) async {
+        final api = FakeSoliplexApi()..nextIsAdminUser = false;
+
+        await pumpAs(tester, api);
+
+        expect(find.text('Upload files to room'), findsNothing);
+        expect(find.text('Upload folder to room'), findsNothing);
+        // The card itself stays: members see what the agent can cite.
+        expect(find.text('UPLOADED FILES'), findsOneWidget);
+        expect(find.text('No uploaded files in this room.'), findsOneWidget);
+        expect(
+          find.text('An administrator adds files to this room.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('the explanation does not depend on the list being empty',
+          (tester) async {
+        // It stands in for the controls, so it belongs wherever they were
+        // withdrawn. Carried by the empty message it would be unreachable in
+        // exactly the rooms that have something to show, and the controls
+        // would vanish with nothing anywhere saying why.
+        final api = FakeSoliplexApi()
+          ..nextIsAdminUser = false
+          ..nextRoomUploads = [
+            FileUpload(
+              filename: 'shared.pdf',
+              url: Uri.parse('https://example.com/shared.pdf'),
+            ),
+          ];
+
+        await pumpAs(tester, api);
+
+        expect(find.text('shared.pdf'), findsOneWidget);
+        expect(find.text('Upload files to room'), findsNothing);
+        expect(
+          find.text('An administrator adds files to this room.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('an unanswerable request leaves them usable', (tester) async {
+        // Withholding them on a failed request would strip an administrator of
+        // a capability they have; the server still refuses anyone else. The
+        // answer resolves before the bound here, so `onTimeout` never fires —
+        // the sibling below covers the request that outruns it. Asserts the
+        // controls are live rather than merely present, since present-but-
+        // loading is disabled and would read as a refusal.
+        final api = FakeSoliplexApi()
+          ..nextIsAdminUserThrow = NetworkException(message: 'offline');
+
+        await pumpAs(tester, api);
+
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
+        expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
+      });
+
+      testWidgets('a failure that lands after the bound leaves the guess alone',
+          (tester) async {
+        // The under-load shape: the request outruns the bound, the controls go
+        // live on the guess, and the request then fails outright. Writing that
+        // non-answer over the guess would put the controls back into their
+        // loading state — disabled, with nothing left to resolve them.
+        final gate = Completer<bool>();
+        final api = FakeSoliplexApi()..isAdminUserGate = gate;
+
+        await tester.pumpWidget(_buildScreen(api: api));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 5));
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
+
+        gate.completeError(NetworkException(message: 'offline'));
+        // Pumped rather than settled: were the guess overwritten, the spinner
+        // that replaced it would animate forever and settling would hang
+        // instead of failing the assertion below.
+        await tester.pump();
+        await tester.pump();
+
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
+        expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
+      });
+
+      testWidgets('they are present but not usable until the answer arrives',
+          (tester) async {
+        // An absent control would read as a refusal, so the wait renders as a
+        // control on its way instead.
+        final gate = Completer<bool>();
+        final api = FakeSoliplexApi()..isAdminUserGate = gate;
+
+        // Pumped rather than settled: the loading spinner animates forever, so
+        // there is no quiet frame to settle to until the answer lands.
+        await tester.pumpWidget(_buildScreen(api: api));
+        await tester.pump();
+        await tester.pump();
+
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isTrue);
+        expect(buttonFor(tester, 'Upload folder to room').isLoading, isTrue);
+
+        gate.complete(true);
+        await tester.pumpAndSettle();
+
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
+        expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
+      });
+
+      testWidgets(
+          'they go live at the bound, and a later refusal withdraws '
+          'them', (tester) async {
+        // Loading is disabled, and the request's own timeout starts only once
+        // it holds one of six shared connection slots — so uploads already
+        // running can keep it queued well past that timeout, and waiting
+        // unbounded would strip an administrator of a capability they have.
+        //
+        // The guess that bound produces must not then stand for the life of
+        // the screen: left standing, it hands a non-administrator two controls
+        // whose every use the server refuses once they have chosen a file.
+        final gate = Completer<bool>();
+        final api = FakeSoliplexApi()..isAdminUserGate = gate;
+
+        await tester.pumpWidget(_buildScreen(api: api));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 5));
+        // Live, not merely present — this is the guess the answer overturns.
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
+
+        gate.complete(false);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Upload files to room'), findsNothing);
+        expect(find.text('Upload folder to room'), findsNothing);
+      });
+    });
+
+    testWidgets(
+        'hides the uploaded files card when the room accepts no room '
+        'uploads', (tester) async {
+      // Thread capability on, room capability off: the card is room-scoped, so
+      // reading the wrong field would show it and fetch a list the server has
+      // no path for.
+      await tester.pumpWidget(_buildScreen(
+        room: _testRoom.copyWith(acceptsRoomUploads: false),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('UPLOADED FILES'), findsNothing);
     });
 
     testWidgets('shows tools section', (tester) async {
