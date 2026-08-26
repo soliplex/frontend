@@ -224,45 +224,74 @@ void main() {
         );
       });
 
-      testWidgets('an unanswerable request leaves them usable', (tester) async {
-        // Withholding them on a failed request would strip an administrator of
-        // a capability they have; the server still refuses anyone else. The
-        // answer resolves before the bound here, so `onTimeout` never fires —
-        // the sibling below covers the request that outruns it. Asserts the
-        // controls are live rather than merely present, since present-but-
-        // loading is disabled and would read as a refusal.
+      testWidgets('an unanswerable check says so and offers a retry',
+          (tester) async {
+        // The upload POST authorizes through the same installation-side check
+        // this answer comes from, so a check that cannot answer cannot
+        // authorize either. Offering the controls would offer an action whose
+        // every use fails.
         final api = FakeSoliplexApi()
           ..nextIsAdminUserThrow = NetworkException(message: 'offline');
 
         await pumpAs(tester, api);
 
-        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
-        expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
+        expect(find.text('Upload files to room'), findsNothing);
+        expect(
+          find.text("Couldn't check whether you can add files here."),
+          findsOneWidget,
+        );
+        // Not the refusal copy: it names who does add the files, which is a
+        // claim about the user that nothing here established.
+        expect(
+          find.text('An administrator adds files to this room.'),
+          findsNothing,
+        );
       });
 
-      testWidgets('a failure that lands after the bound leaves the guess alone',
+      testWidgets('the retry asks again', (tester) async {
+        // An unanswered check is never kept, so this is a real second request
+        // rather than a replayed non-answer.
+        final api = FakeSoliplexApi()
+          ..nextIsAdminUserThrow = NetworkException(message: 'offline');
+
+        await pumpAs(tester, api);
+        expect(api.getIsAdminUserCallCount, 1);
+
+        api
+          ..nextIsAdminUserThrow = null
+          ..nextIsAdminUser = true;
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
+
+        expect(api.getIsAdminUserCallCount, 2);
+        // The answer that arrives replaces the unknown, so the controls appear.
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
+      });
+
+      testWidgets('a check still queued at the bound withholds the controls',
           (tester) async {
-        // The under-load shape: the request outruns the bound, the controls go
-        // live on the guess, and the request then fails outright. Writing that
-        // non-answer over the guess would put the controls back into their
-        // loading state — disabled, with nothing left to resolve them.
+        // The under-load shape: the request's own timeout starts only once it
+        // holds one of six shared connection slots, so an upload already
+        // running can keep it queued far past that timeout.
         final gate = Completer<bool>();
         final api = FakeSoliplexApi()..isAdminUserGate = gate;
 
         await tester.pumpWidget(_buildScreen(api: api));
         await tester.pump();
         await tester.pump(const Duration(seconds: 5));
-        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
 
-        gate.completeError(NetworkException(message: 'offline'));
-        // Pumped rather than settled: were the guess overwritten, the spinner
-        // that replaced it would animate forever and settling would hang
-        // instead of failing the assertion below.
-        await tester.pump();
-        await tester.pump();
+        expect(find.text('Upload files to room'), findsNothing);
+        expect(
+          find.text("Couldn't check whether you can add files here."),
+          findsOneWidget,
+        );
+
+        // The bound does not end the request: an answer arriving later still
+        // replaces what the bound wrote, in either direction.
+        gate.complete(true);
+        await tester.pumpAndSettle();
 
         expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
-        expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
       });
 
       testWidgets('they are present but not usable until the answer arrives',
@@ -288,31 +317,30 @@ void main() {
         expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
       });
 
-      testWidgets(
-          'they go live at the bound, and a later refusal withdraws '
-          'them', (tester) async {
-        // Loading is disabled, and the request's own timeout starts only once
-        // it holds one of six shared connection slots — so uploads already
-        // running can keep it queued well past that timeout, and waiting
-        // unbounded would strip an administrator of a capability they have.
-        //
-        // The guess that bound produces must not then stand for the life of
-        // the screen: left standing, it hands a non-administrator two controls
-        // whose every use the server refuses once they have chosen a file.
+      testWidgets('a refusal after the bound replaces the unknown',
+          (tester) async {
+        // The other polarity of the late answer: the check outruns the bound,
+        // then the installation says no. The client may name who adds the
+        // files only once it has been told.
         final gate = Completer<bool>();
         final api = FakeSoliplexApi()..isAdminUserGate = gate;
 
         await tester.pumpWidget(_buildScreen(api: api));
         await tester.pump();
         await tester.pump(const Duration(seconds: 5));
-        // Live, not merely present — this is the guess the answer overturns.
-        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
 
         gate.complete(false);
         await tester.pumpAndSettle();
 
         expect(find.text('Upload files to room'), findsNothing);
-        expect(find.text('Upload folder to room'), findsNothing);
+        expect(
+          find.text('An administrator adds files to this room.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text("Couldn't check whether you can add files here."),
+          findsNothing,
+        );
       });
     });
 

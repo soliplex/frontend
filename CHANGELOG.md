@@ -86,27 +86,33 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   per-scope upload capability, each folding in the sandbox skill and the
   installation's upload path for that scope. They replace inferring the answer
   from the room's skill list, which could not see the upload path at all.
-- Uploading to a room is offered only to administrators. The server has always
-  required one, and the refusal used to arrive after the user had chosen a file.
-  Members still see the room's uploaded files — the agent cites them — and the
-  controls are replaced in place by a line naming who adds them, so a room that
-  already has files explains the absence as readily as an empty one. The answer
-  is asked once per signed-in
-  session and dropped both when that session ends and when the signed-in
-  identity changes — signing in from an expired session never passes through a
-  signed-out state, so neither trigger covers the other. The controls render in
-  their loading state until the answer arrives, for at most three seconds — the
-  request queues behind every other one to that server, so waiting on it
-  without a bound would leave an administrator unable to press a control they
-  are entitled to. A request that cannot be answered, or that outruns that
-  bound, reads as permission rather than withdrawing the controls, and an
-  answer that lands afterwards still withdraws them. A request the server
-  *refuses* is different: a refusal is an answer, so it withholds the controls
-  — the gate must not loosen as the installation tightens — but it is not kept
-  for the session the way a refusal delivered over 200 is: that one is the
-  installation's, while a 403 may be a gateway's, so the next screen asks
-  again rather than locking out an administrator it was never about. Failures
-  are recorded.
+- Uploading to a room is offered only to administrators, and only once the server
+  has said so. The server has always required one, and the refusal used to
+  arrive after the user had chosen a file. Members still see the room's
+  uploaded files — the agent cites them — and the controls are replaced in
+  place by a line naming who adds them, so a room that already has files
+  explains the absence as readily as an empty one. The answer is asked once per
+  signed-in session and dropped both when that session ends and when the
+  signed-in identity changes — signing in from an expired session never passes
+  through a signed-out state, so neither trigger covers the other.
+
+  A check that cannot answer withholds the controls and says only that. The
+  upload authorizes through the same installation-side administrator check this
+  answer comes from, so a check that cannot answer cannot authorize either, and
+  offering the controls would offer an action whose every use fails — a folder
+  of N files sent in full to be refused N times. It does not borrow the
+  refusal's wording, which names who does add the files and so asserts
+  something about the user that nothing established; a retry sits beside it
+  instead. The controls render in their loading state for at most three
+  seconds, because the request queues behind every other one to that server —
+  but the bound does not end the request, and an answer arriving later still
+  replaces what the bound wrote, in either direction. A refusal the server
+  delivers over 403 is an answer and withholds the controls, but unlike one
+  delivered over 200 it is not kept for the session: that one is the
+  installation's, while a 403 may be a gateway's, so the next screen asks again
+  rather than locking out an administrator it was never about. Failures are
+  recorded.
+
 - A server that reports no upload capability is recorded once, rather than
   silently withholding every attach control. Both the room listing and a
   single-room fetch report it, so a deep link into a room is covered too, and a
