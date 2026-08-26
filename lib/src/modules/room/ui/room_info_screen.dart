@@ -375,23 +375,40 @@ class _UploadedFilesCard extends StatefulWidget {
   State<_UploadedFilesCard> createState() => _UploadedFilesCardState();
 }
 
+/// What is known about whether the signed-in user may upload to this room.
+///
+/// Four states rather than a `bool?`, because a question that was *not
+/// answered* is not the same as one answered "no", and the two must not render
+/// alike: the refusal names who does add the files, which is a claim about the
+/// user this client is in no position to make when it never got an answer.
+enum _UploadPermission {
+  /// The answer is outstanding and still within [_UploadedFilesCardState
+  /// ._permissionWait].
+  checking,
+
+  /// The installation said the user is an administrator.
+  permitted,
+
+  /// The installation said the user is not one.
+  refused,
+
+  /// The question could not be answered — the request failed, or was still
+  /// queued at the bound. Not a verdict, and never rendered as one.
+  unknown,
+}
+
 class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   late final UploadTracker _tracker;
 
-  /// Whether the signed-in user may upload to this room: `null` while the
-  /// answer is outstanding, and `false` only once the server has answered that
-  /// they are not an administrator.
+  /// What is known about the caller's permission to upload here.
   ///
-  /// Each state renders: `null` the controls in their loading state, so a
-  /// slow answer shows a control on its way rather than no control at all;
-  /// `true` the controls; `false` a line naming who adds the files, in the
-  /// slot the controls would have taken, whether or not the list is empty.
-  /// A question that could not be answered reads as permission —
-  /// withholding the controls on a failed request would strip an
-  /// administrator of a capability they have, and the server still refuses
-  /// anyone else. [_permissionWait] bounds how long `null` can last, so that
-  /// reading is reached in bounded time rather than only on a failed request.
-  bool? _mayUpload;
+  /// The controls are offered only under [_UploadPermission.permitted]. An
+  /// unanswered check withholds them and says so, because the upload `POST`
+  /// authorizes through the same installation-side administrator check this
+  /// answer comes from: when that check cannot answer, it cannot authorize
+  /// either, so offering the controls would offer an action whose every use
+  /// fails — a folder of N files uploaded in full to be refused N times.
+  _UploadPermission _permission = _UploadPermission.checking;
 
   @override
   void initState() {
@@ -411,15 +428,16 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
 
   // Not disposed here — the registry owns the tracker's lifecycle.
 
-  /// How long the controls may stay in their loading state before the answer
-  /// is treated as one that did not arrive.
+  /// How long the controls may stay in their loading state before the check is
+  /// reported as one that has not answered.
   ///
   /// The request's own timeout does not bound this: it starts only once the
   /// request holds one of the six connection slots shared with every other
   /// request to this server, and an upload already running can hold one for
   /// the whole 600 seconds the transport allows it. Loading renders as
-  /// disabled, so an unbounded wait would withhold from an administrator a
-  /// capability they have — the outcome the `null` reading exists to avoid.
+  /// disabled, so without a bound the controls would sit unpressable and
+  /// unexplained for as long as that queue lasts. The bound does not end the
+  /// request — an answer arriving later still replaces what the bound wrote.
   static const Duration _permissionWait = Duration(seconds: 3);
 
   /// Uploading to a room needs an administrator, which is a fact about the
@@ -427,43 +445,76 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   ///
   /// `AdminStatus.read` never completes with an error, so nothing here needs a
   /// guard beyond [mounted].
+  ///
+  /// Safe to re-enter, which is what the retry control does. A reader that has
+  /// been overtaken either returns without writing — `settled == null` is the
+  /// only state it could write, and it declines to — or resolves the same
+  /// definite answer as the reader that overtook it, because
+  /// [AdminStatus.read] hands both the same request while one is in flight.
   Future<void> _resolveUploadPermission() async {
     final answer = widget.serverEntry.adminStatus.read();
+    var timedOut = false;
     final bounded = await answer.timeout(
       _permissionWait,
-      onTimeout: () => null,
+      onTimeout: () {
+        timedOut = true;
+        return null;
+      },
     );
     if (!mounted) return;
-    // Answered within the bound. [answer] completes once, so awaiting it again
-    // below could only yield this same value; returning here is what says so.
     if (bounded != null) {
-      setState(() => _mayUpload = bounded);
+      _settle(bounded);
       return;
     }
 
-    // Records the decision, not its cause: a request that failed is already
-    // described by `AdminStatus`, but one still queued at the bound says
-    // nothing, and that is the branch reachable under load. Granting the
-    // capability on a guess is worth a line either way — paired with the cause
-    // when there is one, and the only trace when there is not. After the
-    // [mounted] check, so the record is written only where the controls it
-    // describes are actually rendered.
+    // Every arrival at [_UploadPermission.unknown] is recorded, because the
+    // state is indistinguishable on screen from an installation that simply
+    // has no answer to give, and because the two ways of reaching it warrant
+    // different action: `queued` says the server is slow or the client's
+    // connection pool is saturated, `unanswered` says the request failed and
+    // `AdminStatus` has already described how. At `warning` because the
+    // release log floor drops anything lower, and this is the state a user
+    // reports. After the [mounted] check, so the record describes a state that
+    // was actually rendered.
+    //
+    // A request that outruns the bound and *then* fails is recorded twice —
+    // correctly: the wait and the failure are separate events, and only the
+    // first is about this screen.
     _logger.warning(
-      'Showing the room upload controls without an answer on whether the user '
-      'administers this room',
-      attributes: {'roomId': widget.roomId},
+      'Could not confirm whether the user administers this room; withholding '
+      'the room upload controls',
+      attributes: {
+        'roomId': widget.roomId,
+        'reason': timedOut ? 'queued' : 'unanswered',
+      },
     );
-    setState(() => _mayUpload = true);
+    setState(() => _permission = _UploadPermission.unknown);
 
-    // The request outlives the bound, and only a definite refusal corrects the
-    // guess it produced: leaving that guess to stand for the life of the
-    // screen would hand someone two controls whose every use the server
-    // refuses. An answer that never came leaves it exactly as it is — reading
-    // that as permission would grant on the strength of a request `clear`
-    // retired precisely because it describes a different user.
+    // The request outlives the bound, so a definite answer of either polarity
+    // still replaces what the bound wrote. A `null` leaves it alone: that is
+    // either the failure this state already describes, or an answer `clear`
+    // retired because it describes a different user.
     final settled = await answer;
-    if (!mounted || settled != false) return;
-    setState(() => _mayUpload = false);
+    if (!mounted || settled == null) return;
+    _settle(settled);
+  }
+
+  /// Records and applies a verdict the installation delivered.
+  ///
+  /// Recorded at `info`, below the release log floor, because neither outcome
+  /// is a fault — but which one it was is the first question asked of a user
+  /// who says the controls are missing, or present when they should not be.
+  /// Without it a diagnostics export cannot tell "the server said yes" from
+  /// "the gate never ran".
+  void _settle(bool isAdmin) {
+    _logger.info(
+      'The installation answered on whether the user administers this room',
+      attributes: {'roomId': widget.roomId, 'isAdmin': isAdmin},
+    );
+    setState(
+      () => _permission =
+          isAdmin ? _UploadPermission.permitted : _UploadPermission.refused,
+    );
   }
 
   Future<void> _pickAndUpload(
@@ -487,21 +538,12 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       return;
     }
     if (result == null || !mounted) return;
-    // The pick outlives the tap that opened it. That tap cannot have happened
-    // while the answer was outstanding — loading renders the controls
-    // unpressable — but it can have happened on the grant [_permissionWait]
-    // hands out when the answer has not arrived, with the definite refusal
-    // landing since. The controls are already gone by now. Sending anyway
-    // would upload every file in full to have each one refused in turn, so the
-    // refusal is recorded once here instead of once per file by the server.
-    if (_mayUpload == false) {
-      _tracker.recordClientError(
-        roomId: widget.roomId,
-        filename: '(unknown)',
-        message: "You don't have permission to upload here.",
-      );
-      return;
-    }
+    // No permission recheck here. The pick outlives the tap that opened it,
+    // but the controls are pressable only under [_UploadPermission.permitted],
+    // which is written from a definite answer and nothing then moves it. A
+    // grant revoked server-side while the picker was open is left to the
+    // tracker, which renders the `PermissionDeniedException` the POST comes
+    // back with.
     for (final itemError in result.errors) {
       _logger.error(
         'Pick failed',
@@ -540,41 +582,97 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       title: title,
       children: [
         _buildBody(status, theme),
-        // The controls and the sentence that stands in for them share this
-        // slot, so whichever the answer withholds, the other is in its place.
-        // Present but loading while the answer is outstanding, because an
-        // absent control would read as a refusal. [_permissionWait] is what
-        // keeps that state from outlasting the user's patience.
+        // One slot, one occupant per state, so whatever the check withholds
+        // leaves something in its place. Never empty: an absent control would
+        // read as a refusal the client has not been told.
         const SizedBox(height: SoliplexSpacing.s2),
-        if (_mayUpload == false)
-          Text(
-            'An administrator adds files to this room.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+        switch (_permission) {
+          // Present but unpressable, because a control on its way says more
+          // than no control at all. [_permissionWait] bounds how long this
+          // lasts.
+          _UploadPermission.checking ||
+          _UploadPermission.permitted =>
+            _buildUploadControls(
+              isLoading: _permission == _UploadPermission.checking,
             ),
-          )
-        else
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Wrap(
-              spacing: SoliplexSpacing.s2,
-              runSpacing: SoliplexSpacing.s2,
-              children: [
-                SoliplexButton.filled(
-                  onPressed: () => _pickAndUpload(pickFiles),
-                  isLoading: _mayUpload == null,
-                  icon: const Icon(Icons.upload_file, size: 18),
-                  child: const Text('Upload files to room'),
-                ),
-                SoliplexButton.filled(
-                  onPressed: () => _pickAndUpload(pickFolder),
-                  isLoading: _mayUpload == null,
-                  icon: const Icon(Icons.drive_folder_upload, size: 18),
-                  child: const Text('Upload folder to room'),
-                ),
-              ],
+          // The installation answered, so the client may say who does add
+          // them. Stands whether or not the list is empty.
+          _UploadPermission.refused => Text(
+              'An administrator adds files to this room.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
+          // Says only what is true: the check did not answer. Naming an
+          // administrator here would assert something about the user that
+          // nothing established, to someone who may well be one.
+          _UploadPermission.unknown => _buildPermissionUnknown(theme),
+        },
+      ],
+    );
+  }
+
+  /// The two upload controls, greyed while the check is outstanding.
+  Widget _buildUploadControls({required bool isLoading}) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: SoliplexSpacing.s2,
+        runSpacing: SoliplexSpacing.s2,
+        children: [
+          SoliplexButton.filled(
+            onPressed: () => _pickAndUpload(pickFiles),
+            isLoading: isLoading,
+            icon: const Icon(Icons.upload_file, size: 18),
+            child: const Text('Upload files to room'),
           ),
+          SoliplexButton.filled(
+            onPressed: () => _pickAndUpload(pickFolder),
+            isLoading: isLoading,
+            icon: const Icon(Icons.drive_folder_upload, size: 18),
+            child: const Text('Upload folder to room'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// What stands in the controls' slot when the check did not answer.
+  ///
+  /// Carries its own retry because the alternative recourse — leaving the
+  /// screen and returning — is not discoverable from a sentence that does not
+  /// mention it. A retry costs one request: an unanswered check is never kept,
+  /// so [AdminStatus.read] asks again rather than replaying the non-answer.
+  /// While one is still in flight it joins that request instead of issuing a
+  /// second, which is why pressing this repeatedly cannot stack them up.
+  Widget _buildPermissionUnknown(ThemeData theme) {
+    // The failed-row shape `DocumentsCard` uses, so the two cards on this
+    // screen that can fail read alike. It also carries its weight: the refusal
+    // this slot otherwise holds is an ordinary state in ordinary type, and
+    // rendering a failure the same way would leave "you may not add files"
+    // and "nobody could find out" indistinguishable at a glance.
+    return Row(
+      children: [
+        Icon(
+          Icons.error_outline,
+          size: 18,
+          color: theme.colorScheme.error,
+        ),
+        const SizedBox(width: SoliplexSpacing.s2),
+        Expanded(
+          child: Text(
+            "Couldn't check whether you can add files here.",
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.error),
+          ),
+        ),
+        SoliplexButton.filled(
+          onPressed: () {
+            setState(() => _permission = _UploadPermission.checking);
+            unawaited(_resolveUploadPermission());
+          },
+          child: const Text('Retry'),
+        ),
       ],
     );
   }
