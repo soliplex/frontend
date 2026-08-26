@@ -35,6 +35,7 @@ void _login(ServerEntry entry, String sub) {
 typedef _Wired = ({
   ServerManager manager,
   ServerEntry entry,
+  AuthzOnlyClients authz,
   AgentRuntimeManager runtimeManager,
   RunRegistry registry,
   UploadTrackerRegistry uploadRegistry,
@@ -46,9 +47,10 @@ void main() {
   // the server signal but NOT yet populated, and NO coordinator yet — so a test
   // controls exactly when the coordinator first sees the identity.
   _Wired wire({String initialSub = 'alice'}) {
+    final authz = AuthzOnlyClients();
     final manager = ServerManager(
       authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+      clientFactory: ({getToken, tokenRefresher}) => authz.create(),
       storage: InMemoryServerStorage(),
     );
     manager.addServer(
@@ -78,6 +80,7 @@ void main() {
     return (
       manager: manager,
       entry: entry,
+      authz: authz,
       runtimeManager: runtimeManager,
       registry: registry,
       uploadRegistry: uploadRegistry,
@@ -151,6 +154,25 @@ void main() {
       _login(w.entry, 'bob');
 
       expectEvicted(w, captured.runtime, captured.tracker);
+    });
+
+    test(
+        'a different user signing in from an expired session clears the '
+        'admin answer', () async {
+      // The path with no sign-out in it: a token expires, someone else uses
+      // the "sign in again" affordance, and the entry — with its cached
+      // authorization answer — survives. Reading the prior user's verdict here
+      // would offer them room uploads they cannot perform.
+      final w = wire(initialSub: 'alice');
+      coordinator(w);
+      expect(await w.entry.adminStatus.read(), isTrue);
+      expect(w.authz.calls, 1);
+
+      w.entry.auth.markSessionExpired();
+      _login(w.entry, 'bob');
+
+      await w.entry.adminStatus.read();
+      expect(w.authz.calls, 2);
     });
 
     test('a same-user token refresh evicts nothing', () {

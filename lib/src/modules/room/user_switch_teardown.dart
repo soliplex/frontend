@@ -20,10 +20,14 @@ final Logger _logger =
 /// [UploadTrackerRegistry] key by the stable `serverId`; and [DocumentSelections]
 /// holds document filters in a single shared map that is not partitioned by
 /// user. Without this the next user would reattach to the prior user's runtime,
-/// runs, uploads, and document filters. `MessageExpansions` is a fifth
-/// module-owned cache left untouched on purpose: its per-message expand/collapse
-/// state is cosmetic, and a cross-user collision would need a shared
-/// server-assigned `messageId`.
+/// runs, uploads, and document filters. A fifth, `AdminStatus`, hangs off the
+/// `ServerEntry` and holds an authorization answer, so it is evicted here too;
+/// `ServerManager` additionally clears it when a session ends, which reaches
+/// the sign-out path on the opaque-token servers this class cannot see. Their
+/// expiry path is the known gap below, for `AdminStatus` as for the rest.
+/// `MessageExpansions` is a module-owned cache left untouched on purpose: its
+/// per-message expand/collapse state is cosmetic, and a cross-user collision
+/// would need a shared server-assigned `messageId`.
 ///
 /// Detection keys off each server's `AuthSession.currentUserId` rather than the
 /// sign-in call sites: that signal is stable across a token refresh (no
@@ -65,7 +69,7 @@ class UserSwitchTeardown {
         final previous = _lastSeen[serverId];
         _lastSeen[serverId] = identity;
         if (previous != null && previous != identity) {
-          _evict(serverId);
+          _evict(serverId, entry);
         }
       }
     });
@@ -82,7 +86,7 @@ class UserSwitchTeardown {
   final Map<String, String> _lastSeen = {};
   late final void Function() _dispose;
 
-  void _evict(String serverId) {
+  void _evict(String serverId, ServerEntry entry) {
     _logger.info(
       'Different user signed in on $serverId; '
       'tearing down the prior in-memory session',
@@ -94,6 +98,7 @@ class UserSwitchTeardown {
     _step(() => _registry.evictServer(serverId), 'runs', serverId);
     _step(() => _uploadRegistry.evictServer(serverId), 'uploads', serverId);
     _step(() => _documentSelections.clearServer(serverId), 'filters', serverId);
+    _step(() => entry.adminStatus.clear(), 'admin status', serverId);
   }
 
   void _step(void Function() evict, String what, String serverId) {

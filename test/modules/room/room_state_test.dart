@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/admin_status.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
@@ -104,6 +105,10 @@ ServerEntry _fakeServerEntry(ServerConnection connection) => ServerEntry(
       auth: AuthSession(refreshService: FakeTokenRefreshService()),
       httpClient: FakeHttpClient(),
       connection: connection,
+      adminStatus: AdminStatus(
+        api: connection.api,
+        serverId: connection.serverId,
+      ),
     );
 
 void main() {

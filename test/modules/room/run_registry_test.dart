@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/admin_status.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
@@ -16,18 +17,22 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       agUiStreamClient: FakeAgUiStreamClient(),
     );
 
-ServerEntry _entry(String serverId) => ServerEntry(
-      serverId: serverId,
-      alias: serverId,
-      serverUrl: Uri.parse('https://$serverId.example.com'),
-      auth: AuthSession(refreshService: FakeTokenRefreshService()),
-      httpClient: FakeHttpClient(),
-      connection: ServerConnection(
-        serverId: serverId,
-        api: FakeSoliplexApi(),
-        agUiStreamClient: FakeAgUiStreamClient(),
-      ),
-    );
+ServerEntry _entry(String serverId) {
+  final connection = ServerConnection(
+    serverId: serverId,
+    api: FakeSoliplexApi(),
+    agUiStreamClient: FakeAgUiStreamClient(),
+  );
+  return ServerEntry(
+    serverId: serverId,
+    alias: serverId,
+    serverUrl: Uri.parse('https://$serverId.example.com'),
+    auth: AuthSession(refreshService: FakeTokenRefreshService()),
+    httpClient: FakeHttpClient(),
+    connection: connection,
+    adminStatus: AdminStatus(api: connection.api, serverId: serverId),
+  );
+}
 
 const _key = (
   serverId: 'test-server',

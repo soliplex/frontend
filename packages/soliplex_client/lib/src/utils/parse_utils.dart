@@ -45,6 +45,17 @@ int? intOrNull(Object? value, String field) {
   return null;
 }
 
+/// An optional bool field: a present-but-non-bool is logged and dropped rather
+/// than thrown, so one drifted field costs its own value and not the whole
+/// object it belongs to.
+bool? boolOrNull(Object? value, String field) {
+  if (value == null || value is bool) return value as bool?;
+  _logDropped(
+    'field "$field": expected bool, got ${value.runtimeType}; dropped.',
+  );
+  return null;
+}
+
 /// An optional list-of-strings field: a present-but-non-list degrades to empty
 /// and any non-string element is dropped. Both cases are logged; an absent
 /// field is normal and silent.

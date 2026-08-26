@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_frontend/src/modules/auth/admin_status.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -28,6 +29,7 @@ ServerEntry createTestServerEntry({
       api: fakeApi,
       agUiStreamClient: FakeAgUiStreamClient(),
     ),
+    adminStatus: AdminStatus(api: fakeApi, serverId: serverId),
     requiresAuth: requiresAuth,
     name: name,
   );

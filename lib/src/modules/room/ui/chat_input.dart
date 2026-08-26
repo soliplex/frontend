@@ -181,11 +181,21 @@ class _ChatInputState extends State<ChatInput> {
     super.dispose();
   }
 
+  /// Whether the composer takes input at this moment.
+  ///
+  /// The deferred callers need that rather than the answer from the build that
+  /// produced the control, because they outlive it: a pick outlives the tap
+  /// that started it, and a menu route outlives the items it was filled with.
+  /// [build] reads it too, where `peek` and the watched value are the same —
+  /// the `watch` there is what keeps the composer subscribed, so this getter
+  /// must not become its only reader.
+  bool get _acceptsInput => composerAcceptsText(
+        enabled: widget.enabled,
+        sessionState: widget.sessionState?.peek(),
+      );
+
   void _send() {
-    if (!composerAcceptsText(
-      enabled: widget.enabled,
-      sessionState: widget.sessionState?.peek(),
-    )) {
+    if (!_acceptsInput) {
       return;
     }
     final parts = _controller.sendableParts();
@@ -297,10 +307,7 @@ class _ChatInputState extends State<ChatInput> {
     // renders it read-only. An image put there could not be removed until the
     // run ended — a chip showing its picture has no other way out — and would
     // then be sent with whatever the user typed next.
-    if (!composerAcceptsText(
-      enabled: widget.enabled,
-      sessionState: widget.sessionState?.peek(),
-    )) {
+    if (!_acceptsInput) {
       setState(
         () => _attachNotice = 'The composer was busy. Add the images again.',
       );
@@ -364,6 +371,38 @@ class _ChatInputState extends State<ChatInput> {
     );
   }
 
+  /// Runs a choice from the collapsed actions menu.
+  ///
+  /// Everything the choice needs is read here rather than when the menu was
+  /// filled, because the open route outlives that build: the callback may have
+  /// gone (the filter arrives with the room's document load, and either upload
+  /// callback goes with the room's capability) and the composer may since have
+  /// been handed to a run. Refusing does nothing and says nothing: the buttons
+  /// this menu stands in for are greyed before the tap, which a menu item
+  /// cannot be once its route is open, so the tap is absorbed instead.
+  void _onRoomAction(_RoomActionChoice choice) {
+    if (!_acceptsInput) return;
+    switch (choice) {
+      case _RoomActionChoice.filter:
+        widget.onFilterTap?.call();
+      case _RoomActionChoice.uploadFiles:
+        widget.onAttachFile?.call();
+      case _RoomActionChoice.uploadFolder:
+        widget.onAttachFolder?.call();
+    }
+  }
+
+  /// Runs a choice from the attach menu, on the same terms as [_onRoomAction].
+  void _onAttachChoice(_AttachChoice choice) {
+    if (!_acceptsInput) return;
+    switch (choice) {
+      case _AttachChoice.files:
+        widget.onAttachFile?.call();
+      case _AttachChoice.folder:
+        widget.onAttachFolder?.call();
+    }
+  }
+
   /// The composer's leading controls, at most two of them below
   /// [SoliplexBreakpoints.tablet].
   ///
@@ -396,8 +435,8 @@ class _ChatInputState extends State<ChatInput> {
         icon: const Icon(Icons.add_photo_alternate_outlined),
         // Carries the semantics label, so a screen reader names the button.
         tooltip: 'Add image',
-        // Never gated on the room's sandbox capability: that governs uploads to
-        // the thread, while an inline image is a property of the model.
+        // Never gated on the room's upload capability: that governs files sent
+        // to the thread, while an inline image travels in the message.
         onPressed: disabled || _picking ? null : _addImages,
       ),
       if (collapse)
@@ -425,11 +464,7 @@ class _ChatInputState extends State<ChatInput> {
                 child: Text('Upload folder…'),
               ),
           ],
-          onSelected: (choice) => switch (choice) {
-            _RoomActionChoice.filter => widget.onFilterTap!(),
-            _RoomActionChoice.uploadFiles => widget.onAttachFile!(),
-            _RoomActionChoice.uploadFolder => widget.onAttachFolder!(),
-          },
+          onSelected: _onRoomAction,
         )
       else ...[
         if (hasFilter)
@@ -459,10 +494,7 @@ class _ChatInputState extends State<ChatInput> {
                   child: Text('Folder…'),
                 ),
               ],
-              onSelected: (choice) => switch (choice) {
-                _AttachChoice.files => widget.onAttachFile!(),
-                _AttachChoice.folder => widget.onAttachFolder!(),
-              },
+              onSelected: _onAttachChoice,
             )
           else
             IconButton(
@@ -478,8 +510,7 @@ class _ChatInputState extends State<ChatInput> {
   Widget build(BuildContext context) {
     final state = widget.sessionState?.watch(context);
     final active = _isRunActive(state);
-    final disabled =
-        !composerAcceptsText(enabled: widget.enabled, sessionState: state);
+    final disabled = !_acceptsInput;
     final cancelEnabled = widget.cancelEnabled?.watch(context) ?? true;
 
     // Measures the composer, not the row inside its padding, so the threshold

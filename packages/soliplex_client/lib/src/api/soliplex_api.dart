@@ -194,12 +194,16 @@ class SoliplexApi {
     final rooms = <Room>[];
     for (final entry in response.entries) {
       try {
-        rooms.add(roomFromJson(entry.value as Map<String, dynamic>));
-      } catch (e) {
-        developer.log(
-          'Malformed room ignored (${entry.key}): $e',
-          name: 'soliplex_client.api',
-          level: 900,
+        final json = entry.value as Map<String, dynamic>;
+        rooms.add(roomFromJson(json));
+        _noteUploadCapability(entry.key, json);
+      } catch (e, st) {
+        // The room id names the entry; the failure carries the payload that
+        // produced it, so only its shape is kept.
+        _logger.warning(
+          'Malformed room ignored',
+          attributes: {'roomId': entry.key, 'failure': describeFailure(e)},
+          stackTrace: st,
         );
       }
     }
@@ -227,7 +231,40 @@ class SoliplexApi {
       'GET',
       _urlBuilder.build(pathSegments: ['rooms', roomId]),
       cancelToken: cancelToken,
-      fromJson: roomFromJson,
+      // Mapped inside the transport so a malformed payload still surfaces as
+      // [MalformedResponseException] rather than the mapper's own failure.
+      fromJson: (json) {
+        final room = roomFromJson(json);
+        _noteUploadCapability(roomId, json);
+        return room;
+      },
+    );
+  }
+
+  /// Whether [_noteUploadCapability] has already recorded an omission.
+  bool _reportedUploadCapabilityOmission = false;
+
+  /// Records that the server did not report upload capability for [roomId].
+  ///
+  /// Absence withholds every upload control, which is otherwise
+  /// indistinguishable from a room the installation has no upload path for,
+  /// so this record is where that difference survives. It is written once per
+  /// server: the omission belongs to the release the server runs, not to one
+  /// room, and every room in a session comes from one release. Both the
+  /// listing and the single-room fetch report, because a deep link reaches a
+  /// room without ever listing one.
+  ///
+  /// Only a payload that reports neither scope counts, per
+  /// [roomOmitsUploadCapability]. A release that publishes one key and not the
+  /// other withholds that scope's control with nothing recorded here — the two
+  /// keys ship together, so nothing is expected to produce it.
+  void _noteUploadCapability(String roomId, Map<String, dynamic> json) {
+    if (_reportedUploadCapabilityOmission) return;
+    if (!roomOmitsUploadCapability(json)) return;
+    _reportedUploadCapabilityOmission = true;
+    _logger.warning(
+      'Server did not report upload capability; attach controls withheld',
+      attributes: {'roomId': roomId, 'baseUrl': _urlBuilder.baseUrl},
     );
   }
 
@@ -1692,6 +1729,47 @@ class SoliplexApi {
     );
 
     return backendVersionInfoFromJson(response);
+  }
+
+  /// How long to wait for the installation's answer about the caller.
+  ///
+  /// Deliberately far below the 600-second transport default, which is sized
+  /// for the streamed upload bodies that rely on it: this is a small question
+  /// whose answer gates an affordance. It bounds the request only once it
+  /// holds a concurrency slot, so a caller that must render before the answer
+  /// arrives still needs its own in-flight state.
+  static const Duration _authzTimeout = Duration(seconds: 15);
+
+  /// Whether the signed-in user is an administrator of this installation.
+  ///
+  /// Installation-wide, not per room. Each call is audited server-side, so
+  /// this is worth keeping for a session rather than asking per screen.
+  ///
+  /// Throws:
+  /// - [NetworkException] if connection fails, including on [_authzTimeout]
+  /// - [AuthException] if not authenticated (401)
+  /// - [NotFoundException] if the server has no such endpoint (404)
+  /// - [PermissionDeniedException] if the caller may not ask (403)
+  /// - [ApiException] for other server errors
+  /// - [MalformedResponseException] if the body is not a JSON object — a
+  ///   portal or proxy answering 200 with a page is the reachable case — or if
+  ///   `is_admin_user` is missing or not a bool
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<bool> getIsAdminUser({CancelToken? cancelToken}) async {
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(pathSegments: ['user', 'authz']),
+      cancelToken: cancelToken,
+      timeout: _authzTimeout,
+    );
+
+    final isAdmin = response['is_admin_user'];
+    if (isAdmin is! bool) {
+      throw const MalformedResponseException(
+        message: 'user authz response has no boolean "is_admin_user"',
+      );
+    }
+    return isAdmin;
   }
 
   /// Gets Monty-compatible Python schema validators from the backend.

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_frontend/src/modules/auth/admin_status.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
@@ -20,13 +21,15 @@ class _FakeServerConnection extends Fake implements ServerConnection {
 class _MockSoliplexApi extends Mock implements SoliplexApi {}
 
 ServerEntry _entry(String serverId, {SoliplexApi? api}) {
+  final entryApi = api ?? _MockSoliplexApi();
   return ServerEntry(
     serverId: serverId,
     alias: serverId,
     serverUrl: Uri.parse('https://$serverId.example.com'),
     auth: AuthSession(refreshService: FakeTokenRefreshService()),
     httpClient: _FakeHttpClient(),
-    connection: _FakeServerConnection(api ?? _MockSoliplexApi()),
+    connection: _FakeServerConnection(entryApi),
+    adminStatus: AdminStatus(api: entryApi, serverId: serverId),
   );
 }
 

@@ -143,6 +143,14 @@ const double _sidebarWidth = 300;
 /// edge. Below this width the content fills the available space.
 const double _maxContentWidth = SoliplexBreakpoints.desktop;
 
+/// Identifies the attached-files panel.
+///
+/// The panel renders nothing of its own when both scopes are empty, so whether
+/// it is on screen is otherwise unobservable — and it being on screen with
+/// nothing in it, and no control left to close it, is the defect this names.
+@visibleForTesting
+const Key filePanelKey = Key('room-attached-files-panel');
+
 /// Builds the label for the file indicator chip in the room header.
 ///
 /// Shows separate counts for room and thread uploads. At least one
@@ -996,6 +1004,12 @@ class _RoomScreenState extends State<RoomScreen> {
     final roomChanged = widget.roomId != oldWidget.roomId || serverChanged;
     if (roomChanged || widget.threadId != oldWidget.threadId) {
       _markPreviousThreadRead(oldWidget);
+      // The panel belongs to the conversation it was opened over. Left set, it
+      // would reopen uninvited on arrival: a scope fetched for the first time
+      // reads as content while it loads, so an expanded flag outliving its
+      // rows pops a spinner over the incoming thread and closes again when the
+      // fetch lands.
+      _filesExpanded = false;
     }
     if (roomChanged) {
       // Mark the room being left read (under its own coordinates) before its
@@ -1796,20 +1810,32 @@ class _RoomScreenState extends State<RoomScreen> {
     required bool showHeader,
   }) {
     final threadView = _state.activeThreadView;
-    final roomAttachEnabled = room?.supportsRoomAttachments ?? false;
+    final roomScopeRenders = _roomScopeRenders(room);
     final messagesStatus = threadView?.messages.watch(context);
 
-    final UploadsStatus roomStatus = roomAttachEnabled
+    final UploadsStatus roomStatus = roomScopeRenders
         ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
     final threadId = threadView?.threadId;
     final threadAttachEnabled =
-        threadId != null && (room?.supportsThreadAttachments ?? false);
+        threadId != null && (room?.acceptsThreadUploads ?? false);
     final UploadsStatus threadStatus = threadAttachEnabled
         ? _state.uploadTracker
             .threadUploads(widget.roomId, threadId)
             .watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
+
+    // The flag records that the user asked for the panel. With neither scope
+    // able to show anything the control that would take the ask back is gone
+    // too, so the ask lapses here rather than reopening the panel over whatever
+    // arrives next — dismissing the last row is the ordinary way to get here,
+    // and it reads as "done", not as "hold this open".
+    //
+    // Assigned rather than `setState`: with no content the flag cannot reach
+    // this frame's output, since the panel below is gated on it and the control
+    // that renders it selected is withheld by the same test. Nothing to
+    // rebuild, so nothing to schedule.
+    if (!_panelHasContent(roomStatus, threadStatus)) _filesExpanded = false;
 
     final body = threadView == null || messagesStatus == null
         ? _buildNoThreadBody(room)
@@ -1988,10 +2014,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyFailed =
         roomStatus is UploadsFailed || threadStatus is UploadsFailed;
 
-    if (!_scopeRendersContent(roomStatus) &&
-        !_scopeRendersContent(threadStatus)) {
-      return null;
-    }
+    if (!_panelHasContent(roomStatus, threadStatus)) return null;
 
     final all = [...?roomFiles, ...?threadFiles];
     final anyPending = all.any((e) => e is PendingUpload);
@@ -2025,25 +2048,49 @@ class _RoomScreenState extends State<RoomScreen> {
   List<DisplayUpload>? _uploadsOrNull(UploadsStatus s) =>
       s is UploadsLoaded ? s.uploads : null;
 
+  /// Whether the attached-files panel has anything to show.
+  ///
+  /// Withholds the control that toggles the panel, and retires the ask that
+  /// opens it, so the panel cannot outlive either. That control is the only way
+  /// to close the panel, so a panel surviving it would hold the viewport for
+  /// the rest of the visit with nothing able to collapse it; and an ask
+  /// surviving it would reopen the panel unbidden the next time either scope
+  /// had something to say. Dismissing the last row reaches both.
+  bool _panelHasContent(UploadsStatus roomStatus, UploadsStatus threadStatus) =>
+      _scopeRendersContent(roomStatus) || _scopeRendersContent(threadStatus);
+
   bool _scopeRendersContent(UploadsStatus s) => switch (s) {
         UploadsLoading() => true,
         UploadsLoaded(uploads: final u) => u.isNotEmpty,
         UploadsFailed() => true,
       };
 
+  /// Whether the room scope's list is watched — the attached-files control and
+  /// the panel it opens.
+  ///
+  /// Wider than the room's own upload capability, because the room scope is
+  /// also where a pick made before a thread exists is recorded — the welcome
+  /// composer's attach runs on the *thread* capability and has no thread to
+  /// route a failure to, so [_pickWithErrorSurfacing] files it here. Reading
+  /// the room capability alone would leave that failure with nowhere to
+  /// render, which is silence rather than a refusal.
+  ///
+  /// Not the welcome view's event banner, which watches this scope alone and
+  /// reports only transitions of uploads it saw start, so it has nothing to say
+  /// about a record that arrives already failed. The thread view's banner does
+  /// read this predicate — see the call site for why the two differ.
+  bool _roomScopeRenders(Room? room) =>
+      (room?.acceptsRoomUploads ?? false) ||
+      (room?.acceptsThreadUploads ?? false);
+
   Widget _buildFilePanel(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
   ) {
     final theme = Theme.of(context);
-    final roomFiles = _uploadsOrNull(roomStatus);
-    final threadFiles = _uploadsOrNull(threadStatus);
-    final bothEmpty = (roomFiles?.isEmpty ?? true) &&
-        (threadFiles?.isEmpty ?? true) &&
-        roomStatus is UploadsLoaded &&
-        threadStatus is UploadsLoaded;
 
     return Padding(
+      key: filePanelKey,
       padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
       child: Container(
         width: double.infinity,
@@ -2073,24 +2120,15 @@ class _RoomScreenState extends State<RoomScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (bothEmpty)
-                    Text(
-                      'No files attached.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    )
-                  else ...[
-                    _buildScopeSection('Room', roomStatus, theme),
-                    // The divider sits between two visible sections. A
-                    // scope is "visible" when it's Loading or Failed
-                    // (those render a section row), or Loaded with at
-                    // least one file.
-                    if (_scopeRendersContent(roomStatus) &&
-                        _scopeRendersContent(threadStatus))
-                      const Divider(height: 12),
-                    _buildScopeSection('Thread', threadStatus, theme),
-                  ],
+                  _buildScopeSection('Room', roomStatus, theme),
+                  // The divider sits between two visible sections. A
+                  // scope is "visible" when it's Loading or Failed
+                  // (those render a section row), or Loaded with at
+                  // least one file.
+                  if (_scopeRendersContent(roomStatus) &&
+                      _scopeRendersContent(threadStatus))
+                    const Divider(height: 12),
+                  _buildScopeSection('Thread', threadStatus, theme),
                 ],
               ),
             ),
@@ -2281,7 +2319,10 @@ class _RoomScreenState extends State<RoomScreen> {
             error: roomError,
             onDismiss: _state.clearError,
           ),
-        if (room?.supportsRoomAttachments ?? false)
+        // Its own capability, not [_roomScopeRenders]: this banner reports
+        // transitions of uploads it saw start, so a scope with no upload path
+        // can never give it anything to say.
+        if (room?.acceptsRoomUploads ?? false)
           UploadEventBanner(
             tracker: _state.uploadTracker,
             roomId: widget.roomId,
@@ -2299,8 +2340,6 @@ class _RoomScreenState extends State<RoomScreen> {
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
     final reconnectStatus = threadView.reconnectStatus.watch(context);
-    final attachEnabled = room?.supportsThreadAttachments ?? false;
-
     _restoreUnsentText(sendError?.unsentText);
 
     return Stack(
@@ -2391,7 +2430,11 @@ class _RoomScreenState extends State<RoomScreen> {
                 error: sendError,
                 onDismiss: () => threadView.clearSendError(),
               ),
-            if (attachEnabled)
+            // Both scopes, unlike the welcome view's banner: every banner
+            // watches the room scope, and this one carries a thread id, which
+            // adds the thread scope. So it has something to say whenever
+            // either can produce a transition.
+            if (_roomScopeRenders(room))
               UploadEventBanner(
                 tracker: _state.uploadTracker,
                 roomId: widget.roomId,
@@ -2416,7 +2459,7 @@ class _RoomScreenState extends State<RoomScreen> {
     Room? room,
     ThreadViewStatus? status,
   ) {
-    final attachEnabled = room?.supportsThreadAttachments ?? false;
+    final attachEnabled = room?.acceptsThreadUploads ?? false;
     VoidCallback? attachCallback(Future<PickFilesResult?> Function() pick) {
       if (!attachEnabled) return null;
       return threadView != null

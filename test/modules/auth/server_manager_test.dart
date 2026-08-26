@@ -20,10 +20,14 @@ AuthTokens _tokens() => AuthTokens(
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
     );
 
-ServerManager _createManager({InMemoryServerStorage? storage}) {
+ServerManager _createManager({
+  InMemoryServerStorage? storage,
+  AuthzOnlyClients? authz,
+}) {
   return ServerManager(
     authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
-    clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+    clientFactory: ({getToken, tokenRefresher}) =>
+        authz?.create() ?? FakeHttpClient(),
     storage: storage ?? InMemoryServerStorage(),
   );
 }
@@ -342,6 +346,48 @@ void main() {
       entry.auth.logout();
 
       expect(manager.authState.value, isA<Unauthenticated>());
+    });
+
+    test('signing out makes the admin answer be asked again', () async {
+      // Signing out leaves the entry, its connection and its api alive, so
+      // without invalidation the next user to sign in on this device would
+      // read the previous user's answer.
+      final authz = AuthzOnlyClients();
+      final manager = _createManager(authz: authz);
+
+      final entry = manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      entry.auth.login(provider: _provider, tokens: _tokens());
+      await entry.adminStatus.read();
+      expect(authz.calls, 1);
+
+      entry.auth.logout();
+      await entry.adminStatus.read();
+
+      expect(authz.calls, 2);
+    });
+
+    test('a token refresh keeps the admin answer', () async {
+      // Each ask is audited, so re-asking on every refresh would turn one
+      // record per session into one per refresh cycle.
+      final authz = AuthzOnlyClients();
+      final manager = _createManager(authz: authz);
+
+      final entry = manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      entry.auth.login(provider: _provider, tokens: _tokens());
+      await entry.adminStatus.read();
+      expect(authz.calls, 1);
+
+      // A refresh replaces the session with a new instance for the same user.
+      entry.auth.login(provider: _provider, tokens: _tokens());
+      await entry.adminStatus.read();
+
+      expect(authz.calls, 1);
     });
 
     test('authenticated when no-auth server is added', () {

@@ -1,6 +1,5 @@
 import 'package:meta/meta.dart';
 
-import 'package:soliplex_client/src/domain/attachments.dart';
 import 'package:soliplex_client/src/domain/mcp_client_toolset.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
@@ -25,6 +24,8 @@ class Room {
     this.mcpClientToolsets = const {},
     this.toolDefinitions = const [],
     this.aguiFeatureNames = const [],
+    this.acceptsRoomUploads = false,
+    this.acceptsThreadUploads = false,
   });
 
   /// Unique identifier for the room.
@@ -73,6 +74,21 @@ class Room {
   /// AG-UI feature names enabled for this room.
   final List<String> aguiFeatureNames;
 
+  /// Whether the server accepts uploads scoped to this room, as the rooms API
+  /// reports it.
+  ///
+  /// It says nothing about the caller: the server additionally requires an
+  /// administrator to upload here, which is a property of the user rather than
+  /// of the room. A server that reports nothing reads as `false`.
+  final bool acceptsRoomUploads;
+
+  /// Whether the server accepts uploads scoped to threads in this room, as the
+  /// rooms API reports it.
+  ///
+  /// Unlike a room upload, the server does not additionally require an
+  /// administrator. A server that reports nothing reads as `false`.
+  final bool acceptsThreadUploads;
+
   /// Quiz IDs available in this room.
   List<String> get quizIds => quizzes.keys.toList();
 
@@ -94,22 +110,6 @@ class Room {
   /// Whether the room has any AG-UI feature names.
   bool get hasAguiFeatures => aguiFeatureNames.isNotEmpty;
 
-  /// Whether this room can accept uploads scoped to the room itself.
-  ///
-  /// Covers only the room-level condition — the room carries the
-  /// [sandboxSkillName] skill. The server also requires a configured room
-  /// upload path and an administrator caller, neither of which the rooms API
-  /// reports, so `true` means "not ruled out by anything readable here".
-  bool get supportsRoomAttachments => skills.containsKey(sandboxSkillName);
-
-  /// Whether this room can accept uploads scoped to one of its threads.
-  ///
-  /// Covers only the room-level condition — the room carries the
-  /// [sandboxSkillName] skill. The server also requires a configured thread
-  /// upload path, which the rooms API does not report, so `true` means "not
-  /// ruled out by anything readable here".
-  bool get supportsThreadAttachments => skills.containsKey(sandboxSkillName);
-
   /// Creates a copy of this room with the given fields replaced.
   Room copyWith({
     String? id,
@@ -126,6 +126,8 @@ class Room {
     Map<String, McpClientToolset>? mcpClientToolsets,
     List<Map<String, dynamic>>? toolDefinitions,
     List<String>? aguiFeatureNames,
+    bool? acceptsRoomUploads,
+    bool? acceptsThreadUploads,
   }) {
     return Room(
       id: id ?? this.id,
@@ -142,9 +144,16 @@ class Room {
       mcpClientToolsets: mcpClientToolsets ?? this.mcpClientToolsets,
       toolDefinitions: toolDefinitions ?? this.toolDefinitions,
       aguiFeatureNames: aguiFeatureNames ?? this.aguiFeatureNames,
+      acceptsRoomUploads: acceptsRoomUploads ?? this.acceptsRoomUploads,
+      acceptsThreadUploads: acceptsThreadUploads ?? this.acceptsThreadUploads,
     );
   }
 
+  /// Identity, not value: two rooms with the same [id] are equal however much
+  /// else differs. [acceptsRoomUploads] and [acceptsThreadUploads] are among
+  /// what it ignores, so a refetch that changes what the user may upload is
+  /// equal to the room it replaces — do not use this to decide whether a room
+  /// changed.
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

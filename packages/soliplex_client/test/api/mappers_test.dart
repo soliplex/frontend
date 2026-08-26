@@ -78,6 +78,44 @@ void main() {
   });
 
   group('Room mappers', () {
+    group('roomOmitsUploadCapability', () {
+      Map<String, dynamic> room({
+        Object? roomUploads,
+        Object? threadUploads,
+      }) =>
+          <String, dynamic>{
+            'id': 'r',
+            if (roomUploads != null) 'has_room_uploads': roomUploads,
+            if (threadUploads != null) 'has_thread_uploads': threadUploads,
+          };
+
+      test('is true when a scope is present but null', () {
+        // Absent and explicitly null both have to read as an omission, and the
+        // null fixture is the one that says so: an implementation keying off
+        // `containsKey` passes an absent-field case and fails this one.
+        expect(
+          roomOmitsUploadCapability(<String, dynamic>{
+            'id': 'r',
+            'has_room_uploads': null,
+            'has_thread_uploads': null,
+          }),
+          isTrue,
+        );
+      });
+
+      test('is false when either scope is reported', () {
+        expect(roomOmitsUploadCapability(room(threadUploads: false)), isFalse);
+        expect(roomOmitsUploadCapability(room(roomUploads: false)), isFalse);
+      });
+
+      test('is false when a scope is present but wrongly typed', () {
+        // Not an omission — the server did say. `boolOrNull` records the drift
+        // against the field it arrived in, and saying "omitted" here would
+        // contradict it.
+        expect(roomOmitsUploadCapability(room(roomUploads: 'yes')), isFalse);
+      });
+    });
+
     group('roomFromJson', () {
       test('parses correctly with all fields', () {
         final json = <String, dynamic>{
@@ -95,6 +133,34 @@ void main() {
         expect(room.metadata, equals({'key': 'value'}));
       });
 
+      test('survives a wrong-typed upload capability flag', () {
+        // Throwing here would drop the entire room from the lobby.
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'has_room_uploads': 'yes',
+        };
+
+        final room = roomFromJson(json);
+
+        expect(room.id, equals('room-1'));
+        expect(room.acceptsRoomUploads, isFalse);
+      });
+
+      test('parses the upload capability flags', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'has_room_uploads': true,
+          'has_thread_uploads': false,
+        };
+
+        final room = roomFromJson(json);
+
+        expect(room.acceptsRoomUploads, isTrue);
+        expect(room.acceptsThreadUploads, isFalse);
+      });
+
       test('parses correctly with only required fields', () {
         final json = <String, dynamic>{'id': 'room-1', 'name': 'Test Room'};
 
@@ -103,6 +169,8 @@ void main() {
         expect(room.id, equals('room-1'));
         expect(room.name, equals('Test Room'));
         expect(room.description, equals(''));
+        expect(room.acceptsRoomUploads, isFalse);
+        expect(room.acceptsThreadUploads, isFalse);
         expect(room.metadata, equals(const <String, dynamic>{}));
       });
 
