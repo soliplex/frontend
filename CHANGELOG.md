@@ -8,6 +8,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- A run that fails now files a thumbs-down feedback record for itself, so the
+  failure becomes discoverable. The backend records the error as it streams but
+  keeps no queryable run status, and feedback is the only table an
+  application-level query reaches — so a failed run was recorded and invisible
+  to every such query. Only failures the backend itself reported are filed: a
+  dropped connection is not, because the backend keeps such a run alive for the
+  client to reconnect to and it often completes, and filing would record a
+  successful run as failed. An unclassified failure is logged against its run
+  instead of filed, since it may name a fault on this side rather than a
+  backend outcome.
+
 ### Fixed
 
 - The attached-files panel no longer strands open, and no longer reopens by
