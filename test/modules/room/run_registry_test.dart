@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/admin_status.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
@@ -27,11 +29,27 @@ ServerEntry _entry(String serverId) {
     serverId: serverId,
     alias: serverId,
     serverUrl: Uri.parse('https://$serverId.example.com'),
-    auth: AuthSession(refreshService: FakeTokenRefreshService()),
+    auth: _authInActiveSession(),
     httpClient: FakeHttpClient(),
     connection: connection,
     adminStatus: AdminStatus(api: connection.api, serverId: serverId),
   );
+}
+
+AuthSession _authInActiveSession() {
+  final auth = AuthSession(refreshService: FakeTokenRefreshService());
+  auth.login(
+    provider: const OidcProvider(
+      discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
+      clientId: 'test-client',
+    ),
+    tokens: AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    ),
+  );
+  return auth;
 }
 
 const _key = (
@@ -310,6 +328,214 @@ void main() {
     );
     expect(session.cancelCalled, isTrue);
     expect(registry.activeSession(_key), isNull);
+  });
+
+  group('auto-files feedback on failure', () {
+    late FakeSoliplexApi serverApi;
+    late Signal<Map<String, ServerEntry>> servers;
+    late RunRegistry filing;
+
+    late AuthSession serverAuth;
+
+    setUp(() {
+      final entry = _entry('test-server');
+      serverApi = entry.connection.api as FakeSoliplexApi;
+      serverAuth = entry.auth;
+      servers = Signal({'test-server': entry});
+      filing = RunRegistry(servers: servers);
+      addTearDown(() {
+        filing.dispose();
+        servers.dispose();
+      });
+    });
+
+    /// Fails [session] and lets the registry's `result.then` microtask run.
+    Future<void> fail(
+      ManualAgentSession session, {
+      required FailureReason reason,
+      String? runId,
+    }) async {
+      session.completeAsFailed(reason: reason, runId: runId);
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    // No ThreadViewState exists anywhere in this group: every case here
+    // proves the trigger lives in the registry, not the UI. Moving it into
+    // a widget makes the whole group fail.
+    test('files one thumbs-down naming the failed run', () async {
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(session, reason: FailureReason.serverError, runId: 'run-1');
+
+      expect(serverApi.submittedFeedback, hasLength(1));
+      final filed = serverApi.submittedFeedback.single;
+      expect(filed.roomId, 'room-1');
+      expect(filed.threadId, 'thread-1');
+      expect(filed.runId, 'run-1');
+      expect(filed.feedback, FeedbackType.thumbsDown);
+    });
+
+    // Every whitelisted reason, so dropping any one of them fails here.
+    const filedReasons = {
+      FailureReason.serverError: '[auto] Run failed: server error',
+      FailureReason.toolExecutionFailed:
+          '[auto] Run failed: tool execution failed',
+    };
+    for (final entry in filedReasons.entries) {
+      test('names ${entry.key.name} in the reason it files', () async {
+        final session = ManualAgentSession(_key);
+        filing.register(_key, session);
+
+        await fail(session, reason: entry.key, runId: 'run-1');
+
+        expect(serverApi.submittedFeedback.single.reason, entry.value);
+      });
+    }
+
+    test('files nothing for a failure that never started a run', () async {
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(session, reason: FailureReason.serverError);
+
+      expect(serverApi.submittedFeedback, isEmpty);
+    });
+
+    test('files nothing when the connection dropped', () async {
+      // The backend keeps a run alive after a client disconnect, so these
+      // often go on to succeed: filing would record a completed run as failed.
+      final lost = ManualAgentSession(_key);
+      filing.register(_key, lost);
+      await fail(lost, reason: FailureReason.networkLost, runId: 'run-1');
+
+      final resumeFailed = ManualAgentSession(_key2);
+      filing.register(_key2, resumeFailed);
+      await fail(
+        resumeFailed,
+        reason: FailureReason.streamResumeFailed,
+        runId: 'run-2',
+      );
+
+      expect(serverApi.submittedFeedback, isEmpty);
+    });
+
+    test('logs an unclassified failure against its run instead of filing',
+        () async {
+      // internalError is classifyError's fallback, so the backend may still
+      // complete the run — filing would send a reviewer to a run that
+      // succeeded. The log is what keeps it findable, and the orchestrator's
+      // own record does not name the run.
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(session, reason: FailureReason.internalError, runId: 'run-1');
+
+      expect(serverApi.submittedFeedback, isEmpty);
+      final record = sink.records.singleWhere(
+        (r) => r.message == 'Run failed without filing feedback',
+      );
+      expect(record.attributes['runId'], 'run-1');
+      expect(record.attributes['reason'], 'internalError');
+    });
+
+    test('does not log a failure it deliberately ignores', () async {
+      // A dropped connection is not ours to answer for, so it gets neither a
+      // record nor a log line.
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(session, reason: FailureReason.networkLost, runId: 'run-1');
+
+      expect(
+        sink.records.where(
+          (r) => r.message == 'Run failed without filing feedback',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('files nothing when the run was throttled', () async {
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(session, reason: FailureReason.rateLimited, runId: 'run-1');
+
+      expect(serverApi.submittedFeedback, isEmpty);
+    });
+
+    test('files nothing when the failure was an authz verdict', () async {
+      final expired = ManualAgentSession(_key);
+      filing.register(_key, expired);
+      await fail(expired, reason: FailureReason.authExpired, runId: 'run-1');
+
+      final denied = ManualAgentSession(_key2);
+      filing.register(_key2, denied);
+      await fail(
+        denied,
+        reason: FailureReason.permissionDenied,
+        runId: 'run-2',
+      );
+
+      expect(serverApi.submittedFeedback, isEmpty);
+    });
+
+    test('files for a run superseded after it had already failed', () async {
+      // A superseded run that already failed is exactly a failure worth
+      // recording, so the trigger sits above the supersession bail.
+      final failed = ManualAgentSession(_key);
+      filing.register(_key, failed);
+      filing.register(_key, ManualAgentSession(_key));
+
+      await fail(failed, reason: FailureReason.serverError, runId: 'run-1');
+
+      expect(serverApi.submittedFeedback.single.runId, 'run-1');
+    });
+
+    test('files nothing once the run\'s server is gone', () async {
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+      servers.value = {};
+
+      await fail(session, reason: FailureReason.serverError, runId: 'run-1');
+
+      expect(serverApi.submittedFeedback, isEmpty);
+    });
+
+    test('expires the session when the filing meets a dead grant', () async {
+      // Matches ThreadViewState.submitFeedback: a 401 anywhere is proof the
+      // grant is dead, and the user must be sent to re-auth rather than left
+      // looking at a signed-in UI until their next action fails.
+      serverApi.nextSubmitFeedbackError =
+          const AuthException(message: 'expired', statusCode: 401);
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(session, reason: FailureReason.serverError, runId: 'run-1');
+
+      expect(serverAuth.session.value, isA<ExpiredSession>());
+    });
+
+    test('keeps the session on a filing failure that is not a 401', () async {
+      // Flipping to ExpiredSession on any throw would lock the user out for a
+      // recoverable failure — see AuthSession.refreshIfExpiringSoon.
+      serverApi.nextSubmitFeedbackError =
+          const NetworkException(message: 'offline');
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(session, reason: FailureReason.serverError, runId: 'run-1');
+
+      expect(serverAuth.session.value, isA<ActiveSession>());
+    });
   });
 
   test('evicts runs whose server is removed from the signal', () async {

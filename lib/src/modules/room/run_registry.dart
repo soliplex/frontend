@@ -44,10 +44,12 @@ class RunRegistry {
   /// the signal, its tracked runs are cancelled and dropped so they don't
   /// linger until the whole registry is disposed. Eviction is driven entirely by
   /// the signal, so a signal that never changes simply never evicts.
-  RunRegistry({required ReadonlySignal<Map<String, ServerEntry>> servers}) {
+  RunRegistry({required ReadonlySignal<Map<String, ServerEntry>> servers})
+      : _servers = servers {
     _unsubscribe = servers.subscribe(_evictRemoved);
   }
 
+  final ReadonlySignal<Map<String, ServerEntry>> _servers;
   final Map<ThreadKey, _TrackedRun> _runs = {};
   final Signal<Set<ThreadKey>> _activeKeys = Signal({});
   late final void Function() _unsubscribe;
@@ -100,6 +102,10 @@ class RunRegistry {
     unawaited(session.result.then((result) {
       unsubscribe();
       if (_isDisposed) return;
+      // Above the supersession bail: a superseded run that had already
+      // failed is exactly a run whose failure should be recorded, and
+      // filing touches neither _runs nor _activeKeys.
+      _autoFileFailure(key, terminalState);
       // Bail if a newer registration superseded this run. The
       // superseded run can only resolve as cancelled-by-replacement;
       // the new session owns the key and produces its own outcome.
@@ -108,6 +114,150 @@ class RunRegistry {
       run.session = null;
       _activeKeys.value = _activeKeys.value.difference({key});
     }));
+  }
+
+  /// Files a thumbs-down for a run the backend failed, so that failure becomes
+  /// discoverable: the backend writes `RUN_ERROR` to its event log but keeps no
+  /// queryable run status, and feedback is the only table an application-level
+  /// query reaches.
+  ///
+  /// This lives in the registry rather than the UI because a view unmounts. A
+  /// run that fails after the user navigates away must still be recorded, and
+  /// the registry outlives that navigation.
+  ///
+  /// Filing needs no dedup flag: one `result.then` per [register] call, and
+  /// each session is registered once, at spawn. That is exact at dispatch, not
+  /// at record existence — the record appears only when the POST lands, so
+  /// within one round trip a reader can still find nothing.
+  ///
+  /// A run whose session was disposed before publishing a terminal state
+  /// arrives here with [terminalState] null and goes unfiled. [_outcomeFrom]
+  /// recovers that case from the [AgentResult], but nothing can be filed
+  /// against it: [AgentFailure] carries no runId.
+  void _autoFileFailure(ThreadKey key, RunState? terminalState) {
+    if (terminalState is! FailedState) return;
+    final runId = terminalState.runId;
+    // Null iff the failure preceded any backend run, leaving no row to
+    // attach feedback to.
+    if (runId == null) return;
+    final recording = _recordingFor(terminalState.reason);
+    final failure = recording.filedAs;
+    if (failure == null) {
+      if (recording.logUnfiled) {
+        // Not the backend's run outcome, so not filed — but still a run the
+        // user got no answer from, and the orchestrator's own 'Run failed'
+        // record names no run. This is what ties it to one.
+        _logger.warning(
+          'Run failed without filing feedback',
+          attributes: {
+            'key': key.toString(),
+            'runId': runId,
+            'reason': terminalState.reason.name,
+          },
+        );
+      }
+      return;
+    }
+    final api = _servers.value[key.serverId]?.connection.api;
+    // The server was removed while the run was in flight, so there is nothing
+    // left to POST to. Signing out does not reach here — it leaves the entry
+    // in place, so that path files and meets a 401 below.
+    if (api == null) return;
+
+    unawaited(
+      api
+          .submitFeedback(
+        key.roomId,
+        key.threadId,
+        runId,
+        FeedbackType.thumbsDown,
+        reason: '[auto] Run failed: $failure',
+      )
+          .then((_) {}, onError: (Object error, StackTrace stackTrace) {
+        // At most once, attempted: the record is best-effort and a lost POST
+        // leaves the failure unrecorded rather than crashing the run that
+        // already failed.
+        //
+        // This request carries a body, and that body is generated text that
+        // a later edit replaces with the user's own, so an exception echoing
+        // what the server rejected would render it into the exportable log
+        // buffer. Only a NetworkException — whose host and OS error are the
+        // whole diagnosis — is forwarded whole; anything else keeps its shape
+        // plus the status code, a protocol constant rather than a value the
+        // server chose.
+        _logger.warning(
+          error is AuthException
+              ? 'Auto-filing feedback hit AuthException; '
+                  'funneling to markSessionExpired'
+              : 'Failed to auto-file feedback for a failed run',
+          error: error is NetworkException ? error : null,
+          stackTrace: stackTrace,
+          attributes: {
+            'key': key.toString(),
+            'runId': runId,
+            if (error is ApiException) 'statusCode': error.statusCode,
+            if (error is! NetworkException) 'failure': describeFailure(error),
+          },
+        );
+        if (error is AuthException) {
+          // The grant is dead, so send the user to re-auth now rather than
+          // leaving them on a signed-in UI until their next action fails.
+          // Only on a 401: flipping the session for a recoverable failure
+          // would lock them out (see AuthSession.refreshIfExpiringSoon).
+          // Re-read rather than capture: an eviction in the interval means
+          // there is no session left to expire, which is the right answer.
+          _servers.value[key.serverId]?.auth.markSessionExpired();
+        }
+      }),
+    );
+  }
+
+  /// How a failed run is recorded: [filedAs] is the failure description filed
+  /// as feedback, or null when the failure is not filed, and [logUnfiled] asks
+  /// for a log line naming the run when it is not.
+  ///
+  /// Auto-filing needs a whitelist because filing the wrong thing writes wrong
+  /// data into a human triage queue. Manual filing needs no equivalent: a
+  /// human choosing to report something is the judgement we wanted.
+  static ({String? filedAs, bool logUnfiled}) _recordingFor(
+    FailureReason reason,
+  ) {
+    return switch (reason) {
+      // The backend said it failed, so it is the backend's run outcome.
+      FailureReason.serverError => (filedAs: 'server error', logUnfiled: false),
+      // The orchestrator gave up after exhausting tool retries; the run is
+      // dead either way.
+      FailureReason.toolExecutionFailed => (
+          filedAs: 'tool execution failed',
+          logUnfiled: false
+        ),
+      // `classifyError`'s fallback, so it names a client-side or as-yet
+      // unclassified failure rather than a backend run outcome — and the
+      // client disconnects, which the backend answers by keeping the run
+      // alive, so it may well complete. Filing would send a reviewer to a
+      // run that succeeded. Logged instead, because it is still a run the
+      // user got no answer from.
+      FailureReason.internalError => (filedAs: null, logUnfiled: true),
+      // Unreachable on a FailedState — a cancel publishes CancelledState,
+      // which the guard above drops. Present for exhaustiveness.
+      FailureReason.cancelled => (filedAs: null, logUnfiled: false),
+      // Session expiry and authz verdicts, not run quality.
+      FailureReason.authExpired || FailureReason.permissionDenied => (
+          filedAs: null,
+          logUnfiled: false
+        ),
+      // The backend deliberately keeps a run alive across a client
+      // disconnect so the client can reconnect and watch it finish. Filing
+      // would record successfully-completed runs as failed.
+      FailureReason.networkLost || FailureReason.streamResumeFailed => (
+          filedAs: null,
+          logUnfiled: false
+        ),
+      // Capacity, not answer quality. Nothing reaches these runs afterwards
+      // either: a 429 surfaces as a transient send-error banner, never as a
+      // tile, so there is no manual path to fall back on.
+      FailureReason.rateLimited => (filedAs: null, logUnfiled: false),
+    };
   }
 
   /// Returns the active (non-terminal) session for a thread.

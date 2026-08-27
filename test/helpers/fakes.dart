@@ -214,6 +214,15 @@ class RecordingAuthFlow implements AuthFlow {
   }
 }
 
+/// One recorded [FakeSoliplexApi.submitFeedback] call.
+typedef SubmittedFeedback = ({
+  String roomId,
+  String threadId,
+  String runId,
+  FeedbackType feedback,
+  String? reason,
+});
+
 /// SoliplexApi with a controllable getRooms response.
 ///
 /// All other methods throw [UnimplementedError].
@@ -475,6 +484,9 @@ class FakeSoliplexApi extends SoliplexApi {
 
   Object? nextSubmitFeedbackError;
 
+  /// Every [submitFeedback] call, in order.
+  final List<SubmittedFeedback> submittedFeedback = [];
+
   @override
   Future<void> submitFeedback(
     String roomId,
@@ -484,6 +496,13 @@ class FakeSoliplexApi extends SoliplexApi {
     String? reason,
     CancelToken? cancelToken,
   }) async {
+    submittedFeedback.add((
+      roomId: roomId,
+      threadId: threadId,
+      runId: runId,
+      feedback: feedback,
+      reason: reason,
+    ));
     if (nextSubmitFeedbackError != null) throw nextSubmitFeedbackError!;
   }
 }
@@ -543,6 +562,33 @@ class ManualAgentSession implements AgentSession {
       threadKey: threadKey,
       reason: FailureReason.cancelled,
       error: 'cancelled',
+    ));
+  }
+
+  /// Drives [runState] to a failure and resolves [result] to match, the way
+  /// `AgentSession` does: the terminal state is published first, then the
+  /// result completes in the same synchronous turn.
+  void completeAsFailed({
+    required FailureReason reason,
+    String? runId,
+    String error = 'boom',
+  }) {
+    _runState.value = runId == null
+        ? FailedState.preRun(
+            threadKey: threadKey,
+            reason: reason,
+            error: error,
+          )
+        : FailedState.duringRun(
+            threadKey: threadKey,
+            runId: runId,
+            reason: reason,
+            error: error,
+          );
+    _resultCompleter.complete(AgentFailure(
+      threadKey: threadKey,
+      reason: reason,
+      error: error,
     ));
   }
 
