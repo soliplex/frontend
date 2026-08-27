@@ -13,6 +13,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/execution/phase_indicator.
 import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/loading_message_tile.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/message_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/text_message_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/tool_call_tile.dart';
 
@@ -251,6 +252,30 @@ void main() {
       await tester.tap(find.text('search'));
       await tester.pumpAndSettle();
       expect(find.text('Found results'), findsOneWidget);
+    });
+  });
+
+  group('NoResponseTile', () {
+    testWidgets('reports the run the tile was resolved to', (tester) async {
+      // MessageTile is where the tile learns its runId; without the forward
+      // the affordance never appears.
+      final reported = <String>[];
+      await tester.pumpWidget(_wrap(MessageTile(
+        roomId: 'r',
+        message: NoResponseTile.failed(
+          id: 'no-response-run-4',
+          createdAt: DateTime(2026, 3, 1),
+          thinkingText: 'reasoning',
+          errorDetail: 'upstream exploded',
+        ),
+        runId: 'run-4',
+        onReportRun: reported.add,
+      )));
+
+      await tester.tap(find.text('View or add a note'));
+      await tester.pump();
+
+      expect(reported, ['run-4']);
     });
   });
 }

@@ -194,30 +194,66 @@ class ThreadViewState {
         ?.respond(request, approved);
   }
 
-  void submitFeedback(String runId, FeedbackType feedback, String? reason) {
-    unawaited(
-      _connection.api
-          .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
-          .then((_) {}, onError: (Object e, StackTrace st) {
-        if (e is AuthException) {
-          _logger.warning(
-            'submitFeedback hit AuthException; funneling to markSessionExpired',
-            error: e,
-            stackTrace: st,
-          );
-          _auth.markSessionExpired();
-          return;
-        }
-        // Fire-and-forget UX: surface nothing inline (thumbs-up is
-        // ambient), but keep the failure debuggable so 5xx / decode /
-        // programmer errors don't vanish.
-        _logger.warning(
-          'Feedback submission failed',
-          error: e,
-          stackTrace: st,
-        );
-      }),
-    );
+  /// Reads the reason on file for [runId]. Null means the run carries no
+  /// reason — either no record at all, or a record that never had one.
+  ///
+  /// Throws whatever the request threw: a note that could not be read is not
+  /// an absent note, and the write that follows is an upsert, so the caller
+  /// must be able to tell the two apart. A 401 is funnelled the way
+  /// [submitFeedback] funnels it before the throw continues, so a dead grant
+  /// does not leave the user reading "couldn't check" on a signed-in screen.
+  Future<String?> fetchRunFeedback(String runId) async {
+    try {
+      final record =
+          await _connection.api.getRunFeedback(_roomId, threadId, runId);
+      return record?.reason;
+    } on AuthException {
+      _auth.markSessionExpired();
+      rethrow;
+    }
+  }
+
+  /// Submits feedback for [runId] and answers whether the record landed.
+  ///
+  /// Does not throw for a rejected write: callers show the outcome instead. A
+  /// caller with nothing to show can ignore the answer, which is why this
+  /// stays assignable to the `void`-returning callback the message wire
+  /// carries — a `Future<bool>`-returning function is a subtype of a
+  /// `void`-returning one.
+  Future<bool> submitFeedback(
+    String runId,
+    FeedbackType feedback,
+    String? reason,
+  ) async {
+    // The whole handler sits inside the guard: markSessionExpired writes a
+    // signal and notifies subscribers, so it can throw, and this future is
+    // discarded by the message wire — an escape there is unhandled.
+    try {
+      await _connection.api
+          .submitFeedback(_roomId, threadId, runId, feedback, reason: reason);
+      return true;
+    } on Object catch (e, st) {
+      // These requests carry a body — the user's own free text — so an
+      // exception that echoes what the server rejected would render that text
+      // into the exportable log buffer. Only a NetworkException, whose host
+      // and OS error are the whole diagnosis, is forwarded whole; anything
+      // else keeps its shape plus the status code, which is a protocol
+      // constant rather than a value the server chose.
+      _logger.warning(
+        e is AuthException
+            ? 'submitFeedback hit AuthException; '
+                'funneling to markSessionExpired'
+            : 'Feedback submission failed',
+        error: e is NetworkException ? e : null,
+        stackTrace: st,
+        attributes: {
+          if (e is ApiException) 'statusCode': e.statusCode,
+          if (e is! NetworkException) 'failure': describeFailure(e),
+        },
+      );
+      if (e is AuthException) _auth.markSessionExpired();
+      return false;
+    }
   }
 
   void clearSendError() => _lastSendError.value = null;
