@@ -2124,4 +2124,25 @@ void main() {
       });
     });
   });
+
+  group('RunFeedback mappers', () {
+    group('runFeedbackFromJson', () {
+      test('parses the reason on file', () {
+        final record = runFeedbackFromJson({
+          'feedback': 'thumbs_down',
+          'reason': '[auto] Run failed: server error',
+        });
+
+        expect(record.reason, '[auto] Run failed: server error');
+      });
+
+      test('parses a record whose reason is absent', () {
+        // A record with no reason is still a record — the caller distinguishes
+        // it from an absent one by the RunFeedback itself, not by the reason.
+        final record = runFeedbackFromJson({'feedback': 'thumbs_up'});
+
+        expect(record.reason, isNull);
+      });
+    });
+  });
 }

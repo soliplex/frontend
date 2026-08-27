@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:mocktail/mocktail.dart';
 // SoliplexApi uses our local CancelToken, not ag_ui's.
@@ -9,6 +10,8 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 class MockHttpTransport extends Mock implements HttpTransport {}
+
+class MockSoliplexHttpClient extends Mock implements SoliplexHttpClient {}
 
 void main() {
   late MockHttpTransport mockTransport;
@@ -6130,6 +6133,90 @@ void main() {
             timeout: any(named: 'timeout'),
           ),
         ).called(1);
+      });
+    });
+
+    group('getRunFeedback', () {
+      late MockSoliplexHttpClient mockClient;
+      late SoliplexApi liveApi;
+      String? capturedMethod;
+      Uri? capturedUri;
+
+      setUp(() {
+        mockClient = MockSoliplexHttpClient();
+        liveApi = SoliplexApi(
+          transport: HttpTransport(client: mockClient),
+          urlBuilder: urlBuilder,
+        );
+        when(() => mockClient.close()).thenReturn(null);
+        capturedMethod = null;
+        capturedUri = null;
+      });
+
+      tearDown(() {
+        liveApi.close();
+        reset(mockClient);
+      });
+
+      /// Answers every request with [body] as a JSON payload. The transport is
+      /// real here: decoding an absent record is the behaviour under test, and
+      /// a mocked transport would never run the decode.
+      void answerWithJson(String body) {
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedMethod = invocation.positionalArguments[0] as String;
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(body)),
+            headers: const {'content-type': 'application/json'},
+          );
+        });
+      }
+
+      test('GETs the run feedback path and decodes the record on file',
+          () async {
+        // Feeds a record rather than `null`, so the null-answer test below is
+        // the only one covering the nullable return and can actually fail.
+        answerWithJson(
+          jsonEncode({'feedback': 'thumbs_down', 'reason': '[auto] boom'}),
+        );
+
+        final record =
+            await liveApi.getRunFeedback('room-123', 'thread-456', 'run-789');
+
+        expect(capturedMethod, 'GET');
+        expect(
+          capturedUri?.path,
+          equals('/api/v1/rooms/room-123/agui/thread-456/run-789/feedback'),
+        );
+        expect(record?.reason, '[auto] boom');
+      });
+
+      test('answers null when no feedback is on file', () async {
+        // Requesting a non-nullable RunFeedback would make the cast throw a
+        // MalformedResponseException here instead.
+        answerWithJson('null');
+
+        expect(
+          await liveApi.getRunFeedback('room-123', 'thread-456', 'run-789'),
+          isNull,
+        );
+      });
+
+      test('validates non-empty runId', () {
+        expect(
+          () => liveApi.getRunFeedback('room-123', 'thread-456', ''),
+          throwsA(isA<ArgumentError>()),
+        );
       });
     });
 

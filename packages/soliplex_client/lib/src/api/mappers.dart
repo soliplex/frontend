@@ -10,6 +10,7 @@ import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
+import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
@@ -632,6 +633,19 @@ RunStatus runStatusFromString(String? value) {
     (e) => e.name == value.toLowerCase(),
     orElse: () => RunStatus.unknown,
   );
+}
+
+// ============================================================
+// Run feedback mappers
+// ============================================================
+
+/// Creates a [RunFeedback] from JSON.
+///
+/// The record's `feedback` rating is deliberately not decoded: the only reader
+/// is the dialog that prefills the reason, and a field nothing consumes is a
+/// field that rots. Decode it here when a caller needs the rating.
+RunFeedback runFeedbackFromJson(Map<String, dynamic> json) {
+  return RunFeedback(reason: json['reason'] as String?);
 }
 
 // ============================================================
