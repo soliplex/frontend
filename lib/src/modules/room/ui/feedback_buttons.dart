@@ -95,19 +95,30 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
     _controller.stop();
     setState(() => _phase = _FeedbackPhase.modal);
 
-    final reason = await showDialog<String>(
+    var didSubmit = false;
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const FeedbackReasonDialog(),
+      builder: (context) => FeedbackReasonDialog(
+        onSubmit: (reason) async {
+          // This tile lives in a sliver and can be destroyed while the modal
+          // is up, at which point dispose has already submitted for this
+          // direction and _submit's setState would throw. Refusing keeps the
+          // dialog open and honest rather than reporting a send that cannot
+          // happen.
+          if (!mounted) return false;
+          didSubmit = true;
+          _submit(reason.trim().isEmpty ? null : reason.trim());
+          // onFeedbackSubmit reports no outcome, so `true` says only that the
+          // dialog may close — there is nothing here to stay open for.
+          return true;
+        },
+      ),
     );
 
     if (!mounted) return;
 
-    if (reason != null) {
-      _submit(reason.trim().isEmpty ? null : reason.trim());
-    } else {
-      _startCountdown(_direction!);
-    }
+    if (!didSubmit) _startCountdown(_direction!);
   }
 
   void _submit(String? reason) {
