@@ -20,6 +20,7 @@ import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_stats.dart';
+import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
@@ -702,6 +703,49 @@ class SoliplexApi {
   // ============================================================
   // Feedback
   // ============================================================
+
+  /// Fetches the feedback record on file for a run.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [threadId]: The thread ID (must not be empty)
+  /// - [runId]: The run ID (must not be empty)
+  ///
+  /// Returns null when the backend answers a JSON `null` or an empty body,
+  /// which is how it reports a run with no feedback record. A run with no
+  /// record is not guaranteed to reach that path: an installation that reports
+  /// absence some other way — a 404, or a 500 — throws instead, so a caller
+  /// that must distinguish absence from unreadability has to treat a throw as
+  /// unreadable rather than as absence.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any ID is empty
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if authenticated but not permitted (403)
+  /// - [NotFoundException] if the room, thread or run is unknown (404)
+  /// - [NetworkException] if connection fails
+  /// - [MalformedResponseException] if the body is not a feedback record
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<RunFeedback?> getRunFeedback(
+    String roomId,
+    String threadId,
+    String runId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+    _requireNonEmpty(runId, 'runId');
+
+    return _transport.request<RunFeedback?>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'agui', threadId, runId, 'feedback'],
+      ),
+      cancelToken: cancelToken,
+      fromJson: runFeedbackFromJson,
+    );
+  }
 
   /// Submits feedback for a run.
   ///

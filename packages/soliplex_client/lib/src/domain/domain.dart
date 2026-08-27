@@ -18,6 +18,7 @@ export 'room_agent.dart';
 export 'room_skill.dart';
 export 'room_stats.dart';
 export 'room_tool.dart';
+export 'run_feedback.dart';
 export 'run_info.dart';
 export 'server_info.dart';
 export 'source_reference.dart';
