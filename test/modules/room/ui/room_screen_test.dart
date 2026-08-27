@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +18,8 @@ import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
+import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
+import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
@@ -3566,6 +3569,138 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(composer.controller!.text, 'X');
+    });
+  });
+
+  group('reporting a failed run', () {
+    /// A thread whose transcript carries one failed run, with the runId the
+    /// resolver needs on the preceding user message.
+    void seedFailedRun() {
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          TextMessage(
+            id: 'user-1',
+            user: ChatUser.user,
+            createdAt: DateTime(2026, 3, 1),
+            text: 'summarise the report',
+          ),
+          NoResponseTile.failed(
+            id: 'no-response-run-9',
+            createdAt: DateTime(2026, 3, 1),
+            thinkingText: 'thinking',
+            errorDetail: 'upstream exploded',
+          ),
+        ],
+        messageStates: {
+          'user-1': MessageState(
+            userMessageId: 'user-1',
+            sourceReferences: const [],
+            runId: 'run-9',
+          ),
+        },
+      );
+    }
+
+    Future<void> openRoom(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+        ],
+        child: MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    /// The dialog's field, not the composer's — both are on screen.
+    final dialogField = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextField),
+    );
+
+    /// The transcript sliver places the tile far below the viewport, so the
+    /// affordance has to be scrolled into view before it can be tapped.
+    Future<void> tapReport(WidgetTester tester) async {
+      final report = find.text('View or add a note');
+      await tester.ensureVisible(report);
+      await tester.pumpAndSettle();
+      await tester.tap(report);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('files a thumbs-down against the run the tile names',
+        (tester) async {
+      // The whole wire, end to end: the timeline and tile forwards, the runId
+      // the resolver supplied, and the polarity room_screen hard-codes. A
+      // thumbs-up here would replace the auto-filed failure and drop the run
+      // out of the triage queue this feature exists to fill.
+      seedFailedRun();
+      await openRoom(tester);
+
+      await tapReport(tester);
+
+      expect(
+        api.requestedRunFeedback.single,
+        (roomId: 'room-1', threadId: 'thread-1', runId: 'run-9'),
+      );
+
+      await tester.enterText(dialogField, 'it lost my attachment');
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+
+      final filed = api.submittedFeedback.single;
+      expect(filed.roomId, 'room-1');
+      expect(filed.threadId, 'thread-1');
+      expect(filed.runId, 'run-9');
+      expect(filed.feedback, FeedbackType.thumbsDown);
+      expect(filed.reason, 'it lost my attachment');
+      expect(find.text('Tell us why'), findsNothing);
+    });
+
+    testWidgets('prefills the note already on file', (tester) async {
+      seedFailedRun();
+      api.nextRunFeedback =
+          const RunFeedback(reason: '[auto] Run failed: server error');
+      await openRoom(tester);
+
+      await tapReport(tester);
+
+      // Submitting untouched sends back exactly what was on file, which is
+      // what stops an edit from destroying the auto-filed record.
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+
+      expect(
+        api.submittedFeedback.single.reason,
+        '[auto] Run failed: server error',
+      );
+    });
+
+    testWidgets('keeps the dialog open when the write is rejected',
+        (tester) async {
+      seedFailedRun();
+      api.nextSubmitFeedbackError = const NetworkException(message: 'offline');
+      await openRoom(tester);
+
+      await tapReport(tester);
+      await tester.enterText(dialogField, 'worth keeping');
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tell us why'), findsOneWidget);
+      expect(find.text('worth keeping'), findsOneWidget);
     });
   });
 }

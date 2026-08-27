@@ -13,6 +13,7 @@ import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
         CancelToken,
+        FeedbackType,
         MalformedResponseException,
         PermissionDeniedException,
         RagDocument,
@@ -58,6 +59,7 @@ import 'chunk_visualization_page.dart';
 import 'copy_button.dart';
 import 'document_picker.dart';
 import 'error_retry_panel.dart';
+import 'feedback_reason_dialog.dart';
 import 'inline_image_composer_controller.dart';
 import 'message_timeline.dart';
 import 'async_action_dialog.dart';
@@ -1587,6 +1589,28 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  /// Opens the note on file for [runId] so the user can read it, add to it, or
+  /// replace it.
+  ///
+  /// The dialog reads the note itself rather than being handed the text: the
+  /// tap then opens something immediately instead of waiting a round trip on a
+  /// tile that has no state to show a spinner in, and being modal it stops a
+  /// second tap from starting a second exchange.
+  Future<void> _reportRun(ThreadViewState threadView, String runId) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => FeedbackReasonDialog(
+        loadInitialText: () => threadView.fetchRunFeedback(runId),
+        onSubmit: (reason) => threadView.submitFeedback(
+          runId,
+          FeedbackType.thumbsDown,
+          reason.trim().isEmpty ? null : reason.trim(),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showRenameDialog(String threadId, String currentName) async {
     await showDialog<void>(
       context: context,
@@ -2395,6 +2419,7 @@ class _RoomScreenState extends State<RoomScreen> {
                           unreadBoundary: _anchorTracker.boundary,
                           executionTrackers: threadView.executionTrackers,
                           onFeedbackSubmit: threadView.submitFeedback,
+                          onReportRun: (runId) => _reportRun(threadView, runId),
                           onInspect: (runId) => context.push(
                             AppRoutes.diagnosticsForRun(runId),
                           ),

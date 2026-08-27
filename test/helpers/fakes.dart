@@ -214,6 +214,13 @@ class RecordingAuthFlow implements AuthFlow {
   }
 }
 
+/// One recorded [FakeSoliplexApi.getRunFeedback] call.
+typedef RequestedRunFeedback = ({
+  String roomId,
+  String threadId,
+  String runId,
+});
+
 /// One recorded [FakeSoliplexApi.submitFeedback] call.
 typedef SubmittedFeedback = ({
   String roomId,
@@ -480,6 +487,28 @@ class FakeSoliplexApi extends SoliplexApi {
     throw StateError(
       'FakeSoliplexApi: set nextQuizAnswerResult or nextQuizAnswerError',
     );
+  }
+
+  /// The record [getRunFeedback] answers with. Null means no record on file.
+  RunFeedback? nextRunFeedback;
+
+  /// Thrown by [getRunFeedback] when set.
+  Object? nextRunFeedbackError;
+
+  /// Every [getRunFeedback] call, in order.
+  final List<RequestedRunFeedback> requestedRunFeedback = [];
+
+  @override
+  Future<RunFeedback?> getRunFeedback(
+    String roomId,
+    String threadId,
+    String runId, {
+    CancelToken? cancelToken,
+  }) async {
+    requestedRunFeedback
+        .add((roomId: roomId, threadId: threadId, runId: runId));
+    if (nextRunFeedbackError != null) throw nextRunFeedbackError!;
+    return nextRunFeedback;
   }
 
   Object? nextSubmitFeedbackError;

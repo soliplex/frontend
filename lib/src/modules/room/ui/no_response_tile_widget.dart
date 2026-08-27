@@ -14,12 +14,21 @@ class NoResponseTileWidget extends StatelessWidget {
     super.key,
     required this.roomId,
     required this.message,
+    this.runId,
+    this.onReportRun,
     this.executionTracker,
     this.streamingPhase,
   });
 
   final String roomId;
   final NoResponseTile message;
+
+  /// The run this tile reports on, or null when none could be resolved.
+  final String? runId;
+
+  /// Opens the note the run carries, for reading, extending or replacing.
+  final void Function(String runId)? onReportRun;
+
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
 
@@ -27,6 +36,7 @@ class NoResponseTileWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasTracker = executionTracker != null;
+    final reportLabel = _reportLabel(message.reason);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,11 +71,38 @@ class NoResponseTileWidget extends StatelessWidget {
           reason: message.reason,
           errorDetail: message.errorDetail,
         ),
+        if (reportLabel != null && runId != null && onReportRun != null)
+          SoliplexButton.text(
+            isCompact: true,
+            onPressed: () => onReportRun!(runId!),
+            child: Text(reportLabel),
+          ),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
       ],
     );
   }
 }
+
+/// What the report affordance offers for a run that ended this way, or null
+/// when it offers nothing.
+///
+/// Derived from the tile's own reason rather than stored, so it survives the
+/// tile being scrolled out of the sliver's cache extent, a thread switch, a
+/// history reload and a restart.
+///
+/// A `failed` tile is only ever synthesized from a `RunErrorEvent`, which the
+/// registry attempts to auto-file, so a note usually exists — but the POST is
+/// best-effort and a tile replayed from history may predate any attempt, so
+/// the label describes the affordance rather than a stored record, and the
+/// dialog copes with finding nothing. Nothing is filed for `finished` at
+/// all — but a run that ends saying nothing is a failure from the user's point
+/// of view, and a common thing to report.
+String? _reportLabel(TerminalReason reason) => switch (reason) {
+      TerminalReason.failed => 'View or add a note',
+      TerminalReason.finished => 'Report a problem',
+      // The user stopped this themselves; there is nothing to tell them.
+      TerminalReason.cancelled => null,
+    };
 
 class _TerminalReasonBubble extends StatelessWidget {
   const _TerminalReasonBubble({required this.reason, this.errorDetail});

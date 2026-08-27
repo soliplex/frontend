@@ -28,6 +28,7 @@ class MessageTimeline extends StatefulWidget {
     this.streamingState,
     this.executionTrackers = const {},
     this.onFeedbackSubmit,
+    this.onReportRun,
     this.onInspect,
     this.onShowChunkVisualization,
     this.onFetchWorkdirFiles,
@@ -46,6 +47,7 @@ class MessageTimeline extends StatefulWidget {
   final Map<String, ExecutionTracker> executionTrackers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
+  final void Function(String runId)? onReportRun;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
@@ -431,6 +433,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                                   : null),
                           sourceReferences: _sourceReferencesMap[message.id],
                           onFeedbackSubmit: widget.onFeedbackSubmit,
+                          onReportRun: widget.onReportRun,
                           onInspect: widget.onInspect,
                           onShowChunkVisualization:
                               widget.onShowChunkVisualization,

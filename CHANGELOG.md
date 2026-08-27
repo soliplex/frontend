@@ -10,6 +10,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- A run that ended without an answer now offers to report it, from the failure's
+  own place in the transcript rather than from a banner that can be dismissed
+  and does not survive a reload. A run the backend reported as failed offers to
+  view or add to the note already filed for it; a run that finished without
+  saying anything offers to report the problem. The note on file is read before
+  it is shown, because submitting replaces it — so an edit adds to what is there
+  instead of destroying it, and a note that could not be read is said to be
+  unread rather than shown as absent. A report that does not reach the server
+  leaves the dialog open with the text intact.
 - A run that fails now files a thumbs-down feedback record for itself, so the
   failure becomes discoverable. The backend records the error as it streams but
   keeps no queryable run status, and feedback is the only table an

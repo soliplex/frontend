@@ -1613,4 +1613,102 @@ void main() {
       state.dispose();
     });
   });
+
+  group('feedback outcomes', () {
+    void activate(AuthSession a) {
+      a.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+    }
+
+    Future<ThreadViewState> open() async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+      addTearDown(state.dispose);
+      return state;
+    }
+
+    test('submitFeedback reports that the record landed', () async {
+      final state = await open();
+
+      expect(
+        await state.submitFeedback('run-1', FeedbackType.thumbsDown, 'why'),
+        isTrue,
+      );
+      expect(api.submittedFeedback.single.reason, 'why');
+    });
+
+    test('submitFeedback reports a rejected record instead of throwing',
+        () async {
+      api.nextSubmitFeedbackError = const NetworkException(message: 'offline');
+      final state = await open();
+
+      expect(
+        await state.submitFeedback('run-1', FeedbackType.thumbsDown, 'why'),
+        isFalse,
+      );
+    });
+
+    test('fetchRunFeedback answers the reason on file', () async {
+      api.nextRunFeedback = const RunFeedback(reason: 'boom');
+      final state = await open();
+
+      expect(await state.fetchRunFeedback('run-1'), 'boom');
+      expect(
+        api.requestedRunFeedback.single,
+        (roomId: 'room-1', threadId: 'thread-1', runId: 'run-1'),
+      );
+    });
+
+    test('fetchRunFeedback answers null when no record is on file', () async {
+      final state = await open();
+
+      expect(await state.fetchRunFeedback('run-1'), isNull);
+    });
+
+    test('fetchRunFeedback expires the session on a dead grant', () async {
+      // Its sibling submitFeedback funnels a 401; without the same funnel
+      // here, a user who reads "couldn't check" and cancels is left on a
+      // signed-in screen with a dead grant.
+      activate(auth);
+      api.nextRunFeedbackError =
+          const AuthException(message: 'expired', statusCode: 401);
+      final state = await open();
+
+      await expectLater(
+        state.fetchRunFeedback('run-1'),
+        throwsA(isA<AuthException>()),
+      );
+
+      expect(auth.session.value, isA<ExpiredSession>());
+    });
+
+    test('fetchRunFeedback rethrows so the dialog can say it could not read',
+        () async {
+      // Swallowing this would let the dialog show an unread note as an absent
+      // one, and the write is an upsert.
+      api.nextRunFeedbackError = const NetworkException(message: 'offline');
+      final state = await open();
+
+      expect(
+        () => state.fetchRunFeedback('run-1'),
+        throwsA(isA<NetworkException>()),
+      );
+    });
+  });
 }

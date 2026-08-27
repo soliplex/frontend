@@ -138,4 +138,67 @@ void main() {
 
     expect(find.text('Thinking...'), findsNothing);
   });
+
+  group('report affordance', () {
+    testWidgets('failed offers reading or adding to the filed note',
+        (tester) async {
+      await tester.pumpWidget(_wrap(NoResponseTileWidget(
+        roomId: 'r',
+        message: _tile(reason: TerminalReason.failed),
+        runId: 'run-1',
+        onReportRun: (_) {},
+      )));
+
+      expect(find.text('View or add a note'), findsOneWidget);
+    });
+
+    testWidgets('finished offers reporting a problem', (tester) async {
+      await tester.pumpWidget(_wrap(NoResponseTileWidget(
+        roomId: 'r',
+        message: _tile(reason: TerminalReason.finished),
+        runId: 'run-1',
+        onReportRun: (_) {},
+      )));
+
+      expect(find.text('Report a problem'), findsOneWidget);
+    });
+
+    testWidgets('cancelled offers nothing — it was the user\'s own stop',
+        (tester) async {
+      await tester.pumpWidget(_wrap(NoResponseTileWidget(
+        roomId: 'r',
+        message: _tile(reason: TerminalReason.cancelled),
+        runId: 'run-1',
+        onReportRun: (_) {},
+      )));
+
+      expect(find.text('View or add a note'), findsNothing);
+      expect(find.text('Report a problem'), findsNothing);
+    });
+
+    testWidgets('offers nothing without a run to file against', (tester) async {
+      await tester.pumpWidget(_wrap(NoResponseTileWidget(
+        roomId: 'r',
+        message: _tile(reason: TerminalReason.failed),
+        onReportRun: (_) {},
+      )));
+
+      expect(find.text('View or add a note'), findsNothing);
+    });
+
+    testWidgets('reports the run the tile belongs to', (tester) async {
+      final reported = <String>[];
+      await tester.pumpWidget(_wrap(NoResponseTileWidget(
+        roomId: 'r',
+        message: _tile(reason: TerminalReason.failed),
+        runId: 'run-7',
+        onReportRun: reported.add,
+      )));
+
+      await tester.tap(find.text('View or add a note'));
+      await tester.pump();
+
+      expect(reported, ['run-7']);
+    });
+  });
 }
