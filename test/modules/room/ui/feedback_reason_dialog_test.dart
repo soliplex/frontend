@@ -53,6 +53,33 @@ void main() {
     expect(find.text('Send'), findsOneWidget);
   });
 
+  group('width', () {
+    // The field states no intrinsic width preference, so without a width the
+    // dialog sits at Material's 280 minimum however wide the window is.
+    testWidgets('uses the dialog width on a wide window', (tester) async {
+      tester.view.physicalSize = const Size(1600, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await _open(tester);
+
+      expect(tester.getSize(find.byType(TextField)).width, greaterThan(400));
+    });
+
+    testWidgets('stays inside a narrow window', (tester) async {
+      // A fixed width must still yield to the incoming constraints, or the
+      // dialog overflows the screen on a phone.
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await _open(tester);
+
+      expect(tester.getSize(find.byType(TextField)).width, lessThan(360));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('Send submits the typed text and closes', (tester) async {
     final submitted = await _open(tester);
 

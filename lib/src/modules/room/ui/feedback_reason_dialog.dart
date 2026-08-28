@@ -149,42 +149,52 @@ class _FeedbackReasonDialogState extends State<FeedbackReasonDialog> {
     super.dispose();
   }
 
+  /// Material's own `AlertDialog` maximum. Without a width the dialog sits at
+  /// its 280 px minimum however wide the window is, because neither a text
+  /// field nor this content states an intrinsic width preference. A `SizedBox`
+  /// still yields to the incoming constraints, so a narrower window shrinks it
+  /// rather than overflowing.
+  static const _contentWidth = 560.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
       title: const Text('Tell us why'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SoliplexInput(
-            controller: _controller,
-            focusNode: _focusNode,
-            autofocus: true,
-            maxLines: 5,
-            hintText: 'Add a reason (optional)',
-            errorText: _error,
-            isLoading: _isLoading,
-            // Not `isLoading` while submitting: that disables the field,
-            // greying out the text the user may still need to retry with.
-            readOnly: _isSubmitting,
-            textInputAction: TextInputAction.newline,
-          ),
-          if (_unreadNote != null) ...[
-            const SizedBox(height: SoliplexSpacing.s2),
-            // Outside the input rather than its `helperText`: that slot is
-            // capped at two lines, which ellipsizes away the clause naming
-            // what a submit replaces, and `errorText` renders in place of it,
-            // so a failed send would hide the warning at the moment the user
-            // is most likely to send again.
-            Text(
-              _unreadNote!,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      content: SizedBox(
+        width: _contentWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SoliplexInput(
+              controller: _controller,
+              focusNode: _focusNode,
+              autofocus: true,
+              maxLines: 5,
+              hintText: 'Add a reason (optional)',
+              errorText: _error,
+              isLoading: _isLoading,
+              // Not `isLoading` while submitting: that disables the field,
+              // greying out the text the user may still need to retry with.
+              readOnly: _isSubmitting,
+              textInputAction: TextInputAction.newline,
             ),
+            if (_unreadNote != null) ...[
+              const SizedBox(height: SoliplexSpacing.s2),
+              // Outside the input rather than its `helperText`: that slot is
+              // capped at two lines, which ellipsizes away the clause naming
+              // what a submit replaces, and `errorText` renders in place of it,
+              // so a failed send would hide the warning at the moment the user
+              // is most likely to send again.
+              Text(
+                _unreadNote!,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
         SoliplexButton.text(
