@@ -40,6 +40,9 @@ Future<List<String>> _open(
   return submitted;
 }
 
+const _unreadableNote = "Couldn't check for an earlier note. "
+    'Submitting replaces any that exists.';
+
 void main() {
   testWidgets('renders the prompt, the hint and both actions', (tester) async {
     await _open(tester);
@@ -127,19 +130,33 @@ void main() {
         loadInitialText: () async => throw Exception('offline'),
       );
 
-      expect(
-        find.text(
-          'Couldn\'t check for an earlier note. '
-          'Submitting replaces any that exists.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text(_unreadableNote), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'still worth saying');
       await tester.tap(find.text('Send'));
       await tester.pumpAndSettle();
 
       expect(submitted, ['still worth saying']);
+    });
+
+    testWidgets('shows the warning outside the input, uncapped',
+        (tester) async {
+      // As the input's helperText the warning is clamped to two lines and
+      // ellipsized, which drops the clause naming what a submit replaces —
+      // and the error text displaces it entirely. Neither is survivable in a
+      // slot the input owns.
+      await _open(
+        tester,
+        loadInitialText: () async => throw Exception('offline'),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(TextField),
+          matching: find.text(_unreadableNote),
+        ),
+        findsNothing,
+      );
     });
   });
 
@@ -155,6 +172,25 @@ void main() {
       expect(find.text('Tell us why'), findsOneWidget);
       expect(find.text('worth keeping'), findsOneWidget);
       expect(find.text('Couldn\'t send that. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('keeps the unreadable-note warning through a failed send',
+        (tester) async {
+      // A failed send is when the user is most likely to press Send again, so
+      // it is exactly when the warning that a submit replaces whatever is on
+      // file matters most. The error must not take its place.
+      await _open(
+        tester,
+        loadInitialText: () async => throw Exception('offline'),
+        onSubmit: (_) async => false,
+      );
+
+      await tester.enterText(find.byType(TextField), 'worth keeping');
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Couldn\'t send that. Try again.'), findsOneWidget);
+      expect(find.text(_unreadableNote), findsOneWidget);
     });
 
     testWidgets('a retry after a failure can succeed', (tester) async {
