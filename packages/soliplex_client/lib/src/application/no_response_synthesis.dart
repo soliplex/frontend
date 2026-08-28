@@ -48,6 +48,7 @@ NoResponseSynthesisResult synthesizeFinishedNoResponse({
       conversation: conversation,
       streaming: streaming,
       runId: runId,
+      preserveWhateverWasShown: false,
       buildTile: (id, thinking) => NoResponseTile.finished(
         id: id,
         thinkingText: thinking,
@@ -70,6 +71,7 @@ NoResponseSynthesisResult synthesizeFailedNoResponse({
       conversation: conversation,
       streaming: streaming,
       runId: runId,
+      preserveWhateverWasShown: false,
       buildTile: (id, thinking) => NoResponseTile.failed(
         id: id,
         thinkingText: thinking,
@@ -78,8 +80,9 @@ NoResponseSynthesisResult synthesizeFailedNoResponse({
       ),
     );
 
-/// Appends a synthesized [NoResponseTile.cancelled] when a run was
-/// cancelled with buffered thinking but no assistant text reply.
+/// Appends a synthesized [NoResponseTile.cancelled] when a run was cancelled
+/// after thinking began — buffered or merely streaming — with no assistant
+/// text reply.
 NoResponseSynthesisResult synthesizeCancelledNoResponse({
   required Conversation conversation,
   required StreamingState streaming,
@@ -90,6 +93,10 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
       conversation: conversation,
       streaming: streaming,
       runId: runId,
+      // Whatever the user was already looking at has to outlive the Stop —
+      // a Thinking indicator with no content yet, or thinking beside a tool
+      // call still in flight. Declining either blanks the exchange.
+      preserveWhateverWasShown: true,
       buildTile: (id, thinking) => NoResponseTile.cancelled(
         id: id,
         thinkingText: thinking,
@@ -99,21 +106,40 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
 
 /// Shared decline gate for the three terminal entries.
 ///
-/// Declines (returning the input conversation and `synthesized: false`) when:
-/// - [streaming] is not [AwaitingText] (a reply was in progress).
-/// - The buffered thinking text is empty (no model output to preserve).
-/// - The conversation has any tool call with status `pending`, `streaming`,
-///   or `executing` (the run is yielding to client tools — the tool call
-///   IS the response, not a missing one).
+/// Always declines when [streaming] is not [AwaitingText]: a reply was in
+/// progress, and the caller commits that partial text instead.
+///
+/// [preserveWhateverWasShown] then chooses between two policies.
+///
+/// A cancel sets it. The user stopped a run they were watching, so anything
+/// already on screen has to survive, and only the streaming state holds it —
+/// the tile is what carries it afterwards. That includes the window after the
+/// reasoning-start event but before its first content, which
+/// [AwaitingText.hasThinkingContent] covers and an empty buffer does not, and
+/// it includes a tool call still in flight.
+///
+/// The two backend outcomes clear it. They require real thinking text, since a
+/// run that emitted nothing has no missing reply to report, and they decline
+/// while any tool call is `pending`, `streaming` or `executing`, because there
+/// the run is yielding to client tools and the tool call IS the response. That
+/// yield never reaches the cancel path: `cancelRun` handles
+/// `ToolYieldingState` in its own branch, so an unresolved tool call seen here
+/// after a cancel is a backend call mid-flight, which shows the user nothing.
 NoResponseSynthesisResult _synthesize({
   required Conversation conversation,
   required StreamingState streaming,
   required String runId,
+  required bool preserveWhateverWasShown,
   required NoResponseTile Function(String id, String thinkingText) buildTile,
 }) {
-  if (streaming is! AwaitingText ||
-      streaming.bufferedThinkingText.isEmpty ||
-      _hasUnresolvedToolCalls(conversation)) {
+  if (streaming is! AwaitingText) {
+    return (conversation: conversation, synthesized: false);
+  }
+  final synthesize = preserveWhateverWasShown
+      ? streaming.hasThinkingContent
+      : streaming.bufferedThinkingText.isNotEmpty &&
+          !_hasUnresolvedToolCalls(conversation);
+  if (!synthesize) {
     return (conversation: conversation, synthesized: false);
   }
   final tile = buildTile(
