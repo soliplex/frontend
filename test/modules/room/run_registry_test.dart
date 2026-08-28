@@ -10,6 +10,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
+import 'package:soliplex_frontend/version.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -354,8 +355,9 @@ void main() {
       ManualAgentSession session, {
       required FailureReason reason,
       String? runId,
+      String error = 'boom',
     }) async {
-      session.completeAsFailed(reason: reason, runId: runId);
+      session.completeAsFailed(reason: reason, runId: runId, error: error);
       await Future<void>.delayed(Duration.zero);
     }
 
@@ -377,10 +379,10 @@ void main() {
     });
 
     // Every whitelisted reason, so dropping any one of them fails here.
-    const filedReasons = {
-      FailureReason.serverError: '[auto] Run failed: server error',
+    final filedReasons = {
+      FailureReason.serverError: '[auto] serverError — boom, v$soliplexVersion',
       FailureReason.toolExecutionFailed:
-          '[auto] Run failed: tool execution failed',
+          '[auto] toolExecutionFailed — boom, v$soliplexVersion',
     };
     for (final entry in filedReasons.entries) {
       test('names ${entry.key.name} in the reason it files', () async {
@@ -392,6 +394,66 @@ void main() {
         expect(serverApi.submittedFeedback.single.reason, entry.value);
       });
     }
+
+    test('leads with the backend message, since that is what differs',
+        () async {
+      // Every auto-filed row carries the same classification in practice, so a
+      // triager scanning the queue needs the server's own words first.
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(
+        session,
+        reason: FailureReason.serverError,
+        runId: 'run-1',
+        error: 'upstream model returned 503',
+      );
+
+      expect(
+        serverApi.submittedFeedback.single.reason,
+        '[auto] serverError — upstream model returned 503, v$soliplexVersion',
+      );
+    });
+
+    test('collapses and caps a sprawling server message', () async {
+      // The record is prefilled into a dialog the user edits, so an error that
+      // is really a response body must not run away with the field.
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(
+        session,
+        reason: FailureReason.serverError,
+        runId: 'run-1',
+        error: 'Traceback\n\n   most recent call last${'x' * 400}',
+      );
+
+      final reason = serverApi.submittedFeedback.single.reason!;
+      expect(
+        reason,
+        startsWith('[auto] serverError — Traceback most recent call last'),
+      );
+      expect(reason, contains('…'));
+      expect(reason, endsWith('v$soliplexVersion'));
+      expect(reason.length, lessThan(280));
+    });
+
+    test('says only the classification when the run gave no message', () async {
+      final session = ManualAgentSession(_key);
+      filing.register(_key, session);
+
+      await fail(
+        session,
+        reason: FailureReason.serverError,
+        runId: 'run-1',
+        error: '   ',
+      );
+
+      expect(
+        serverApi.submittedFeedback.single.reason,
+        '[auto] serverError, v$soliplexVersion',
+      );
+    });
 
     test('files nothing for a failure that never started a run', () async {
       final session = ManualAgentSession(_key);

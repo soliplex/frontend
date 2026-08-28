@@ -3,9 +3,15 @@ import 'dart:async' show unawaited;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../version.dart';
 import '../auth/server_entry.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.run_registry');
+
+/// What becomes of a failed run: filed as feedback, declined but logged
+/// against the run, or declined silently because it is not a run-quality
+/// signal at all.
+enum _Recording { file, declineAndLog, decline }
 
 /// Terminal outcome of an agent run.
 sealed class RunOutcome {
@@ -141,14 +147,13 @@ class RunRegistry {
     // attach feedback to.
     if (runId == null) return;
     final recording = _recordingFor(terminalState.reason);
-    final failure = recording.filedAs;
-    if (failure == null) {
+    if (recording != _Recording.file) {
       final attributes = {
         'key': key.toString(),
         'runId': runId,
         'reason': terminalState.reason.name,
       };
-      if (recording.logUnfiled) {
+      if (recording == _Recording.declineAndLog) {
         // Not the backend's run outcome, so not filed — but still a run the
         // user got no answer from, and the orchestrator's own 'Run failed'
         // record names no run. This is what ties it to one.
@@ -177,7 +182,7 @@ class RunRegistry {
         key.threadId,
         runId,
         FeedbackType.thumbsDown,
-        reason: '[auto] Run failed: $failure',
+        reason: _autoFiledReason(terminalState),
       )
           .then((_) {
         _logger.info(
@@ -227,51 +232,71 @@ class RunRegistry {
     );
   }
 
-  /// How a failed run is recorded: [filedAs] is the failure description filed
-  /// as feedback, or null when the failure is not filed, and [logUnfiled] asks
-  /// for a log line naming the run when it is not.
+  /// The record a triager reads, built from what only the client holds.
+  ///
+  /// The classification leads, spelled as [FailureReason.name] so the record
+  /// and the log line that announced it share a token, and so a queue can be
+  /// grouped or sorted by it. The failure's own message follows, which is the
+  /// part that actually distinguishes two runs of the same class — the tile
+  /// shows it and the record used to drop it. The client build comes last: the
+  /// row can be joined to its run for the prompt and the events, but not to the
+  /// version that produced them.
+  ///
+  /// The message is the server's own text, not the user's, and a triager
+  /// reaching this record can already read the prompt through the run. It is
+  /// collapsed to one line and capped because the record is prefilled into a
+  /// dialog the user edits, and a message that is really a response body would
+  /// run away with the field.
+  static String _autoFiledReason(FailedState state) {
+    final detail = state.error.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final capped = detail.length > _maxErrorChars
+        ? '${detail.substring(0, _maxErrorChars)}…'
+        : detail;
+    final detailed = capped.isEmpty ? '' : ' — $capped';
+    return '[auto] ${state.reason.name}$detailed, v$soliplexVersion';
+  }
+
+  /// Long enough for a sentence naming what broke, short enough that the user
+  /// can still see their own words in the dialog it prefills.
+  static const _maxErrorChars = 200;
+
+  /// Whether a failed run is filed as feedback, and if not, whether it is still
+  /// logged against the run.
   ///
   /// Auto-filing needs a whitelist because filing the wrong thing writes wrong
   /// data into a human triage queue. Manual filing needs no equivalent: a
   /// human choosing to report something is the judgement we wanted.
-  static ({String? filedAs, bool logUnfiled}) _recordingFor(
-    FailureReason reason,
-  ) {
+  static _Recording _recordingFor(FailureReason reason) {
     return switch (reason) {
       // The backend said it failed, so it is the backend's run outcome.
-      FailureReason.serverError => (filedAs: 'server error', logUnfiled: false),
+      FailureReason.serverError => _Recording.file,
       // The orchestrator gave up after exhausting tool retries; the run is
       // dead either way.
-      FailureReason.toolExecutionFailed => (
-          filedAs: 'tool execution failed',
-          logUnfiled: false
-        ),
+      FailureReason.toolExecutionFailed => _Recording.file,
       // `classifyError`'s fallback, so it names a client-side or as-yet
       // unclassified failure rather than a backend run outcome — and the
       // client disconnects, which the backend answers by keeping the run
       // alive, so it may well complete. Filing would send a reviewer to a
       // run that succeeded. Logged instead, because it is still a run the
       // user got no answer from.
-      FailureReason.internalError => (filedAs: null, logUnfiled: true),
+      FailureReason.internalError => _Recording.declineAndLog,
       // Unreachable on a FailedState — a cancel publishes CancelledState,
       // which the guard above drops. Present for exhaustiveness.
-      FailureReason.cancelled => (filedAs: null, logUnfiled: false),
+      FailureReason.cancelled => _Recording.decline,
       // Session expiry and authz verdicts, not run quality.
-      FailureReason.authExpired || FailureReason.permissionDenied => (
-          filedAs: null,
-          logUnfiled: false
-        ),
+      FailureReason.authExpired ||
+      FailureReason.permissionDenied =>
+        _Recording.decline,
       // The backend deliberately keeps a run alive across a client
       // disconnect so the client can reconnect and watch it finish. Filing
       // would record successfully-completed runs as failed.
-      FailureReason.networkLost || FailureReason.streamResumeFailed => (
-          filedAs: null,
-          logUnfiled: false
-        ),
+      FailureReason.networkLost ||
+      FailureReason.streamResumeFailed =>
+        _Recording.decline,
       // Capacity, not answer quality. Nothing reaches these runs afterwards
       // either: a 429 surfaces as a transient send-error banner, never as a
       // tile, so there is no manual path to fall back on.
-      FailureReason.rateLimited => (filedAs: null, logUnfiled: false),
+      FailureReason.rateLimited => _Recording.decline,
     };
   }
 
