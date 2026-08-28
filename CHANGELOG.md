@@ -18,7 +18,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   it is shown, because submitting replaces it — so an edit adds to what is there
   instead of destroying it, and a note that could not be read is said to be
   unread rather than shown as absent. A report that does not reach the server
-  leaves the dialog open with the text intact.
+  leaves the dialog open with the text intact, and the warning that submitting
+  replaces an existing note stays on screen while that error shows — a retry is
+  when it matters most. The dialog is wide enough for that warning to be read
+  in full.
 - A run that fails now files a thumbs-down feedback record for itself, so the
   failure becomes discoverable. The backend records the error as it streams but
   keeps no queryable run status, and feedback is the only table an
@@ -28,10 +31,18 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   client to reconnect to and it often completes, and filing would record a
   successful run as failed. An unclassified failure is logged against its run
   instead of filed, since it may name a fault on this side rather than a
-  backend outcome.
+  backend outcome. The record names the failure's classification, the run's own
+  error text and the client version, so two failed runs can be told apart in a
+  review queue without opening either.
 
 ### Fixed
 
+- Stopping a run while it was still thinking no longer blanks the exchange. The
+  transcript kept nothing at all — no tile, no reasoning, no error row —
+  whenever the stop landed before the first reasoning content arrived or while
+  a tool call was still in flight, because the only copy of what was on screen
+  lived in streaming state that the stop discarded. A cancelled run now keeps
+  whatever had been shown, and still records nothing when nothing had been.
 - The attached-files panel no longer strands open, and no longer reopens by
   itself. The control that opens it is the only one that closes it, and it is
   withdrawn once neither upload scope has anything left to show — so dismissing
