@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show FeedbackType;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'feedback_reason_dialog.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.feedback_buttons');
 
 enum _FeedbackPhase { idle, countdown, modal, submitted }
 
@@ -103,10 +107,18 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
         onSubmit: (reason) async {
           // This tile lives in a sliver and can be destroyed while the modal
           // is up, at which point dispose has already submitted for this
-          // direction and _submit's setState would throw. Refusing keeps the
-          // dialog open and honest rather than reporting a send that cannot
-          // happen.
-          if (!mounted) return false;
+          // direction and _submit's setState would throw. Answering true lets
+          // the dialog close: false would hold it open inviting a retry that
+          // can never succeed, since mounted does not come back.
+          if (!mounted) {
+            // Nothing on screen can report this, and dispose has already filed
+            // for the direction without a reason, so the log is the only
+            // account that the text the user typed went nowhere.
+            _logger.warning(
+              'Discarded a feedback reason: the tile was gone before submit',
+            );
+            return true;
+          }
           didSubmit = true;
           _submit(reason.trim().isEmpty ? null : reason.trim());
           // onFeedbackSubmit reports no outcome, so `true` says only that the

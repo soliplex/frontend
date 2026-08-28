@@ -206,6 +206,14 @@ class ThreadViewState {
     try {
       final record =
           await _connection.api.getRunFeedback(_roomId, threadId, runId);
+      _logger.info(
+        'Read the feedback on file for a run',
+        attributes: {
+          'runId': runId,
+          'hasRecord': record != null,
+          'hasReason': record?.reason != null,
+        },
+      );
       return record?.reason;
     } on AuthException {
       _auth.markSessionExpired();
@@ -231,6 +239,14 @@ class ThreadViewState {
     try {
       await _connection.api
           .submitFeedback(_roomId, threadId, runId, feedback, reason: reason);
+      _logger.info(
+        'Submitted feedback for a run',
+        attributes: {
+          'runId': runId,
+          'feedback': feedback.name,
+          'hasReason': reason != null,
+        },
+      );
       return true;
     } on Object catch (e, st) {
       // These requests carry a body — the user's own free text — so an

@@ -167,7 +167,7 @@ void main() {
         (tester) async {
       final submitted = await openDialog(tester);
 
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Close'));
       // Bounded pumps: pumpAndSettle would run the resumed countdown to
       // completion and submit, which is the behaviour under test.
       await tester.pump();
@@ -180,7 +180,7 @@ void main() {
       expect(submitted, [(FeedbackType.thumbsDown, null)]);
     });
 
-    testWidgets('a send after the tile is gone refuses instead of throwing',
+    testWidgets('a send after the tile is gone closes instead of throwing',
         (tester) async {
       // The tile lives in a sliver, so it can be destroyed while the modal is
       // still up. Submitting then reaches setState on a defunct State, which
@@ -223,15 +223,19 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
+      await tester.pumpAndSettle();
+      // Closed, not held open inviting a retry: mounted does not come back, so
+      // every retry would fail identically.
+      expect(find.text('Tell us why'), findsNothing);
       expect(
         sink.records.where((r) => r.level >= LogLevel.error),
         isEmpty,
         reason: 'An expected teardown must not be logged as a caller defect.',
       );
       // dispose already submitted for the pending direction; the reason typed
-      // after teardown cannot be delivered, and the dialog says so.
+      // after teardown cannot be delivered and is discarded silently, which is
+      // the honest end — there is no retry that could deliver it.
       expect(submitted, [(FeedbackType.thumbsDown, null)]);
-      expect(find.text("Couldn't send that. Try again."), findsOneWidget);
     });
   });
 }

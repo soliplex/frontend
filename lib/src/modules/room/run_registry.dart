@@ -143,18 +143,24 @@ class RunRegistry {
     final recording = _recordingFor(terminalState.reason);
     final failure = recording.filedAs;
     if (failure == null) {
+      final attributes = {
+        'key': key.toString(),
+        'runId': runId,
+        'reason': terminalState.reason.name,
+      };
       if (recording.logUnfiled) {
         // Not the backend's run outcome, so not filed — but still a run the
         // user got no answer from, and the orchestrator's own 'Run failed'
         // record names no run. This is what ties it to one.
         _logger.warning(
           'Run failed without filing feedback',
-          attributes: {
-            'key': key.toString(),
-            'runId': runId,
-            'reason': terminalState.reason.name,
-          },
+          attributes: attributes,
         );
+      } else {
+        // One line per failure the whitelist declines, so which failures file
+        // is answerable from a running installation and not only from tests.
+        _logger.info('Not filing feedback for a failed run',
+            attributes: attributes);
       }
       return;
     }
@@ -173,7 +179,16 @@ class RunRegistry {
         FeedbackType.thumbsDown,
         reason: '[auto] Run failed: $failure',
       )
-          .then((_) {}, onError: (Object error, StackTrace stackTrace) {
+          .then((_) {
+        _logger.info(
+          'Auto-filed feedback for a failed run',
+          attributes: {
+            'key': key.toString(),
+            'runId': runId,
+            'reason': terminalState.reason.name,
+          },
+        );
+      }, onError: (Object error, StackTrace stackTrace) {
         // At most once, attempted: the record is best-effort and a lost POST
         // leaves the failure unrecorded rather than crashing the run that
         // already failed.

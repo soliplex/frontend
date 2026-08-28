@@ -83,8 +83,16 @@ class _FeedbackReasonDialogState extends State<FeedbackReasonDialog> {
       _unreadNote = failure;
       if (onFile != null) _controller.text = onFile;
     });
-    // The field was disabled while loading, so autofocus never took effect.
-    _focusNode.requestFocus();
+    // The field was disabled while loading, so autofocus never took effect and
+    // the node still refuses focus until the rebuild above re-enables it —
+    // hence after the frame, not now.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Not while covered: a modal scope keeps requesting focus even when it
+      // is no longer on top, which would open the keyboard against whatever
+      // route is above this one.
+      if (!mounted) return;
+      if (ModalRoute.of(context)?.isCurrent ?? true) _focusNode.requestFocus();
+    });
   }
 
   Future<void> _submit() async {
@@ -112,13 +120,19 @@ class _FeedbackReasonDialogState extends State<FeedbackReasonDialog> {
       sent = false;
     }
     if (!mounted) return;
-    // `mounted` does not say this route is still the one on top: the platform
-    // back button pops a non-dismissible dialog, and this State stays mounted
-    // for the whole pop transition, so popping again would take the screen
-    // underneath with it.
     if (sent) {
-      if (ModalRoute.of(context)?.isCurrent ?? false) {
+      // Close by identity, not by position. `mounted` does not say this route
+      // is still on top: the platform back button pops a non-dismissible
+      // dialog and this State stays mounted for the whole pop transition, so
+      // `pop()` would take the screen underneath with it — and a route pushed
+      // *over* this one reaches here too, where leaving the dialog behind
+      // would show the user an unsent-looking dialog for a note already filed.
+      final route = ModalRoute.of(context);
+      if (route == null) return;
+      if (route.isCurrent) {
         Navigator.of(context).pop();
+      } else if (route.isActive) {
+        Navigator.of(context).removeRoute(route);
       }
       return;
     }
@@ -157,8 +171,12 @@ class _FeedbackReasonDialogState extends State<FeedbackReasonDialog> {
       ),
       actions: [
         SoliplexButton.text(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          // Never disabled: the barrier is not dismissible and the send has no
+          // deadline short enough to wait out, so this is the only way off a
+          // request that hangs. It says Close rather than Cancel because a
+          // send already dispatched keeps going — nothing here can recall it.
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
         ),
         SoliplexButton.filled(
           onPressed: _isLoading || _isSubmitting ? null : _submit,

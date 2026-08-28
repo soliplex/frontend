@@ -704,6 +704,14 @@ class SoliplexApi {
   // Feedback
   // ============================================================
 
+  /// How long [getRunFeedback] waits before reporting the note unreadable.
+  ///
+  /// It bounds the request only once it holds a concurrency slot, and applies
+  /// per phase — connect, then body — and again on the retry after a token
+  /// refresh. So it shortens the common slow answer; it is not a ceiling on
+  /// the caller's total wait.
+  static const Duration _feedbackReadTimeout = Duration(seconds: 15);
+
   /// Fetches the feedback record on file for a run.
   ///
   /// Parameters:
@@ -723,7 +731,8 @@ class SoliplexApi {
   /// - [AuthException] if not authenticated (401)
   /// - [PermissionDeniedException] if authenticated but not permitted (403)
   /// - [NotFoundException] if the room, thread or run is unknown (404)
-  /// - [NetworkException] if connection fails
+  /// - [NetworkException] if connection fails, including on
+  ///   [_feedbackReadTimeout]
   /// - [MalformedResponseException] if the body is not a feedback record
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
@@ -743,6 +752,12 @@ class SoliplexApi {
         pathSegments: ['rooms', roomId, 'agui', threadId, runId, 'feedback'],
       ),
       cancelToken: cancelToken,
+      // Far below the transport default: this read gates a modal, and a caller
+      // waiting on it can offer nothing but a spinner. Failing is recoverable —
+      // the caller reports the note as unread — so a shorter wait is the safer
+      // trade here. The write keeps the default, since a POST that timed out
+      // may still have landed.
+      timeout: _feedbackReadTimeout,
       fromJson: runFeedbackFromJson,
     );
   }

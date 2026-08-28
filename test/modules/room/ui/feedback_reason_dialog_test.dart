@@ -46,7 +46,7 @@ void main() {
 
     expect(find.text('Tell us why'), findsOneWidget);
     expect(find.text('Add a reason (optional)'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Close'), findsOneWidget);
     expect(find.text('Send'), findsOneWidget);
   });
 
@@ -65,7 +65,7 @@ void main() {
     final submitted = await _open(tester);
 
     await tester.enterText(find.byType(TextField), 'never mind');
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
 
     expect(submitted, isEmpty);
@@ -104,6 +104,18 @@ void main() {
       await tester.tap(find.text('Send'));
       await tester.pumpAndSettle();
       expect(submitted, ['on file']);
+    });
+
+    testWidgets('puts the cursor in the field once the note is loaded',
+        (tester) async {
+      // The field is disabled while loading, so autofocus is dropped and the
+      // node refuses focus until the rebuild re-enables it. Without a cursor
+      // the user has to tap before they can extend the note, which is the
+      // whole point of this entry point.
+      await _open(tester, loadInitialText: () async => 'on file');
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.focusNode?.hasFocus, isTrue);
     });
 
     testWidgets('says so when it could not be read, and still submits',
@@ -159,6 +171,76 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(submitted, ['worth keeping', 'worth keeping']);
+      expect(find.text('Tell us why'), findsNothing);
+    });
+
+    testWidgets('stays escapable while the send is in flight', (tester) async {
+      // The barrier is not dismissible and the request has no deadline short
+      // enough to wait out, so a disabled Cancel would be the only way out of
+      // a hung send — on iOS there is no back button to fall back on.
+      final gate = Completer<bool>();
+      await _open(tester, onSubmit: (_) => gate.future);
+
+      await tester.enterText(find.byType(TextField), 'worth keeping');
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tell us why'), findsNothing);
+      gate.complete(true);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('closes even when a route covered it mid-send', (tester) async {
+      // A route pushed over the dialog (the inactivity warning does this on a
+      // timer) means the send resolves while this is not the current route.
+      // Without releasing the flag the dialog is left with every control
+      // disabled once that route goes.
+      final gate = Completer<bool>();
+      final navigatorKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(MaterialApp(
+        navigatorKey: navigatorKey,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => FeedbackReasonDialog(
+                  onSubmit: (_) => gate.future,
+                ),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'covered');
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+
+      navigatorKey.currentState!.push(
+        DialogRoute<void>(
+          context: navigatorKey.currentContext!,
+          builder: (_) => const AlertDialog(title: Text('On top')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      gate.complete(true);
+      await tester.pump();
+
+      navigatorKey.currentState!.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Gone, not left looking unsent: the note is on file, so a dialog still
+      // showing the typed text would invite the user to conclude it never went.
       expect(find.text('Tell us why'), findsNothing);
     });
 
