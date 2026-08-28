@@ -6141,6 +6141,7 @@ void main() {
       late SoliplexApi liveApi;
       String? capturedMethod;
       Uri? capturedUri;
+      Duration? capturedTimeout;
 
       setUp(() {
         mockClient = MockSoliplexHttpClient();
@@ -6151,6 +6152,7 @@ void main() {
         when(() => mockClient.close()).thenReturn(null);
         capturedMethod = null;
         capturedUri = null;
+        capturedTimeout = null;
       });
 
       tearDown(() {
@@ -6174,6 +6176,7 @@ void main() {
         ).thenAnswer((invocation) async {
           capturedMethod = invocation.positionalArguments[0] as String;
           capturedUri = invocation.positionalArguments[1] as Uri;
+          capturedTimeout = invocation.namedArguments[#timeout] as Duration?;
           return HttpResponse(
             statusCode: 200,
             bodyBytes: Uint8List.fromList(utf8.encode(body)),
@@ -6210,6 +6213,17 @@ void main() {
           await liveApi.getRunFeedback('room-123', 'thread-456', 'run-789'),
           isNull,
         );
+      });
+
+      test('bounds the read well below the transport default', () async {
+        // This read gates a modal, so the caller can offer nothing but a
+        // spinner while it runs. Failing is recoverable — the caller reports
+        // the note as unread — where waiting out the 600s default is not.
+        answerWithJson('null');
+
+        await liveApi.getRunFeedback('room-123', 'thread-456', 'run-789');
+
+        expect(capturedTimeout, const Duration(seconds: 15));
       });
 
       test('validates non-empty runId', () {
