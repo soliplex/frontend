@@ -151,23 +151,40 @@ class _FeedbackReasonDialogState extends State<FeedbackReasonDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AlertDialog(
       title: const Text('Tell us why'),
-      content: SoliplexInput(
-        controller: _controller,
-        focusNode: _focusNode,
-        autofocus: true,
-        maxLines: 5,
-        hintText: 'Add a reason (optional)',
-        // The unread-note warning is the ordinary state, not an error, and it
-        // has to outlive a failed submit — so the two occupy different slots.
-        helperText: _unreadNote,
-        errorText: _error,
-        isLoading: _isLoading,
-        // Not `isLoading` while submitting: that disables the field, greying
-        // out the text the user may still need to retry with.
-        readOnly: _isSubmitting,
-        textInputAction: TextInputAction.newline,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SoliplexInput(
+            controller: _controller,
+            focusNode: _focusNode,
+            autofocus: true,
+            maxLines: 5,
+            hintText: 'Add a reason (optional)',
+            errorText: _error,
+            isLoading: _isLoading,
+            // Not `isLoading` while submitting: that disables the field,
+            // greying out the text the user may still need to retry with.
+            readOnly: _isSubmitting,
+            textInputAction: TextInputAction.newline,
+          ),
+          if (_unreadNote != null) ...[
+            const SizedBox(height: SoliplexSpacing.s2),
+            // Outside the input rather than its `helperText`: that slot is
+            // capped at two lines, which ellipsizes away the clause naming
+            // what a submit replaces, and `errorText` renders in place of it,
+            // so a failed send would hide the warning at the moment the user
+            // is most likely to send again.
+            Text(
+              _unreadNote!,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ],
       ),
       actions: [
         SoliplexButton.text(
