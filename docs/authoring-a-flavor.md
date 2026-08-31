@@ -75,8 +75,14 @@ Customize through `standardFlavor`'s parameters — identity, theme,
 
 For compositions that diverge further than `standardFlavor` allows, drop one
 level: call `buildStandardKit` yourself and construct a `Flavor` from its
-kit (see ADR-003 §3.3). Every kit field is then yours to forward — forget
-`refreshListenable` and auth-driven redirects silently stop re-evaluating.
+kit (see ADR-003 §3.3). Every kit field is then yours to forward, and two of
+them fail quietly if you don't. Forget `refreshListenable` and auth-driven
+redirects stop re-evaluating. Forget `initialRoute` and it falls back to `/`,
+which discards the kit's answer — so someone returning mid sign-in lands on the
+sign-in screen instead of the callback that would have consumed their tokens,
+and the sign-in never completes. Pass `kit.initialRoute` verbatim; a literal of
+your own has the same effect, and it also strands `signedOutLandingPath`, whose
+path the guard still admits even though nothing lands on it.
 Prefer `standardFlavor` unless you genuinely need a different module graph.
 
 ## Rules
