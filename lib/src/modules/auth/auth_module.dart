@@ -45,7 +45,22 @@ class AuthAppModule extends AppModule {
     ConsentNotice? consentNotice,
     Widget? logo,
     String? defaultBackendUrl,
-  })  : _serverManager = serverManager,
+    Set<String> extraPublicPaths = const {},
+  })  : assert(
+          extraPublicPaths.every(
+            (p) =>
+                p.startsWith('/') &&
+                (p == '/' || !p.endsWith('/')) &&
+                !p.contains('?') &&
+                !p.contains('#'),
+          ),
+          'An extraPublicPaths entry can never match unless it is a bare path '
+          'with a leading slash and no trailing slash, query or fragment — a '
+          'top-level redirect reports the requested path already normalized '
+          'that way.',
+        ),
+        extraPublicPaths = Set.unmodifiable(extraPublicPaths),
+        _serverManager = serverManager,
         _probeClient = probeClient,
         _authFlow = authFlow,
         _appName = appName,
@@ -65,6 +80,12 @@ class AuthAppModule extends AppModule {
   final ConsentNotice? _consentNotice;
   final Widget? _logo;
   final String? _defaultBackendUrl;
+
+  /// Paths a flavor declared reachable without a session. Snapshotted, so a
+  /// caller that keeps the set it passed cannot retune the guard later.
+  @visibleForTesting
+  final Set<String> extraPublicPaths;
+
   final SignalListenable _refreshListenable;
 
   /// The [Listenable] that notifies [GoRouter] when auth state changes.
@@ -118,7 +139,13 @@ class AuthAppModule extends AppModule {
           ),
         ],
         redirect: (_, state) {
-          final isPublic = _publicPaths.contains(state.matchedLocation);
+          // go_router hands a top-level redirect the whole requested path,
+          // with the query and one trailing slash already off it, so matching
+          // it against a literal admits '/welcome' alone: '/welcome/admin' and
+          // every '/welcome/:step' instance stay guarded. The entries are not
+          // normalized in turn — an entry written '/welcome/' matches nothing.
+          final isPublic = _publicPaths.contains(state.matchedLocation) ||
+              extraPublicPaths.contains(state.matchedLocation);
           if (isPublic) return null;
 
           // Per-server guard: if the route names a specific server and

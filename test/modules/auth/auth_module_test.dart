@@ -18,12 +18,17 @@ ServerManager _createServerManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-AuthAppModule _createModule({ServerManager? serverManager}) => AuthAppModule(
+AuthAppModule _createModule({
+  ServerManager? serverManager,
+  Set<String> extraPublicPaths = const {},
+}) =>
+    AuthAppModule(
       serverManager: serverManager ?? _createServerManager(),
       probeClient: FakeHttpClient(),
       authFlow: FakeAuthFlow(),
       appName: 'Soliplex',
       inactivityLogoutFlags: InMemoryInactivityLogoutFlagStorage(),
+      extraPublicPaths: extraPublicPaths,
     );
 
 void main() {
@@ -34,6 +39,23 @@ void main() {
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
       expect(paths, containsAll(['/', '/auth/callback']));
       expect(paths, isNot(contains('/servers')));
+    });
+
+    test('rejects public paths that could never match', () {
+      // Requests arrive normalized, so each of these forms is unmatchable and
+      // would otherwise be a silently dead entry.
+      for (final bad in [
+        'welcome',
+        '/welcome/',
+        '/welcome?a=1',
+        '/welcome#x'
+      ]) {
+        expect(
+          () => _createModule(extraPublicPaths: {bad}),
+          throwsA(isA<AssertionError>()),
+          reason: bad,
+        );
+      }
     });
 
     test('contributes a redirect', () {
@@ -173,6 +195,69 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Chat'), findsOneWidget);
+    });
+  });
+
+  group('auth redirect with flavor-declared public paths', () {
+    late GoRouter router;
+
+    Widget buildApp(Set<String> extraPublicPaths) {
+      final module = _createModule(extraPublicPaths: extraPublicPaths);
+      addTearDown(module.onDispose);
+      final contribution = module.build();
+      router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          ...contribution.routes,
+          GoRoute(path: '/welcome', builder: (_, __) => const Text('Welcome')),
+          GoRoute(
+            path: '/welcome/admin',
+            builder: (_, __) => const Text('Welcome admin'),
+          ),
+        ],
+        redirect: contribution.redirect,
+      );
+      return ProviderScope(
+        overrides: contribution.overrides,
+        child: MaterialApp.router(routerConfig: router),
+      );
+    }
+
+    testWidgets('reaches a declared path when unauthenticated', (tester) async {
+      await tester.pumpWidget(buildApp({'/welcome'}));
+      await tester.pumpAndSettle();
+
+      router.go('/welcome?ref=email');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Welcome'), findsOneWidget);
+    });
+
+    testWidgets('ignores a set mutated after construction', (tester) async {
+      // The guard's allowlist is fixed when the module is built, so a caller
+      // holding the set it passed cannot open a path later.
+      final declared = <String>{};
+      await tester.pumpWidget(buildApp(declared));
+      await tester.pumpAndSettle();
+
+      declared.add('/welcome');
+      router.go('/welcome');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Welcome'), findsNothing);
+      expect(find.text('Soliplex'), findsOneWidget);
+    });
+
+    testWidgets('still guards a path below a declared one', (tester) async {
+      // Pins exact matching: a prefix check would admit this.
+      await tester.pumpWidget(buildApp({'/welcome'}));
+      await tester.pumpAndSettle();
+
+      router.go('/welcome/admin');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Welcome admin'), findsNothing);
+      expect(find.text('Soliplex'), findsOneWidget);
     });
   });
 

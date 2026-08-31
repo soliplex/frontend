@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_module.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/room/document_browser_url.dart';
 
@@ -41,6 +42,18 @@ void main() {
     expect(flavor.inactivity, same(kit.inactivity));
     expect(flavor.modules.sublist(0, kit.modules.length), kit.modules);
     expect(flavor.modules.last, same(extra));
+  });
+
+  test('extraPublicPaths reaches the auth module', () async {
+    final flavor = await standardFlavor(
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
+      extraPublicPaths: {'/welcome'},
+    );
+
+    expect(
+      flavor.modules.whereType<AuthAppModule>().single.extraPublicPaths,
+      {'/welcome'},
+    );
   });
 
   test('documentBrowserUrl installs the resolver override', () async {

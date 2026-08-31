@@ -18,7 +18,9 @@ import 'standard_kit.dart';
 /// This is the customization point ADR-003 blesses: swap [theme] for full
 /// color control, or pass [extraModules] to add features (the callback receives
 /// the composition kit, so a custom module can share state such as
-/// `kit.serverManager`). Mapping the kit's fields onto the [Flavor] lives here;
+/// `kit.serverManager`). [extraPublicPaths] names paths the sign-in guard
+/// admits without a session. Mapping the kit's fields onto the [Flavor] lives
+/// here;
 /// [Flavor.build] assembles that [Flavor] into a [ShellConfig] — neither is
 /// transcribed at the call site.
 Future<Flavor> standardFlavor({
@@ -28,6 +30,7 @@ Future<Flavor> standardFlavor({
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
+  Set<String> extraPublicPaths = const {},
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   bool enableDocumentFilter = true,
@@ -43,6 +46,7 @@ Future<Flavor> standardFlavor({
     defaultBackendUrl: defaultBackendUrl,
     callbackParams: callbackParams,
     consentNotice: consentNotice,
+    extraPublicPaths: extraPublicPaths,
     inactivityWarningDuration: inactivityWarningDuration,
     inactivityGraceDuration: inactivityGraceDuration,
     enableDocumentFilter: enableDocumentFilter,

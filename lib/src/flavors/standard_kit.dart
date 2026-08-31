@@ -60,6 +60,8 @@ Future<StandardKit> buildStandardKit({
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
+  // Feeds the auth guard only; the initialRoute computed below ignores it.
+  Set<String> extraPublicPaths = const {},
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   bool enableDocumentFilter = true,
@@ -155,6 +157,7 @@ Future<StandardKit> buildStandardKit({
     consentNotice: consentNotice,
     logo: brandLogo,
     defaultBackendUrl: resolvedUrl,
+    extraPublicPaths: extraPublicPaths,
   );
 
   final initialRoute = callbackParams is! NoCallbackParams
