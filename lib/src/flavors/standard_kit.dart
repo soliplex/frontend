@@ -60,8 +60,12 @@ Future<StandardKit> buildStandardKit({
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
-  // Feeds the auth guard only; the initialRoute computed below ignores it.
+  // Feeds the auth guard.
   Set<String> extraPublicPaths = const {},
+  // Where a signed-out launch lands. Replaces only that branch below — an
+  // in-flight auth callback and an already-connected stored server still win.
+  // The guard admits it automatically; it need not also be declared above.
+  String? signedOutLandingPath,
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   bool enableDocumentFilter = true,
@@ -157,14 +161,18 @@ Future<StandardKit> buildStandardKit({
     consentNotice: consentNotice,
     logo: brandLogo,
     defaultBackendUrl: resolvedUrl,
-    extraPublicPaths: extraPublicPaths,
+    // A landing path the guard bounced would be meaningless, so it joins the
+    // declared ones.
+    extraPublicPaths: signedOutLandingPath == null
+        ? extraPublicPaths
+        : {...extraPublicPaths, signedOutLandingPath},
   );
 
   final initialRoute = callbackParams is! NoCallbackParams
       ? AppRoutes.authCallback
       : (serverManager.authState.value is Authenticated
           ? AppRoutes.lobby
-          : AppRoutes.home);
+          : (signedOutLandingPath ?? AppRoutes.home));
 
   return (
     modules: List<AppModule>.unmodifiable(<AppModule>[

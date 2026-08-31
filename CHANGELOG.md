@@ -14,11 +14,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   deployment that adds its own screen — an intro or welcome page — can put it
   in front of an unauthenticated user instead of having it bounced to the
   server list. Declared paths match exactly, so adding one screen does not open
-  anything beneath it. A path written in a form that could never match is
-  refused outright rather than silently ignored. It changes only what the
-  guard allows: the flavor's
-  initial route is untouched, so a launch with no URL still lands on the
-  sign-in screen or the lobby.
+  anything beneath it, and a path written in a form that could never match is
+  refused outright rather than silently ignored.
+- A deployment can also choose where a signed-out launch lands, so that screen
+  can be the first thing a new user sees rather than somewhere they have to
+  navigate to. Naming it is enough — it does not have to be declared reachable
+  separately. It moves only that one case: someone returning mid sign-in still
+  completes it, and anyone whose stored server is already connected still lands
+  in their room list.
 
 ### Changed
 

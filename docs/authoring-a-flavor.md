@@ -100,24 +100,41 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
 - `standardFlavor`'s `extraPublicPaths` is what makes a route of yours
   reachable without a session — an intro or welcome screen. It is on
   `buildStandardKit` too, and deliberately not on `standard()`: without
-  `extraModules` there is no route of your own to declare, and every standard
-  path is either already public or still guarded by its own route. Requests arrive
-  normalized but your entries are compared literally, so write `/welcome`: a
-  leading slash, no trailing slash, no query or fragment. Those forms could
-  never match, and an assertion rejects them in debug and under test rather
-  than leaving you a dead entry. The request side stays forgiving — `/welcome/`
-  and `/welcome?ref=email` both reach a declared `/welcome`. Matching is exact, never a prefix — declaring `/welcome` leaves
+  `extraModules` there is no route of your own to declare, and the only
+  standard path it could open is the lobby, which without a session has nothing
+  to show. Requests
+  arrive normalized but your entries are compared literally, so write
+  `/welcome`: a leading slash, no trailing slash, no query or fragment. Those
+  forms could never match, and an assertion rejects them in debug and under
+  test rather than leaving you a dead entry. The request side stays forgiving —
+  `/welcome/` and `/welcome?ref=email` both reach a declared `/welcome`.
+  Matching is exact, never a prefix: declaring `/welcome` leaves
   `/welcome/admin` guarded, and `/welcome/:step` resolves per visit to a
   concrete path that matches no entry.
+- `signedOutLandingPath` lands a signed-out launch on a screen of your own
+  instead of the sign-in page — it sits on the same two functions, and like
+  `extraPublicPaths` not on `standard()`. You do not declare it public
+  separately: the guard admits it, since a landing path it bounced would be
+  meaningless. It replaces only that one branch — an in-flight auth callback
+  still finishes, and an already-connected stored server still opens the lobby.
+  A server that needs no sign-in counts as connected, so such a deployment
+  shows this screen on a fresh install and goes straight to the lobby on every
+  launch after it has stored one. The path follows the same form rules as an
+  entry above — a leading slash, no trailing slash, no query or fragment — and
+  it must name a literal route one of your modules registers, not a concrete
+  instance of a parameterized one like `/room/prod/123`. That check runs against the route the app actually starts on, so a
+  machine with a connected server will not surface a typo here —
+  `Flavor.build()` throws on a signed-out launch, listing the paths it does
+  know.
 - Two ways `extraPublicPaths` can bite. Nothing checks an entry against your
   routes, and an entry naming none is worse than inert: the guard stops
   bouncing that location, so an unauthenticated visitor reaches go_router's
   "Page Not Found" screen instead of the server list. And declaring a path that
   already belongs to a module removes that screen's sign-in guard — for a
   per-server path that also costs the return trip, since the route's own guard
-  bounces to a bare `/lobby` rather than to sign-in-and-come-back. Otherwise it
-  changes the guard and nothing else — your `initialRoute` is untouched, so a
-  cold launch lands where it did. On web a URL to a declared path opens it
-  directly, because go_router prefers a non-`/` platform route over
-  `initialLocation`; native deep links do not, since no platform in this repo
-  enables Flutter deep linking.
+  bounces to a bare `/lobby` rather than to sign-in-and-come-back. On its own
+  `extraPublicPaths` leaves your `initialRoute` untouched, so a cold launch
+  lands where it did. On web a URL to a declared path opens it directly,
+  because go_router prefers a non-`/` platform route over `initialLocation`;
+  native deep links do not, since no platform in this repo enables Flutter deep
+  linking.

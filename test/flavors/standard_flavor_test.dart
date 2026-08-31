@@ -56,6 +56,16 @@ void main() {
     );
   });
 
+  test('signedOutLandingPath reaches the flavor', () async {
+    // Unlike its neighbours this passes no callbackParams: a callback wins the
+    // initialRoute outright, so the signed-out branch would never be reached.
+    final flavor = await standardFlavor(
+      signedOutLandingPath: '/welcome',
+    );
+
+    expect(flavor.initialRoute, '/welcome');
+  });
+
   test('documentBrowserUrl installs the resolver override', () async {
     Uri? resolver(String uri) => Uri.parse('https://example.test/x');
 

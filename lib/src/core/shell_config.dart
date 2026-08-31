@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'app_module.dart';
 import 'inactivity/inactivity_config.dart';
@@ -97,6 +98,15 @@ class ShellConfig {
       initialRoute: initialRoute,
     );
     if (routeErrors.isNotEmpty) {
+      // The throw aborts boot before any screen exists, and an ArgumentError
+      // carrying no `name` renders as the bare type in the uncaught-error
+      // record — so the paths that name the fault would otherwise reach only
+      // the platform console. Route paths are authored in code, not
+      // supplied by a user or the backend, so they are safe to record.
+      LogManager.instance.getLogger('shell').error(
+        'Invalid route configuration',
+        attributes: {'errors': routeErrors.join('; ')},
+      );
       throw ArgumentError(
         'Invalid route configuration:\n${routeErrors.join('\n')}',
       );

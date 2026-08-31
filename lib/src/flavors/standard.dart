@@ -19,10 +19,10 @@ import 'standard_kit.dart';
 /// color control, or pass [extraModules] to add features (the callback receives
 /// the composition kit, so a custom module can share state such as
 /// `kit.serverManager`). [extraPublicPaths] names paths the sign-in guard
-/// admits without a session. Mapping the kit's fields onto the [Flavor] lives
-/// here;
-/// [Flavor.build] assembles that [Flavor] into a [ShellConfig] — neither is
-/// transcribed at the call site.
+/// admits without a session, and [signedOutLandingPath] lands a signed-out
+/// launch on a path of your own, admitting it too. Mapping the
+/// kit's fields onto the [Flavor] lives here; [Flavor.build] assembles that
+/// [Flavor] into a [ShellConfig] — neither is transcribed at the call site.
 Future<Flavor> standardFlavor({
   AppIdentity? identity,
   FlavorTheme theme = const FlavorTheme.brand(BrandTheme.soliplex()),
@@ -31,6 +31,7 @@ Future<Flavor> standardFlavor({
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
   Set<String> extraPublicPaths = const {},
+  String? signedOutLandingPath,
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   bool enableDocumentFilter = true,
@@ -47,6 +48,7 @@ Future<Flavor> standardFlavor({
     callbackParams: callbackParams,
     consentNotice: consentNotice,
     extraPublicPaths: extraPublicPaths,
+    signedOutLandingPath: signedOutLandingPath,
     inactivityWarningDuration: inactivityWarningDuration,
     inactivityGraceDuration: inactivityGraceDuration,
     enableDocumentFilter: enableDocumentFilter,
