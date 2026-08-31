@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Changed
+
+- The line under the composer now reads "<app name> is AI and can make
+  mistakes.", and it renders on every deployment. It previously named the
+  room's confidentiality level, which meant it appeared only where a
+  classification vocabulary had been declared — so a deployment that declared
+  none carried no caveat at all, while the caveat that a model can be wrong is
+  true of all of them. The marking band above the conversation is unchanged and
+  still appears only where a vocabulary is configured.
+
 ## [0.102.0+85] - 2026-08-28
 
 ### Added

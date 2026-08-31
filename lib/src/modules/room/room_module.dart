@@ -58,7 +58,8 @@ class RoomAppModule extends AppModule {
   /// floors every room and thread on the server for the rail's unread checks.
   final ServerReadMarkers serverReadMarkers;
 
-  /// Brand identity for the room-info screen's branded header.
+  /// The product's own name — the room-info screen's branded header, and the
+  /// AI disclaimer under the chat composer.
   final String appName;
   final Widget? logo;
   final bool enableDocumentFilter;
@@ -119,6 +120,7 @@ class RoomAppModule extends AppModule {
             serverEntry: entry,
             roomId: state.pathParameters['roomId']!,
             threadId: state.pathParameters['threadId'],
+            appName: appName,
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: _uploadRegistry,

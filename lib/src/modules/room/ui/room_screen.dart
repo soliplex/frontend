@@ -53,6 +53,7 @@ import '../thread_view_state.dart';
 import '../compute_display_messages.dart';
 import '../workdir_controller.dart';
 import 'approval_handler.dart';
+import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
@@ -198,6 +199,7 @@ class RoomScreen extends StatefulWidget {
     required this.serverEntry,
     required this.roomId,
     required this.threadId,
+    required this.appName,
     required this.runtimeManager,
     required this.registry,
     required this.uploadRegistry,
@@ -210,6 +212,10 @@ class RoomScreen extends StatefulWidget {
   final ServerEntry serverEntry;
   final String roomId;
   final String? threadId;
+
+  /// The product's own name, for the AI disclaimer under the composer.
+  final String appName;
+
   final AgentRuntimeManager runtimeManager;
   final RunRegistry registry;
   final UploadTrackerRegistry uploadRegistry;
@@ -1881,10 +1887,9 @@ class _RoomScreenState extends State<RoomScreen> {
           if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
           Expanded(child: _capWidth(body)),
           _capWidth(_buildChatInput(threadView, room, messagesStatus)),
-          // Under the composer, where a chat product puts its standing
-          // caveat: what the user is typing into is marked, and the marking
-          // should be the last thing read before sending.
-          _capWidth(const ChatClassificationNotice()),
+          // Last in the column so the caveat is the last thing read before
+          // sending.
+          _capWidth(ChatAiDisclaimer(appName: widget.appName)),
         ],
       ),
       headerActions:

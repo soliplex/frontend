@@ -1,10 +1,9 @@
-/// The room's confidentiality marking as it appears inside the chat itself:
-/// a band over the conversation ([ChatClassificationBand]) and a sentence
-/// under the composer ([ChatClassificationNotice]).
+/// The room's confidentiality marking as it appears inside the chat itself: a
+/// band over the conversation ([ChatClassificationBand]).
 ///
-/// Both take no room: [Room] carries no classification field, so both render
-/// the ambient [ClassificationTheme]'s default and a deployment's rooms all
-/// read the same marking.
+/// The band takes no room argument, because `Room` carries no classification
+/// field: it renders the ambient [ClassificationTheme]'s default, so a
+/// deployment's rooms all read the same marking.
 library;
 
 import 'package:flutter/material.dart';
@@ -18,17 +17,6 @@ import 'package:soliplex_design/soliplex_design.dart';
 /// width, so its height is worth buying down. At s1 the strip reads as a
 /// second toolbar; here it reads as a rule carrying a word.
 const double _bandVerticalPadding = 2;
-
-/// The marking to render, or null on a deployment that declared no marking
-/// vocabulary.
-///
-/// Resolves once: [ClassificationTheme.resolve] logs a fail-loud warning for
-/// an id it does not recognize, and asking a second time to decide whether to
-/// render doubles that warning on every build.
-ClassificationLevel? _markingOf(BuildContext context) {
-  final theme = ClassificationTheme.of(context);
-  return theme.isConfigured ? theme.resolve(context, null) : null;
-}
 
 /// The room's marking, banded above the conversation under whatever names the
 /// room — the app bar on narrow layouts, the in-page header on wide ones.
@@ -50,7 +38,14 @@ class ChatClassificationBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final level = _markingOf(context);
+    final classification = ClassificationTheme.of(context);
+    // Resolved once, and not asked again to decide whether to render:
+    // ClassificationTheme.resolve logs a fail-loud warning for an id it does
+    // not recognize, and a second call would double that warning on every
+    // build. Null is the deployment that declared no marking vocabulary.
+    final level = classification.isConfigured
+        ? classification.resolve(context, null)
+        : null;
     if (level == null) return const SizedBox.shrink();
     return Semantics(
       label: 'Classification: ${level.label}',
@@ -79,35 +74,6 @@ class ChatClassificationBand extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// The standing reminder under the composer — the same slot the "may make
-/// mistakes" line occupies in other chat products — naming the level the
-/// user is about to type into.
-///
-/// The marking's own label is interpolated verbatim, as everywhere else a
-/// level is rendered.
-class ChatClassificationNotice extends StatelessWidget {
-  const ChatClassificationNotice({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final level = _markingOf(context);
-    if (level == null) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: SoliplexSpacing.s4,
-        right: SoliplexSpacing.s4,
-      ),
-      child: Text(
-        'Information level is: ${level.label}',
-        textAlign: TextAlign.center,
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
       ),
     );
   }

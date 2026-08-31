@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -79,5 +80,45 @@ void main() {
       container.read(messageExpansionsProvider),
       isA<MessageExpansions>(),
     );
+  });
+
+  // The module is the only production site that supplies `appName` to the room
+  // screen, and the compiler enforces only that it is supplied, not that the
+  // module's own name is what reaches it. Every fixture in this repo is named
+  // "Soliplex", so a hardcoded literal here is indistinguishable from a
+  // correct forward in any build this repo can run — it surfaces only in a
+  // fork, which is the audience the name exists for. Hence a distinctive name.
+  testWidgets('forwards its app name to the disclaimer under the composer',
+      (tester) async {
+    final serverManager = _createManager();
+    final forkModule = RoomAppModule(
+      serverManager: serverManager,
+      runtimeManager: runtimeManager,
+      registry: registry,
+      roomReadMarkers: RoomReadMarkers(),
+      serverReadMarkers: ServerReadMarkers(),
+      appName: 'Acme',
+    );
+    addTearDown(forkModule.onDispose);
+    // requiresAuth: false makes the entry connected on arrival, which is what
+    // the routes' requireConnectedServer redirect demands.
+    serverManager.addServer(
+      serverId: 'srv-1',
+      serverUrl: Uri.parse('https://example.test'),
+      requiresAuth: false,
+      alias: 'srv',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp.router(
+        routerConfig: GoRouter(
+          initialLocation: '/room/srv/room-1',
+          routes: forkModule.build().routes,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Acme is AI and can make mistakes.'), findsOneWidget);
   });
 }
