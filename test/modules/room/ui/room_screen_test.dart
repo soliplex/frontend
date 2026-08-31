@@ -101,6 +101,7 @@ Widget _buildRouted({
       GoRoute(
         path: '/room/:alias/:roomId',
         builder: (ctx, state) => RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: state.pathParameters['roomId']!,
           threadId: null,
@@ -113,6 +114,7 @@ Widget _buildRouted({
           GoRoute(
             path: 'thread/:threadId',
             builder: (ctx, state) => RoomScreen(
+              appName: 'Test App',
               serverEntry: entry,
               roomId: state.pathParameters['roomId']!,
               threadId: state.pathParameters['threadId'],
@@ -434,6 +436,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -455,6 +458,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -481,6 +485,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: namedEntry,
           roomId: 'room-1',
           threadId: null,
@@ -507,6 +512,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -543,6 +549,7 @@ void main() {
         // defaults are short enough that the title never outgrows the bar.
         theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -580,6 +587,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: namedEntry,
           roomId: 'room-1',
           threadId: null,
@@ -620,6 +628,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         theme: theme,
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -740,10 +749,6 @@ void main() {
           findsNothing,
         );
         expect(find.text('RESTRICTED'), findsOneWidget);
-        expect(
-          find.text('Information level is: RESTRICTED'),
-          findsOneWidget,
-        );
         expect(tester.takeException(), isNull);
       });
 
@@ -756,10 +761,6 @@ void main() {
         // No AppBar on wide; the band sits under the in-page header instead.
         expect(find.byType(AppBar), findsNothing);
         expect(find.text('RESTRICTED'), findsOneWidget);
-        expect(
-          find.text('Information level is: RESTRICTED'),
-          findsOneWidget,
-        );
         expect(tester.takeException(), isNull);
       });
 
@@ -806,7 +807,8 @@ void main() {
         });
       }
 
-      testWidgets('an unconfigured deployment gets neither', (tester) async {
+      testWidgets('an unconfigured deployment gets the disclaimer but no band',
+          (tester) async {
         api.nextRoom = const Room(id: 'room-1', name: 'General');
 
         await pumpRoom(tester, width: 400);
@@ -814,7 +816,12 @@ void main() {
         // The band is always mounted and collapses to nothing, so its size is
         // the assertion — `findsNothing` on it would pass for the wrong reason.
         expect(tester.getSize(find.byType(ChatClassificationBand)), Size.zero);
-        expect(find.textContaining('Information level'), findsNothing);
+        // The disclaimer under the composer is not a marking and shares none
+        // of the band's gating, so it stands on an unmarked deployment too.
+        expect(
+          find.text('Test App is AI and can make mistakes.'),
+          findsOneWidget,
+        );
       });
     });
   });
@@ -828,6 +835,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -862,6 +870,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -906,6 +915,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -947,6 +957,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -985,6 +996,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -1009,6 +1021,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -1054,6 +1067,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: blockingEntry,
         roomId: 'room-1',
         threadId: null,
@@ -1088,6 +1102,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -1127,6 +1142,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -1169,6 +1185,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -1203,6 +1220,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
@@ -1234,6 +1252,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
+        appName: 'Test App',
         serverEntry: blockingEntry,
         roomId: 'room-1',
         threadId: 'thread-1',
@@ -1276,6 +1295,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -1324,6 +1344,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -1392,6 +1413,7 @@ void main() {
 
       Widget screen(String? threadId) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: entry,
               roomId: 'room-1',
               threadId: threadId,
@@ -1442,6 +1464,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: 'thread-1',
@@ -1477,6 +1500,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -1509,6 +1533,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -1540,6 +1565,7 @@ void main() {
       Future<Object?> scopeFor(String? threadId) async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: entry,
             roomId: 'room-1',
             threadId: threadId,
@@ -1581,6 +1607,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -1608,6 +1635,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -1632,6 +1660,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -1686,6 +1715,7 @@ void main() {
 
       Widget roomScreen(String roomId) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: staleEntry,
               roomId: roomId,
               threadId: null,
@@ -1743,6 +1773,7 @@ void main() {
       );
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: authedEntry,
           roomId: 'room-1',
           threadId: null,
@@ -1848,6 +1879,7 @@ void main() {
 
       Widget roomScreen(ServerEntry e) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: e,
               roomId: 'room-1',
               threadId: null,
@@ -1882,6 +1914,7 @@ void main() {
   group('rail rooms', () {
     Widget roomScreen(String roomId) => MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: entry,
             roomId: roomId,
             threadId: null,
@@ -1906,6 +1939,7 @@ void main() {
     testWidgets('are refetched when the server changes', (tester) async {
       Widget roomScreenFor(ServerEntry e) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: e,
               roomId: 'room-1',
               threadId: null,
@@ -1946,6 +1980,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: authedEntry,
           roomId: 'room-1',
           threadId: null,
@@ -1989,6 +2024,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: deniedEntry,
           roomId: 'room-1',
           threadId: null,
@@ -2036,6 +2072,7 @@ void main() {
 
       Widget roomScreenFor(ServerEntry e) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: e,
               roomId: 'room-1',
               threadId: null,
@@ -2149,6 +2186,7 @@ void main() {
       await withClock(Clock(() => now), () async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: signedInEntry,
             roomId: 'room-1',
             threadId: 'thread-1',
@@ -2200,6 +2238,7 @@ void main() {
 
       Widget roomScreen(String roomId) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: signedInEntry,
               roomId: roomId,
               threadId: roomId == 'room-1' ? 'thread-1' : null,
@@ -2265,6 +2304,7 @@ void main() {
 
       Widget roomScreen(ServerEntry e) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: e,
               roomId: 'room-1',
               threadId: 'thread-1',
@@ -2335,6 +2375,7 @@ void main() {
       await withClock(Clock(() => now), () async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: anonEntry,
             roomId: 'room-1',
             threadId: 'thread-1',
@@ -2387,6 +2428,7 @@ void main() {
       await withClock(Clock(() => now), () async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: aliceEntry,
             roomId: 'room-1',
             threadId: 'thread-1',
@@ -2536,6 +2578,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: signedInEntry,
           roomId: 'room-1',
           threadId: 'thread-2',
@@ -2613,6 +2656,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: 'thread-1',
@@ -2760,6 +2804,7 @@ void main() {
       await withClock(Clock(() => now), () async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: entry,
             roomId: 'room-1',
             threadId: 'thread-1',
@@ -2813,6 +2858,7 @@ void main() {
       await withClock(Clock(() => now), () async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: entry,
             roomId: 'room-1',
             threadId: 'thread-1',
@@ -2863,6 +2909,7 @@ void main() {
 
       Widget roomScreen(String roomId) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: authedEntry,
               roomId: roomId,
               threadId: roomId == 'room-1' ? 'thread-1' : null,
@@ -2915,6 +2962,7 @@ void main() {
       await withClock(Clock(() => now), () async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: aliceEntry,
             roomId: 'room-1',
             threadId: 'thread-1',
@@ -3054,6 +3102,7 @@ void main() {
       }
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: 'thread-1',
@@ -3160,6 +3209,7 @@ void main() {
       ];
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: createTestServerEntry(api: blockingApi),
           roomId: 'room-1',
           threadId: 'thread-1',
@@ -3279,6 +3329,7 @@ void main() {
       // chord measured is gone, so its text must not land in the new one.
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: 'thread-2',
@@ -3488,6 +3539,7 @@ void main() {
       api.nextThreads = const [];
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
+          appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
@@ -3517,6 +3569,7 @@ void main() {
       api.nextThreads = const [];
       Widget room(String id) => MaterialApp(
             home: RoomScreen(
+              appName: 'Test App',
               serverEntry: entry,
               roomId: id,
               threadId: null,
@@ -3611,6 +3664,7 @@ void main() {
         ],
         child: MaterialApp(
           home: RoomScreen(
+            appName: 'Test App',
             serverEntry: entry,
             roomId: 'room-1',
             threadId: 'thread-1',

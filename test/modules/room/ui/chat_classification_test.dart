@@ -146,25 +146,4 @@ void main() {
       );
     });
   });
-
-  group('ChatClassificationNotice', () {
-    testWidgets('names the level the room carries', (tester) async {
-      await tester.pumpWidget(_wrap(const ChatClassificationNotice()));
-      expect(
-        find.text('Information level is: RESTRICTED'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('says nothing when no marking is configured', (tester) async {
-      await tester.pumpWidget(
-        _wrap(const ChatClassificationNotice(), theme: ThemeData()),
-      );
-      expect(find.textContaining('Information level'), findsNothing);
-      expect(
-        tester.getSize(find.byType(ChatClassificationNotice)),
-        Size.zero,
-      );
-    });
-  });
 }
