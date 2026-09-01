@@ -62,7 +62,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   installLogSinks();
   final flavor = await myFlavor();
-  runSoliplexShell(flavor.build());
+  // Pass the builder, not the built config: `Flavor.build()` throws on an
+  // invalid configuration, and a throw out here lands before any view exists —
+  // which on iOS, macOS and Android is not a crash but a launch that never
+  // finishes. Inside, it becomes a message naming the route at fault.
+  await runSoliplexShell(flavor.build);
 }
 ```
 

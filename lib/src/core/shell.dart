@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show FutureOr, unawaited;
 import 'dart:io' show Platform;
 
 import 'package:file_picker/file_picker.dart';
@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_design/soliplex_design.dart' show SoliplexSpacing;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'inactivity/inactivity_dialog_host.dart';
@@ -16,13 +17,73 @@ import 'router.dart';
 import 'shell_config.dart';
 import 'status_message_config.dart';
 
-/// Boots the Soliplex shell from a [ShellConfig].
+/// Boots the Soliplex shell, building its [ShellConfig] inside the guard.
+///
+/// Takes a builder rather than a built config because that is the only way to
+/// catch what [Flavor.build] throws — an invalid route configuration, a theme
+/// missing its extension, a duplicated namespace. Those land before any view is
+/// attached, and a failure there is not a crash the platform reports: iOS and
+/// macOS hold the launch storyboard and Android keeps the window background,
+/// neither blocking the main thread, so nothing fires a watchdog and the user
+/// has a launch that never finishes and nothing to send back. The message names
+/// the route or path at fault, so it is put on the device instead.
+///
+/// The error is rethrown after the surface is shown, leaving the engine's own
+/// report and [installUncaughtErrorLogging] exactly as they were.
 ///
 /// Uses [UniqueKey] so that hot restart (which re-runs main) creates a fresh
 /// widget tree. Hot reload does not re-run main, so this is safe.
-void runSoliplexShell(ShellConfig config) {
+Future<void> runSoliplexShell(
+  FutureOr<ShellConfig> Function() buildConfig,
+) async {
   _clearFilePickerTempCacheOnMobile();
-  runApp(SoliplexShell(key: UniqueKey(), config: config));
+  try {
+    runApp(SoliplexShell(key: UniqueKey(), config: await buildConfig()));
+  } catch (error) {
+    runApp(_BootFailureApp(error));
+    rethrow;
+  }
+}
+
+/// Shown when the app could not be assembled, so it uses no flavor, no theme
+/// and no shell — any of which may be what failed.
+class _BootFailureApp extends StatelessWidget {
+  const _BootFailureApp(this.error);
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(SoliplexSpacing.s6),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This build could not start',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: SoliplexSpacing.s3),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      // Selectable so it can be copied off the device: on a
+                      // packaged build this text exists nowhere else.
+                      child: SelectableText(
+                        '$error',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 /// On mobile (Android / iOS), `file_picker` copies each picked file to

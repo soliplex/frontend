@@ -10,5 +10,7 @@ Future<void> main() async {
   installUncaughtErrorLogging();
   final callbackParams = CallbackParamsCapture.captureNow();
   clearCallbackUrl();
-  runSoliplexShell(await standard(callbackParams: callbackParams));
+  // The builder runs inside runSoliplexShell so a configuration failure
+  // reaches the screen rather than stalling the launch.
+  await runSoliplexShell(() => standard(callbackParams: callbackParams));
 }

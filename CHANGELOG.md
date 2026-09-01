@@ -35,6 +35,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- **Breaking:** `runSoliplexShell` now takes the function that builds the
+  configuration rather than the finished configuration — pass `flavor.build`
+  where you passed `flavor.build()`, and await the call. Assembling a flavor can
+  fail on a configuration mistake, and that failure happened before any screen
+  existed: on iOS, macOS and Android the result was not a crash anyone could
+  report but a launch that never finished, with the message that named the
+  faulty route going nowhere. Building inside the call puts it on screen
+  instead.
+
 - A deployment that already depends on `go_router` may see the analyzer report
   its own import as `unnecessary_import` in files that use only the routing
   types this package now re-exports. Deleting the import resolves it; nothing
