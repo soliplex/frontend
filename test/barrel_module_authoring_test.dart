@@ -20,7 +20,10 @@ class _WelcomeModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
-        // RouteBase, GoRoute and GoRouterState all come from the barrel.
+        // Every entry in the barrel's go_router `show` clause is used here, so
+        // dropping one from the clause fails this file to compile. That is the
+        // rule the clause is curated by: nothing is exported that nothing
+        // drives.
         routes: <RouteBase>[
           GoRoute(
             path: path,
@@ -30,12 +33,24 @@ class _WelcomeModule extends AppModule {
           ),
           GoRoute(
             path: '/connected',
-            builder: (_, __) => const Text('connected'),
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: Text('connected')),
+          ),
+          GoRoute(
+            path: '/blocked',
+            builder: (_, __) => const Text('blocked'),
+            redirect: (_, __) => '/connected',
           ),
         ],
         publicPaths: const {path},
+        // Typed GoRouterRedirect on purpose: the barrel must name that
+        // typedef or this stops compiling. Returning null means this module
+        // diverts nothing, so it does not disturb the navigation below.
+        redirect: _neverDiverts,
       );
 }
+
+GoRouterRedirect get _neverDiverts => (_, __) => null;
 
 class _Welcome extends StatelessWidget {
   const _Welcome({this.query});

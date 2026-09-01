@@ -45,11 +45,19 @@ export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
 
 // A module author declares routes with go_router's own types and navigates with
 // its `context.go` extension, so the extension point is unusable without them.
-// `show` gates extensions too, which is why GoRouterHelper is named: omit it
-// and `context.go` stays out of reach. GoRouter is named because testing a
-// module means putting one above the widget under test — authoring without it
-// works and testing does not, which is not a usable half. Anything beyond
-// these, add go_router directly.
+//
+// The list is exactly what this repo's own modules are written in, and
+// test/barrel_module_authoring_test.dart exercises every entry. That rule is
+// what keeps it honest: it is a curated surface, never the whole package, and
+// a symbol nothing drives is a symbol nobody has checked. ShellRoute and
+// StatefulShellRoute were here and are not now — no module uses either, and
+// StatefulShellRoute could not even be constructed, since building one needs
+// StatefulShellBranch. Reaching past this list means adding go_router
+// directly, which stays supported and costs a fork only a pubspec line.
+//
+// Two entries are easy to drop and each breaks a different half. `show` gates
+// extensions, so without GoRouterHelper `context.go` will not resolve; and
+// without GoRouter a module can be authored but not driven in a widget test.
 export 'package:go_router/go_router.dart'
     show
         GoRoute,
@@ -58,9 +66,7 @@ export 'package:go_router/go_router.dart'
         GoRouterRedirect,
         GoRouterState,
         NoTransitionPage,
-        RouteBase,
-        ShellRoute,
-        StatefulShellRoute;
+        RouteBase;
 // Builds the router the shell itself runs on, public paths and module
 // redirects included. A test that assembles a GoRouter by hand from
 // ModuleRoutes reproduces that composition and can get it wrong; this cannot.

@@ -22,10 +22,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   can be the first thing a new user sees rather than somewhere they have to
   navigate to. It moves only that one case: someone returning mid sign-in still
   completes it, and anyone whose stored server is already connected still lands
-  in their room list.
+  in their room list. Naming a screen that would turn a visitor away, or one
+  that does not exist, is refused at startup on every launch — not only the
+  signed-out ones that would otherwise be the first to show it, so a machine
+  that already has a server connected still surfaces the mistake.
 - Writing a screen of your own no longer needs a routing dependency of your
-  own: the routing types a module declares and navigates with now come from
-  this package directly.
+  own, for building it or for testing it: the routing types a module declares,
+  navigates with and is driven by in a widget test now come from this package
+  directly. It is a curated set rather than the whole routing package — every
+  type in it is one this app's own screens are written in — so a deployment
+  reaching past it still adds that dependency itself.
 
 ### Changed
 

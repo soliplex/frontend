@@ -14,6 +14,7 @@ List<String> validateRoutes({
   required List<RouteBase> routes,
   required String initialRoute,
   Set<String> publicPaths = const {},
+  String? signedOutLandingPath,
 }) {
   if (routes.isEmpty) {
     return ['Configuration must define at least one route'];
@@ -68,6 +69,27 @@ List<String> validateRoutes({
       errors.add(
         'Public path "$path" does not match any defined route. '
         'Available: ${paths.join(', ')}',
+      );
+    }
+  }
+
+  if (signedOutLandingPath != null) {
+    // Checked on every launch, not only the signed-out ones. Both mistakes
+    // here — a typo, and forgetting to declare the route public — otherwise
+    // show up as "my screen does not appear", and only to whoever happens to
+    // launch without a connected server. Neither depends on the auth state,
+    // so neither needs to wait for it.
+    if (!paths.contains(_canonicalPath(signedOutLandingPath))) {
+      errors.add(
+        'signedOutLandingPath "$signedOutLandingPath" does not match any '
+        'defined route. Available: ${paths.join(', ')}',
+      );
+    } else if (!publicPaths.contains(_canonicalPath(signedOutLandingPath))) {
+      errors.add(
+        'signedOutLandingPath "$signedOutLandingPath" is not declared '
+        'reachable without a session, so the sign-in guard would bounce a '
+        'signed-out launch straight off it. Add it to the publicPaths of the '
+        'module that registers it.',
       );
     }
   }

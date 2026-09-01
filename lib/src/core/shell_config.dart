@@ -81,6 +81,7 @@ class ShellConfig {
     ThemeData? darkTheme,
     ThemeMode themeMode = ThemeMode.system,
     String initialRoute = '/',
+    String? signedOutLandingPath,
     Listenable? refreshListenable,
     InactivityConfig inactivity = const InactivityConfig(),
     StatusMessageConfig statusMessage = const StatusMessageConfig(),
@@ -104,6 +105,7 @@ class ShellConfig {
         routes: routes,
         initialRoute: initialRoute,
         publicPaths: coordinator.publicPaths,
+        signedOutLandingPath: signedOutLandingPath,
       ),
       ...validateModulePublicPaths(coordinator.contributions),
     ];

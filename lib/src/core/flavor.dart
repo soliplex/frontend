@@ -88,6 +88,7 @@ class Flavor {
     required this.theme,
     required List<AppModule> modules,
     this.initialRoute = '/',
+    this.signedOutLandingPath,
     this.refreshListenable,
     this.inactivity = const InactivityConfig(),
     this.statusMessage = const StatusMessageConfig(),
@@ -97,6 +98,12 @@ class Flavor {
   final FlavorTheme theme;
   final List<AppModule> modules;
   final String initialRoute;
+
+  /// Where a signed-out launch lands, when that is not [initialRoute]'s own
+  /// answer. Carried beside [initialRoute] rather than folded into it so
+  /// [build] can check it on every launch: the guard must admit it, and a
+  /// path it would bounce is a contradiction whatever the current auth state.
+  final String? signedOutLandingPath;
 
   /// Re-evaluates router redirects when it notifies (e.g. on auth changes).
   final Listenable? refreshListenable;
@@ -130,6 +137,7 @@ class Flavor {
       darkTheme: themes.dark,
       themeMode: theme.mode,
       initialRoute: initialRoute,
+      signedOutLandingPath: signedOutLandingPath,
       refreshListenable: refreshListenable,
       inactivity: inactivity,
       statusMessage: statusMessage,

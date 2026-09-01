@@ -63,6 +63,7 @@ Future<Flavor> standardFlavor({
       ...?extraModules?.call(kit),
     ],
     initialRoute: kit.initialRoute,
+    signedOutLandingPath: signedOutLandingPath,
     refreshListenable: kit.refreshListenable,
     inactivity: kit.inactivity,
     statusMessage: kit.statusMessage,

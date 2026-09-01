@@ -168,10 +168,11 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   first boot even if that boot never reached your screen. The path follows the
   same form rules as a public path, and must name a literal route one of your
   modules registers, not a concrete instance of a parameterized one like
-  `/room/prod/123`. That check runs against the route the app actually starts
-  on, so a machine with a connected server will not surface a typo here —
-  `Flavor.build()` throws on a signed-out launch, listing the paths it does
-  know.
+  `/room/prod/123`. Both mistakes — a typo, and forgetting to declare the route
+  public — are refused by `Flavor.build()` on **every** launch, not only the
+  signed-out ones that would have been first to show them, because neither
+  depends on the current auth state. So a developer whose machine has a
+  connected server still finds out.
 - Declaring a path public leaves your `initialRoute` untouched, so a cold launch
   lands where it did unless you also set `signedOutLandingPath`. On web a URL to
   a declared path opens it directly, because go_router prefers a non-`/`
@@ -180,16 +181,20 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
 - A module needs no `go_router` dependency of its own, in `dependencies` or in
   `dev_dependencies`. The barrel re-exports the routing types module authoring
   and module *testing* use — `GoRoute`, `GoRouter`, `GoRouterHelper`,
-  `GoRouterRedirect`, `GoRouterState`, `NoTransitionPage`, `RouteBase`,
-  `ShellRoute`, `StatefulShellRoute` — plus `buildRouter`. Two of those are easy
-  to miss and each leaves the surface unusable in a different half:
+  `GoRouterRedirect`, `GoRouterState`, `NoTransitionPage` and `RouteBase` —
+  plus `buildRouter`. That list is exactly what this package's own modules are
+  written in, and every entry is exercised by a test that imports the barrel and
+  nothing else, so a symbol is never advertised without being driven. It is a
+  curated surface, not the whole package: `ShellRoute`, `StatefulShellRoute`,
+  typed routes and the rest are not there, and reaching for one means adding
+  `go_router` directly, which stays supported and costs you a pubspec line.
+  Two entries are easy to overlook and each breaks a different half:
   `GoRouterHelper`, because Dart's `show` gates extensions and without it
   `context.go` will not resolve; and `GoRouter`, because driving a module in a
-  widget test means putting one above the widget. Reach past these and add the
-  dependency directly; if you already depend on `go_router` and a file of yours
-  uses only what is listed here, the analyzer will report that import as
-  `unnecessary_import`, which is a lint to delete rather than a problem to
-  solve. Riverpod is not symmetrical: `ModuleRoutes.overrides` is
+  widget test means putting one above the widget. If you already depend on
+  `go_router` and a file of yours uses only what is listed here, the analyzer
+  will report that import as `unnecessary_import` — a lint to delete rather
+  than a problem to solve. Riverpod is not symmetrical: `ModuleRoutes.overrides` is
   `List<Override>`, `Override` comes from `flutter_riverpod`, and the barrel
   does not re-export it, so a module contributing overrides does need that
   dependency.

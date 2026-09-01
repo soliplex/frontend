@@ -193,6 +193,45 @@ void main() {
 }
 
 void _publicPathTests() {
+  test('rejects a signed-out landing path no module declared public', () {
+    // The guard would bounce it on arrival, so naming it as the landing path
+    // is a contradiction. This holds regardless of the current auth state, so
+    // it is checked on every launch — not only the signed-out ones that would
+    // otherwise be the first to notice.
+    final errors = validateRoutes(
+      routes: [_route('/'), _route('/welcome')],
+      initialRoute: '/',
+      publicPaths: const {'/'},
+      signedOutLandingPath: '/welcome',
+    );
+
+    expect(errors.single, contains('/welcome'));
+  });
+
+  test('rejects a signed-out landing path that names no route', () {
+    expect(
+      validateRoutes(
+        routes: [_route('/')],
+        initialRoute: '/',
+        publicPaths: const {'/'},
+        signedOutLandingPath: '/wecome',
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('accepts a signed-out landing path a module declared public', () {
+    expect(
+      validateRoutes(
+        routes: [_route('/'), _route('/welcome')],
+        initialRoute: '/',
+        publicPaths: const {'/', '/welcome'},
+        signedOutLandingPath: '/welcome',
+      ),
+      isEmpty,
+    );
+  });
+
   test('rejects a public path that names no route', () {
     final errors = validateRoutes(
       routes: [_route('/')],
