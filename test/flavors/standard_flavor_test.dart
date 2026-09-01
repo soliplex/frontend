@@ -95,6 +95,51 @@ void main() {
     });
   });
 
+  testWidgets('every path served without a session is actually reached',
+      (tester) async {
+    // The test above pins which paths are declared; this one pins that the
+    // sign-in guard really admits each. They are separable failures: dropping
+    // AppRoutes.authCallback from the auth module leaves a set-equality
+    // mismatch above and a completely broken sign-in here, since the guard
+    // would bounce the OIDC callback before it could consume its tokens.
+    //
+    // Named rather than read back from the config: a walk over
+    // config.publicPaths would only ever visit what is declared, so removing
+    // a declaration would shorten the walk instead of failing it. The set
+    // test catches a path being ADDED; this one catches one being removed, or
+    // declared and then bounced anyway by a route-level guard.
+    const mustBeReachable = {
+      AppRoutes.home,
+      AppRoutes.authCallback,
+      AppRoutes.versions,
+      AppRoutes.diagnostics,
+    };
+
+    final flavor = await standardFlavor();
+    final config = flavor.build();
+    addTearDown(config.dispose);
+
+    final router = buildRouter(config);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: config.overrides,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final path in mustBeReachable) {
+      router.go(path);
+      await tester.pumpAndSettle();
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        path,
+        reason: 'signed out, $path must not be redirected',
+      );
+    }
+  });
+
   test('the sign-in guard is the only global redirect', () async {
     final flavor = await standardFlavor(
       callbackParams: WebCallbackSuccess(accessToken: 'x'),
@@ -106,7 +151,7 @@ void main() {
       reason: 'A declared public path short-circuits the whole redirect loop '
           'in buildRouter, not just the sign-in guard. So a second global '
           'redirect added here is silently skipped for "/", "/auth/callback", '
-          '"/versions" and "/diagnostics" — paths three other modules declare, '
+          '"/versions" and "/diagnostics" — paths three modules declare, '
           'and none of them can be un-declared. Before adding one, give it an '
           'exemption list of its own rather than inheriting publicPaths, which '
           'is the sign-in guard\'s.',

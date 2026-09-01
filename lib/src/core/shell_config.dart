@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
@@ -73,7 +75,9 @@ class ShellConfig {
   ///
   /// Throws [ArgumentError] when a theme lacks the [SoliplexTheme] extension,
   /// a namespace is duplicated, or the route configuration is invalid —
-  /// an invalid [ShellConfig] cannot be constructed.
+  /// an invalid [ShellConfig] cannot be constructed. A route-configuration
+  /// throw happens after the modules are built, so it tears them down on the
+  /// way out; the [modules] are spent either way.
   static ShellConfig fromModules({
     required List<AppModule> modules,
     required String appName,
@@ -110,6 +114,24 @@ class ShellConfig {
       ...validateModulePublicPaths(coordinator.contributions),
     ];
     if (routeErrors.isNotEmpty) {
+      // The routes just rejected came from modules that are already built, so
+      // they hold live resources — a ServerManager, HTTP clients, an
+      // inspector. No ShellConfig is returned, so nothing else can ever reach
+      // their onDispose, and Flavor refuses a second build over the same
+      // instances. Teardown is fired here and not awaited, because this
+      // constructor is synchronous; a failure inside it is recorded rather
+      // than raised, so it cannot arrive alongside — and obscure — the
+      // ArgumentError that is the actual diagnosis.
+      unawaited(
+        coordinator.disposeAll().catchError(
+              (Object e, StackTrace s) =>
+                  LogManager.instance.getLogger('shell').warning(
+                        'Module teardown after an invalid route configuration failed',
+                        attributes: {'failure': describeFailure(e)},
+                        stackTrace: s,
+                      ),
+            ),
+      );
       // The throw aborts boot before any screen exists, and an ArgumentError
       // carrying no `name` renders as the bare type in the uncaught-error
       // record — so the paths that name the fault would otherwise reach only
@@ -173,7 +195,10 @@ class _AppModuleCoordinator {
   List<GoRouterRedirect> get redirects =>
       _built.map((r) => r.redirect).nonNulls.toList();
 
-  Set<String> get publicPaths => _built.expand((r) => r.publicPaths).toSet();
+  /// Computed once: fromModules reads this twice — to validate and to store —
+  /// and a getter that recomputed would make those two different sets.
+  late final Set<String> publicPaths =
+      _built.expand((r) => r.publicPaths).toSet();
 
   /// Each module's contribution paired with the namespace that made it, so a
   /// declaration can be attributed back to its author.

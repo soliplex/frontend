@@ -46,7 +46,6 @@ class AuthAppModule extends AppModule {
   final ConsentNotice? _consentNotice;
   final Widget? _logo;
   final String? _defaultBackendUrl;
-
   final SignalListenable _refreshListenable;
 
   /// The [Listenable] that notifies [GoRouter] when auth state changes.
@@ -101,12 +100,14 @@ class AuthAppModule extends AppModule {
           ),
         ],
         redirect: (_, state) {
-          // This guard admits no public path of its own. buildRouter returns
+          // This guard admits no public path of its own: buildRouter returns
           // before the redirect loop for anything a module declared, so under
-          // the shell one never arrives here — but handed straight to a
-          // GoRouter without that short-circuit, this bounces /diagnostics and
-          // /versions to sign-in. Drive a module through buildRouter, not a
-          // router assembled from ModuleRoutes by hand.
+          // the shell one never arrives here. Handed straight to a GoRouter
+          // without that step it diverts every unauthenticated request,
+          // including its own /auth/callback — losing an in-flight sign-in —
+          // and '/', which redirects to itself until go_router reports a
+          // redirect loop. Drive a module through buildRouter, not a router
+          // assembled from ModuleRoutes by hand.
           //
           // Per-server guard: if the route names a specific server and
           // that server isn't connected (signed out or expired),

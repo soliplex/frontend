@@ -29,9 +29,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Writing a screen of your own no longer needs a routing dependency of your
   own, for building it or for testing it: the routing types a module declares,
   navigates with and is driven by in a widget test now come from this package
-  directly. It is a curated set rather than the whole routing package — every
-  type in it is one this app's own screens are written in — so a deployment
-  reaching past it still adds that dependency itself.
+  directly. It is a curated set rather than the whole routing package — the
+  types the module extension point's own signatures are written in — so a
+  deployment reaching past it still adds that dependency itself.
 
 ### Changed
 

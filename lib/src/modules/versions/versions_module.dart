@@ -31,9 +31,9 @@ class VersionsAppModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
-        // The version screen names the build, not the user, so it needs no
-        // session — and a mismatch is something a stranded user must be able
-        // to read.
+        // The version screen names builds and stored server URLs, not the
+        // user, so it needs no session — and a version mismatch is something a
+        // stranded user must be able to read.
         publicPaths: const {AppRoutes.versions},
         routes: [
           GoRoute(

@@ -39,10 +39,16 @@ import '../modules/versions/versions_module.dart';
 /// `refreshListenable`, `inactivity`, `statusMessage`) produced by
 /// [buildStandardKit], plus `serverManager` — the shared-state handle custom
 /// modules build on.
+///
+/// `signedOutLandingPath` is echoed back rather than only consumed: it is
+/// already folded into `initialRoute`, but [Flavor] validates it separately,
+/// and a fork hand-building its own [Flavor] can forward only what this record
+/// carries.
 typedef StandardKit = ({
   List<AppModule> modules,
   Listenable refreshListenable,
   String initialRoute,
+  String? signedOutLandingPath,
   InactivityConfig inactivity,
   StatusMessageConfig statusMessage,
   ServerManager serverManager,
@@ -201,6 +207,7 @@ Future<StandardKit> buildStandardKit({
     ]),
     refreshListenable: authMod.refreshListenable,
     initialRoute: initialRoute,
+    signedOutLandingPath: signedOutLandingPath,
     inactivity: InactivityConfig(
       warningDuration: inactivityWarningDuration,
       graceDuration: inactivityGraceDuration,

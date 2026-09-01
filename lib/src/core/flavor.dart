@@ -99,10 +99,20 @@ class Flavor {
   final List<AppModule> modules;
   final String initialRoute;
 
-  /// Where a signed-out launch lands, when that is not [initialRoute]'s own
-  /// answer. Carried beside [initialRoute] rather than folded into it so
-  /// [build] can check it on every launch: the guard must admit it, and a
-  /// path it would bounce is a contradiction whatever the current auth state.
+  /// The path a signed-out launch is meant to land on — **validated here, not
+  /// applied here.** [build] refuses one that names no route or that no module
+  /// declared reachable without a session; landing on it is the caller's job,
+  /// and `standardFlavor` does it by folding this into [initialRoute] before
+  /// the flavor is constructed (see `buildStandardKit`).
+  ///
+  /// It is carried separately rather than read back off [initialRoute] because
+  /// the two legitimately differ: on an authenticated launch [initialRoute] is
+  /// the lobby while this is still the fork's own screen, and checking it
+  /// anyway is what stops a mistake surviving until the first launch that
+  /// happens to be signed out.
+  ///
+  /// Setting this without also pointing [initialRoute] at it changes nothing.
+  /// Forward both from `StandardKit`, which carries each.
   final String? signedOutLandingPath;
 
   /// Re-evaluates router redirects when it notifies (e.g. on auth changes).
@@ -121,7 +131,9 @@ class Flavor {
   ///
   /// Throws [StateError] on a second call: [modules] are live instances, so
   /// building again would re-run [AppModule.build] on them and hand back a
-  /// second [ShellConfig.dispose] over the same modules.
+  /// second [ShellConfig.dispose] over the same modules. A call that threw
+  /// counts — the modules were built before the configuration was rejected,
+  /// and were torn down with it, so a retry needs a fresh flavor.
   ShellConfig build() {
     if (_built) {
       throw StateError(

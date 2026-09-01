@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_module.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
-import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -159,23 +158,24 @@ void main() {
         );
 
     Widget buildAppWithRoomRoute() {
-      final contribution = module.build();
-      router = GoRouter(
-        initialLocation: '/',
+      // Composed through the shell rather than assembled by hand: this guard
+      // admits no public path of its own, so a router built straight from
+      // ModuleRoutes diverts '/' onto itself. It is also the only place the
+      // per-server branch's query-carrying target is driven end to end.
+      final config = ShellConfig.fromModules(
+        modules: [module, _RoomRouteModule()],
+        appName: 'Soliplex',
+        lightTheme: buildSoliplexThemeData(
+          colors: lightSoliplexColors,
+          brightness: Brightness.light,
+        ),
         refreshListenable: module.refreshListenable,
-        routes: [
-          ...contribution.routes,
-          GoRoute(
-            path: '/room/:serverAlias/:roomId',
-            builder: (_, state) => Text(
-              'Room ${state.pathParameters['serverAlias']}/${state.pathParameters['roomId']}',
-            ),
-          ),
-        ],
-        redirect: contribution.redirect,
       );
+      // No addTearDown(config.dispose) here: the group's tearDown already
+      // disposes this module, and the config would dispose it a second time.
+      router = buildRouter(config);
       return ProviderScope(
-        overrides: contribution.overrides,
+        overrides: config.overrides,
         child: MaterialApp.router(routerConfig: router),
       );
     }
@@ -265,4 +265,24 @@ void main() {
       },
     );
   });
+}
+
+/// A per-server route owned by someone other than auth, so the guard's
+/// server-alias branch has something to divert.
+class _RoomRouteModule extends AppModule {
+  @override
+  String get namespace => 'room-fixture';
+
+  @override
+  ModuleRoutes build() => ModuleRoutes(
+        routes: [
+          GoRoute(
+            path: '/room/:serverAlias/:roomId',
+            builder: (_, state) => Text(
+              'Room ${state.pathParameters['serverAlias']}'
+              '/${state.pathParameters['roomId']}',
+            ),
+          ),
+        ],
+      );
 }

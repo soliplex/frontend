@@ -7,9 +7,17 @@ import 'shell_config.dart';
 final _paramPattern = RegExp(r':[^/]+');
 
 /// Validates route configuration and returns a list of error descriptions.
-/// An empty list means the configuration is valid.
+/// An empty list means the routes, [initialRoute] and [signedOutLandingPath]
+/// are valid. The entries of [publicPaths] are not judged here — by this point
+/// they are a merged set with no module to attribute a fault to, which is
+/// [validateModulePublicPaths]' question. [publicPaths] is taken only to answer
+/// whether the landing path is among them. [ShellConfig.fromModules] asks
+/// both.
 ///
 /// [initialRoute] must be a literal path (no parameterized segments).
+/// [signedOutLandingPath], when given, must name a registered route that some
+/// module declared public — the sign-in guard would otherwise bounce a
+/// signed-out launch straight off it.
 List<String> validateRoutes({
   required List<RouteBase> routes,
   required String initialRoute,
@@ -47,39 +55,20 @@ List<String> validateRoutes({
     );
   }
 
-  for (final path in publicPaths) {
-    // A top-level redirect reports the requested path with a leading slash,
-    // one trailing slash removed, and no query or fragment — so any other
-    // shape can never be compared against it. A ':' segment is the subtle
-    // one: _canonicalPath normalises it on both sides, so an existence check
-    // alone would accept a pattern that no concrete request ever equals.
-    if (!path.startsWith('/') ||
-        (path != '/' && path.endsWith('/')) ||
-        path.contains('?') ||
-        path.contains('#') ||
-        path.contains(':')) {
-      errors.add(
-        'Public path "$path" can never match a request. It must be a bare '
-        'path: a leading slash, no trailing slash, and no query, fragment or '
-        'parameterized segment.',
-      );
-      continue;
-    }
-    if (!paths.contains(_canonicalPath(path))) {
-      errors.add(
-        'Public path "$path" does not match any defined route. '
-        'Available: ${paths.join(', ')}',
-      );
-    }
-  }
-
   if (signedOutLandingPath != null) {
     // Checked on every launch, not only the signed-out ones. Both mistakes
     // here — a typo, and forgetting to declare the route public — otherwise
     // show up as "my screen does not appear", and only to whoever happens to
     // launch without a connected server. Neither depends on the auth state,
     // so neither needs to wait for it.
-    if (!paths.contains(_canonicalPath(signedOutLandingPath))) {
+    if (!_isBarePath(signedOutLandingPath)) {
+      // Before the existence check, not after: _canonicalPath normalises a
+      // ':param' on both sides, so a route pattern would pass that check and
+      // fall through to the public-path branch, whose advice — declare it
+      // public — the shape rule forbids. Advice that cannot be followed costs
+      // a whole edit-and-boot cycle to discover.
+      errors.add(_notBarePath('signedOutLandingPath', signedOutLandingPath));
+    } else if (!paths.contains(_canonicalPath(signedOutLandingPath))) {
       errors.add(
         'signedOutLandingPath "$signedOutLandingPath" does not match any '
         'defined route. Available: ${paths.join(', ')}',
@@ -113,20 +102,50 @@ List<String> validateModulePublicPaths(
   for (final module in modules) {
     if (module.contribution.publicPaths.isEmpty) continue;
     final own = _collectPaths(module.contribution.routes, '').toSet();
+    final name = module.namespace.isEmpty
+        ? 'an anonymous module'
+        : 'module "${module.namespace}"';
     for (final path in module.contribution.publicPaths) {
+      if (!_isBarePath(path)) {
+        errors.add('${_notBarePath('Public path', path)} Declared by $name.');
+        continue;
+      }
       if (own.contains(_canonicalPath(path))) continue;
-      final name = module.namespace.isEmpty
-          ? 'an anonymous module'
-          : 'module "${module.namespace}"';
+      // The module's own routes, not the whole flavor's: the answer to a typo
+      // is always in this list, and every other route is noise in front of it.
       errors.add(
-        'Public path "$path" is declared by $name, which does not register '
-        'it. A module may only declare its own routes reachable without a '
-        'session.',
+        'Public path "$path" is declared by $name, which registers '
+        '${own.isEmpty ? 'no routes' : own.join(', ')}. A module may only '
+        'declare its own routes reachable without a session.',
       );
     }
   }
   return errors;
 }
+
+/// Whether [path] has the shape a request is reported in: a leading slash, no
+/// trailing slash, and no query, fragment or parameterized segment. A
+/// top-level redirect reports the requested path already normalised that way.
+///
+/// Necessary, not sufficient — a requested path also arrives percent-encoded,
+/// so a literal containing a character a request would escape passes here and
+/// still matches nothing. That route is unreachable through go_router either
+/// way, so the mismatch is indistinguishable from the route not working.
+///
+/// The ':' clause is the subtle one — [_canonicalPath] normalises a parameter
+/// on both sides, so an existence check alone would accept a route pattern that
+/// no concrete request ever equals.
+bool _isBarePath(String path) =>
+    path.startsWith('/') &&
+    (path == '/' || !path.endsWith('/')) &&
+    !path.contains('?') &&
+    !path.contains('#') &&
+    !path.contains(':');
+
+String _notBarePath(String label, String path) =>
+    '$label "$path" can never match a request. It must be a bare path: a '
+    'leading slash, no trailing slash, and no query, fragment or '
+    'parameterized segment.';
 
 List<String> _collectPaths(List<RouteBase> routes, String parentPath) {
   final paths = <String>[];
@@ -167,8 +186,10 @@ String _canonicalPath(String path) {
 
 /// Creates a [GoRouter] from a [ShellConfig].
 ///
-/// All module redirects collapse into a single GoRouter redirect slot —
-/// they are evaluated in module order and the first non-null result wins.
+/// All module redirects collapse into a single GoRouter redirect slot — they
+/// are evaluated in module order and the first non-null result wins, unless the
+/// requested path is in [ShellConfig.publicPaths], in which case none of them
+/// runs. A route's own redirect is attached per [GoRoute] and always applies.
 ///
 /// Routes are non-empty and consistent with `initialRoute` by construction:
 /// [ShellConfig.fromModules] rejects configs that fail [validateRoutes].

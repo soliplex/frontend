@@ -75,17 +75,29 @@ Customize through `standardFlavor`'s parameters — identity, theme,
 
 For compositions that diverge further than `standardFlavor` allows, drop one
 level: call `buildStandardKit` yourself and construct a `Flavor` from its
-kit (see ADR-003 §3.3). Every kit field is then yours to forward, and two of
-them fail quietly if you don't. Forget `refreshListenable` and auth-driven
-redirects stop re-evaluating. Forget `initialRoute` and it falls back to `/`,
-which discards the kit's answer — so someone returning mid sign-in lands on the
-sign-in screen instead of the callback that would have consumed their tokens,
-and the sign-in never completes. Pass `kit.initialRoute` verbatim; a literal of
-your own has the same effect, and it also strands `signedOutLandingPath` — the
-kit already folded it into `initialRoute`, so a literal throws that answer away
-and nothing ever lands on the screen you named.
+kit (see ADR-003 §3.3). Every kit field is then yours to forward, and three of
+them fail quietly if you don't.
 
-The third quiet failure is building the `GoRouter` yourself. `buildRouter` is
+Forget `refreshListenable` and auth-driven redirects stop re-evaluating.
+
+Forget `initialRoute` and it falls back to `/`, which discards the kit's answer
+— so someone returning mid sign-in lands on the sign-in screen instead of the
+callback that would have consumed their tokens, and the sign-in never
+completes. Pass `kit.initialRoute` verbatim; a literal of your own has the same
+effect, and it also strands `signedOutLandingPath`, whose value the kit already
+folded into that answer.
+
+Forget `signedOutLandingPath` — it is a kit field of its own, and forwarding
+only `kit.initialRoute` looks like it worked. The launch lands where you meant,
+because the kit folded the path in; what you lose is the check. `Flavor`
+validates that path against the routes and the public declarations, and a
+`Flavor` that never received it validates nothing. So a fork gets the behaviour
+and silently loses the guard against the two mistakes it is most likely to
+make: naming a screen that does not exist, or one no module declared reachable
+without a session. Forward `kit.signedOutLandingPath` alongside
+`kit.initialRoute`; they answer different questions and the kit carries both.
+
+The fourth quiet failure is building the `GoRouter` yourself. `buildRouter` is
 what admits declared public paths, ahead of the module redirects; a router
 assembled by hand from `ModuleRoutes.routes` and `ModuleRoutes.redirect` skips
 that step, and the sign-in guard then bounces `/diagnostics`, `/versions` and
@@ -143,6 +155,11 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   `/diagnostics`, which the standard modules declare and you cannot un-declare.
   Give a gate of your own an exemption list of its own rather than expecting
   `publicPaths` to describe it.
+- An inactivity logout clears the session but does not navigate; a user is
+  moved off a guarded screen only because the guard re-runs. On a path you
+  declared public the guard does not run, so the screen stays exactly where it
+  is with the session gone. Fine for a welcome page; think twice for anything
+  that keeps rendering what the previous session loaded.
 - Two kinds of redirect, one type. A `redirect` on `ModuleRoutes` is **global**:
   it judges every navigation in the app, not just your module's routes. A
   `redirect:` on a `GoRoute` is per-route, and a public path does not disable
@@ -182,16 +199,15 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   `dev_dependencies`. The barrel re-exports the routing types module authoring
   and module *testing* use — `GoRoute`, `GoRouter`, `GoRouterHelper`,
   `GoRouterRedirect`, `GoRouterState`, `NoTransitionPage` and `RouteBase` —
-  plus `buildRouter`. That list is exactly what this package's own modules are
-  written in, and every entry is exercised by a test that imports the barrel and
-  nothing else, so a symbol is never advertised without being driven. It is a
-  curated surface, not the whole package: `ShellRoute`, `StatefulShellRoute`,
+  plus `buildRouter`. That list is the types the module-authoring API's own
+  signatures are written in, plus what a widget test needs to drive one. It is
+  a curated surface, not the whole package: `ShellRoute`, `StatefulShellRoute`,
   typed routes and the rest are not there, and reaching for one means adding
-  `go_router` directly, which stays supported and costs you a pubspec line.
-  Two entries are easy to overlook and each breaks a different half:
-  `GoRouterHelper`, because Dart's `show` gates extensions and without it
-  `context.go` will not resolve; and `GoRouter`, because driving a module in a
-  widget test means putting one above the widget. If you already depend on
+  `go_router` directly. `GoRouterHelper` is the entry whose absence is
+  invisible until it bites — Dart's `show` gates extensions, so without it
+  `context.go` does not resolve. The others are there so you can *name* a type;
+  Dart infers most of them without the name in scope, so you may never need
+  some of them. If you already depend on
   `go_router` and a file of yours uses only what is listed here, the analyzer
   will report that import as `unnecessary_import` — a lint to delete rather
   than a problem to solve. Riverpod is not symmetrical: `ModuleRoutes.overrides` is

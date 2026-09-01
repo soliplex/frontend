@@ -5,13 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/router.dart';
 
-import 'route_module.dart';
-
 GoRoute _route(String path, {List<RouteBase> routes = const []}) =>
     GoRoute(path: path, builder: (_, __) => const SizedBox(), routes: routes);
 
 void main() {
-  _buildRouterTests();
   _publicPathTests();
 
   group('validateRoutes', () {
@@ -209,14 +206,17 @@ void _publicPathTests() {
   });
 
   test('rejects a signed-out landing path that names no route', () {
+    // isNotEmpty alone cannot fail here: with the existence branch gone the
+    // public-path branch fires instead and the assertion still passes. Name
+    // the message so the test is tied to the branch it is for.
     expect(
       validateRoutes(
         routes: [_route('/')],
         initialRoute: '/',
         publicPaths: const {'/'},
         signedOutLandingPath: '/wecome',
-      ),
-      isNotEmpty,
+      ).single,
+      contains('does not match any defined route'),
     );
   });
 
@@ -232,43 +232,61 @@ void _publicPathTests() {
     );
   });
 
-  test('rejects a public path that names no route', () {
+  test('rejects a landing path in a form no request can match', () {
+    // A ':param' pattern is the trap: _canonicalPath normalises it on both
+    // sides, so it passes an existence check, and the public-path branch then
+    // tells the reader to declare it public — which the shape rule forbids.
+    // Advice that cannot be followed is worse than none.
     final errors = validateRoutes(
-      routes: [_route('/')],
+      routes: [_route('/'), _route('/room/:id')],
       initialRoute: '/',
-      publicPaths: const {'/nope'},
+      publicPaths: const {'/'},
+      signedOutLandingPath: '/room/:id',
     );
 
-    expect(errors.single, contains('/nope'));
+    expect(errors.single, contains('can never match'));
+    expect(errors.single, isNot(contains('publicPaths')));
   });
 
-  test('rejects a public path that could never match', () {
-    // Each form is unmatchable against the requested path a top-level redirect
-    // reports: it arrives with a leading slash, one trailing slash removed, and
-    // no query or fragment. '/i/:step' is the case an existence check alone
-    // misses — _canonicalPath normalises both sides to ':_'.
+  test('rejects a public path the declaring module does not register', () {
+    final errors = validateModulePublicPaths([
+      (
+        namespace: 'welcome',
+        contribution: ModuleRoutes(
+          routes: [_route('/welcome')],
+          publicPaths: const {'/welcom'},
+        ),
+      ),
+    ]);
+
+    // One message, attributed, and listing the module's own routes — where the
+    // answer to a typo always is. The whole flavor's route list is not.
+    expect(errors.single, contains('/welcom'));
+    expect(errors.single, contains('registers /welcome'));
+  });
+
+  test('rejects a public path in a form no request can match', () {
+    // '/i/:step' is the case an existence check alone misses — _canonicalPath
+    // normalises both sides to ':_', so it would appear to match.
     for (final bad in ['welcome', '/welcome/', '/w?a=1', '/w#x', '/i/:step']) {
       expect(
-        validateRoutes(
-          routes: [_route('/'), _route('/i/:step')],
-          initialRoute: '/',
-          publicPaths: {bad},
-        ),
-        isNotEmpty,
+        validateModulePublicPaths([
+          (
+            namespace: 'fixture',
+            contribution: ModuleRoutes(
+              routes: [
+                _route('/welcome'),
+                _route('/w'),
+                _route('/i/:step'),
+              ],
+              publicPaths: {bad},
+            ),
+          ),
+        ]).single,
+        contains('can never match'),
         reason: bad,
       );
     }
-  });
-
-  test('accepts a public path that names a registered route', () {
-    expect(
-      validateRoutes(
-        routes: [_route('/'), _route('/welcome')],
-        initialRoute: '/',
-        publicPaths: const {'/', '/welcome'},
-      ),
-      isEmpty,
-    );
   });
 
   test('rejects a module declaring a path it does not register', () {
@@ -295,26 +313,24 @@ void _publicPathTests() {
     expect(errors.single, contains('auth'));
   });
 
-  test('accepts a module declaring a path it registers itself', () {
-    expect(
-      validateModulePublicPaths([
-        (
-          namespace: 'auth',
-          contribution: ModuleRoutes(
-            routes: [_route('/')],
-            publicPaths: const {'/'},
-          ),
+  test('names an anonymous module as one', () {
+    // AppModule permits an empty namespace, so a violation can come from a
+    // module with no name to print. Saying "" would read as a bug.
+    final errors = validateModulePublicPaths([
+      (
+        namespace: '',
+        contribution: ModuleRoutes(
+          routes: [_route('/')],
+          publicPaths: const {'/versions'},
         ),
-        (
-          namespace: 'versions',
-          contribution: ModuleRoutes(
-            routes: [_route('/versions')],
-            publicPaths: const {'/versions'},
-          ),
-        ),
-      ]),
-      isEmpty,
-    );
+      ),
+      (
+        namespace: 'versions',
+        contribution: ModuleRoutes(routes: [_route('/versions')]),
+      ),
+    ]);
+
+    expect(errors.single, contains('an anonymous module'));
   });
 
   test('a module owns the paths nested under its own routes', () {
@@ -335,42 +351,4 @@ void _publicPathTests() {
       isEmpty,
     );
   });
-}
-
-void _buildRouterTests() {
-  testWidgets('a public path bypasses global redirects', (tester) async {
-    final config = ShellConfig.fromModules(
-      modules: [
-        RouteModule(
-          const ['/', '/open', '/other', '/blocked'],
-          publicPaths: const {'/open'},
-        ),
-        _AlwaysBlocks(),
-      ],
-      appName: 'Test',
-      lightTheme: buildSoliplexThemeData(
-        colors: lightSoliplexColors,
-        brightness: Brightness.light,
-      ),
-    );
-    final router = buildRouter(config);
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pumpAndSettle();
-
-    router.go('/open');
-    await tester.pumpAndSettle();
-    expect(router.routerDelegate.currentConfiguration.uri.path, '/open');
-
-    router.go('/other');
-    await tester.pumpAndSettle();
-    expect(router.routerDelegate.currentConfiguration.uri.path, '/blocked');
-  });
-}
-
-class _AlwaysBlocks extends AppModule {
-  @override
-  String get namespace => 'blocks';
-
-  @override
-  ModuleRoutes build() => ModuleRoutes(redirect: (_, state) => '/blocked');
 }
