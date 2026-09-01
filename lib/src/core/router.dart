@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:go_router/go_router.dart';
 
+import 'app_module.dart';
 import 'shell_config.dart';
 
 final _paramPattern = RegExp(r':[^/]+');
@@ -12,6 +13,7 @@ final _paramPattern = RegExp(r':[^/]+');
 List<String> validateRoutes({
   required List<RouteBase> routes,
   required String initialRoute,
+  Set<String> publicPaths = const {},
 }) {
   if (routes.isEmpty) {
     return ['Configuration must define at least one route'];
@@ -44,6 +46,63 @@ List<String> validateRoutes({
     );
   }
 
+  for (final path in publicPaths) {
+    // A top-level redirect reports the requested path with a leading slash,
+    // one trailing slash removed, and no query or fragment — so any other
+    // shape can never be compared against it. A ':' segment is the subtle
+    // one: _canonicalPath normalises it on both sides, so an existence check
+    // alone would accept a pattern that no concrete request ever equals.
+    if (!path.startsWith('/') ||
+        (path != '/' && path.endsWith('/')) ||
+        path.contains('?') ||
+        path.contains('#') ||
+        path.contains(':')) {
+      errors.add(
+        'Public path "$path" can never match a request. It must be a bare '
+        'path: a leading slash, no trailing slash, and no query, fragment or '
+        'parameterized segment.',
+      );
+      continue;
+    }
+    if (!paths.contains(_canonicalPath(path))) {
+      errors.add(
+        'Public path "$path" does not match any defined route. '
+        'Available: ${paths.join(', ')}',
+      );
+    }
+  }
+
+  return errors;
+}
+
+/// Validates that each module declares only its own routes public, and returns
+/// a list of error descriptions. An empty list means every declaration is the
+/// declaring module's to make.
+///
+/// [validateRoutes] sees the flavor's routes already merged, so it can only ask
+/// whether a path exists somewhere in the config. That admits a module opening
+/// a screen another module builds — a security judgement about code the
+/// declaring module does not own, which is the arrangement `publicPaths`
+/// exists to end. This asks the narrower question its doc comment promises.
+List<String> validateModulePublicPaths(
+  List<({String namespace, ModuleRoutes contribution})> modules,
+) {
+  final errors = <String>[];
+  for (final module in modules) {
+    if (module.contribution.publicPaths.isEmpty) continue;
+    final own = _collectPaths(module.contribution.routes, '').toSet();
+    for (final path in module.contribution.publicPaths) {
+      if (own.contains(_canonicalPath(path))) continue;
+      final name = module.namespace.isEmpty
+          ? 'an anonymous module'
+          : 'module "${module.namespace}"';
+      errors.add(
+        'Public path "$path" is declared by $name, which does not register '
+        'it. A module may only declare its own routes reachable without a '
+        'session.',
+      );
+    }
+  }
   return errors;
 }
 
@@ -99,6 +158,9 @@ GoRouter buildRouter(ShellConfig config) {
     redirect: config.redirects.isEmpty
         ? null
         : (BuildContext context, GoRouterState state) async {
+            // A declared public path runs no global redirect at all; a route's
+            // own redirect is attached per GoRoute and still applies.
+            if (config.publicPaths.contains(state.matchedLocation)) return null;
             for (final redirect in config.redirects) {
               final result = await redirect(context, state);
               if (result != null) return result;

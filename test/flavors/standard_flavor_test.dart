@@ -1,8 +1,8 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
-import 'package:soliplex_frontend/src/modules/auth/auth_module.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/room/document_browser_url.dart';
 
@@ -44,15 +44,50 @@ void main() {
     expect(flavor.modules.last, same(extra));
   });
 
-  test('extraPublicPaths reaches the auth module', () async {
+  test('a flavor module can serve its own route without a session', () async {
+    // This is the whole feature: the module that registers the route is the
+    // one that declares it needs no session.
     final flavor = await standardFlavor(
       callbackParams: WebCallbackSuccess(accessToken: 'x'),
-      extraPublicPaths: {'/welcome'},
+      extraModules: (_) => [_WelcomeModule()],
+    );
+
+    expect(flavor.build().publicPaths, contains(_WelcomeModule.path));
+  });
+
+  test('the standard flavor serves exactly these paths without a session',
+      () async {
+    // The security surface, pinned whole rather than per module: a module that
+    // opens one of its own routes widens this set and nothing else in the suite
+    // notices. Adding a path here is a deliberate act and should read as one in
+    // review.
+    final flavor = await standardFlavor(
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
+    );
+
+    expect(flavor.build().publicPaths, {
+      AppRoutes.home,
+      AppRoutes.authCallback,
+      AppRoutes.versions,
+      AppRoutes.diagnostics,
+    });
+  });
+
+  test('the sign-in guard is the only global redirect', () async {
+    final flavor = await standardFlavor(
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
     );
 
     expect(
-      flavor.modules.whereType<AuthAppModule>().single.extraPublicPaths,
-      {'/welcome'},
+      flavor.build().redirects,
+      hasLength(1),
+      reason: 'A declared public path short-circuits the whole redirect loop '
+          'in buildRouter, not just the sign-in guard. So a second global '
+          'redirect added here is silently skipped for "/", "/auth/callback", '
+          '"/versions" and "/diagnostics" — paths three other modules declare, '
+          'and none of them can be un-declared. Before adding one, give it an '
+          'exemption list of its own rather than inheriting publicPaths, which '
+          'is the sign-in guard\'s.',
     );
   });
 
@@ -91,4 +126,17 @@ void main() {
       isNull,
     );
   });
+}
+
+class _WelcomeModule extends AppModule {
+  static const path = '/welcome';
+
+  @override
+  String get namespace => 'welcome';
+
+  @override
+  ModuleRoutes build() => ModuleRoutes(
+        routes: [GoRoute(path: path, builder: (_, __) => const SizedBox())],
+        publicPaths: const {path},
+      );
 }

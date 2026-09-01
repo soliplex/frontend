@@ -81,8 +81,18 @@ redirects stop re-evaluating. Forget `initialRoute` and it falls back to `/`,
 which discards the kit's answer — so someone returning mid sign-in lands on the
 sign-in screen instead of the callback that would have consumed their tokens,
 and the sign-in never completes. Pass `kit.initialRoute` verbatim; a literal of
-your own has the same effect, and it also strands `signedOutLandingPath`, whose
-path the guard still admits even though nothing lands on it.
+your own has the same effect, and it also strands `signedOutLandingPath` — the
+kit already folded it into `initialRoute`, so a literal throws that answer away
+and nothing ever lands on the screen you named.
+
+The third quiet failure is building the `GoRouter` yourself. `buildRouter` is
+what admits declared public paths, ahead of the module redirects; a router
+assembled by hand from `ModuleRoutes.routes` and `ModuleRoutes.redirect` skips
+that step, and the sign-in guard then bounces `/diagnostics`, `/versions` and
+any screen of your own straight to the server list. Call
+`buildRouter(flavor.build())` — it is exported for exactly this, and it is what
+the shell runs, so your tests cannot drift from production by reproducing the
+composition slightly differently.
 Prefer `standardFlavor` unless you genuinely need a different module graph.
 
 ## Rules
@@ -103,44 +113,91 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   `dispose` callback that the shell widget never invokes. Standalone apps can
   rely on OS reclamation; embedders that unmount the shell must retain the
   config and `await config.dispose()` themselves.
-- `standardFlavor`'s `extraPublicPaths` is what makes a route of yours
-  reachable without a session — an intro or welcome screen. It is on
-  `buildStandardKit` too, and deliberately not on `standard()`: without
-  `extraModules` there is no route of your own to declare, and the only
-  standard path it could open is the lobby, which without a session has nothing
-  to show. Requests
-  arrive normalized but your entries are compared literally, so write
-  `/welcome`: a leading slash, no trailing slash, no query or fragment. Those
-  forms could never match, and an assertion rejects them in debug and under
-  test rather than leaving you a dead entry. The request side stays forgiving —
-  `/welcome/` and `/welcome?ref=email` both reach a declared `/welcome`.
-  Matching is exact, never a prefix: declaring `/welcome` leaves
+- A route of yours is reachable without a session when the module that registers
+  it says so — `publicPaths` on the `ModuleRoutes` your `AppModule.build()`
+  returns, one line beside the route it names:
+
+  ```dart
+  ModuleRoutes build() => ModuleRoutes(
+        routes: [GoRoute(path: '/welcome', builder: (_, __) => WelcomeScreen())],
+        publicPaths: const {'/welcome'},
+      );
+  ```
+
+  There is no flavor-level parameter for this, deliberately: the module that
+  owns the route owns the statement that it needs no session, and the standard
+  modules declare theirs the same way. Requests arrive normalized but your
+  entries are compared literally, so write `/welcome` — a leading slash, no
+  trailing slash, no query, fragment or `:param` segment. Those forms could
+  never match a request, and `Flavor.build()` refuses them outright, in release
+  as well as debug, rather than leaving you a dead entry. It refuses a
+  well-formed path naming no route you registered, too. The request side stays
+  forgiving: `/welcome/` and `/welcome?ref=email` both reach a declared
+  `/welcome`. Matching is exact, never a prefix — declaring `/welcome` leaves
   `/welcome/admin` guarded, and `/welcome/:step` resolves per visit to a
   concrete path that matches no entry.
+- **`publicPaths` skips every global redirect, not only the sign-in guard.**
+  Today the sign-in guard is the only one, so the two readings coincide. If you
+  contribute a `redirect` of your own on `ModuleRoutes`, it will not run for any
+  declared public path — including `/`, `/auth/callback`, `/versions` and
+  `/diagnostics`, which the standard modules declare and you cannot un-declare.
+  Give a gate of your own an exemption list of its own rather than expecting
+  `publicPaths` to describe it.
+- Two kinds of redirect, one type. A `redirect` on `ModuleRoutes` is **global**:
+  it judges every navigation in the app, not just your module's routes. A
+  `redirect:` on a `GoRoute` is per-route, and a public path does not disable
+  it — so declaring a per-server path public removes its sign-in bounce but not
+  its connected-server check, which costs the return trip, since that guard
+  bounces to a bare `/lobby` rather than to sign-in-and-come-back. Both are
+  `GoRouterRedirect`, so nothing in the signature tells them apart; check where
+  you are attaching it.
 - `signedOutLandingPath` lands a signed-out launch on a screen of your own
-  instead of the sign-in page — it sits on the same two functions, and like
-  `extraPublicPaths` not on `standard()`. You do not declare it public
-  separately: the guard admits it, since a landing path it bounced would be
-  meaningless. It replaces only that one branch — an in-flight auth callback
-  still finishes, and an already-connected stored server still opens the lobby.
-  A server that needs no sign-in counts as connected, so such a deployment
-  shows this screen on a fresh install and goes straight to the lobby on every
-  launch after it has stored one. The path follows the same form rules as an
-  entry above — a leading slash, no trailing slash, no query or fragment — and
-  it must name a literal route one of your modules registers, not a concrete
-  instance of a parameterized one like `/room/prod/123`. That check runs against the route the app actually starts on, so a
-  machine with a connected server will not surface a typo here —
+  instead of the sign-in page. It sits on `standardFlavor` and
+  `buildStandardKit`, and deliberately not on `standard()`: without
+  `extraModules` there is no route of your own to land on. **Declare that route
+  public yourself** — this parameter says where to start, not that the
+  destination is reachable, so a landing path no module declared bounces to
+  sign-in the moment it arrives. It replaces only that one branch: an in-flight
+  auth callback still finishes, and an already-connected stored server still
+  opens the lobby. A server that needs no sign-in counts as connected, so such a
+  deployment shows this screen on a fresh install and goes straight to the lobby
+  on every launch after it has stored one. It means *every* signed-out launch,
+  not only the first — for first-run-only, read your own onboarding flag before
+  the call and pass `null` once it is set. The shell's `soliplex_has_launched`
+  will not serve: it is install-freshness for the storage sweep, set on the
+  first boot even if that boot never reached your screen. The path follows the
+  same form rules as a public path, and must name a literal route one of your
+  modules registers, not a concrete instance of a parameterized one like
+  `/room/prod/123`. That check runs against the route the app actually starts
+  on, so a machine with a connected server will not surface a typo here —
   `Flavor.build()` throws on a signed-out launch, listing the paths it does
   know.
-- Two ways `extraPublicPaths` can bite. Nothing checks an entry against your
-  routes, and an entry naming none is worse than inert: the guard stops
-  bouncing that location, so an unauthenticated visitor reaches go_router's
-  "Page Not Found" screen instead of the server list. And declaring a path that
-  already belongs to a module removes that screen's sign-in guard — for a
-  per-server path that also costs the return trip, since the route's own guard
-  bounces to a bare `/lobby` rather than to sign-in-and-come-back. On its own
-  `extraPublicPaths` leaves your `initialRoute` untouched, so a cold launch
-  lands where it did. On web a URL to a declared path opens it directly,
-  because go_router prefers a non-`/` platform route over `initialLocation`;
-  native deep links do not, since no platform in this repo enables Flutter deep
-  linking.
+- Declaring a path public leaves your `initialRoute` untouched, so a cold launch
+  lands where it did unless you also set `signedOutLandingPath`. On web a URL to
+  a declared path opens it directly, because go_router prefers a non-`/`
+  platform route over `initialLocation`; native deep links do not, since no
+  platform in this repo enables Flutter deep linking.
+- A module needs no `go_router` dependency of its own, in `dependencies` or in
+  `dev_dependencies`. The barrel re-exports the routing types module authoring
+  and module *testing* use — `GoRoute`, `GoRouter`, `GoRouterHelper`,
+  `GoRouterRedirect`, `GoRouterState`, `NoTransitionPage`, `RouteBase`,
+  `ShellRoute`, `StatefulShellRoute` — plus `buildRouter`. Two of those are easy
+  to miss and each leaves the surface unusable in a different half:
+  `GoRouterHelper`, because Dart's `show` gates extensions and without it
+  `context.go` will not resolve; and `GoRouter`, because driving a module in a
+  widget test means putting one above the widget. Reach past these and add the
+  dependency directly; if you already depend on `go_router` and a file of yours
+  uses only what is listed here, the analyzer will report that import as
+  `unnecessary_import`, which is a lint to delete rather than a problem to
+  solve. Riverpod is not symmetrical: `ModuleRoutes.overrides` is
+  `List<Override>`, `Override` comes from `flutter_riverpod`, and the barrel
+  does not re-export it, so a module contributing overrides does need that
+  dependency.
+- Navigate with `context.go` / `context.push` — they take a path string, so
+  every screen in the app is reachable from a module of yours without anything
+  further being exported. Write the destination as a literal: `/` is the server
+  list, which doubles as the sign-in entry and is what a "get started" button
+  wants; `/lobby` is the room list once a server is connected. The route
+  constants themselves are not exported, so paths that carry an encoded query —
+  a room, a quiz, an auto-connect link — mean re-deriving both the shape and the
+  escaping. If you need one of those, raise it rather than hand-rolling it.

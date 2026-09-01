@@ -1,5 +1,4 @@
 import 'package:flutter/widgets.dart';
-import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 
 /// Contributes one plain route per path, so a fixture config clears the
@@ -10,9 +9,14 @@ import 'package:soliplex_frontend/soliplex_frontend.dart';
 /// (field threading, theme guards, disposal order) use this module to
 /// satisfy that invariant without dragging in feature modules.
 class RouteModule extends AppModule {
-  RouteModule(this.paths, {this.namespace = 'route-fixture'});
+  RouteModule(
+    this.paths, {
+    this.namespace = 'route-fixture',
+    this.publicPaths = const {},
+  });
 
   final List<String> paths;
+  final Set<String> publicPaths;
 
   @override
   final String namespace;
@@ -23,5 +27,6 @@ class RouteModule extends AppModule {
           for (final path in paths)
             GoRoute(path: path, builder: (_, __) => const SizedBox()),
         ],
+        publicPaths: publicPaths,
       );
 }

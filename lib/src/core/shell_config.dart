@@ -32,6 +32,7 @@ class ShellConfig {
   final List<RouteBase> _routes;
   final List<Override> _overrides;
   final List<GoRouterRedirect> _redirects;
+  final Set<String> _publicPaths;
 
   ShellConfig._internal({
     required this.appName,
@@ -42,17 +43,22 @@ class ShellConfig {
     required List<RouteBase> routes,
     required List<Override> overrides,
     required List<GoRouterRedirect> redirects,
+    required Set<String> publicPaths,
     required this.refreshListenable,
     required this.inactivity,
     required this.statusMessage,
     required this.dispose,
   })  : _routes = List.unmodifiable(routes),
         _overrides = List.unmodifiable(overrides),
-        _redirects = List.unmodifiable(redirects);
+        _redirects = List.unmodifiable(redirects),
+        _publicPaths = Set.unmodifiable(publicPaths);
 
   List<RouteBase> get routes => _routes;
   List<Override> get overrides => _overrides;
   List<GoRouterRedirect> get redirects => _redirects;
+
+  /// Paths every module declared reachable without a session, composed.
+  Set<String> get publicPaths => _publicPaths;
 
   /// Creates a [ShellConfig] from a list of [AppModule] instances.
   ///
@@ -93,10 +99,14 @@ class ShellConfig {
     }
     final coordinator = _AppModuleCoordinator(modules);
     final routes = coordinator.routes;
-    final routeErrors = validateRoutes(
-      routes: routes,
-      initialRoute: initialRoute,
-    );
+    final routeErrors = [
+      ...validateRoutes(
+        routes: routes,
+        initialRoute: initialRoute,
+        publicPaths: coordinator.publicPaths,
+      ),
+      ...validateModulePublicPaths(coordinator.contributions),
+    ];
     if (routeErrors.isNotEmpty) {
       // The throw aborts boot before any screen exists, and an ArgumentError
       // carrying no `name` renders as the bare type in the uncaught-error
@@ -120,6 +130,7 @@ class ShellConfig {
       routes: routes,
       overrides: coordinator.overrides,
       redirects: coordinator.redirects,
+      publicPaths: coordinator.publicPaths,
       refreshListenable: refreshListenable,
       inactivity: inactivity,
       statusMessage: statusMessage,
@@ -159,4 +170,13 @@ class _AppModuleCoordinator {
 
   List<GoRouterRedirect> get redirects =>
       _built.map((r) => r.redirect).nonNulls.toList();
+
+  Set<String> get publicPaths => _built.expand((r) => r.publicPaths).toSet();
+
+  /// Each module's contribution paired with the namespace that made it, so a
+  /// declaration can be attributed back to its author.
+  List<({String namespace, ModuleRoutes contribution})> get contributions => [
+        for (var i = 0; i < _modules.length; i++)
+          (namespace: _modules[i].namespace, contribution: _built[i]),
+      ];
 }

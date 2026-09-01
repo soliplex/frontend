@@ -7,11 +7,20 @@ class ModuleRoutes {
     this.routes = const [],
     this.overrides = const [],
     this.redirect,
+    this.publicPaths = const {},
   });
 
   final List<RouteBase> routes;
   final List<Override> overrides;
   final GoRouterRedirect? redirect;
+
+  /// Paths this module's routes serve without a session. Each must name a
+  /// route in [routes] — declaring another module's is rejected at boot, so
+  /// the module making the claim is always the one that builds the screen.
+  ///
+  /// No global redirect runs for a path listed here; a route's own redirect
+  /// still applies.
+  final Set<String> publicPaths;
 }
 
 /// Lifecycle unit for a feature module.

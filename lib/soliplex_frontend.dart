@@ -42,6 +42,29 @@ export 'package:soliplex_logging/soliplex_logging.dart'
         MemorySink,
         StdoutSink;
 export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
+
+// A module author declares routes with go_router's own types and navigates with
+// its `context.go` extension, so the extension point is unusable without them.
+// `show` gates extensions too, which is why GoRouterHelper is named: omit it
+// and `context.go` stays out of reach. GoRouter is named because testing a
+// module means putting one above the widget under test — authoring without it
+// works and testing does not, which is not a usable half. Anything beyond
+// these, add go_router directly.
+export 'package:go_router/go_router.dart'
+    show
+        GoRoute,
+        GoRouter,
+        GoRouterHelper,
+        GoRouterRedirect,
+        GoRouterState,
+        NoTransitionPage,
+        RouteBase,
+        ShellRoute,
+        StatefulShellRoute;
+// Builds the router the shell itself runs on, public paths and module
+// redirects included. A test that assembles a GoRouter by hand from
+// ModuleRoutes reproduces that composition and can get it wrong; this cannot.
+export 'src/core/router.dart' show buildRouter;
 export 'src/core/app_identity.dart' show AppIdentity, BrandLogo;
 export 'src/core/flavor.dart' show Flavor, FlavorTheme;
 export 'src/core/log_sinks.dart' show installLogSinks;

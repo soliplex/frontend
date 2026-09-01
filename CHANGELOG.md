@@ -10,21 +10,30 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
-- A flavor can now declare paths the sign-in guard lets through, so a
-  deployment that adds its own screen — an intro or welcome page — can put it
-  in front of an unauthenticated user instead of having it bounced to the
-  server list. Declared paths match exactly, so adding one screen does not open
-  anything beneath it, and a path written in a form that could never match is
-  refused outright rather than silently ignored.
+- A module can now declare which of its own screens are reachable without a
+  session, so a deployment that adds its own — an intro or welcome page — can
+  put it in front of an unauthenticated visitor instead of having it bounced to
+  the server list. The declaration sits beside the route it names, so the part
+  of the app that builds a screen is the part that says whether it needs a
+  sign-in. Declared paths match exactly, so opening one screen does not open
+  anything beneath it, and a path that names no route or is written in a form
+  that could never match is refused at startup rather than silently ignored.
 - A deployment can also choose where a signed-out launch lands, so that screen
   can be the first thing a new user sees rather than somewhere they have to
-  navigate to. Naming it is enough — it does not have to be declared reachable
-  separately. It moves only that one case: someone returning mid sign-in still
+  navigate to. It moves only that one case: someone returning mid sign-in still
   completes it, and anyone whose stored server is already connected still lands
   in their room list.
+- Writing a screen of your own no longer needs a routing dependency of your
+  own: the routing types a module declares and navigates with now come from
+  this package directly.
 
 ### Changed
 
+- A deployment that already depends on `go_router` may see the analyzer report
+  its own import as `unnecessary_import` in files that use only the routing
+  types this package now re-exports. Deleting the import resolves it; nothing
+  behaves differently, and a file reaching for anything beyond those types still
+  needs it.
 - The line under the composer now reads "<app name> is AI and can make
   mistakes.", and it renders on every deployment. It previously named the
   room's confidentiality level, which meant it appeared only where a

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
-import 'package:soliplex_frontend/src/modules/auth/auth_module.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
@@ -85,21 +84,6 @@ void main() {
     );
 
     expect(kit.initialRoute, AppRoutes.lobby);
-  });
-
-  test('a signed-out landing path is admitted by the guard on its own',
-      () async {
-    // The two can never legitimately disagree — a landing path the guard
-    // bounces is meaningless — so declaring it twice is not required.
-    final kit = await buildStandardKit(
-      identity: AppIdentity.soliplex,
-      signedOutLandingPath: '/welcome',
-    );
-
-    expect(
-      kit.modules.whereType<AuthAppModule>().single.extraPublicPaths,
-      contains('/welcome'),
-    );
   });
 
   test('enableDocumentFilter is forwarded to the room module', () async {

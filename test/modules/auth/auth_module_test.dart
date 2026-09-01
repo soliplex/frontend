@@ -18,17 +18,12 @@ ServerManager _createServerManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-AuthAppModule _createModule({
-  ServerManager? serverManager,
-  Set<String> extraPublicPaths = const {},
-}) =>
-    AuthAppModule(
+AuthAppModule _createModule({ServerManager? serverManager}) => AuthAppModule(
       serverManager: serverManager ?? _createServerManager(),
       probeClient: FakeHttpClient(),
       authFlow: FakeAuthFlow(),
       appName: 'Soliplex',
       inactivityLogoutFlags: InMemoryInactivityLogoutFlagStorage(),
-      extraPublicPaths: extraPublicPaths,
     );
 
 void main() {
@@ -39,28 +34,6 @@ void main() {
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
       expect(paths, containsAll(['/', '/auth/callback']));
       expect(paths, isNot(contains('/servers')));
-    });
-
-    test('rejects public paths that could never match', () {
-      // Requests arrive normalized, so each of these forms is unmatchable and
-      // would otherwise be a silently dead entry.
-      for (final bad in [
-        'welcome',
-        '/welcome/',
-        '/welcome?a=1',
-        '/welcome#x'
-      ]) {
-        expect(
-          () => _createModule(extraPublicPaths: {bad}),
-          throwsA(isA<AssertionError>()),
-          reason: bad,
-        );
-      }
-    });
-
-    test('contributes a redirect', () {
-      final contribution = _createModule().build();
-      expect(contribution.redirect, isNotNull);
     });
 
     test('contributes overrides for required providers', () {
@@ -109,36 +82,6 @@ void main() {
       expect(find.text('Soliplex'), findsOneWidget);
     });
 
-    testWidgets('allows the diagnostics screen when unauthenticated',
-        (tester) async {
-      // A user stranded on the sign-in screen is by definition unauthenticated,
-      // and the inspector is the only place the failing request is visible.
-      final contribution = module.build();
-      router = GoRouter(
-        initialLocation: '/',
-        routes: [
-          ...contribution.routes,
-          GoRoute(
-            path: AppRoutes.diagnostics,
-            builder: (_, __) => const Text('Inspector'),
-          ),
-        ],
-        redirect: contribution.redirect,
-      );
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: contribution.overrides,
-          child: MaterialApp.router(routerConfig: router),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      router.go(AppRoutes.diagnostics);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Inspector'), findsOneWidget);
-    });
-
     testWidgets('redirects /chat to / when unauthenticated', (tester) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
@@ -151,11 +94,13 @@ void main() {
     });
 
     testWidgets('allows /auth/callback when unauthenticated', (tester) async {
+      // No redirect here: admitting this path is the shell's job now, covered
+      // in test/modules/module_public_paths_test.dart. What is this module's
+      // job is what the screen says when the callback carries nothing.
       final contribution = module.build();
       router = GoRouter(
         initialLocation: '/auth/callback',
         routes: contribution.routes,
-        redirect: contribution.redirect,
       );
 
       await tester.pumpWidget(
@@ -166,7 +111,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should show callback screen (with error since no params), not redirect to /
       expect(find.text('No callback parameters received.'), findsOneWidget);
     });
 
@@ -195,69 +139,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Chat'), findsOneWidget);
-    });
-  });
-
-  group('auth redirect with flavor-declared public paths', () {
-    late GoRouter router;
-
-    Widget buildApp(Set<String> extraPublicPaths) {
-      final module = _createModule(extraPublicPaths: extraPublicPaths);
-      addTearDown(module.onDispose);
-      final contribution = module.build();
-      router = GoRouter(
-        initialLocation: '/',
-        routes: [
-          ...contribution.routes,
-          GoRoute(path: '/welcome', builder: (_, __) => const Text('Welcome')),
-          GoRoute(
-            path: '/welcome/admin',
-            builder: (_, __) => const Text('Welcome admin'),
-          ),
-        ],
-        redirect: contribution.redirect,
-      );
-      return ProviderScope(
-        overrides: contribution.overrides,
-        child: MaterialApp.router(routerConfig: router),
-      );
-    }
-
-    testWidgets('reaches a declared path when unauthenticated', (tester) async {
-      await tester.pumpWidget(buildApp({'/welcome'}));
-      await tester.pumpAndSettle();
-
-      router.go('/welcome?ref=email');
-      await tester.pumpAndSettle();
-
-      expect(find.text('Welcome'), findsOneWidget);
-    });
-
-    testWidgets('ignores a set mutated after construction', (tester) async {
-      // The guard's allowlist is fixed when the module is built, so a caller
-      // holding the set it passed cannot open a path later.
-      final declared = <String>{};
-      await tester.pumpWidget(buildApp(declared));
-      await tester.pumpAndSettle();
-
-      declared.add('/welcome');
-      router.go('/welcome');
-      await tester.pumpAndSettle();
-
-      expect(find.text('Welcome'), findsNothing);
-      expect(find.text('Soliplex'), findsOneWidget);
-    });
-
-    testWidgets('still guards a path below a declared one', (tester) async {
-      // Pins exact matching: a prefix check would admit this.
-      await tester.pumpWidget(buildApp({'/welcome'}));
-      await tester.pumpAndSettle();
-
-      router.go('/welcome/admin');
-      await tester.pumpAndSettle();
-
-      expect(find.text('Welcome admin'), findsNothing);
-      expect(find.text('Soliplex'), findsOneWidget);
     });
   });
 

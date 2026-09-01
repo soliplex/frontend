@@ -18,11 +18,11 @@ import 'standard_kit.dart';
 /// This is the customization point ADR-003 blesses: swap [theme] for full
 /// color control, or pass [extraModules] to add features (the callback receives
 /// the composition kit, so a custom module can share state such as
-/// `kit.serverManager`). [extraPublicPaths] names paths the sign-in guard
-/// admits without a session, and [signedOutLandingPath] lands a signed-out
-/// launch on a path of your own, admitting it too. Mapping the
-/// kit's fields onto the [Flavor] lives here; [Flavor.build] assembles that
-/// [Flavor] into a [ShellConfig] — neither is transcribed at the call site.
+/// `kit.serverManager`), which is also where a module declares which of its
+/// routes need no session. [signedOutLandingPath] lands a signed-out launch on
+/// one of them. Mapping the kit's fields onto the [Flavor] lives here;
+/// [Flavor.build] assembles that [Flavor] into a [ShellConfig] — neither is
+/// transcribed at the call site.
 Future<Flavor> standardFlavor({
   AppIdentity? identity,
   FlavorTheme theme = const FlavorTheme.brand(BrandTheme.soliplex()),
@@ -30,7 +30,6 @@ Future<Flavor> standardFlavor({
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
-  Set<String> extraPublicPaths = const {},
   String? signedOutLandingPath,
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
@@ -47,7 +46,6 @@ Future<Flavor> standardFlavor({
     defaultBackendUrl: defaultBackendUrl,
     callbackParams: callbackParams,
     consentNotice: consentNotice,
-    extraPublicPaths: extraPublicPaths,
     signedOutLandingPath: signedOutLandingPath,
     inactivityWarningDuration: inactivityWarningDuration,
     inactivityGraceDuration: inactivityGraceDuration,

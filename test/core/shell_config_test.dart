@@ -69,4 +69,20 @@ void main() {
       );
     });
   });
+
+  test('composes public paths from every module', () {
+    final config = ShellConfig.fromModules(
+      modules: [
+        RouteModule(const ['/one'],
+            namespace: 'a', publicPaths: const {'/one'}),
+        RouteModule(const ['/two'],
+            namespace: 'b', publicPaths: const {'/two'}),
+      ],
+      appName: 'Test',
+      lightTheme: _lightTheme(),
+      initialRoute: '/one',
+    );
+
+    expect(config.publicPaths, {'/one', '/two'});
+  });
 }

@@ -15,25 +15,6 @@ import 'server_manager.dart';
 import 'ui/auth_callback_screen.dart';
 import 'ui/home_screen.dart';
 
-const _publicPaths = {
-  AppRoutes.home,
-  AppRoutes.authCallback,
-  AppRoutes.versions,
-  // A user who cannot sign in is unauthenticated by definition, and this
-  // screen is where the failure is visible. Guarding it would put the
-  // diagnosis out of reach of exactly the session that needs it.
-  //
-  // What that exposes without a session: request metadata, already redacted at
-  // capture (HttpRedactor replaces the values of Authorization, cookies and
-  // token-bearing query parameters), and log records, which are not redacted
-  // by anything.
-  // Those carry server and discovery URLs, hostnames and token expiry times —
-  // deployment detail, not credentials — and the release level floor keeps
-  // them to warnings and above. Nothing enforces that, so a logger that starts
-  // recording a secret makes it readable here.
-  AppRoutes.diagnostics,
-};
-
 class AuthAppModule extends AppModule {
   AuthAppModule({
     required ServerManager serverManager,
@@ -45,22 +26,7 @@ class AuthAppModule extends AppModule {
     ConsentNotice? consentNotice,
     Widget? logo,
     String? defaultBackendUrl,
-    Set<String> extraPublicPaths = const {},
-  })  : assert(
-          extraPublicPaths.every(
-            (p) =>
-                p.startsWith('/') &&
-                (p == '/' || !p.endsWith('/')) &&
-                !p.contains('?') &&
-                !p.contains('#'),
-          ),
-          'An extraPublicPaths entry can never match unless it is a bare path '
-          'with a leading slash and no trailing slash, query or fragment — a '
-          'top-level redirect reports the requested path already normalized '
-          'that way.',
-        ),
-        extraPublicPaths = Set.unmodifiable(extraPublicPaths),
-        _serverManager = serverManager,
+  })  : _serverManager = serverManager,
         _probeClient = probeClient,
         _authFlow = authFlow,
         _appName = appName,
@@ -81,11 +47,6 @@ class AuthAppModule extends AppModule {
   final Widget? _logo;
   final String? _defaultBackendUrl;
 
-  /// Paths a flavor declared reachable without a session. Snapshotted, so a
-  /// caller that keeps the set it passed cannot retune the guard later.
-  @visibleForTesting
-  final Set<String> extraPublicPaths;
-
   final SignalListenable _refreshListenable;
 
   /// The [Listenable] that notifies [GoRouter] when auth state changes.
@@ -97,6 +58,7 @@ class AuthAppModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
+        publicPaths: const {AppRoutes.home, AppRoutes.authCallback},
         overrides: [
           serverManagerProvider.overrideWithValue(_serverManager),
           authFlowProvider.overrideWithValue(_authFlow),
@@ -139,15 +101,13 @@ class AuthAppModule extends AppModule {
           ),
         ],
         redirect: (_, state) {
-          // go_router hands a top-level redirect the whole requested path,
-          // with the query and one trailing slash already off it, so matching
-          // it against a literal admits '/welcome' alone: '/welcome/admin' and
-          // every '/welcome/:step' instance stay guarded. The entries are not
-          // normalized in turn — an entry written '/welcome/' matches nothing.
-          final isPublic = _publicPaths.contains(state.matchedLocation) ||
-              extraPublicPaths.contains(state.matchedLocation);
-          if (isPublic) return null;
-
+          // This guard admits no public path of its own. buildRouter returns
+          // before the redirect loop for anything a module declared, so under
+          // the shell one never arrives here — but handed straight to a
+          // GoRouter without that short-circuit, this bounces /diagnostics and
+          // /versions to sign-in. Drive a module through buildRouter, not a
+          // router assembled from ModuleRoutes by hand.
+          //
           // Per-server guard: if the route names a specific server and
           // that server isn't connected (signed out or expired),
           // redirect to its sign-in entry. Carry the original location

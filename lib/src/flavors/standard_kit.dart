@@ -60,11 +60,9 @@ Future<StandardKit> buildStandardKit({
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
-  // Feeds the auth guard.
-  Set<String> extraPublicPaths = const {},
   // Where a signed-out launch lands. Replaces only that branch below — an
   // in-flight auth callback and an already-connected stored server still win.
-  // The guard admits it automatically; it need not also be declared above.
+  // The module that registers the path declares it public.
   String? signedOutLandingPath,
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
@@ -161,11 +159,6 @@ Future<StandardKit> buildStandardKit({
     consentNotice: consentNotice,
     logo: brandLogo,
     defaultBackendUrl: resolvedUrl,
-    // A landing path the guard bounced would be meaningless, so it joins the
-    // declared ones.
-    extraPublicPaths: signedOutLandingPath == null
-        ? extraPublicPaths
-        : {...extraPublicPaths, signedOutLandingPath},
   );
 
   final initialRoute = callbackParams is! NoCallbackParams
