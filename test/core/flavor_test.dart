@@ -86,5 +86,50 @@ void main() {
       flavor.build();
       expect(flavor.build, throwsStateError);
     });
+
+    test('a theme that fails to resolve leaves the flavor buildable', () {
+      // Only the modules are single-use, and lowering happens before any is
+      // touched. Spending the flavor on a fork-supplied FontResolver's throw
+      // would replace that resolver's message — the one naming the fault —
+      // with 'already called' on every retry, including the boot screen's.
+      final flavor = Flavor(
+        identity: identity(),
+        theme: FlavorTheme.brand(
+          BrandTheme.fromSeed(
+            const Color(0xFF336699),
+            // Without a family set, nothing calls the resolver and this test
+            // would pass on a flavor that never resolved a font at all.
+            typography: const BrandTypography(brandFamily: 'Nonesuch'),
+          ),
+          fontResolver: const _ThrowingFontResolver(),
+        ),
+        modules: [
+          RouteModule(const ['/'])
+        ],
+      );
+
+      for (final attempt in ['first', 'second']) {
+        expect(
+          flavor.build,
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('font unavailable'),
+            ),
+          ),
+          reason: 'the $attempt build reports the resolver, not "already '
+              'called"',
+        );
+      }
+    });
   });
+}
+
+class _ThrowingFontResolver extends FontResolver {
+  const _ThrowingFontResolver();
+
+  @override
+  ResolvedFont resolve(String family, List<String> fallbacks) =>
+      throw StateError('font unavailable');
 }

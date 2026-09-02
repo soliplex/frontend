@@ -79,12 +79,15 @@ Customize through `standardFlavor`'s parameters — identity, theme,
 
 For compositions that diverge further than `standardFlavor` allows, drop one
 level: call `buildStandardKit` yourself and construct a `Flavor` from its
-kit (see ADR-003 §3.3). Every kit field is then yours to forward, and every one
-except `modules` fails quietly if you don't — `modules` is the only omission the
-config guard catches. Three are worth spelling out; the other two,
-`inactivity` and `statusMessage`, silently revert to defaults, so an auto-logout
-policy or a status-message endpoint you configured on the kit simply does not
-apply.
+kit (see ADR-003 §3.3). Six of the kit's seven fields are then yours to forward
+— `serverManager` is not one of them; it is shared state for `extraModules`,
+not a `Flavor` field. Omit any of the six and it fails quietly, with one
+partial exception: whether the config guard catches a missing `modules` or
+`initialRoute` depends on your own module set, since it can only ask whether
+some module registers the initial route. Three of the six are worth spelling
+out; the other two, `inactivity` and `statusMessage`, silently revert to
+defaults, so an auto-logout policy or a status-message endpoint you configured
+on the kit simply does not apply.
 
 Forget `refreshListenable` and auth-driven redirects stop re-evaluating.
 

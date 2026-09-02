@@ -153,8 +153,9 @@ String _notBarePath(String label, String path) =>
 /// leading slash. go_router requires one and validates it nowhere — not even
 /// under an assert — so such a route never matches, in any build mode, while
 /// [_joinPath] repairs the omission here and leaves the collected path looking
-/// like one the router serves. An empty [parentPath] is exactly go_router's notion of top level,
-/// shell routes included, since they pass the parent through unchanged.
+/// like one the router serves. An empty [parentPath] is exactly go_router's
+/// notion of top level, shell routes included, since they pass the parent
+/// through unchanged.
 List<String> _collectPaths(
   List<RouteBase> routes,
   String parentPath, [

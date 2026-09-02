@@ -10,6 +10,33 @@ ThemeData _lightTheme() => buildSoliplexThemeData(
     );
 
 void main() {
+  test('a rejected configuration is recorded, reason and all', () async {
+    // The boot screen shows this same text, but reaching it means runApp
+    // succeeded. The record is what is left when it did not, so the reason has
+    // to be in the message: no sink installLogSinks installs renders
+    // attributes, and 'Configuration rejected' alone names nothing.
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(LogManager.instance.reset);
+
+    expect(
+      () => ShellConfig.fromModules(
+        modules: [
+          RouteModule(const ['/'])
+        ],
+        appName: 'Test',
+        lightTheme: ThemeData(), // bare: no SoliplexTheme extension
+      ),
+      throwsA(isA<ArgumentError>()),
+    );
+
+    expect(
+      sink.records.single.message,
+      contains('buildSoliplexThemeData'),
+      reason: 'the reason travels in the message, not an unrendered attribute',
+    );
+  });
+
   group('ShellConfig.fromModules theme-extension guard', () {
     test('throws when lightTheme lacks the SoliplexTheme extension', () {
       expect(
@@ -134,11 +161,18 @@ void main() {
       expect(disposed, ['last', 'first'], reason: 'both sides of the failure');
     });
 
-    test('a module that cannot even name itself does not strand the others',
+    test('a module that cannot even name itself still reports its failure',
         () async {
       // namespace is a getter a module author implements, so it can throw —
-      // and it is read while composing the teardown record. Composed outside
-      // the guard, that throw escapes the loop and strands everything after it.
+      // and it is read while composing the teardown record. Two ways to get
+      // this wrong, and only one of them strands anything: reading it outside a
+      // guard escapes the loop, and guarding the whole record instead drops the
+      // teardown failure. Both are asserted, because a module holding a
+      // ServerManager that was never released is worth a record either way.
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(LogManager.instance.reset);
+
       final disposed = <String>[];
       final config = ShellConfig.fromModules(
         modules: [
@@ -152,6 +186,15 @@ void main() {
 
       await expectLater(config.dispose(), throwsA(isA<StateError>()));
       expect(disposed, ['first'], reason: 'reached past the unnameable one');
+
+      final teardown = sink.records
+          .where((r) => r.message.contains('Module teardown failed'));
+      expect(teardown, hasLength(1), reason: 'the failure was still recorded');
+      expect(
+        teardown.single.message,
+        contains('StateError'),
+        reason: 'and says what failed, not only that something did',
+      );
     });
 
     test('tears the modules down when the route configuration is rejected',

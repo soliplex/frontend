@@ -23,18 +23,19 @@ import 'status_message_config.dart';
 /// catch what [Flavor.build] throws — an invalid route configuration, a theme
 /// missing its extension, a duplicated namespace. Those land before the first
 /// frame, and no target treats that as a crash — the launch surface simply
-/// stays up (a splash on iOS and Android, a black window on macOS, the loader
-/// on web), and on Windows and Linux the runner shows its window only once a
-/// frame arrives, so nothing appears at all. None of them blocks the main
-/// thread, so no watchdog fires: the user gets a launch that never finishes
-/// and nothing to send back, while the message naming the fault goes nowhere.
-/// It is put on the device instead.
+/// stays up (a splash on iOS, the window background on Android once
+/// `FlutterActivity` has swapped `LaunchTheme` for `NormalTheme`, a black
+/// window on macOS, the loader on web), and on Windows and Linux the runner
+/// shows its window only once a frame arrives, so nothing appears at all. None
+/// of them blocks the main thread, so no watchdog fires: the user gets a launch
+/// that never finishes and nothing to send back, while the message naming the
+/// fault goes nowhere. It is put on the device instead.
 ///
-/// The error is rethrown once the failure surface is *scheduled* — `runApp`
-/// only calls `scheduleAttachRootWidget`, so the rethrow runs first and the
-/// frame follows. Both the engine's report and
-/// [installUncaughtErrorLogging]'s asynchronous intake still see it, unless
-/// the caller awaits this future and swallows it.
+/// The error is rethrown once the failure surface is *scheduled*: `runApp`
+/// both attaches the root widget and pumps the warm-up frame through
+/// `Timer.run`, so the rethrow runs first and the frame follows. Both the
+/// engine's report and [installUncaughtErrorLogging]'s asynchronous intake
+/// still see it, unless the caller awaits this future and swallows it.
 ///
 /// Uses [UniqueKey] so that hot restart (which re-runs main) creates a fresh
 /// widget tree. Hot reload does not re-run main, so this is safe.
@@ -59,9 +60,8 @@ class _BootFailureApp extends StatelessWidget {
 
   /// A diagnosis this package composed is shown whole; anything else is
   /// reduced to its type.
-  static String _describe(Object error) => error is ShellConfigurationError
-      ? '${error.message}'
-      : describeFailure(error);
+  static String _describe(Object error) =>
+      error is ShellDiagnosis ? error.diagnosis : describeFailure(error);
 
   @override
   Widget build(BuildContext context) => MaterialApp(

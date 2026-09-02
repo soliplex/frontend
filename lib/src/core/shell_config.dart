@@ -11,37 +11,55 @@ import 'inactivity/inactivity_config.dart';
 import 'router.dart';
 import 'status_message_config.dart';
 
+/// A failure carrying a [diagnosis] this package composed, safe to show whole.
+///
+/// The boot-failure surface renders [diagnosis] verbatim and reduces every
+/// other exception to a type name, because an exception escaping the same
+/// assembly can carry the value it failed on and that surface needs no
+/// navigation and no export to read. Implementing this is what claims a message
+/// is safe to display; do not implement it over a value a user or a backend
+/// supplied.
+///
+/// It has to be a type rather than a convention because `describeFailure`
+/// reduces both an [ArgumentError] carrying no `name` and a [StateError] to a
+/// bare type name, taking the diagnosis with it. It is an interface rather than
+/// a base class because the two failures that carry one differ in what they
+/// are: a rejected argument and a flavor used twice. Both keep the base class
+/// their callers already catch and their docs already name.
+abstract interface class ShellDiagnosis {
+  String get diagnosis;
+}
+
 /// Records [message] and returns the error to throw with it.
 ///
-/// The throw aborts boot before any screen exists, and `describeFailure`
-/// renders a nameless [ArgumentError] as its bare type in the uncaught-error
-/// record — so without this the text naming the fault would reach only the
-/// platform console, which on Android reaches nobody. Every caller composes
+/// The record is a second copy, not the only one: the boot surface shows the
+/// same text, but reaching it means `runApp` succeeded, and a device where it
+/// did not is exactly where a log is the last thing left. The reason travels in
+/// the record's message because no sink `installLogSinks` installs renders
+/// attributes — memory, console and stdout all format the message alone — so an
+/// attribute would reach only a buffer whose one reader is the diagnostics
+/// screen, which a failed boot never navigates to. Every caller composes
 /// [message] in code, so it is safe to record whole.
 ShellConfigurationError _rejected(String message) {
   LogManager.instance
       .getLogger('soliplex.shell')
-      .error('Configuration rejected', attributes: {'reason': message});
-  return ShellConfigurationError(message);
+      .error('Configuration rejected: $message');
+  return ShellConfigurationError._(message);
 }
 
 /// Thrown when a [ShellConfig] cannot be assembled — an invalid route
 /// configuration, a theme missing its extension, a duplicated namespace.
 ///
-/// Marks a message this package composed, so the boot-failure surface can show
-/// it whole while reducing every other exception to a type name. Nothing checks
-/// the string: an exception escaping the same assembly can carry the value it
-/// failed on, and that surface needs no navigation and no export to read, so
-/// the distinction has to exist — but it is a distinction this library keeps by
-/// construction, not one the type enforces. Do not build one from a value a
-/// user or a backend supplied.
-///
-/// It has to be a type rather than a convention because `describeFailure`
-/// reduces an [ArgumentError] carrying no `name` to its bare type, taking the
-/// diagnosis with it. Extends [ArgumentError] so callers catching the general
-/// case still do.
-class ShellConfigurationError extends ArgumentError {
-  ShellConfigurationError(String super.message);
+/// Extends [ArgumentError] so callers catching the general case still do.
+/// `final` with a private constructor so [_rejected] is the only place one is
+/// built: the claim [ShellDiagnosis] makes is about the string, and a type any
+/// caller could construct would let a module put its own text on that screen.
+final class ShellConfigurationError extends ArgumentError
+    implements ShellDiagnosis {
+  ShellConfigurationError._(String super.message);
+
+  @override
+  String get diagnosis => message as String;
 }
 
 class ShellConfig {
@@ -126,20 +144,50 @@ class ShellConfig {
     StatusMessageConfig statusMessage = const StatusMessageConfig(),
   }) {
     try {
-      return _fromModules(
-        modules: modules,
+      if (lightTheme.extension<SoliplexTheme>() == null) {
+        throw _rejected(
+          'The lightTheme is missing the SoliplexTheme extension. Build it '
+          'with buildSoliplexThemeData(...), not a bare ThemeData(...).',
+        );
+      }
+      if (darkTheme != null && darkTheme.extension<SoliplexTheme>() == null) {
+        throw _rejected(
+          'The darkTheme is missing the SoliplexTheme extension. Build it '
+          'with buildSoliplexThemeData(...), not a bare ThemeData(...).',
+        );
+      }
+      final coordinator = _AppModuleCoordinator(modules);
+      final routes = coordinator.routes;
+      final routeErrors = [
+        ...validateRoutes(
+          routes: routes,
+          initialRoute: initialRoute,
+          publicPaths: coordinator.publicPaths,
+          signedOutLandingPath: signedOutLandingPath,
+        ),
+        ...validateModulePublicPaths(coordinator.contributions),
+      ];
+      if (routeErrors.isNotEmpty) {
+        throw _rejected(
+            'Invalid route configuration:\n${routeErrors.join('\n')}');
+      }
+      return ShellConfig._internal(
         appName: appName,
         lightTheme: lightTheme,
         darkTheme: darkTheme,
         themeMode: themeMode,
         initialRoute: initialRoute,
-        signedOutLandingPath: signedOutLandingPath,
+        routes: routes,
+        overrides: coordinator.overrides,
+        redirects: coordinator.redirects,
+        publicPaths: coordinator.publicPaths,
         refreshListenable: refreshListenable,
         inactivity: inactivity,
         statusMessage: statusMessage,
+        dispose: coordinator.disposeAll,
       );
     } catch (_) {
-      // Any abort below leaves the modules holding what they were constructed
+      // Any abort above leaves the modules holding what they were constructed
       // with — a ServerManager, HTTP clients, an inspector — and returns no
       // ShellConfig, so nothing hands the caller a dispose for them.
       // Fired rather than awaited because this is synchronous; a failure inside
@@ -148,62 +196,6 @@ class ShellConfig {
       unawaited(_disposeModules(modules).catchError((Object _) {}));
       rethrow;
     }
-  }
-
-  static ShellConfig _fromModules({
-    required List<AppModule> modules,
-    required String appName,
-    required ThemeData lightTheme,
-    required ThemeData? darkTheme,
-    required ThemeMode themeMode,
-    required String initialRoute,
-    required String? signedOutLandingPath,
-    required Listenable? refreshListenable,
-    required InactivityConfig inactivity,
-    required StatusMessageConfig statusMessage,
-  }) {
-    if (lightTheme.extension<SoliplexTheme>() == null) {
-      throw _rejected(
-        'The lightTheme is missing the SoliplexTheme extension. Build it with '
-        'buildSoliplexThemeData(...), not a bare ThemeData(...).',
-      );
-    }
-    if (darkTheme != null && darkTheme.extension<SoliplexTheme>() == null) {
-      throw _rejected(
-        'The darkTheme is missing the SoliplexTheme extension. Build it with '
-        'buildSoliplexThemeData(...), not a bare ThemeData(...).',
-      );
-    }
-    final coordinator = _AppModuleCoordinator(modules);
-    final routes = coordinator.routes;
-    final routeErrors = [
-      ...validateRoutes(
-        routes: routes,
-        initialRoute: initialRoute,
-        publicPaths: coordinator.publicPaths,
-        signedOutLandingPath: signedOutLandingPath,
-      ),
-      ...validateModulePublicPaths(coordinator.contributions),
-    ];
-    if (routeErrors.isNotEmpty) {
-      throw _rejected(
-          'Invalid route configuration:\n${routeErrors.join('\n')}');
-    }
-    return ShellConfig._internal(
-      appName: appName,
-      lightTheme: lightTheme,
-      darkTheme: darkTheme,
-      themeMode: themeMode,
-      initialRoute: initialRoute,
-      routes: routes,
-      overrides: coordinator.overrides,
-      redirects: coordinator.redirects,
-      publicPaths: coordinator.publicPaths,
-      refreshListenable: refreshListenable,
-      inactivity: inactivity,
-      statusMessage: statusMessage,
-      dispose: coordinator.disposeAll,
-    );
   }
 }
 
@@ -215,33 +207,35 @@ class ShellConfig {
 /// exists to release.
 ///
 /// Each failure is recorded with the namespace that produced it, because a
-/// stack trace names a frame and not which module it belonged to. The
-/// first is rethrown once the rest have run, so a caller awaiting
-/// [ShellConfig.dispose] still learns that teardown was not clean.
+/// stack trace names a frame and not which module it belonged to, and the
+/// module travels in the message because no sink `installLogSinks` installs
+/// renders attributes. One of them is rethrown once the rest have run, so a
+/// caller awaiting [ShellConfig.dispose] still learns that teardown was not
+/// clean.
 Future<void> _disposeModules(List<AppModule> modules) async {
   Object? firstError;
   StackTrace? firstStack;
   for (final m in modules.reversed) {
     try {
-      // The record is built inside the guard, not in the catch: `namespace` is
-      // a getter a module author implements and `describeFailure` and the
-      // logger are calls, so composing the record outside would put a throw
-      // where it escapes this loop — stranding every module not yet reached,
-      // which is the failure this function exists to prevent.
       await m.onDispose();
     } catch (error, stackTrace) {
+      // `namespace` is a getter a module author implements, so naming the
+      // module can itself throw. Only that read is guarded, and it falls back
+      // rather than giving up: a throw anywhere else in this catch escapes the
+      // loop and strands every module not yet reached, while swallowing the
+      // whole record would lose the teardown failure this clause exists to
+      // report.
+      String module;
       try {
-        LogManager.instance.getLogger('soliplex.shell').warning(
-              'Module teardown failed',
-              attributes: {
-                'module': m.namespace.isEmpty ? '<anonymous>' : m.namespace,
-                'failure': describeFailure(error),
-              },
-              stackTrace: stackTrace,
-            );
+        module = m.namespace.isEmpty ? '<anonymous>' : m.namespace;
       } catch (_) {
-        // A failure to describe a failure must not become the failure.
+        module = '<${m.runtimeType}: namespace threw>';
       }
+      LogManager.instance.getLogger('soliplex.shell').warning(
+            'Module teardown failed for $module: ${describeFailure(error)}',
+            attributes: {'module': module, 'failure': describeFailure(error)},
+            stackTrace: stackTrace,
+          );
       firstError ??= error;
       firstStack ??= stackTrace;
     }

@@ -48,8 +48,8 @@ export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
 // them. The list is the types the module-authoring API's own signatures are
 // written in — `ModuleRoutes.routes`, `ModuleRoutes.redirect`, a `GoRoute`
 // builder's arguments — plus `NoTransitionPage`, which is not a signature type
-// but the page every module here returns from `pageBuilder`, and plus what a
-// widget test needs to drive a module.
+// but the page every module here bar diagnostics returns from `pageBuilder`,
+// and plus what a widget test needs to drive a module.
 //
 // It is curated, never the whole package: typed routes, `ShellRoute` and
 // `StatefulShellRoute` are absent. No module here uses the shell routes, and

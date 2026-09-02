@@ -10,9 +10,13 @@ HTTP capture is redacted before any observer sees it: `HttpRedactor` replaces
 the values of `Authorization`, cookies and token-bearing query parameters, and
 also redacts request bodies, SSE content and error strings
 (`ObservableHttpClient`). The names remain, the values it recognises do not —
-recognition is the limit. `HttpRedactor` matches fixed header and parameter
-names plus a short substring list, so bearer material under a name it does not
-know (`X-Amz-Signature`, `client_assertion`) passes through.
+recognition is the limit. `HttpRedactor` matches a fixed set of header and
+query-parameter names plus a short substring list, so bearer material under a
+name it does not know passes through: `X-Amz-Signature` survives as both a
+header and a query parameter. The two lists are also matched differently, and
+`X-Amz-Credential` falls in the gap — the header list is substring-matched, so
+it is redacted there, while the query list is exact-match, so it survives in
+the presigned URL that is where it actually travels.
 
 **Nothing redacts log records.** `installLogSinks` adds a bare `MemorySink`,
 and `formatLogRecord` applies no redaction. Two consequences:
