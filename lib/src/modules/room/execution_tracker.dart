@@ -3,6 +3,10 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'execution_step.dart';
 import 'ui/execution/timeline_entry.dart';
 
+/// A bridged execution event paired with the epoch-millisecond emission time
+/// of the AG-UI event it came from, or null when that event carried none.
+typedef TimedExecutionEvent = ({ExecutionEvent event, int? timestamp});
+
 class ExecutionTracker {
   ExecutionTracker({
     required ReadonlySignal<ExecutionEvent?> executionEvents,
@@ -33,15 +37,33 @@ class ExecutionTracker {
   /// folds the raw AG-UI events through the same function the live
   /// processor uses, so snapshot + delta application produces the same
   /// result as a live run with the same event stream.
+  ///
+  /// Step offsets are measured from [origin], the epoch-millisecond instant
+  /// this tracker's stretch of the run began: a clock started here would time
+  /// the replay loop, not the run it is replaying. Callers take [origin] from
+  /// the first stored event of the same bucket, including the ones that bridge
+  /// to nothing, so it lands on the start of that stretch rather than on the
+  /// first event that happens to carry an execution step. Null leaves every
+  /// offset unknown, which is a bucket whose stored events carry no time at
+  /// all — no stretch of it can be placed.
+  ///
+  /// An entry with no emission time leaves the offset unknown for as long as
+  /// it is the one being handled. Its step opens, or settles, with no figure:
+  /// a run interrupted mid-call emits its tool result unstamped, and carrying
+  /// the previous offset forward would settle that step at the instant it
+  /// opened.
   ExecutionTracker.historical({
-    required List<ExecutionEvent> events,
+    required List<TimedExecutionEvent> events,
+    required int? origin,
     required List<ActivityRecord> activities,
     required Logger logger,
   })  : _logger = logger,
         _activities = Signal<List<ActivityRecord>>(activities),
         _historical = true {
-    _stopwatch.start();
-    for (final event in events) {
+    for (final (:event, :timestamp) in events) {
+      _replayOffset = (timestamp == null || origin == null)
+          ? null
+          : Duration(milliseconds: timestamp - origin);
       _onEvent(event);
     }
     freeze();
@@ -64,6 +86,19 @@ class ExecutionTracker {
   final Set<String> _reportedMissingResults = <String>{};
 
   final Stopwatch _stopwatch = Stopwatch();
+
+  /// Where the event being replayed sits relative to the tracker's anchor,
+  /// or null when that event carried no emission time. Rewritten for every
+  /// entry rather than retained, so an unstamped event yields no figure
+  /// instead of repeating the previous one. Unused on the live path, which
+  /// reads the running clock instead.
+  Duration? _replayOffset;
+
+  /// The offset to stamp on a step changing now: the running clock on the
+  /// live path, and on the replay path the offset of the event being handled
+  /// — or, once the loop has finished, of the last one.
+  Duration? get _now => _historical ? _replayOffset : _stopwatch.elapsed;
+
   void Function()? _unsub;
   void Function()? _activitiesUnsub;
   bool _isFrozen = false;
@@ -272,10 +307,7 @@ class ExecutionTracker {
     final entry = match.entry;
     final step = entry.step;
     final completed = step.status == StepStatus.active
-        ? step.copyWith(
-            status: StepStatus.completed,
-            timestamp: _stopwatch.elapsed,
-          )
+        ? step.settled(status: StepStatus.completed, at: _now)
         : step;
     _replaceEntry(match, entry.withResult(result).withStep(completed));
     if (!identical(completed, step)) {
@@ -368,7 +400,7 @@ class ExecutionTracker {
       label: label,
       type: type,
       status: StepStatus.active,
-      timestamp: _stopwatch.elapsed,
+      timestamp: _now,
     );
     _steps.value = [..._steps.value, step];
     _timeline.value = [
@@ -382,27 +414,24 @@ class ExecutionTracker {
     if (current.isEmpty) return;
     final last = current.last;
     if (last.status == StepStatus.active) {
-      final updated = last.copyWith(
-        status: StepStatus.completed,
-        timestamp: _stopwatch.elapsed,
-      );
+      final updated = last.settled(status: StepStatus.completed, at: _now);
       _steps.value = [...current.sublist(0, current.length - 1), updated];
       _updateLastActiveStepInTimeline(updated);
     }
   }
 
   void _completeAllSteps(StepStatus status) {
-    final now = _stopwatch.elapsed;
+    final now = _now;
     _steps.value = [
       for (final step in _steps.value)
         step.status == StepStatus.active
-            ? step.copyWith(status: status, timestamp: now)
+            ? step.settled(status: status, at: now)
             : step,
     ];
     _timeline.value = [
       for (final entry in _timeline.value)
         if (entry is TimelineStep && entry.step.status == StepStatus.active)
-          entry.withStep(entry.step.copyWith(status: status, timestamp: now))
+          entry.withStep(entry.step.settled(status: status, at: now))
         else
           entry,
     ];
