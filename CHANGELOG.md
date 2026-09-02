@@ -47,14 +47,24 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Breaking:** a top-level route whose path omits its leading slash is now
   refused at startup. The routing package requires the slash and checks for it
   nowhere, so such a route silently never matched — a screen that was already
-  dead. A deployment carrying one used to lose that screen and nothing else; it
-  now cannot launch until the path is corrected.
-- **Breaking:** the uncomposed module redirects are no longer readable from a
-  built configuration; `ShellConfig.redirect` gives them composed instead, with
-  the public-path admission already in front of them. A router assembled from
-  the uncomposed list turned the sign-in guard on the screens meant to be
-  exempt — including the sign-in callback, which discarded a sign-in in flight —
-  and there was no way to notice from the outside. `buildRouter` is unchanged.
+  dead. A deployment carrying one used to lose that screen, or, where it was
+  also the route the app opens on, launch into the routing package's own
+  "page not found"; it now cannot launch until the path is corrected.
+- **Breaking:** `ShellConfig.redirects` is renamed `moduleRedirects` and marked
+  as being for tests, and `ShellConfig.redirect` is what a router should now
+  install: the same module redirects, composed, with the public-path admission
+  already in front of them. Installing the uncomposed ones turned the sign-in
+  guard on the screens meant to be exempt — including the sign-in callback,
+  which discarded a sign-in in flight — and there was no way to notice from the
+  outside. `buildRouter` is unchanged.
+- A configuration that is rejected now releases the modules it had already
+  built, instead of abandoning them holding a server manager, HTTP clients and
+  an inspector. One consequence reaches module authors: `onDispose` can now run
+  on a module whose `build()` never did, because a duplicate namespace or a
+  theme without its extension is refused before any module is built. Release
+  what the constructor took; anything `build()` creates has to tolerate being
+  absent. Teardown also continues past a module that fails it, so one module
+  throwing no longer strands the ones registered before it.
 - A deployment that already depends on `go_router` may see the analyzer report
   its own import as `unnecessary_import` in files that use only the routing
   types this package now re-exports. Deleting the import resolves it; nothing

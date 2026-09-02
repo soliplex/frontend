@@ -100,18 +100,20 @@ class AuthAppModule extends AppModule {
           ),
         ],
         redirect: (_, state) {
-          // This guard admits no public path of its own: buildRouter returns
-          // before the redirect loop for anything a module declared, so under
-          // the shell one never arrives here. Handed straight to a GoRouter
-          // without that step it diverts every unauthenticated request,
+          // This guard admits no public path of its own: ShellConfig.redirect
+          // returns before the redirect loop for anything a module declared,
+          // so under the shell one never arrives here. Handed straight to a
+          // GoRouter without that step it diverts every unauthenticated
+          // request,
           // including its own /auth/callback, losing an in-flight sign-in.
           // '/?url=...' is worse for being quiet: go_router compares a redirect
           // target against the whole requested URI, query included, so
           // returning '/' is a real navigation and the new match list is parsed
           // from '/' alone — autoConnectUrl and returnTo are gone. The second
           // pass returns '/' for '/', which is discarded, so there is no loop
-          // and no error, just an emptied launch. Drive a module through
-          // buildRouter, not a router assembled from ModuleRoutes by hand.
+          // and no error, just an emptied launch. Install
+          // ShellConfig.redirect — buildRouter is the shortest way to — not a
+          // router assembled from ModuleRoutes by hand.
           //
           // Per-server guard: if the route names a specific server and
           // that server isn't connected (signed out or expired),

@@ -149,6 +149,12 @@ class ShellConfig {
     InactivityConfig inactivity = const InactivityConfig(),
     StatusMessageConfig statusMessage = const StatusMessageConfig(),
   }) {
+    // Snapshotted before anything else, so neither the dispose closure this
+    // returns nor the teardown the catch fires can observe the caller mutating
+    // the list afterwards. Both iterate across `await`s, where a mutation would
+    // surface as a ConcurrentModificationError that escapes the per-module
+    // guard and strands every module the loop had not reached.
+    final owned = List<AppModule>.unmodifiable(modules);
     try {
       if (lightTheme.extension<SoliplexTheme>() == null) {
         throw _rejected(
@@ -162,9 +168,6 @@ class ShellConfig {
           'with buildSoliplexThemeData(...), not a bare ThemeData(...).',
         );
       }
-      // Snapshotted before anything is built, so the long-lived dispose
-      // closure cannot observe the caller mutating the list afterwards.
-      final owned = List<AppModule>.unmodifiable(modules);
       final seen = <String>{};
       for (final m in owned) {
         if (m.namespace.isNotEmpty && !seen.add(m.namespace)) {
@@ -211,10 +214,11 @@ class ShellConfig {
       // Any abort above leaves the modules holding what they were constructed
       // with — a ServerManager, HTTP clients, an inspector — and returns no
       // ShellConfig, so nothing hands the caller a dispose for them.
-      // Fired rather than awaited because this is synchronous; a failure inside
-      // it is recorded by disposeModules itself and swallowed here, so it
-      // cannot arrive alongside and obscure the error being rethrown.
-      unawaited(_disposeModules(modules).catchError((Object _) {}));
+      // Fired rather than awaited because this is synchronous; a per-module
+      // failure is recorded by disposeModules itself, so what is swallowed
+      // here is a copy that would otherwise arrive alongside — and obscure —
+      // the error being rethrown.
+      unawaited(_disposeModules(owned).catchError((Object _) {}));
       rethrow;
     }
   }

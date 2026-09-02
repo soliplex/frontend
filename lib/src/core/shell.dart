@@ -65,7 +65,10 @@ class _BootFailureApp extends StatelessWidget {
   /// at the screen that shows it, and an unrecognised failure falls through to
   /// [describeFailure] rather than opting itself in.
   static String _describe(Object error) => switch (error) {
-        ShellConfigurationError e => e.message as String,
+        // Interpolated rather than cast: ArgumentError types `message` as
+        // Object?, and a cast that failed would throw from inside this
+        // screen's own build, replacing the diagnosis with an ErrorWidget.
+        ShellConfigurationError e => '${e.message}',
         ShellBuildStateError e => e.message,
         _ => describeFailure(error),
       };

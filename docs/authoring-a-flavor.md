@@ -115,9 +115,12 @@ public-path step, and the sign-in guard then bounces `/auth/callback`,
 `/diagnostics`, `/versions` and any screen of your own to the server list —
 losing an in-flight sign-in in the first case.
 
-Assembling from a `ShellConfig` is safe: `ShellConfig.redirect` is the module
-redirects already composed behind that step, which is why the uncomposed ones
-are not exposed. Simplest is still `buildRouter(flavor.build())` — it is
+Assembling from a `ShellConfig` is safe as long as you install
+`ShellConfig.redirect`, which is the module redirects already composed behind
+that step. The uncomposed ones remain reachable through
+`ShellConfig.moduleRedirects`, marked `@visibleForTesting` — the analyzer warns
+rather than stops you, and installing one of those is the mistake this
+paragraph is about. Simplest is still `buildRouter(flavor.build())` — it is
 exported for exactly this, and it is what the shell runs, so your tests cannot
 drift from production by reproducing the composition slightly differently.
 Prefer `standardFlavor` unless you genuinely need a different module graph.
@@ -139,7 +142,10 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
 - Disposal is yours: the `ShellConfig` returned by `Flavor.build()` carries a
   `dispose` callback that the shell widget never invokes. Standalone apps can
   rely on OS reclamation; embedders that unmount the shell must retain the
-  config and `await config.dispose()` themselves.
+  config and `await config.dispose()` themselves. A build that *fails* is the
+  exception — it tears your modules down on its way out, so `onDispose` can run
+  on a module whose `build()` never did. Release what the constructor took;
+  anything `build()` creates has to tolerate being absent.
 - A route of yours is reachable without a session when the module that registers
   it says so — `publicPaths` on the `ModuleRoutes` your `AppModule.build()`
   returns, one line beside the route it names:
@@ -213,8 +219,11 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   redirect at all — so once the user has a session, nothing will move them off
   it. A welcome screen whose only exit was "the router will redirect me once
   sign-in completes" strands the user on it with a valid session, on every
-  platform. Navigate explicitly, the way the built-in screens do:
-  `context.canPop() ? context.pop() : context.go(AppRoutes.home)`.
+  platform. Navigate explicitly, the way every built-in screen does —
+  `context.canPop() ? context.pop() : context.go(<somewhere>)`. Each picks its
+  own destination rather than a shared one: `/versions` falls back to
+  `AppRoutes.home`, `/diagnostics` to `AppRoutes.lobby`. Pick yours for where
+  the screen sits, not by copying either.
 
   The same breadth is why a landing path must not carry a route-level
   `redirect:` of its own. Nothing validates that combination, and the two are
