@@ -925,4 +925,57 @@ void main() {
       );
     });
   });
+
+  group('step duration', () {
+    testWidgets('renders the offset derived from the stored event times',
+        (tester) async {
+      final historical = ExecutionTracker.historical(
+        origin: 1000,
+        events: const [
+          (event: ThinkingStarted(), timestamp: 1000),
+          (
+            event:
+                ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
+            timestamp: 3100,
+          ),
+          (event: RunCompleted(), timestamp: 5000),
+        ],
+        activities: const [],
+        logger: testLogger(),
+      );
+      addTearDown(historical.dispose);
+
+      await tester.pumpWidget(wrap(build(t: historical)));
+      await tester.pump();
+      await tester.tap(find.text('2 events'));
+      await tester.pump();
+
+      expect(find.text('2.1s'), findsOneWidget);
+      expect(find.text('4.0s'), findsOneWidget);
+    });
+
+    testWidgets('shows no duration for a step with no known time',
+        (tester) async {
+      // Stored events that carry no emission time give nothing to offset
+      // from; the row must say nothing rather than claim 0.0s.
+      final historical = ExecutionTracker.historical(
+        origin: null,
+        events: const [
+          (event: ThinkingStarted(), timestamp: null),
+          (event: RunCompleted(), timestamp: null),
+        ],
+        activities: const [],
+        logger: testLogger(),
+      );
+      addTearDown(historical.dispose);
+
+      await tester.pumpWidget(wrap(build(t: historical)));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+
+      expect(find.text('Thinking'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'\d\.\ds')), findsNothing);
+    });
+  });
 }

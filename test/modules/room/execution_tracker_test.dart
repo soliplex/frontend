@@ -10,6 +10,11 @@ import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.d
 
 import '../../helpers/test_logger.dart';
 
+/// Pairs bridged events with no source time — the shape a stored thread has
+/// when the backend that produced it did not stamp its events.
+List<TimedExecutionEvent> _untimed(List<ExecutionEvent> events) =>
+    [for (final event in events) (event: event, timestamp: null)];
+
 void main() {
   late Signal<ExecutionEvent?> events;
   late Signal<List<ActivityRecord>> activities;
@@ -90,6 +95,27 @@ void main() {
     expect(tracker.steps.value[1].status, StepStatus.active);
     expect(tracker.steps.value[1].label, 'search');
     expect(tracker.isThinkingStreaming.value, isFalse);
+  });
+
+  test('a live run stamps every step with an offset', () {
+    // The replay path derives offsets from stored event times and leaves them
+    // null when it cannot; the live path has a running clock and must never
+    // produce null, or the row silently renders no elapsed figure.
+    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+
+    // Asserted before the run completes, while the tool call is still open:
+    // settling replaces the opening offset, so an assertion made only after
+    // RunCompleted cannot tell a missing opening stamp from a present one. An
+    // open step is every row of a run in progress.
+    expect(tracker.steps.value, hasLength(2));
+    expect(tracker.steps.value.every((s) => s.timestamp != null), isTrue);
+
+    events.value = const RunCompleted();
+    expect(tracker.steps.value.every((s) => s.timestamp != null), isTrue);
   });
 
   test('ServerToolCallCompleted marks step completed', () {
@@ -787,6 +813,7 @@ void main() {
   group('ExecutionTracker.historical', () {
     test('returns frozen tracker', () {
       final tracker = ExecutionTracker.historical(
+        origin: null,
         events: const [],
         activities: const [],
         logger: testLogger(),
@@ -797,13 +824,14 @@ void main() {
 
     test('seeds steps from events', () {
       final tracker = ExecutionTracker.historical(
-        events: const [
+        origin: null,
+        events: _untimed(const [
           ThinkingStarted(),
           ThinkingContent(delta: 'hello'),
           ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
           ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
           RunCompleted(),
-        ],
+        ]),
         activities: const [],
         logger: testLogger(),
       );
@@ -816,7 +844,8 @@ void main() {
 
     test('seeds activities under active step when present', () {
       final tracker = ExecutionTracker.historical(
-        events: const [
+        origin: null,
+        events: _untimed(const [
           ClientToolExecuting(toolName: 'execute_skill', toolCallId: 'tc-1'),
           ActivitySnapshot(
             messageId: 'bwrap:call_1',
@@ -824,7 +853,7 @@ void main() {
             content: {'tool_name': 'execute_script', 'args': '{}'},
             timestamp: 100,
           ),
-        ],
+        ]),
         activities: const [
           ActivityRecord(
             messageId: 'bwrap:call_1',
@@ -847,6 +876,7 @@ void main() {
 
     test('empty events list yields empty timeline', () {
       final tracker = ExecutionTracker.historical(
+        origin: null,
         events: const [],
         activities: const [],
         logger: testLogger(),
@@ -860,16 +890,142 @@ void main() {
         'events ending mid-thinking are finalized: no spinner, no '
         'active step', () {
       final tracker = ExecutionTracker.historical(
-        events: const [
+        origin: null,
+        events: _untimed(const [
           ThinkingStarted(),
           ThinkingContent(delta: 'reasoning'),
-        ],
+        ]),
         activities: const [],
         logger: testLogger(),
       );
 
       expect(tracker.isThinkingStreaming.value, isFalse);
       expect(tracker.steps.value.every((s) => s.status.isTerminal), isTrue);
+      tracker.dispose();
+    });
+
+    test('offsets steps from the stored events own emission times', () {
+      // A clock started at replay times the loop, not the run it replays, so
+      // the offsets have to come from the times the events were emitted with.
+      final tracker = ExecutionTracker.historical(
+        origin: 1000,
+        events: const [
+          (event: ThinkingStarted(), timestamp: 1000),
+          (
+            event:
+                ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
+            timestamp: 3100,
+          ),
+          (
+            event: ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
+            timestamp: 6400,
+          ),
+          (event: RunCompleted(), timestamp: 6400),
+        ],
+        activities: const [],
+        logger: testLogger(),
+      );
+
+      expect(
+        tracker.steps.value.map((s) => s.timestamp),
+        const [Duration(milliseconds: 2100), Duration(milliseconds: 5400)],
+      );
+      tracker.dispose();
+    });
+
+    test('a settling event with no time leaves that step with no offset', () {
+      // A run interrupted mid-call emits its TOOL_CALL_RESULT unstamped, and
+      // that result settles the step before any later event can. Carrying the
+      // previous offset forward would settle it at the instant it opened,
+      // printing the figure the row started with as the one it ended on.
+      final tracker = ExecutionTracker.historical(
+        origin: 1000,
+        events: const [
+          (
+            event:
+                ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
+            timestamp: 1000,
+          ),
+          (
+            event: ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
+            timestamp: null,
+          ),
+        ],
+        activities: const [],
+        logger: testLogger(),
+      );
+
+      expect(tracker.steps.value.single.status, StepStatus.completed);
+      expect(tracker.steps.value.single.timestamp, isNull);
+      tracker.dispose();
+    });
+
+    test(
+        'a step still open when an unstamped event ends the bucket has no '
+        'offset', () {
+      // A run interrupted mid-call emits its tool result unstamped, and that
+      // result can be the last thing stored for the reply. `freeze` then
+      // settles whatever is still open at an instant nothing recorded, so the
+      // figure has to go — `_completeAllSteps` folds the step list and the
+      // timeline separately, and the row reads the timeline.
+      final tracker = ExecutionTracker.historical(
+        origin: 1000,
+        events: const [
+          (event: ThinkingStarted(), timestamp: 2500),
+          (
+            event: ServerToolCallCompleted(toolCallId: 'tc-other', result: 'x'),
+            timestamp: null,
+          ),
+        ],
+        activities: const [],
+        logger: testLogger(),
+      );
+
+      expect(tracker.steps.value.single.status, StepStatus.completed);
+      expect(tracker.steps.value.single.timestamp, isNull);
+      final entry = tracker.timeline.value.single as TimelineStep;
+      expect(entry.step.timestamp, isNull);
+      tracker.dispose();
+    });
+
+    test('anchors offsets on the origin the caller supplies', () {
+      // The events that open a bucket — RUN_STARTED, and a later reply's
+      // TEXT_MESSAGE_START — bridge to nothing, so the caller reads the anchor
+      // from the raw events. Without it the clock would start at the first
+      // thinking event and drop the wait before it from every figure.
+      final tracker = ExecutionTracker.historical(
+        origin: 1000,
+        events: const [
+          (event: ThinkingStarted(), timestamp: 4000),
+          (event: RunCompleted(), timestamp: 6000),
+        ],
+        activities: const [],
+        logger: testLogger(),
+      );
+
+      expect(
+        tracker.steps.value.single.timestamp,
+        const Duration(milliseconds: 5000),
+      );
+      tracker.dispose();
+    });
+
+    test('leaves offsets unknown when the stored events carry no time', () {
+      final tracker = ExecutionTracker.historical(
+        origin: null,
+        events: _untimed(const [
+          ThinkingStarted(),
+          ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
+          RunCompleted(),
+        ]),
+        activities: const [],
+        logger: testLogger(),
+      );
+
+      expect(
+        tracker.steps.value.map((s) => s.timestamp),
+        [isNull, isNull],
+      );
       tracker.dispose();
     });
   });

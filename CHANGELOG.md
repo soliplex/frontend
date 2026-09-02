@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- Reopening a thread no longer resets every step time in its events timeline to
+  `0.0s`. The times were measured with a clock started when the timeline was
+  rebuilt, and rebuilding replays a finished run far faster than it happened,
+  so everything that had read correctly while the run was live collapsed to zero
+  the moment the thread was loaded again. Step times now come from the times
+  the events were emitted with, so the figures on a reopened thread reflect
+  time the run spent rather than time the rebuild took. Each reply is measured
+  from the moment its own stretch of the run began, so a thread with several
+  replies starts each one's figures afresh rather than counting from the
+  thread's beginning. A step the stored events cannot place in time — the
+  run's error path records some events without one — shows no figure at all
+  rather than a zero it cannot stand behind.
+
 ## [0.103.0+86] - 2026-09-02
 
 ### Added

@@ -45,7 +45,7 @@ Map<String, ExecutionTracker> replayToTrackers(
   List<RunEventBundle> runs, {
   @visibleForTesting ExecutionBridge bridge = bridgeBaseEvent,
 }) {
-  final buckets = <String, List<ExecutionEvent>>{};
+  final buckets = <String, List<TimedExecutionEvent>>{};
   // Parallel to `buckets`: the raw AG-UI events destined for each
   // tracker, retained so we can fold them through `applyActivityEvent`
   // at construction time. Bridging drops `ActivityDeltaEvent`, so the
@@ -56,7 +56,7 @@ Map<String, ExecutionTracker> replayToTrackers(
   // next normal bundle's first assistant message absorbs them. If no
   // such bundle exists, the trailing handler below routes them under
   // `noResponseMessageId(lastToolYieldRunId)`.
-  final pending = <ExecutionEvent>[];
+  final pending = <TimedExecutionEvent>[];
   final pendingRaw = <BaseEvent>[];
   String? lastToolYieldRunId;
 
@@ -91,9 +91,15 @@ Map<String, ExecutionTracker> replayToTrackers(
           if (pending.isNotEmpty) {
             buckets[messageId]!.addAll(pending);
             pending.clear();
+            lastToolYieldRunId = null;
+          }
+          // Drained on its own condition: the raw events preceding a reply
+          // belong to its stretch whether or not any of them bridged, and the
+          // run's own `RUN_STARTED` — which bridges to nothing — is what
+          // anchors the reply's offsets.
+          if (pendingRaw.isNotEmpty) {
             rawBucket.addAll(pendingRaw);
             pendingRaw.clear();
-            lastToolYieldRunId = null;
           }
         }
 
@@ -101,11 +107,15 @@ Map<String, ExecutionTracker> replayToTrackers(
         if (currentMessageId != null) {
           rawBuckets.putIfAbsent(currentMessageId, () => []).add(raw);
           if (execEvent != null) {
-            buckets.putIfAbsent(currentMessageId, () => []).add(execEvent);
+            buckets
+                .putIfAbsent(currentMessageId, () => [])
+                .add((event: execEvent, timestamp: raw.timestamp));
           }
         } else {
           pendingRaw.add(raw);
-          if (execEvent != null) pending.add(execEvent);
+          if (execEvent != null) {
+            pending.add((event: execEvent, timestamp: raw.timestamp));
+          }
         }
       }
     } else if (hasToolCall) {
@@ -113,7 +123,9 @@ Map<String, ExecutionTracker> replayToTrackers(
       for (final raw in bundle.events) {
         pendingRaw.add(raw);
         final execEvent = bridgeOrLog(raw);
-        if (execEvent != null) pending.add(execEvent);
+        if (execEvent != null) {
+          pending.add((event: execEvent, timestamp: raw.timestamp));
+        }
       }
     } else {
       final synthesizedId = noResponseMessageId(bundle.runId);
@@ -122,14 +134,18 @@ Map<String, ExecutionTracker> replayToTrackers(
       if (pending.isNotEmpty) {
         bucket.addAll(pending);
         pending.clear();
+        lastToolYieldRunId = null;
+      }
+      if (pendingRaw.isNotEmpty) {
         rawBucket.addAll(pendingRaw);
         pendingRaw.clear();
-        lastToolYieldRunId = null;
       }
       for (final raw in bundle.events) {
         rawBucket.add(raw);
         final execEvent = bridgeOrLog(raw);
-        if (execEvent != null) bucket.add(execEvent);
+        if (execEvent != null) {
+          bucket.add((event: execEvent, timestamp: raw.timestamp));
+        }
       }
     }
   }
@@ -156,10 +172,29 @@ Map<String, ExecutionTracker> replayToTrackers(
     for (final entry in buckets.entries)
       entry.key: ExecutionTracker.historical(
         events: entry.value,
+        origin: _bucketOrigin(rawBuckets[entry.key] ?? const []),
         activities: _foldActivities(rawBuckets[entry.key] ?? const []),
         logger: _logger,
       ),
   };
+}
+
+/// The instant a bucket's stretch of the run began, or null when none of its
+/// stored events carries a time.
+///
+/// Read from the raw events rather than the bridged ones because the events
+/// that open a stretch bridge to nothing: `RUN_STARTED` for a run's first
+/// reply, and the `TEXT_MESSAGE_START` of every reply after it. A bucket that
+/// absorbed a hoisted tool-yield run opens on that run's events instead, and
+/// anchors there. Anchoring on the first *bridged* event would start the clock
+/// at the reply's first thinking or tool event, subtracting the wait before it
+/// from every figure in that reply.
+int? _bucketOrigin(List<BaseEvent> raw) {
+  for (final event in raw) {
+    final timestamp = event.timestamp;
+    if (timestamp != null) return timestamp;
+  }
+  return null;
 }
 
 List<ActivityRecord> _foldActivities(List<BaseEvent> events) {

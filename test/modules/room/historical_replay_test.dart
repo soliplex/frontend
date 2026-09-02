@@ -47,6 +47,118 @@ void main() {
       expect(trackers['msg-1']!.isFrozen, isTrue);
     });
 
+    test('measures a step from the run start, not its first bridged event', () {
+      // Every timestamp is distinct so the anchor is observable: RUN_STARTED
+      // bridges to nothing, so anchoring on the first *bridged* event would
+      // start the clock at the tool call and drop the 2.5s before it.
+      final runs = [
+        RunEventBundle(
+          runId: 'run-1',
+          events: [
+            RunStartedEvent(threadId: 't-1', runId: 'run-1', timestamp: 1000),
+            const TextMessageStartEvent(messageId: 'msg-1', timestamp: 2000),
+            const ToolCallStartEvent(
+              toolCallId: 'tc-1',
+              toolCallName: 'search',
+              timestamp: 3500,
+            ),
+            const ToolCallResultEvent(
+              messageId: 'res-1',
+              toolCallId: 'tc-1',
+              content: 'ok',
+              timestamp: 4200,
+            ),
+            const RunFinishedEvent(
+              threadId: 't-1',
+              runId: 'run-1',
+              timestamp: 4300,
+            ),
+          ],
+        ),
+      ];
+
+      final tracker = replayToTrackers(runs)['msg-1']!;
+
+      expect(
+        tracker.steps.value.single.timestamp,
+        const Duration(milliseconds: 3200),
+      );
+    });
+
+    test('a thinking step flushed from pending keeps its own emission time',
+        () {
+      // Events before TEXT_MESSAGE_START are hoisted through `pending` and
+      // drained into the reply's bucket. The thinking step opens 1.5s after
+      // the run started, and `freeze` settles it there because no later
+      // bridged event carries a time; dropping the time on the pending path
+      // would leave it with no offset at all.
+      final runs = [
+        RunEventBundle(
+          runId: 'run-1',
+          events: [
+            RunStartedEvent(threadId: 't-1', runId: 'run-1', timestamp: 1000),
+            const ReasoningMessageStartEvent(
+              messageId: 'reason-1',
+              timestamp: 2500,
+            ),
+            const TextMessageStartEvent(messageId: 'msg-1', timestamp: 6000),
+            const TextMessageEndEvent(messageId: 'msg-1', timestamp: 6000),
+          ],
+        ),
+      ];
+
+      final tracker = replayToTrackers(runs)['msg-1']!;
+
+      expect(tracker.steps.value.single.label, 'Thinking');
+      expect(
+        tracker.steps.value.single.timestamp,
+        const Duration(milliseconds: 1500),
+      );
+    });
+
+    test('a later run is anchored on its own start, not an earlier run\'s', () {
+      // The hoisted raw events are cleared once drained. Left in place they
+      // prepend to every later bucket, anchoring a reply on a run that ended
+      // a minute earlier and folding that run's activities into its tracker.
+      final runs = [
+        RunEventBundle(
+          runId: 'run-1',
+          events: [
+            RunStartedEvent(threadId: 't-1', runId: 'run-1', timestamp: 1000),
+            const ActivitySnapshotEvent(
+              messageId: 'bwrap:call_1',
+              activityType: 'skill_tool_call',
+              content: {'tool_name': 'execute_script', 'args': '{}'},
+              timestamp: 1050,
+            ),
+            const TextMessageStartEvent(messageId: 'msg-1', timestamp: 1100),
+            const TextMessageEndEvent(messageId: 'msg-1', timestamp: 1200),
+          ],
+        ),
+        RunEventBundle(
+          runId: 'run-2',
+          events: [
+            RunStartedEvent(threadId: 't-1', runId: 'run-2', timestamp: 60000),
+            const ReasoningMessageStartEvent(
+              messageId: 'reason-2',
+              timestamp: 60500,
+            ),
+            const TextMessageStartEvent(messageId: 'msg-2', timestamp: 61000),
+            const TextMessageEndEvent(messageId: 'msg-2', timestamp: 61000),
+          ],
+        ),
+      ];
+
+      final trackers = replayToTrackers(runs);
+
+      expect(
+        trackers['msg-2']!.steps.value.single.timestamp,
+        const Duration(milliseconds: 500),
+      );
+      expect(trackers['msg-1']!.activities.value, hasLength(1));
+      expect(trackers['msg-2']!.activities.value, isEmpty);
+    });
+
     test('thinking events before TEXT_MESSAGE_START attach to that message',
         () {
       final runs = [
@@ -169,18 +281,20 @@ void main() {
             TextMessageStartEvent(
               messageId: 'user-1',
               role: TextMessageRole.user,
+              timestamp: 1000,
             ),
-            TextMessageEndEvent(messageId: 'user-1'),
+            TextMessageEndEvent(messageId: 'user-1', timestamp: 1000),
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(),
+            ThinkingTextMessageStartEvent(timestamp: 2000),
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(delta: 'reasoning'),
+            ThinkingTextMessageContentEvent(
+                delta: 'reasoning', timestamp: 2100),
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(),
-            RunFinishedEvent(threadId: 't', runId: 'run-1'),
+            ThinkingTextMessageEndEvent(timestamp: 2200),
+            RunFinishedEvent(threadId: 't', runId: 'run-1', timestamp: 4000),
           ],
         ),
       ];
@@ -191,6 +305,13 @@ void main() {
       expect(trackers['no-response-run-1']!.thinkingBlocks.value, [
         'reasoning',
       ]);
+      // Anchored on the bundle's first stored event, so this branch's
+      // timestamp forward is observable: the thinking step opens 1s in and
+      // RUN_FINISHED settles it at 3s.
+      expect(
+        trackers['no-response-run-1']!.steps.value.single.timestamp,
+        const Duration(milliseconds: 3000),
+      );
     });
 
     test(
@@ -202,19 +323,20 @@ void main() {
           events: const [
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(),
+            ThinkingTextMessageStartEvent(timestamp: 1000),
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(delta: 'pre-tool'),
+            ThinkingTextMessageContentEvent(delta: 'pre-tool', timestamp: 1100),
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(),
+            ThinkingTextMessageEndEvent(timestamp: 1200),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
               toolCallName: 'search',
               parentMessageId: 'parent-1',
+              timestamp: 3500,
             ),
-            ToolCallEndEvent(toolCallId: 'tc-1'),
+            ToolCallEndEvent(toolCallId: 'tc-1', timestamp: 3600),
             ToolCallResultEvent(
               toolCallId: 'tc-1',
               content: 'ok',
@@ -255,19 +377,20 @@ void main() {
           events: const [
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(),
+            ThinkingTextMessageStartEvent(timestamp: 1000),
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(delta: 'pre-tool'),
+            ThinkingTextMessageContentEvent(delta: 'pre-tool', timestamp: 1100),
             // Deprecated upstream; exercises the pre-REASONING_* replay path.
             // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(),
+            ThinkingTextMessageEndEvent(timestamp: 1200),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
               toolCallName: 'search',
               parentMessageId: 'parent-1',
+              timestamp: 3500,
             ),
-            ToolCallEndEvent(toolCallId: 'tc-1'),
+            ToolCallEndEvent(toolCallId: 'tc-1', timestamp: 3600),
           ],
         ),
       ];
@@ -278,6 +401,18 @@ void main() {
       expect(
         trackers['no-response-run-yield-only']!.steps.value.map((s) => s.label),
         ['Thinking', 'search'],
+      );
+      // Offsets are measured from the bundle's first stored event, so the
+      // hoisted branch's timestamp forward is observable here. Both settle at
+      // the tool call's own start: TOOL_CALL_END carries no execution step, so
+      // it never moves the offset, and `freeze` settles `search` where the
+      // last event that did left it.
+      expect(
+        trackers['no-response-run-yield-only']!
+            .steps
+            .value
+            .map((s) => s.timestamp),
+        const [Duration(milliseconds: 2500), Duration(milliseconds: 2500)],
       );
       expect(
         trackers['no-response-run-yield-only']!.thinkingBlocks.value,

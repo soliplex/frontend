@@ -299,12 +299,15 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                     running: step.status == StepStatus.active,
                   ),
                 ),
-                Text(
-                  _formatDuration(step.timestamp),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.outline,
+                // Deliberately renders nothing when the step has no known
+                // offset, rather than a zero the stored events cannot support.
+                if (step.timestamp case final elapsed?)
+                  Text(
+                    _formatDuration(elapsed),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
