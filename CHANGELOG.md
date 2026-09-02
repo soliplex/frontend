@@ -44,6 +44,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   faulty route going nowhere. Building inside the call puts it on screen
   instead.
 
+- **Breaking:** a top-level route whose path omits its leading slash is now
+  refused at startup. The routing package requires the slash and checks for it
+  nowhere, so such a route silently never matched — a screen that was already
+  dead. A deployment carrying one used to lose that screen and nothing else; it
+  now cannot launch until the path is corrected.
+- **Breaking:** the uncomposed module redirects are no longer readable from a
+  built configuration; `ShellConfig.redirect` gives them composed instead, with
+  the public-path admission already in front of them. A router assembled from
+  the uncomposed list turned the sign-in guard on the screens meant to be
+  exempt — including the sign-in callback, which discarded a sign-in in flight —
+  and there was no way to notice from the outside. `buildRouter` is unchanged.
 - A deployment that already depends on `go_router` may see the analyzer report
   its own import as `unnecessary_import` in files that use only the routing
   types this package now re-exports. Deleting the import resolves it; nothing

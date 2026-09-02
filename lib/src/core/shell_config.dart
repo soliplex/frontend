@@ -11,25 +11,6 @@ import 'inactivity/inactivity_config.dart';
 import 'router.dart';
 import 'status_message_config.dart';
 
-/// A failure carrying a [diagnosis] this package composed, safe to show whole.
-///
-/// The boot-failure surface renders [diagnosis] verbatim and reduces every
-/// other exception to a type name, because an exception escaping the same
-/// assembly can carry the value it failed on and that surface needs no
-/// navigation and no export to read. Implementing this is what claims a message
-/// is safe to display; do not implement it over a value a user or a backend
-/// supplied.
-///
-/// It has to be a type rather than a convention because `describeFailure`
-/// reduces both an [ArgumentError] carrying no `name` and a [StateError] to a
-/// bare type name, taking the diagnosis with it. It is an interface rather than
-/// a base class because the two failures that carry one differ in what they
-/// are: a rejected argument and a flavor used twice. Both keep the base class
-/// their callers already catch and their docs already name.
-abstract interface class ShellDiagnosis {
-  String get diagnosis;
-}
-
 /// Records [message] and returns the error to throw with it.
 ///
 /// The record is a second copy, not the only one: the boot surface shows the
@@ -52,14 +33,10 @@ ShellConfigurationError _rejected(String message) {
 ///
 /// Extends [ArgumentError] so callers catching the general case still do.
 /// `final` with a private constructor so [_rejected] is the only place one is
-/// built: the claim [ShellDiagnosis] makes is about the string, and a type any
+/// built: the boot surface shows this type's message verbatim, and a type any
 /// caller could construct would let a module put its own text on that screen.
-final class ShellConfigurationError extends ArgumentError
-    implements ShellDiagnosis {
+final class ShellConfigurationError extends ArgumentError {
   ShellConfigurationError._(String super.message);
-
-  @override
-  String get diagnosis => message as String;
 }
 
 class ShellConfig {
@@ -108,10 +85,39 @@ class ShellConfig {
 
   List<RouteBase> get routes => _routes;
   List<Override> get overrides => _overrides;
-  List<GoRouterRedirect> get redirects => _redirects;
 
   /// Paths every module declared reachable without a session, composed.
   Set<String> get publicPaths => _publicPaths;
+
+  /// The one redirect a router must install — every module's, composed, behind
+  /// the check that admits a declared public path first.
+  ///
+  /// The module redirects are not exposed separately on purpose. Installing
+  /// them without this step turns the sign-in guard on the paths meant to be
+  /// exempt: the auth module's guard diverts every unauthenticated request
+  /// including its own `/auth/callback`, which discards an in-flight sign-in
+  /// with no error. That was once safe to do by hand, because the guard
+  /// carried its own copy of the exempt list; it is not, now that the module
+  /// that registers a route is the one that declares it public.
+  ///
+  /// Null when no module contributes one, so a router installs nothing.
+  GoRouterRedirect? get redirect => _redirects.isEmpty
+      ? null
+      : (BuildContext context, GoRouterState state) async {
+          // A declared public path runs no global redirect at all; a route's
+          // own redirect is attached per GoRoute and still applies.
+          if (_publicPaths.contains(state.matchedLocation)) return null;
+          for (final redirect in _redirects) {
+            final result = await redirect(context, state);
+            if (result != null) return result;
+          }
+          return null;
+        };
+
+  /// The module redirects before composition, for tests that need to count
+  /// them. Install [redirect], never these.
+  @visibleForTesting
+  List<GoRouterRedirect> get moduleRedirects => _redirects;
 
   /// Creates a [ShellConfig] from a list of [AppModule] instances.
   ///
@@ -156,16 +162,31 @@ class ShellConfig {
           'with buildSoliplexThemeData(...), not a bare ThemeData(...).',
         );
       }
-      final coordinator = _AppModuleCoordinator(modules);
-      final routes = coordinator.routes;
+      // Snapshotted before anything is built, so the long-lived dispose
+      // closure cannot observe the caller mutating the list afterwards.
+      final owned = List<AppModule>.unmodifiable(modules);
+      final seen = <String>{};
+      for (final m in owned) {
+        if (m.namespace.isNotEmpty && !seen.add(m.namespace)) {
+          throw _rejected('Duplicate AppModule namespace: "${m.namespace}"');
+        }
+      }
+      final built = owned.map((m) => m.build()).toList(growable: false);
+      final routes = built.expand((r) => r.routes).toList();
+      final publicPaths = built.expand((r) => r.publicPaths).toSet();
       final routeErrors = [
         ...validateRoutes(
           routes: routes,
           initialRoute: initialRoute,
-          publicPaths: coordinator.publicPaths,
+          publicPaths: publicPaths,
           signedOutLandingPath: signedOutLandingPath,
         ),
-        ...validateModulePublicPaths(coordinator.contributions),
+        // Each contribution paired with the namespace that made it, so a
+        // declaration can be attributed back to its author.
+        ...validateModulePublicPaths([
+          for (var i = 0; i < owned.length; i++)
+            (namespace: owned[i].namespace, contribution: built[i]),
+        ]),
       ];
       if (routeErrors.isNotEmpty) {
         throw _rejected(
@@ -178,13 +199,13 @@ class ShellConfig {
         themeMode: themeMode,
         initialRoute: initialRoute,
         routes: routes,
-        overrides: coordinator.overrides,
-        redirects: coordinator.redirects,
-        publicPaths: coordinator.publicPaths,
+        overrides: built.expand((r) => r.overrides).toList(),
+        redirects: built.map((r) => r.redirect).nonNulls.toList(),
+        publicPaths: publicPaths,
         refreshListenable: refreshListenable,
         inactivity: inactivity,
         statusMessage: statusMessage,
-        dispose: coordinator.disposeAll,
+        dispose: () => _disposeModules(owned),
       );
     } catch (_) {
       // Any abort above leaves the modules holding what they were constructed
@@ -243,44 +264,4 @@ Future<void> _disposeModules(List<AppModule> modules) async {
   if (firstError != null) {
     Error.throwWithStackTrace(firstError, firstStack!);
   }
-}
-
-// ---------------------------------------------------------------------------
-// Internal coordinator — not part of the public API.
-// ---------------------------------------------------------------------------
-
-class _AppModuleCoordinator {
-  _AppModuleCoordinator(List<AppModule> modules) {
-    final seen = <String>{};
-    for (final m in modules) {
-      if (m.namespace.isNotEmpty && !seen.add(m.namespace)) {
-        throw _rejected('Duplicate AppModule namespace: "${m.namespace}"');
-      }
-    }
-    _modules = List.unmodifiable(modules);
-    _built = _modules.map((m) => m.build()).toList(growable: false);
-  }
-
-  late final List<AppModule> _modules;
-  late final List<ModuleRoutes> _built;
-
-  Future<void> disposeAll() => _disposeModules(_modules);
-
-  List<RouteBase> get routes => _built.expand((r) => r.routes).toList();
-
-  List<Override> get overrides => _built.expand((r) => r.overrides).toList();
-
-  List<GoRouterRedirect> get redirects =>
-      _built.map((r) => r.redirect).nonNulls.toList();
-
-  /// Computed once: fromModules reads this twice, to validate and to store.
-  late final Set<String> publicPaths =
-      _built.expand((r) => r.publicPaths).toSet();
-
-  /// Each module's contribution paired with the namespace that made it, so a
-  /// declaration can be attributed back to its author.
-  List<({String namespace, ModuleRoutes contribution})> get contributions => [
-        for (var i = 0; i < _modules.length; i++)
-          (namespace: _modules[i].namespace, contribution: _built[i]),
-      ];
 }

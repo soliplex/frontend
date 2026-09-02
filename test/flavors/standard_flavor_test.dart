@@ -138,13 +138,60 @@ void main() {
     }
   });
 
+  testWidgets('a router assembled by hand still admits the public paths',
+      (tester) async {
+    // The guard used to carry its own copy of the exempt list, so a consumer
+    // could feed ShellConfig's routes and redirects straight to GoRouter and
+    // get the same behaviour as the shell. Now the module that registers a
+    // route is the one that declares it public, and the only thing that
+    // honours the declaration is the composed ShellConfig.redirect — so this
+    // walks the assembly a consumer writes rather than buildRouter, which
+    // would pass whether or not the composition were reachable to them.
+    //
+    // Bouncing /auth/callback here is not cosmetic: it discards an in-flight
+    // OIDC sign-in and returns the user to the server list with no error.
+    final flavor = await standardFlavor();
+    final config = flavor.build();
+    addTearDown(config.dispose);
+
+    final router = GoRouter(
+      initialLocation: config.initialRoute,
+      routes: config.routes,
+      refreshListenable: config.refreshListenable,
+      redirect: config.redirect,
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: config.overrides,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final path in const [
+      AppRoutes.home,
+      AppRoutes.authCallback,
+      AppRoutes.versions,
+      AppRoutes.diagnostics,
+    ]) {
+      router.go(path);
+      await tester.pumpAndSettle();
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        path,
+        reason: 'hand-assembled router bounced $path',
+      );
+    }
+  });
+
   test('the sign-in guard is the only global redirect', () async {
     final flavor = await standardFlavor(
       callbackParams: WebCallbackSuccess(accessToken: 'x'),
     );
 
     expect(
-      flavor.build().redirects,
+      flavor.build().moduleRedirects,
       hasLength(1),
       reason: 'A declared public path short-circuits the whole redirect loop '
           'in buildRouter, not just the sign-in guard. So a second global '

@@ -74,16 +74,12 @@ class FlavorTheme {
 /// Thrown when a [Flavor] is built twice.
 ///
 /// Extends [StateError] because a flavor already spent is a state fault, not a
-/// bad argument, and callers already catch that. It carries a [ShellDiagnosis]
-/// so the boot surface shows the sentence rather than the type name — the
-/// message is composed here, from literals, and naming the mistake is the whole
-/// value of hitting it. `final` with a private constructor so [Flavor.build] is
-/// the only place one is built.
-final class ShellBuildStateError extends StateError implements ShellDiagnosis {
+/// bad argument, and callers already catch that. The boot surface shows its
+/// message rather than the type name — the message is composed here, from
+/// literals, and naming the mistake is the whole value of hitting it. `final`
+/// with a private constructor so [Flavor.build] is the only place one is built.
+final class ShellBuildStateError extends StateError {
   ShellBuildStateError._(super.message);
-
-  @override
-  String get diagnosis => message;
 }
 
 /// The complete declaration of a Soliplex app variant — who it is

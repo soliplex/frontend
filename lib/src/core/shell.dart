@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart' show SoliplexSpacing;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import 'flavor.dart' show ShellBuildStateError;
 import 'inactivity/inactivity_dialog_host.dart';
 import 'inactivity/inactivity_monitor.dart';
 import 'inactivity/inactivity_provider.dart';
@@ -59,9 +60,15 @@ class _BootFailureApp extends StatelessWidget {
   final Object error;
 
   /// A diagnosis this package composed is shown whole; anything else is
-  /// reduced to its type.
-  static String _describe(Object error) =>
-      error is ShellDiagnosis ? error.diagnosis : describeFailure(error);
+  /// reduced to its type. Both cases are named here rather than behind a
+  /// marker the errors carry, so the decision to show text verbatim is made
+  /// at the screen that shows it, and an unrecognised failure falls through to
+  /// [describeFailure] rather than opting itself in.
+  static String _describe(Object error) => switch (error) {
+        ShellConfigurationError e => e.message as String,
+        ShellBuildStateError e => e.message,
+        _ => describeFailure(error),
+      };
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -155,7 +162,21 @@ class SoliplexShell extends StatefulWidget {
 }
 
 class _SoliplexShellState extends State<SoliplexShell> {
-  late final _router = buildRouter(widget.config);
+  // Assigned in initState rather than by a `late final` initializer, which
+  // would defer the call to the first read — inside build. Dart re-runs a
+  // `late` initializer that threw on every subsequent read, so a GoRouter
+  // constructor that throws in build would throw again in dispose, on top of
+  // the failure that got us there, and the element could never finalize.
+  // Built here instead, a throw propagates out of initState, and an element
+  // whose initState threw is never built and never disposed — so the field is
+  // assigned before any other member of this class can observe it.
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = buildRouter(widget.config);
+  }
 
   @override
   Widget build(BuildContext context) {

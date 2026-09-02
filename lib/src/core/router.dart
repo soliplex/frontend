@@ -1,4 +1,3 @@
-import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:go_router/go_router.dart';
 
 import 'app_module.dart';
@@ -206,29 +205,15 @@ String _canonicalPath(String path) {
 
 /// Creates a [GoRouter] from a [ShellConfig].
 ///
-/// All module redirects collapse into a single GoRouter redirect slot — they
-/// are evaluated in module order and the first non-null result wins, unless the
-/// requested path is in [ShellConfig.publicPaths], in which case none of them
-/// runs. A route's own redirect is attached per [GoRoute] and always applies.
+/// [ShellConfig.redirect] is the whole redirect story — every module's,
+/// composed, behind the check that admits a declared public path first. A
+/// route's own redirect is attached per [GoRoute] and always applies.
 ///
 /// Routes are non-empty and consistent with `initialRoute` by construction:
 /// [ShellConfig.fromModules] rejects configs that fail [validateRoutes].
-GoRouter buildRouter(ShellConfig config) {
-  return GoRouter(
-    initialLocation: config.initialRoute,
-    routes: config.routes,
-    refreshListenable: config.refreshListenable,
-    redirect: config.redirects.isEmpty
-        ? null
-        : (BuildContext context, GoRouterState state) async {
-            // A declared public path runs no global redirect at all; a route's
-            // own redirect is attached per GoRoute and still applies.
-            if (config.publicPaths.contains(state.matchedLocation)) return null;
-            for (final redirect in config.redirects) {
-              final result = await redirect(context, state);
-              if (result != null) return result;
-            }
-            return null;
-          },
-  );
-}
+GoRouter buildRouter(ShellConfig config) => GoRouter(
+      initialLocation: config.initialRoute,
+      routes: config.routes,
+      refreshListenable: config.refreshListenable,
+      redirect: config.redirect,
+    );

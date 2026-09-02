@@ -108,15 +108,18 @@ make: naming a screen that does not exist, or one no module declared reachable
 without a session. Forward `kit.signedOutLandingPath` alongside
 `kit.initialRoute`; they answer different questions and the kit carries both.
 
-A fourth quiet failure is not a kit field at all: building the `GoRouter`
-yourself. `buildRouter` is
-what admits declared public paths, ahead of the module redirects; a router
-assembled by hand from `ModuleRoutes.routes` and `ModuleRoutes.redirect` skips
-that step, and the sign-in guard then bounces `/diagnostics`, `/versions` and
-any screen of your own straight to the server list. Call
-`buildRouter(flavor.build())` — it is exported for exactly this, and it is what
-the shell runs, so your tests cannot drift from production by reproducing the
-composition slightly differently.
+A fourth quiet failure is not a kit field at all: building the `GoRouter` from
+the module contributions rather than from the built config. A router assembled
+out of `ModuleRoutes.routes` and `ModuleRoutes.redirect` never sees the
+public-path step, and the sign-in guard then bounces `/auth/callback`,
+`/diagnostics`, `/versions` and any screen of your own to the server list —
+losing an in-flight sign-in in the first case.
+
+Assembling from a `ShellConfig` is safe: `ShellConfig.redirect` is the module
+redirects already composed behind that step, which is why the uncomposed ones
+are not exposed. Simplest is still `buildRouter(flavor.build())` — it is
+exported for exactly this, and it is what the shell runs, so your tests cannot
+drift from production by reproducing the composition slightly differently.
 Prefer `standardFlavor` unless you genuinely need a different module graph.
 
 ## Rules
@@ -204,6 +207,20 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   signed-out ones that would have been first to show them, because neither
   depends on the current auth state. So a developer whose machine has a
   connected server still finds out.
+
+  **Give that screen its own way out.** The two rules compose into a trap: a
+  landing path has to be declared public, and a public path runs no global
+  redirect at all — so once the user has a session, nothing will move them off
+  it. A welcome screen whose only exit was "the router will redirect me once
+  sign-in completes" strands the user on it with a valid session, on every
+  platform. Navigate explicitly, the way the built-in screens do:
+  `context.canPop() ? context.pop() : context.go(AppRoutes.home)`.
+
+  The same breadth is why a landing path must not carry a route-level
+  `redirect:` of its own. Nothing validates that combination, and the two are
+  contradictory claims: the declaration says "serve this without a session",
+  the redirect says "do not serve this". What you get is your screen accepted
+  at boot and silently skipped at runtime.
 - Declaring a path public leaves your `initialRoute` untouched, so a cold launch
   lands where it did unless you also set `signedOutLandingPath`. On web a URL to
   a declared path opens it directly, because go_router prefers a non-`/`
