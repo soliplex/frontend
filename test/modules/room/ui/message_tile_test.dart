@@ -33,8 +33,8 @@ void main() {
         createdAt: DateTime(2026, 3, 1),
         text: 'Hello',
       );
-      await tester
-          .pumpWidget(_wrap(TextMessageTile(roomId: 'r', message: msg)));
+      await tester.pumpWidget(_wrap(
+          TextMessageTile(isStreaming: false, roomId: 'r', message: msg)));
       expect(find.text('You'), findsOneWidget);
       expect(find.text('Hello'), findsOneWidget);
     });
@@ -46,8 +46,8 @@ void main() {
         createdAt: DateTime(2026, 3, 1),
         text: 'Response',
       );
-      await tester
-          .pumpWidget(_wrap(TextMessageTile(roomId: 'r', message: msg)));
+      await tester.pumpWidget(_wrap(
+          TextMessageTile(isStreaming: false, roomId: 'r', message: msg)));
       expect(find.text('Assistant'), findsOneWidget);
     });
 
@@ -59,8 +59,8 @@ void main() {
         text: 'Response',
         thinkingText: 'Thinking about this...',
       );
-      await tester
-          .pumpWidget(_wrap(TextMessageTile(roomId: 'r', message: msg)));
+      await tester.pumpWidget(_wrap(
+          TextMessageTile(isStreaming: false, roomId: 'r', message: msg)));
       expect(find.text('Thinking...'), findsOneWidget);
     });
 
@@ -89,6 +89,7 @@ void main() {
       );
 
       await tester.pumpWidget(_wrap(TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: msg,
         executionTracker: tracker,
@@ -110,6 +111,7 @@ void main() {
       );
 
       await tester.pumpWidget(_wrap(TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: msg,
         streamingPhase: const RespondingPhase(),
@@ -119,8 +121,9 @@ void main() {
       expect(find.text('Responding...'), findsOneWidget);
     });
 
-    testWidgets('renders a shimmer placeholder for empty assistant text',
-        (tester) async {
+    testWidgets('forwards isStreaming to the text tile', (tester) async {
+      // Built through MessageTile rather than the text tile: the forward is
+      // what decides whether an empty streaming reply keeps its placeholder.
       final msg = TextMessage(
         id: 'msg-1',
         user: ChatUser.assistant,
@@ -129,11 +132,11 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _wrap(TextMessageTile(roomId: 'r', message: msg)),
+        _wrap(MessageTile(roomId: 'r', message: msg, isStreaming: true)),
       );
 
       expect(find.byType(SoliplexShimmer), findsOneWidget);
-      expect(find.text('...'), findsNothing);
+      expect(find.text('This message has no text'), findsNothing);
     });
 
     testWidgets('prefers ExecutionThinkingBlock over message thinkingText',
@@ -157,6 +160,7 @@ void main() {
       );
 
       await tester.pumpWidget(_wrap(TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: msg,
         executionTracker: tracker,
@@ -261,6 +265,7 @@ void main() {
       // the affordance never appears.
       final reported = <String>[];
       await tester.pumpWidget(_wrap(MessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: NoResponseTile.failed(
           id: 'no-response-run-4',

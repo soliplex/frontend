@@ -17,6 +17,7 @@ import 'feedback_buttons.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'markdown/log_source.dart';
 import 'message_caption.dart';
+import 'notice_bubble.dart';
 import 'paged_zoomable_images.dart';
 import 'workdir_files_section.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -62,6 +63,7 @@ class TextMessageTile extends StatelessWidget {
     this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingPhase,
+    required this.isStreaming,
   });
 
   final String roomId;
@@ -76,6 +78,11 @@ class TextMessageTile extends StatelessWidget {
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
+
+  /// Whether the run is streaming into this message right now. Decides what
+  /// an empty bubble means: text still on its way, or a message no run is
+  /// writing into any more.
+  final bool isStreaming;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +121,7 @@ class TextMessageTile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: SoliplexSpacing.s1),
-        _MessageBubble(message: message),
+        _MessageBubble(message: message, isStreaming: isStreaming),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
         const SizedBox(height: SoliplexSpacing.s2),
         Row(
@@ -169,14 +176,27 @@ class TextMessageTile extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
+  const _MessageBubble({required this.message, required this.isStreaming});
 
   final TextMessage message;
+  final bool isStreaming;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isUser = message.user == ChatUser.user;
+
+    // A non-user bubble with no text that no run is streaming into has
+    // nothing further coming, so it reports that instead of animating a
+    // placeholder that says otherwise. What emptied it — a turn that produced
+    // no text, or content lost in transit — is not knowable here, so the
+    // notice claims neither.
+    if (!isUser && message.text.isEmpty && !isStreaming) {
+      return const NoticeBubble(
+        icon: Icons.info_outline,
+        label: 'This message has no text',
+      );
+    }
 
     // Speech-bubble corners: both top corners and the leading bottom corner
     // are fully rounded; the trailing bottom corner (toward the sender's edge)

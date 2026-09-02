@@ -41,6 +41,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: '1',
@@ -59,6 +60,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: 'cap-1',
@@ -76,6 +78,7 @@ void main() {
   testWidgets('omits the caption when createdAt is null', (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: 'cap-2',
@@ -93,6 +96,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: 'a1',
@@ -113,6 +117,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: 'u1',
@@ -131,6 +136,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: '2',
@@ -151,6 +157,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: '3',
@@ -168,6 +175,7 @@ void main() {
   testWidgets('thinking block shows copy button', (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: '4',
@@ -200,7 +208,8 @@ void main() {
     Widget tree(Key parentKey) => _wrap(
           KeyedSubtree(
             key: parentKey,
-            child: TextMessageTile(roomId: 'r', message: msg),
+            child:
+                TextMessageTile(isStreaming: false, roomId: 'r', message: msg),
           ),
           store: store,
         );
@@ -233,7 +242,8 @@ void main() {
     Widget tree(Key parentKey) => _wrap(
           KeyedSubtree(
             key: parentKey,
-            child: TextMessageTile(roomId: 'r', message: msg),
+            child:
+                TextMessageTile(isStreaming: false, roomId: 'r', message: msg),
           ),
           store: store,
         );
@@ -253,11 +263,12 @@ void main() {
     expect(find.text('Deep thought'), findsNothing);
   });
 
-  testWidgets('empty assistant message shows a shimmer placeholder',
+  testWidgets('empty assistant message still streaming shows a shimmer',
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
         roomId: 'r',
+        isStreaming: true,
         message: TextMessage(
           id: 'empty-1',
           user: ChatUser.assistant,
@@ -268,6 +279,28 @@ void main() {
     ));
 
     expect(find.byType(SoliplexShimmer), findsOneWidget);
+  });
+
+  testWidgets('committed empty assistant message reports it carried no text',
+      (tester) async {
+    // The shimmer claims work is in progress. An empty bubble that no run is
+    // writing into has nothing further coming, so it must say so rather than
+    // animate forever.
+    await tester.pumpWidget(_wrap(
+      TextMessageTile(
+        isStreaming: false,
+        roomId: 'r',
+        message: TextMessage(
+          id: 'empty-1',
+          user: ChatUser.assistant,
+          createdAt: DateTime(2026),
+          text: '',
+        ),
+      ),
+    ));
+
+    expect(find.text('This message has no text'), findsOneWidget);
+    expect(find.byType(SoliplexShimmer), findsNothing);
   });
 
   group('a user message carrying image parts', () {
@@ -283,6 +316,7 @@ void main() {
 
     Widget tile(List<MessagePart> parts) => _wrap(
           TextMessageTile(
+            isStreaming: false,
             roomId: 'r',
             message: TextMessage.fromParts(
               id: 'parts-1',
@@ -608,6 +642,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(_wrap(
       TextMessageTile(
+        isStreaming: false,
         roomId: 'r',
         message: TextMessage(
           id: 'plain-1',

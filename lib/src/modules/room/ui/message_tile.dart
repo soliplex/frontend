@@ -28,6 +28,7 @@ class MessageTile extends StatelessWidget {
     this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingPhase,
+    required this.isStreaming,
   });
 
   final String roomId;
@@ -44,6 +45,9 @@ class MessageTile extends StatelessWidget {
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
+
+  /// Whether the run is streaming into this message right now.
+  final bool isStreaming;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +72,7 @@ class MessageTile extends StatelessWidget {
             onPreviewWorkdirFile: onPreviewWorkdirFile,
             executionTracker: executionTracker,
             streamingPhase: streamingPhase,
+            isStreaming: isStreaming,
           ),
         final NoResponseTile m => NoResponseTileWidget(
             roomId: roomId,
