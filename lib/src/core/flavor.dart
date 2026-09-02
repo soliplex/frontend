@@ -71,6 +71,17 @@ class FlavorTheme {
   }
 }
 
+/// Thrown when a [Flavor] is built twice.
+///
+/// Extends [StateError] because a flavor already spent is a state fault, not a
+/// bad argument, and callers already catch that. The boot surface shows its
+/// message rather than the type name — the message is composed here, from
+/// literals, and naming the mistake is the whole value of hitting it. `final`
+/// with a private constructor so [Flavor.build] is the only place one is built.
+final class ShellBuildStateError extends StateError {
+  ShellBuildStateError._(super.message);
+}
+
 /// The complete declaration of a Soliplex app variant — who it is
 /// ([identity]), how it looks ([theme]), what it does ([modules]), and how
 /// it boots — as a single-use assembly declaration, built once.
@@ -88,6 +99,7 @@ class Flavor {
     required this.theme,
     required List<AppModule> modules,
     this.initialRoute = '/',
+    this.signedOutLandingPath,
     this.refreshListenable,
     this.inactivity = const InactivityConfig(),
     this.statusMessage = const StatusMessageConfig(),
@@ -97,6 +109,24 @@ class Flavor {
   final FlavorTheme theme;
   final List<AppModule> modules;
   final String initialRoute;
+
+  /// The path a signed-out launch is meant to land on — **validated here, not
+  /// applied here.** [build] refuses one that names no route or that no module
+  /// declared reachable without a session; landing on it is the caller's job,
+  /// and `standardFlavor` does it by folding this into [initialRoute] before
+  /// the flavor is constructed (see `buildStandardKit`).
+  ///
+  /// It is carried separately rather than read back off [initialRoute] because
+  /// the two legitimately differ: on an authenticated launch [initialRoute] is
+  /// the lobby while this is still the fork's own screen, and checking it
+  /// anyway is what stops a mistake surviving until the first launch that
+  /// happens to be signed out.
+  ///
+  /// Setting this without also pointing [initialRoute] at it changes no
+  /// navigation, but it is still validated — a path naming no route, or one no
+  /// module declared public, fails the build either way. Forward both from
+  /// `StandardKit`, which carries each.
+  final String? signedOutLandingPath;
 
   /// Re-evaluates router redirects when it notifies (e.g. on auth changes).
   final Listenable? refreshListenable;
@@ -114,22 +144,32 @@ class Flavor {
   ///
   /// Throws [StateError] on a second call: [modules] are live instances, so
   /// building again would re-run [AppModule.build] on them and hand back a
-  /// second [ShellConfig.dispose] over the same modules.
+  /// second [ShellConfig.dispose] over the same modules. An assembly that threw
+  /// counts, and tore the modules down on its way out — so a retry needs a
+  /// fresh flavor. A theme that fails to resolve does not: no module has been
+  /// built, so the module graph is untouched and this flavor can be built
+  /// again. Lowering the theme is not necessarily free to repeat — a
+  /// [FontResolver] may register a font loader as a side effect — so a retry
+  /// re-runs whatever the failed attempt already did.
   ShellConfig build() {
     if (_built) {
-      throw StateError(
+      throw ShellBuildStateError._(
         'Flavor.build() was already called. A flavor owns live modules and '
         'may be built only once; construct a fresh flavor to build again.',
       );
     }
-    _built = true;
     final themes = theme._resolve();
+    // Set after the theme resolves, before the modules are consumed, so a
+    // fork-supplied FontResolver throwing above leaves the module graph
+    // untouched and this flavor still buildable.
+    _built = true;
     return ShellConfig.fromModules(
       appName: identity.appName,
       lightTheme: themes.light,
       darkTheme: themes.dark,
       themeMode: theme.mode,
       initialRoute: initialRoute,
+      signedOutLandingPath: signedOutLandingPath,
       refreshListenable: refreshListenable,
       inactivity: inactivity,
       statusMessage: statusMessage,

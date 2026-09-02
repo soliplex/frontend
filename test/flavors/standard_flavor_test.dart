@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
@@ -43,6 +44,155 @@ void main() {
     expect(flavor.modules.last, same(extra));
   });
 
+  testWidgets('an unauthenticated visitor reaches a flavor route and no other',
+      (tester) async {
+    // The whole feature, driven rather than described: the module that
+    // registers the route declares it needs no session, and the real sign-in
+    // guard then lets it through while still bouncing everything else. No
+    // server is connected, so every navigation below is made signed out.
+    final flavor = await standardFlavor(
+      extraModules: (_) => [_WelcomeModule(), _GuardedModule()],
+    );
+    final config = flavor.build();
+    addTearDown(config.dispose);
+
+    final router = buildRouter(config);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: config.overrides,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    String at() => router.routerDelegate.currentConfiguration.uri.path;
+
+    router.go(_WelcomeModule.path);
+    await tester.pumpAndSettle();
+    expect(at(), _WelcomeModule.path, reason: 'declared: must not redirect');
+
+    router.go(_GuardedModule.path);
+    await tester.pumpAndSettle();
+    expect(at(), AppRoutes.home, reason: 'not declared: must still redirect');
+  });
+
+  test('the standard flavor serves exactly these paths without a session',
+      () async {
+    // The security surface, pinned whole rather than per module: a module that
+    // opens one of its own routes widens this set and nothing else in the suite
+    // notices. Adding a path here is a deliberate act and should read as one in
+    // review.
+    final flavor = await standardFlavor(
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
+    );
+
+    expect(flavor.build().publicPaths, {
+      AppRoutes.home,
+      AppRoutes.authCallback,
+      AppRoutes.versions,
+      AppRoutes.diagnostics,
+    });
+  });
+
+  testWidgets('every path served without a session is actually reached',
+      (tester) async {
+    // The test above pins which paths are declared; this one pins that the
+    // sign-in guard really admits each. The set test catches a path being
+    // added or removed — it is an equality. What only this one catches is a
+    // path declared and then bounced anyway, by a route-level guard the
+    // declaration cannot see.
+    //
+    // Named rather than read back from the config: a walk over
+    // config.publicPaths would only ever visit what is declared, so it could
+    // not fail for a declaration that was missing.
+    const mustBeReachable = {
+      AppRoutes.home,
+      AppRoutes.authCallback,
+      AppRoutes.versions,
+      AppRoutes.diagnostics,
+    };
+
+    final flavor = await standardFlavor();
+    final config = flavor.build();
+    addTearDown(config.dispose);
+
+    final router = buildRouter(config);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: config.overrides,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final path in mustBeReachable) {
+      router.go(path);
+      await tester.pumpAndSettle();
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        path,
+        reason: 'signed out, $path must not be redirected',
+      );
+    }
+  });
+
+  test('the sign-in guard is the only global redirect', () async {
+    final flavor = await standardFlavor(
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
+    );
+
+    expect(
+      flavor.build().moduleRedirects,
+      hasLength(1),
+      reason: 'A declared public path short-circuits the whole redirect loop '
+          'in ShellConfig.redirect, not just the sign-in guard. So a second '
+          'global '
+          'redirect added here is silently skipped for "/", "/auth/callback", '
+          '"/versions" and "/diagnostics" — paths three modules declare, '
+          'and none of them can be un-declared. Before adding one, give it an '
+          'exemption list of its own rather than inheriting publicPaths, which '
+          'is the sign-in guard\'s.',
+    );
+  });
+
+  test('a signed-out launch starts on the declared landing path', () async {
+    // Unlike its neighbours this passes no callbackParams: a callback wins the
+    // initialRoute outright, so the signed-out branch would never be reached.
+    // It builds, rather than reading the field, because a landing path that
+    // reaches initialRoute but fails validation is not a working feature.
+    final flavor = await standardFlavor(
+      signedOutLandingPath: _WelcomeModule.path,
+      extraModules: (_) => [_WelcomeModule()],
+    );
+
+    expect(flavor.initialRoute, _WelcomeModule.path);
+    expect(flavor.build().initialRoute, _WelcomeModule.path);
+  });
+
+  test('a landing path no module declared public is refused at build',
+      () async {
+    // The guard would bounce a signed-out launch straight off it. Nothing
+    // about that depends on being signed out, so it fails here rather than
+    // waiting for the launch that would have shown it.
+    final flavor = await standardFlavor(
+      signedOutLandingPath: _GuardedModule.path,
+      extraModules: (_) => [_GuardedModule()],
+    );
+
+    expect(
+      flavor.build,
+      throwsA(
+        isA<ArgumentError>().having(
+          (e) => e.message,
+          'message',
+          contains('not declared reachable without a session'),
+        ),
+      ),
+    );
+  });
+
   test('documentBrowserUrl installs the resolver override', () async {
     Uri? resolver(String uri) => Uri.parse('https://example.test/x');
 
@@ -68,4 +218,31 @@ void main() {
       isNull,
     );
   });
+}
+
+/// Registers a route but declares nothing public, so naming it as the landing
+/// path is the mistake the build must refuse.
+class _GuardedModule extends AppModule {
+  static const path = '/members';
+
+  @override
+  String get namespace => 'guarded';
+
+  @override
+  ModuleRoutes build() => ModuleRoutes(
+        routes: [GoRoute(path: path, builder: (_, __) => const SizedBox())],
+      );
+}
+
+class _WelcomeModule extends AppModule {
+  static const path = '/welcome';
+
+  @override
+  String get namespace => 'welcome';
+
+  @override
+  ModuleRoutes build() => ModuleRoutes(
+        routes: [GoRoute(path: path, builder: (_, __) => const SizedBox())],
+        publicPaths: const {path},
+      );
 }

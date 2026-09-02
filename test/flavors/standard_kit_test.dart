@@ -56,6 +56,36 @@ void main() {
     expect(kit.initialRoute, AppRoutes.lobby);
   });
 
+  test('signedOutLandingPath never displaces the auth callback', () async {
+    // Winning here would boot past a captured OIDC callback and break sign-in.
+    final kit = await buildStandardKit(
+      identity: AppIdentity.soliplex,
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
+      signedOutLandingPath: '/welcome',
+    );
+
+    expect(kit.initialRoute, AppRoutes.authCallback);
+  });
+
+  test('signedOutLandingPath never displaces the lobby', () async {
+    SharedPreferences.setMockInitialValues({'soliplex_has_launched': true});
+    seedSecureStorage({
+      'soliplex_server_local': jsonEncode(
+        KnownServer(
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        ).toJson(),
+      ),
+    });
+
+    final kit = await buildStandardKit(
+      identity: AppIdentity.soliplex,
+      signedOutLandingPath: '/welcome',
+    );
+
+    expect(kit.initialRoute, AppRoutes.lobby);
+  });
+
   test('enableDocumentFilter is forwarded to the room module', () async {
     final off = await buildStandardKit(
       identity: AppIdentity.soliplex,

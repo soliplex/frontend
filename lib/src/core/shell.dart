@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show FutureOr, unawaited;
 import 'dart:io' show Platform;
 
 import 'package:file_picker/file_picker.dart';
@@ -7,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_design/soliplex_design.dart' show SoliplexSpacing;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import 'flavor.dart' show ShellBuildStateError;
 import 'inactivity/inactivity_dialog_host.dart';
 import 'inactivity/inactivity_monitor.dart';
 import 'inactivity/inactivity_provider.dart';
@@ -16,13 +18,98 @@ import 'router.dart';
 import 'shell_config.dart';
 import 'status_message_config.dart';
 
-/// Boots the Soliplex shell from a [ShellConfig].
+/// Boots the Soliplex shell, building its [ShellConfig] inside the guard.
+///
+/// Takes a builder rather than a built config because that is the only way to
+/// catch what [Flavor.build] throws — an invalid route configuration, a theme
+/// missing its extension, a duplicated namespace. Those land before the first
+/// frame, and no target treats that as a crash — the launch surface simply
+/// stays up (a splash on iOS, the window background on Android once
+/// `FlutterActivity` has swapped `LaunchTheme` for `NormalTheme`, a black
+/// window on macOS, the loader on web), and on Windows and Linux the runner
+/// shows its window only once a frame arrives, so nothing appears at all. None
+/// of them blocks the main thread, so no watchdog fires: the user gets a launch
+/// that never finishes and nothing to send back, while the message naming the
+/// fault goes nowhere. It is put on the device instead.
+///
+/// The error is rethrown once the failure surface is *scheduled*: `runApp`
+/// both attaches the root widget and pumps the warm-up frame through
+/// `Timer.run`, so the rethrow runs first and the frame follows. Both the
+/// engine's report and [installUncaughtErrorLogging]'s asynchronous intake
+/// still see it, unless the caller awaits this future and swallows it.
 ///
 /// Uses [UniqueKey] so that hot restart (which re-runs main) creates a fresh
 /// widget tree. Hot reload does not re-run main, so this is safe.
-void runSoliplexShell(ShellConfig config) {
+Future<void> runSoliplexShell(
+  FutureOr<ShellConfig> Function() buildConfig,
+) async {
   _clearFilePickerTempCacheOnMobile();
-  runApp(SoliplexShell(key: UniqueKey(), config: config));
+  try {
+    runApp(SoliplexShell(key: UniqueKey(), config: await buildConfig()));
+  } catch (error) {
+    runApp(_BootFailureApp(error));
+    rethrow;
+  }
+}
+
+/// Shown when the app could not be assembled, so it uses no flavor, no theme
+/// and no shell — any of which may be what failed.
+class _BootFailureApp extends StatelessWidget {
+  const _BootFailureApp(this.error);
+
+  final Object error;
+
+  /// A diagnosis this package composed is shown whole; anything else is
+  /// reduced to its type. Both cases are named here rather than behind a
+  /// marker the errors carry, so the decision to show text verbatim is made
+  /// at the screen that shows it, and an unrecognised failure falls through to
+  /// [describeFailure] rather than opting itself in.
+  static String _describe(Object error) => switch (error) {
+        // Interpolated rather than cast: ArgumentError types `message` as
+        // Object?, and a cast that failed would throw from inside this
+        // screen's own build, replacing the diagnosis with an ErrorWidget.
+        ShellConfigurationError e => '${e.message}',
+        ShellBuildStateError e => e.message,
+        _ => describeFailure(error),
+      };
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(SoliplexSpacing.s6),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This build could not start',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: SoliplexSpacing.s3),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      // Selectable so it can be copied off the device: on a
+                      // packaged build this text exists nowhere else. Which is
+                      // also why only a diagnosis this package composed is
+                      // shown whole — anything else is reduced to its type,
+                      // because an exception escaping the flavor's assembly can
+                      // carry the value it failed on, and this screen needs no
+                      // navigation and no export to read.
+                      child: SelectableText(
+                        _describe(error),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 /// On mobile (Android / iOS), `file_picker` copies each picked file to
@@ -78,7 +165,21 @@ class SoliplexShell extends StatefulWidget {
 }
 
 class _SoliplexShellState extends State<SoliplexShell> {
-  late final _router = buildRouter(widget.config);
+  // Assigned in initState rather than by a `late final` initializer, which
+  // would defer the call to the first read — inside build. Dart re-runs a
+  // `late` initializer that threw on every subsequent read, so a GoRouter
+  // constructor that throws in build would throw again in dispose, on top of
+  // the failure that got us there, and the element could never finalize.
+  // Built here instead, a throw propagates out of initState, and an element
+  // whose initState threw is never built and never disposed — so the field is
+  // assigned before any other member of this class can observe it.
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = buildRouter(widget.config);
+  }
 
   @override
   Widget build(BuildContext context) {

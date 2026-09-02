@@ -31,6 +31,11 @@ class VersionsAppModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
+        // The version screen names builds and stored server URLs, not the
+        // user, so it needs no session — and a version mismatch is something a
+        // stranded user must be able to read. Only that screen: the per-server
+        // package list below keeps its connected-server guard.
+        publicPaths: const {AppRoutes.versions},
         routes: [
           GoRoute(
             path: AppRoutes.versions,

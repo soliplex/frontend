@@ -15,25 +15,6 @@ import 'server_manager.dart';
 import 'ui/auth_callback_screen.dart';
 import 'ui/home_screen.dart';
 
-const _publicPaths = {
-  AppRoutes.home,
-  AppRoutes.authCallback,
-  AppRoutes.versions,
-  // A user who cannot sign in is unauthenticated by definition, and this
-  // screen is where the failure is visible. Guarding it would put the
-  // diagnosis out of reach of exactly the session that needs it.
-  //
-  // What that exposes without a session: request metadata, already redacted at
-  // capture (HttpRedactor replaces the values of Authorization, cookies and
-  // token-bearing query parameters), and log records, which are not redacted
-  // by anything.
-  // Those carry server and discovery URLs, hostnames and token expiry times —
-  // deployment detail, not credentials — and the release level floor keeps
-  // them to warnings and above. Nothing enforces that, so a logger that starts
-  // recording a secret makes it readable here.
-  AppRoutes.diagnostics,
-};
-
 class AuthAppModule extends AppModule {
   AuthAppModule({
     required ServerManager serverManager,
@@ -76,6 +57,7 @@ class AuthAppModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
+        publicPaths: const {AppRoutes.home, AppRoutes.authCallback},
         overrides: [
           serverManagerProvider.overrideWithValue(_serverManager),
           authFlowProvider.overrideWithValue(_authFlow),
@@ -118,9 +100,21 @@ class AuthAppModule extends AppModule {
           ),
         ],
         redirect: (_, state) {
-          final isPublic = _publicPaths.contains(state.matchedLocation);
-          if (isPublic) return null;
-
+          // This guard admits no public path of its own: ShellConfig.redirect
+          // returns before the redirect loop for anything a module declared,
+          // so under the shell one never arrives here. Handed straight to a
+          // GoRouter without that step it diverts every unauthenticated
+          // request,
+          // including its own /auth/callback, losing an in-flight sign-in.
+          // '/?url=...' is worse for being quiet: go_router compares a redirect
+          // target against the whole requested URI, query included, so
+          // returning '/' is a real navigation and the new match list is parsed
+          // from '/' alone — autoConnectUrl and returnTo are gone. The second
+          // pass returns '/' for '/', which is discarded, so there is no loop
+          // and no error, just an emptied launch. Install
+          // ShellConfig.redirect — buildRouter is the shortest way to — not a
+          // router assembled from ModuleRoutes by hand.
+          //
           // Per-server guard: if the route names a specific server and
           // that server isn't connected (signed out or expired),
           // redirect to its sign-in entry. Carry the original location

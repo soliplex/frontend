@@ -8,8 +8,68 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- A module can now declare which of its own screens are reachable without a
+  session, so a deployment that adds its own — an intro or welcome page — can
+  put it in front of an unauthenticated visitor instead of having it bounced to
+  the server list. The declaration sits beside the route it names, so the part
+  of the app that builds a screen is the part that says whether it needs a
+  sign-in. Declared paths match exactly, so opening one screen does not open
+  anything beneath it, and a path that names no route or is written in a form
+  that could never match is refused at startup rather than silently ignored.
+- A deployment can also choose where a signed-out launch lands, so that screen
+  can be the first thing a new user sees rather than somewhere they have to
+  navigate to. It moves only that one case: someone returning mid sign-in still
+  completes it, and anyone whose stored server is already connected still lands
+  in their room list. Naming a screen that would turn a visitor away, or one
+  that does not exist, is refused at startup on every launch — not only the
+  signed-out ones that would otherwise be the first to show it, so a machine
+  that already has a server connected still surfaces the mistake.
+- Writing a screen of your own no longer needs a routing dependency of your
+  own, for building it or for testing it: the routing types a module declares,
+  navigates with and is driven by in a widget test now come from this package
+  directly. It is a curated set rather than the whole routing package — the
+  types the module extension point's own signatures are written in — so a
+  deployment reaching past it still adds that dependency itself.
+
 ### Changed
 
+- **Breaking:** `runSoliplexShell` now takes the function that builds the
+  configuration rather than the finished configuration — pass `flavor.build`
+  where you passed `flavor.build()`, and await the call. Assembling a flavor can
+  fail on a configuration mistake, and that failure happened before any screen
+  existed: on iOS, macOS and Android the result was not a crash anyone could
+  report but a launch that never finished, with the message that named the
+  faulty route going nowhere. Building inside the call puts it on screen
+  instead.
+
+- **Breaking:** a top-level route whose path omits its leading slash is now
+  refused at startup. The routing package requires the slash and checks for it
+  nowhere, so such a route silently never matched — a screen that was already
+  dead. A deployment carrying one used to lose that screen, or, where it was
+  also the route the app opens on, launch into the routing package's own
+  "page not found"; it now cannot launch until the path is corrected.
+- **Breaking:** `ShellConfig.redirects` is renamed `moduleRedirects` and marked
+  as being for tests, and `ShellConfig.redirect` is what a router should now
+  install: the same module redirects, composed, with the public-path admission
+  already in front of them. Installing the uncomposed ones turned the sign-in
+  guard on the screens meant to be exempt — including the sign-in callback,
+  which discarded a sign-in in flight — and there was no way to notice from the
+  outside. `buildRouter` is unchanged.
+- A configuration that is rejected now releases the modules it had already
+  built, instead of abandoning them holding a server manager, HTTP clients and
+  an inspector. One consequence reaches module authors: `onDispose` can now run
+  on a module whose `build()` never did, because a duplicate namespace or a
+  theme without its extension is refused before any module is built. Release
+  what the constructor took; anything `build()` creates has to tolerate being
+  absent. Teardown also continues past a module that fails it, so one module
+  throwing no longer strands the ones registered before it.
+- A deployment that already depends on `go_router` may see the analyzer report
+  its own import as `unnecessary_import` in files that use only the routing
+  types this package now re-exports. Deleting the import resolves it; nothing
+  behaves differently, and a file reaching for anything beyond those types still
+  needs it.
 - The line under the composer now reads "<app name> is AI and can make
   mistakes.", and it renders on every deployment. It previously named the
   room's confidentiality level, which meant it appeared only where a

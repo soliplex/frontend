@@ -156,6 +156,10 @@ final flavor = await standardFlavor(
 runSoliplexShell(flavor.build());
 ```
 
+> Since superseded: `runSoliplexShell` takes the builder — `await
+> runSoliplexShell(flavor.build)` — so a configuration failure reaches the
+> screen rather than stalling the launch. The rest of this record stands.
+
 ---
 
 ## 3. The Decisions, by Axis

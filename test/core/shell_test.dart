@@ -17,6 +17,9 @@ ThemeData _testTheme() => buildSoliplexThemeData(
       brightness: Brightness.light,
     );
 
+GoRoute _route(String path) =>
+    GoRoute(path: path, builder: (_, __) => const SizedBox());
+
 class _TestModule extends AppModule {
   _TestModule({
     this.routes = const [],
@@ -124,16 +127,26 @@ void main() {
 
   group('AppModuleCoordinator', () {
     test('duplicate namespace throws ArgumentError', () async {
+      // Distinct routes on purpose: with the default empty ones the config is
+      // invalid anyway, so route validation throws first and this passes with
+      // the namespace check deleted.
       expect(
         () => ShellConfig.fromModules(
           appName: 'Test',
           lightTheme: _testTheme(),
+          initialRoute: '/a',
           modules: [
-            _TestModule(namespace: 'same'),
-            _TestModule(namespace: 'same'),
+            _TestModule(namespace: 'same', routes: [_route('/a')]),
+            _TestModule(namespace: 'same', routes: [_route('/b')]),
           ],
         ),
-        throwsArgumentError,
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            contains('Duplicate AppModule namespace'),
+          ),
+        ),
       );
     });
 

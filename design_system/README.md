@@ -240,7 +240,7 @@ List of doc rows with checkbox + filename + page count + last-modified. Selected
 Riverpod throughout. Each feature module is an `AppModule` subclass whose `build()` returns a `ModuleRoutes { routes, overrides, redirect? }`. Provider overrides are applied at the shell level — never inside the module — so flavors can swap implementations.
 
 ## Architecture
-- `runSoliplexShell(ShellConfig)` boots the app from a single config object.
+- `runSoliplexShell(builder)` boots the app, building the config inside it.
 - Modules: `auth`, `lobby`, `room`, `quiz`, `diagnostics`, `versions`.
 - Targets: Android, iOS, macOS, Linux, Windows, Web.
 - Theming: `tokens/colors.dart` → `soliplexLightTheme` / `soliplexDarkTheme` → `ThemeExtension<SoliplexTheme>`.
