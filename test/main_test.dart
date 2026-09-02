@@ -16,22 +16,45 @@ class _HomeModule extends AppModule {
 }
 
 void main() {
-  testWidgets(
-      'a failed build reaches the screen instead of stalling the launch',
+  testWidgets('a failure that is not ours shows its type, not its contents',
       (tester) async {
-    // Without this the throw lands before any view is attached: no crash, no
-    // report, and a launch that simply never finishes on iOS, macOS and
-    // Android. The rethrow keeps the engine's own report intact.
+    // The catch takes anything the flavor's async assembly can throw, and
+    // SharedPreferences.getInstance() sits outside a try in two places on that
+    // path. A FormatException carries a window of the value it failed on, and
+    // this screen is more exposed than the diagnostics buffer: no navigation,
+    // no export, and deliberately copyable.
     await expectLater(
       runSoliplexShell(
-        () => throw ArgumentError('Public path "/welcom" is declared by'),
+        () => throw const FormatException('bad', 'SECRET-STORED-VALUE'),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('SECRET-STORED-VALUE'), findsNothing);
+    expect(find.textContaining('FormatException'), findsOneWidget);
+  });
+
+  testWidgets('a rejected configuration reaches the screen whole',
+      (tester) async {
+    // Driven through a real rejection rather than a synthetic throw, so this
+    // also pins that the abort paths use the type the screen renders whole. A
+    // path that reverts to a plain ArgumentError is reduced by describeFailure
+    // to seven words and this goes red.
+    await expectLater(
+      runSoliplexShell(
+        () => ShellConfig.fromModules(
+          modules: [_HomeModule()],
+          appName: 'Soliplex',
+          lightTheme: ThemeData(), // bare: no SoliplexTheme extension
+        ),
       ),
       throwsA(isA<ArgumentError>()),
     );
     await tester.pump();
 
     expect(find.text('This build could not start'), findsOneWidget);
-    expect(find.textContaining('/welcom'), findsOneWidget);
+    expect(find.textContaining('buildSoliplexThemeData'), findsOneWidget);
   });
 
   testWidgets('app boots and renders home screen', (tester) async {

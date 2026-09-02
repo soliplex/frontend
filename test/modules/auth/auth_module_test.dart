@@ -92,10 +92,12 @@ void main() {
       expect(find.text('Chat'), findsNothing);
     });
 
-    testWidgets('allows /auth/callback when unauthenticated', (tester) async {
-      // No redirect here: admitting this path is the shell's job now, covered
-      // in test/modules/module_public_paths_test.dart. What is this module's
-      // job is what the screen says when the callback carries nothing.
+    testWidgets('the callback screen says so when it receives no parameters',
+        (tester) async {
+      // Deliberately no redirect: admitting this path is the shell's job, and
+      // test/flavors/standard_flavor_test.dart drives it there. What belongs
+      // to this module is what the screen renders when the callback carries
+      // nothing.
       final contribution = module.build();
       router = GoRouter(
         initialLocation: '/auth/callback',

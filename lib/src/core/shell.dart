@@ -21,15 +21,20 @@ import 'status_message_config.dart';
 ///
 /// Takes a builder rather than a built config because that is the only way to
 /// catch what [Flavor.build] throws — an invalid route configuration, a theme
-/// missing its extension, a duplicated namespace. Those land before any view is
-/// attached, and a failure there is not a crash the platform reports: iOS and
-/// macOS hold the launch storyboard and Android keeps the window background,
-/// neither blocking the main thread, so nothing fires a watchdog and the user
-/// has a launch that never finishes and nothing to send back. The message names
-/// the route or path at fault, so it is put on the device instead.
+/// missing its extension, a duplicated namespace. Those land before the first
+/// frame, and no target treats that as a crash — the launch surface simply
+/// stays up (a splash on iOS and Android, a black window on macOS, the loader
+/// on web), and on Windows and Linux the runner shows its window only once a
+/// frame arrives, so nothing appears at all. None of them blocks the main
+/// thread, so no watchdog fires: the user gets a launch that never finishes
+/// and nothing to send back, while the message naming the fault goes nowhere.
+/// It is put on the device instead.
 ///
-/// The error is rethrown after the surface is shown, leaving the engine's own
-/// report and [installUncaughtErrorLogging] exactly as they were.
+/// The error is rethrown once the failure surface is *scheduled* — `runApp`
+/// only calls `scheduleAttachRootWidget`, so the rethrow runs first and the
+/// frame follows. Both the engine's report and
+/// [installUncaughtErrorLogging]'s asynchronous intake still see it, unless
+/// the caller awaits this future and swallows it.
 ///
 /// Uses [UniqueKey] so that hot restart (which re-runs main) creates a fresh
 /// widget tree. Hot reload does not re-run main, so this is safe.
@@ -52,6 +57,12 @@ class _BootFailureApp extends StatelessWidget {
 
   final Object error;
 
+  /// A diagnosis this package composed is shown whole; anything else is
+  /// reduced to its type.
+  static String _describe(Object error) => error is ShellConfigurationError
+      ? '${error.message}'
+      : describeFailure(error);
+
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -71,9 +82,14 @@ class _BootFailureApp extends StatelessWidget {
                   Flexible(
                     child: SingleChildScrollView(
                       // Selectable so it can be copied off the device: on a
-                      // packaged build this text exists nowhere else.
+                      // packaged build this text exists nowhere else. Which is
+                      // also why only a diagnosis this package composed is
+                      // shown whole — anything else is reduced to its type,
+                      // because an exception escaping the flavor's assembly can
+                      // carry the value it failed on, and this screen needs no
+                      // navigation and no export to read.
                       child: SelectableText(
-                        '$error',
+                        _describe(error),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ),

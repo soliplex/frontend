@@ -111,8 +111,10 @@ class Flavor {
   /// anyway is what stops a mistake surviving until the first launch that
   /// happens to be signed out.
   ///
-  /// Setting this without also pointing [initialRoute] at it changes nothing.
-  /// Forward both from `StandardKit`, which carries each.
+  /// Setting this without also pointing [initialRoute] at it changes no
+  /// navigation, but it is still validated — a path naming no route, or one no
+  /// module declared public, fails the build either way. Forward both from
+  /// `StandardKit`, which carries each.
   final String? signedOutLandingPath;
 
   /// Re-evaluates router redirects when it notifies (e.g. on auth changes).
@@ -131,9 +133,10 @@ class Flavor {
   ///
   /// Throws [StateError] on a second call: [modules] are live instances, so
   /// building again would re-run [AppModule.build] on them and hand back a
-  /// second [ShellConfig.dispose] over the same modules. A call that threw
-  /// counts — the modules were built before the configuration was rejected,
-  /// and were torn down with it, so a retry needs a fresh flavor.
+  /// second [ShellConfig.dispose] over the same modules. An assembly that threw
+  /// counts, and tore the modules down on its way out — so a retry needs a
+  /// fresh flavor. A theme that fails to resolve does not: nothing has been
+  /// built or consumed at that point, and this flavor can be built again.
   ShellConfig build() {
     if (_built) {
       throw StateError(
@@ -141,8 +144,11 @@ class Flavor {
         'may be built only once; construct a fresh flavor to build again.',
       );
     }
-    _built = true;
     final themes = theme._resolve();
+    // Set after the theme resolves, before the modules are consumed: a
+    // fork-supplied FontResolver throwing above leaves nothing built and
+    // nothing spent, so that flavor is still usable.
+    _built = true;
     return ShellConfig.fromModules(
       appName: identity.appName,
       lightTheme: themes.light,

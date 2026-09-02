@@ -79,8 +79,12 @@ Customize through `standardFlavor`'s parameters — identity, theme,
 
 For compositions that diverge further than `standardFlavor` allows, drop one
 level: call `buildStandardKit` yourself and construct a `Flavor` from its
-kit (see ADR-003 §3.3). Every kit field is then yours to forward, and three of
-them fail quietly if you don't.
+kit (see ADR-003 §3.3). Every kit field is then yours to forward, and every one
+except `modules` fails quietly if you don't — `modules` is the only omission the
+config guard catches. Three are worth spelling out; the other two,
+`inactivity` and `statusMessage`, silently revert to defaults, so an auto-logout
+policy or a status-message endpoint you configured on the kit simply does not
+apply.
 
 Forget `refreshListenable` and auth-driven redirects stop re-evaluating.
 
@@ -101,7 +105,8 @@ make: naming a screen that does not exist, or one no module declared reachable
 without a session. Forward `kit.signedOutLandingPath` alongside
 `kit.initialRoute`; they answer different questions and the kit carries both.
 
-The fourth quiet failure is building the `GoRouter` yourself. `buildRouter` is
+A fourth quiet failure is not a kit field at all: building the `GoRouter`
+yourself. `buildRouter` is
 what admits declared public paths, ahead of the module redirects; a router
 assembled by hand from `ModuleRoutes.routes` and `ModuleRoutes.redirect` skips
 that step, and the sign-in guard then bounces `/diagnostics`, `/versions` and
@@ -174,8 +179,10 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   you are attaching it.
 - `signedOutLandingPath` lands a signed-out launch on a screen of your own
   instead of the sign-in page. It sits on `standardFlavor` and
-  `buildStandardKit`, and deliberately not on `standard()`: without
-  `extraModules` there is no route of your own to land on. **Declare that route
+  `buildStandardKit`, and deliberately not on `standard()`: that function is
+  the opinionated default, and a deployment choosing where a signed-out launch
+  lands has already stepped past it. (A built-in public path would be a legal
+  target, so this is a scope decision rather than a technical one.) **Declare that route
   public yourself** — this parameter says where to start, not that the
   destination is reachable, so a landing path no module declared bounces to
   sign-in the moment it arrives. It replaces only that one branch: an in-flight

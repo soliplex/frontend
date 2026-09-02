@@ -29,7 +29,7 @@ List<String> validateRoutes({
   }
 
   final errors = <String>[];
-  final paths = _collectPaths(routes, '');
+  final paths = _collectPaths(routes, '', errors);
 
   // Check for duplicate paths
   final seen = <String>{};
@@ -147,19 +147,38 @@ String _notBarePath(String label, String path) =>
     'leading slash, no trailing slash, and no query, fragment or '
     'parameterized segment.';
 
-List<String> _collectPaths(List<RouteBase> routes, String parentPath) {
+/// Collects every path a route tree registers, canonicalised.
+///
+/// Appends to [errors], when given, for a top-level route whose path omits its
+/// leading slash. go_router requires one and validates it nowhere — not even
+/// under an assert — so such a route never matches, in any build mode, while
+/// [_joinPath] repairs the omission here and leaves the collected path looking
+/// like one the router serves. An empty [parentPath] is exactly go_router's notion of top level,
+/// shell routes included, since they pass the parent through unchanged.
+List<String> _collectPaths(
+  List<RouteBase> routes,
+  String parentPath, [
+  List<String>? errors,
+]) {
   final paths = <String>[];
   for (final route in routes) {
     if (route is GoRoute) {
+      if (parentPath.isEmpty && !route.path.startsWith('/')) {
+        errors?.add(
+          'Route path "${route.path}" is registered at the top level and must '
+          'begin with a leading slash. Only a route nested under another may '
+          'be relative.',
+        );
+      }
       final fullPath = _joinPath(parentPath, route.path);
       paths.add(_canonicalPath(fullPath));
-      paths.addAll(_collectPaths(route.routes, fullPath));
+      paths.addAll(_collectPaths(route.routes, fullPath, errors));
     } else if (route is StatefulShellRoute) {
       for (final branch in route.branches) {
-        paths.addAll(_collectPaths(branch.routes, parentPath));
+        paths.addAll(_collectPaths(branch.routes, parentPath, errors));
       }
     } else if (route is ShellRoute) {
-      paths.addAll(_collectPaths(route.routes, parentPath));
+      paths.addAll(_collectPaths(route.routes, parentPath, errors));
     }
   }
   return paths;

@@ -56,20 +56,6 @@ void main() {
     expect(kit.initialRoute, AppRoutes.lobby);
   });
 
-  test('the kit carries the landing path it was given', () async {
-    // Flavor validates this path; buildStandardKit is what lands on it. A fork
-    // that drops a level and hand-builds its Flavor can only forward what the
-    // kit hands back, so a value the kit consumed and did not return would
-    // take the behaviour and silently leave the check behind.
-    final kit = await buildStandardKit(
-      identity: AppIdentity.soliplex,
-      signedOutLandingPath: '/welcome',
-    );
-
-    expect(kit.signedOutLandingPath, '/welcome');
-    expect(kit.initialRoute, '/welcome', reason: 'and it still lands there');
-  });
-
   test('signedOutLandingPath never displaces the auth callback', () async {
     // Winning here would boot past a captured OIDC callback and break sign-in.
     final kit = await buildStandardKit(

@@ -31,7 +31,9 @@ Prefer Dart MCP tools over shell commands. All tools take `root` as `file:///abs
 
 ### Module System
 
-Entry point: `runSoliplexShell(ShellConfig)` boots the app from a `ShellConfig`.
+Entry point: `runSoliplexShell(builder)` boots the app, building the
+`ShellConfig` inside its own guard so an invalid one reaches the screen rather
+than stalling the launch.
 
 Each module subclasses `AppModule` and implements:
 

@@ -30,9 +30,10 @@ class DiagnosticsAppModule extends AppModule {
         // What that opens without a session is more than request metadata:
         // request and response bodies, SSE payloads, copy-as-curl with
         // headers, and a file export of the whole capture including log
-        // records. Redaction at capture is partial and logs are not redacted
-        // at all. docs/diagnostics-known-risks.md holds the standing analysis;
-        // this comment records only the decision.
+        // records. HttpRedactor works from known names, so redaction at
+        // capture covers what it recognises and no more, and log records are
+        // not redacted at all. docs/diagnostics-known-risks.md carries the
+        // standing analysis; this comment records only the decision.
         publicPaths: const {AppRoutes.diagnostics},
         overrides: [
           networkInspectorProvider.overrideWithValue(inspector),

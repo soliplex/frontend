@@ -9,7 +9,10 @@ so the open questions are recorded rather than rediscovered.
 HTTP capture is redacted before any observer sees it: `HttpRedactor` replaces
 the values of `Authorization`, cookies and token-bearing query parameters, and
 also redacts request bodies, SSE content and error strings
-(`ObservableHttpClient`). The names remain, the secrets do not.
+(`ObservableHttpClient`). The names remain, the values it recognises do not —
+recognition is the limit. `HttpRedactor` matches fixed header and parameter
+names plus a short substring list, so bearer material under a name it does not
+know (`X-Amz-Signature`, `client_assertion`) passes through.
 
 **Nothing redacts log records.** `installLogSinks` adds a bare `MemorySink`,
 and `formatLogRecord` applies no redaction. Two consequences:

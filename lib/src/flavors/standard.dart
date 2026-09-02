@@ -20,7 +20,8 @@ import 'standard_kit.dart';
 /// the composition kit, so a custom module can share state such as
 /// `kit.serverManager`), which is also where a module declares which of its
 /// routes need no session. [signedOutLandingPath] lands a signed-out launch on
-/// any path declared that way, a built-in one included. Mapping the kit's fields onto the [Flavor] lives here;
+/// any path declared that way, a built-in one included. Mapping the kit's
+/// fields onto the [Flavor] lives here;
 /// [Flavor.build] assembles that [Flavor] into a [ShellConfig] — neither is
 /// transcribed at the call site.
 Future<Flavor> standardFlavor({

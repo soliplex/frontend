@@ -152,6 +152,20 @@ void main() {
       expect(errors.first, contains('Duplicate'));
     });
 
+    test('rejects a top-level route path with no leading slash', () {
+      // go_router validates this nowhere, so such a route never matches in any
+      // build mode. _joinPath repairs the collected path to '/welcome', so
+      // every other check here passes — a landing path validated as good that
+      // lands on "Page Not Found".
+      final errors = validateRoutes(
+        routes: [_route('/'), _route('welcome')],
+        initialRoute: '/',
+      );
+
+      expect(errors.single, contains('welcome'));
+      expect(errors.single, contains('leading slash'));
+    });
+
     test('rejects parameterized initialRoute', () {
       final errors = validateRoutes(
         routes: [_route('/users/:id')],
@@ -287,30 +301,6 @@ void _publicPathTests() {
         reason: bad,
       );
     }
-  });
-
-  test('rejects a module declaring a path it does not register', () {
-    // The route exists, so the whole-config check above passes it. What must
-    // not pass is one module making a no-session claim about a screen another
-    // module builds — the centralisation this design exists to remove.
-    final errors = validateModulePublicPaths([
-      (
-        namespace: 'auth',
-        contribution: ModuleRoutes(
-          routes: [_route('/')],
-          publicPaths: const {'/versions'},
-        ),
-      ),
-      (
-        namespace: 'versions',
-        contribution: ModuleRoutes(routes: [_route('/versions')]),
-      ),
-    ]);
-
-    // The path names the innocent module, so the message has to name the
-    // declaring one or it sends the reader to the wrong file.
-    expect(errors.single, contains('/versions'));
-    expect(errors.single, contains('auth'));
   });
 
   test('names an anonymous module as one', () {

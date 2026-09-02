@@ -98,16 +98,14 @@ void main() {
   testWidgets('every path served without a session is actually reached',
       (tester) async {
     // The test above pins which paths are declared; this one pins that the
-    // sign-in guard really admits each. They are separable failures: dropping
-    // AppRoutes.authCallback from the auth module leaves a set-equality
-    // mismatch above and a completely broken sign-in here, since the guard
-    // would bounce the OIDC callback before it could consume its tokens.
+    // sign-in guard really admits each. The set test catches a path being
+    // added or removed — it is an equality. What only this one catches is a
+    // path declared and then bounced anyway, by a route-level guard the
+    // declaration cannot see.
     //
     // Named rather than read back from the config: a walk over
-    // config.publicPaths would only ever visit what is declared, so removing
-    // a declaration would shorten the walk instead of failing it. The set
-    // test catches a path being ADDED; this one catches one being removed, or
-    // declared and then bounced anyway by a route-level guard.
+    // config.publicPaths would only ever visit what is declared, so it could
+    // not fail for a declaration that was missing.
     const mustBeReachable = {
       AppRoutes.home,
       AppRoutes.authCallback,
