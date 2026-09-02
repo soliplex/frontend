@@ -22,6 +22,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   thread's beginning. A step the stored events cannot place in time — the
   run's error path records some events without one — shows no figure at all
   rather than a zero it cannot stand behind.
+- A message carrying no text no longer animates a loading placeholder forever.
+  A reply can be closed without any words ever going into it, and every one of
+  those sat in the transcript pulsing as though it were still being written —
+  several in a row on a single question read as an app that had hung. Any such
+  message now reports that it holds no text, while one the server is still
+  writing into keeps its placeholder. Why it is empty — a turn that produced
+  no words, or words lost in transit — is not something the app can tell from
+  the outside, so the wording offers no reason.
 
 ## [0.103.0+86] - 2026-09-02
 

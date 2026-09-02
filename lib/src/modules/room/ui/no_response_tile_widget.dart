@@ -7,6 +7,7 @@ import 'execution/execution_timeline.dart';
 import 'execution/static_thinking_block.dart';
 import 'execution/thinking_block.dart';
 import 'message_caption.dart';
+import 'notice_bubble.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class NoResponseTileWidget extends StatelessWidget {
@@ -112,7 +113,6 @@ class _TerminalReasonBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final (icon, label) = switch (reason) {
       TerminalReason.finished => (
           Icons.info_outline,
@@ -129,29 +129,6 @@ class _TerminalReasonBubble extends StatelessWidget {
           'Run cancelled without a response',
         ),
     };
-    return Container(
-      // design-system exception: 14/10 is the documented chat-bubble
-      // padding (see design_system/README.md "the only 14").
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(context.radii.md),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: theme.colorScheme.onTertiaryContainer),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onTertiaryContainer,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return NoticeBubble(icon: icon, label: label);
   }
 }

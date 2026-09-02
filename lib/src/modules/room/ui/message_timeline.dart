@@ -391,6 +391,16 @@ class _MessageTimelineState extends State<MessageTimeline> {
       }
     }
 
+    // The one message the run is streaming into, if any. An empty bubble
+    // means "text still arriving" only for this id. AwaitingText contributes
+    // no id because `computeDisplayMessages` renders that phase as a
+    // LoadingMessage rather than an empty TextMessage.
+    final streamingMessageId = switch (widget.streamingState) {
+      TextStreaming(:final messageId) => messageId,
+      AwaitingText() => null,
+      null => null,
+    };
+
     final streamingPhase = widget.streamingState != null
         ? switch (widget.streamingState!) {
             AwaitingText(:final currentPhase) => currentPhase,
@@ -446,6 +456,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                                   ? widget.executionTrackers[awaitingTrackerKey]
                                   : null),
                           streamingPhase: isLastItem ? streamingPhase : null,
+                          isStreaming: message.id == streamingMessageId,
                         );
                         final startsNewDay = index == 0 ||
                             !isSameCalendarDay(
