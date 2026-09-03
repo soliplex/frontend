@@ -250,6 +250,49 @@ void main() {
       conversation = Conversation.empty(threadId: 'thread-1');
     });
 
+    test('commits nothing when the reply holds neither text nor thinking', () {
+      // A terminal that landed between TEXT_MESSAGE_START and the first
+      // delta. There is nothing on screen to keep, and an empty reply would
+      // state that the assistant answered with nothing where the truth is
+      // that it was stopped or cut off.
+      const streaming = TextStreaming(
+        messageId: 'msg-1',
+        user: ChatUser.assistant,
+        text: '',
+      );
+
+      final result = commitPartialTextOnTerminal(
+        conversation: conversation,
+        streaming: streaming,
+        runId: 'run-1',
+        terminalEvent: 'cancelRun',
+      );
+
+      expect(result.messages, isEmpty);
+    });
+
+    test('commits a reply that holds thinking but no text', () {
+      // The thinking the user watched stream is on screen, and this commit is
+      // its only carrier, so it survives the terminal even with no reply text.
+      const streaming = TextStreaming(
+        messageId: 'msg-1',
+        user: ChatUser.assistant,
+        text: '',
+        thinkingText: 'reasoning the user watched',
+      );
+
+      final result = commitPartialTextOnTerminal(
+        conversation: conversation,
+        streaming: streaming,
+        runId: 'run-1',
+        terminalEvent: 'cancelRun',
+      );
+
+      final message = result.messages.single as TextMessage;
+      expect(message.text, isEmpty);
+      expect(message.thinkingText, 'reasoning the user watched');
+    });
+
     test('returns conversation unchanged when streaming is AwaitingText', () {
       const streaming = AwaitingText(bufferedThinkingText: 'thinking');
 

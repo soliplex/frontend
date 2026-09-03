@@ -627,10 +627,12 @@ EventProcessingResult _processRunFinished(
     runId: runId,
     createdAt: createdAt,
   );
-  // RunFinished with no synthesized tile and no in-flight text produces
-  // no message in the list at all — `AgentSession` will return
+  // RunFinished with no synthesized tile and no reply open produces no
+  // message in the list at all — `AgentSession` will return
   // `AgentSuccess(output: '')`. Surface as info so the corner case shows
-  // up in BackendLogSink instead of being silent. Decline can fire for
+  // up in BackendLogSink instead of being silent. A reply that was open but
+  // held nothing also produces no message; `commitPartialTextOnTerminal`
+  // records that one, so it is not reported twice here. Decline can fire for
   // empty thinking, an unresolved tool call, or both — log both counts
   // so a triage reader can tell which branch decided.
   if (!result.synthesized && streaming is! TextStreaming) {
@@ -693,11 +695,12 @@ EventProcessingResult _processRunError(
       errorDetail: message,
       createdAt: createdAt,
     );
-    // The partial-text commit already produces a user-visible signal in
-    // the messages list — synthesis declines on TextStreaming by design,
-    // so don't log the decline path as anomalous.
-    final committedPartial = streaming is TextStreaming;
-    if (!result.synthesized && !committedPartial) {
+    // A reply was open when the error arrived: synthesis declines on
+    // TextStreaming by design, and the ErrorMessage appended below carries
+    // the failure whether or not that reply had anything to commit, so this
+    // is not the anomalous decline the log is for.
+    final replyWasOpen = streaming is TextStreaming;
+    if (!result.synthesized && !replyWasOpen) {
       _logger.info(
         'RunErrorEvent: NoResponseTile synthesis declined; falling back '
         'to ErrorMessage',
