@@ -189,7 +189,6 @@ void main() {
           user: ChatUser.assistant,
           createdAt: DateTime.now(),
           text: 'Hello',
-          isStreaming: false,
           thinkingText: '',
         );
 
@@ -198,7 +197,6 @@ void main() {
         expect(msg.user, isA<ChatUser>());
         expect(msg.createdAt, isA<DateTime>());
         expect(msg.text, isA<String>());
-        expect(msg.isStreaming, isA<bool>());
         expect(msg.thinkingText, isA<String>());
         expect(msg.hasThinkingText, isA<bool>());
       });
@@ -208,7 +206,6 @@ void main() {
           id: 'msg-1',
           user: ChatUser.user,
           text: 'Hello',
-          isStreaming: false,
         );
         expect(msg, isA<TextMessage>());
       });
@@ -224,7 +221,6 @@ void main() {
           user: ChatUser.assistant,
           createdAt: DateTime.now(),
           text: 'Hi',
-          isStreaming: true,
           thinkingText: 'thinking',
         );
         expect(copied, isA<TextMessage>());
