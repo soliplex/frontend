@@ -15,25 +15,24 @@ void main() {
 
       expect(message.user, equals(ChatUser.user));
       expect(message.text, equals('Hello'));
-      expect(message.isStreaming, isFalse);
       expect(message.id, equals('msg-1'));
       // createdAt is omitted, so it defaults to null — the model never
       // substitutes a client-generated time.
       expect(message.createdAt, isNull);
     });
 
-    test('create with all fields', () {
+    test('create carries a supplied time and thinking text', () {
       final message = TextMessage.create(
         user: ChatUser.assistant,
         text: 'Response',
         id: 'custom-id',
-        isStreaming: true,
+        createdAt: DateTime.utc(2026, 3, 1, 12),
+        thinkingText: 'reasoning',
       );
 
-      expect(message.id, equals('custom-id'));
-      expect(message.user, equals(ChatUser.assistant));
-      expect(message.text, equals('Response'));
-      expect(message.isStreaming, isTrue);
+      expect(message.createdAt, equals(DateTime.utc(2026, 3, 1, 12)));
+      expect(message.thinkingText, equals('reasoning'));
+      expect(message.hasThinkingText, isTrue);
     });
 
     test('equality by id', () {

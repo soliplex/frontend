@@ -241,7 +241,6 @@ class TextMessage extends ChatMessage {
     required super.user,
     required super.createdAt,
     required this.text,
-    this.isStreaming = false,
     this.thinkingText = '',
     this.parts,
   });
@@ -254,14 +253,12 @@ class TextMessage extends ChatMessage {
     required ChatUser user,
     required String text,
     DateTime? createdAt,
-    bool isStreaming = false,
     String thinkingText = '',
   }) {
     return TextMessage(
       id: id,
       user: user,
       text: text,
-      isStreaming: isStreaming,
       thinkingText: thinkingText,
       createdAt: createdAt,
     );
@@ -322,9 +319,6 @@ class TextMessage extends ChatMessage {
   /// disagrees silently changes what the user copies or the model receives.
   final List<MessagePart>? parts;
 
-  /// Whether this message is currently streaming.
-  final bool isStreaming;
-
   /// The thinking/reasoning text if available.
   final String thinkingText;
 
@@ -337,7 +331,6 @@ class TextMessage extends ChatMessage {
     ChatUser? user,
     DateTime? createdAt,
     String? text,
-    bool? isStreaming,
     String? thinkingText,
   }) {
     return TextMessage(
@@ -345,7 +338,6 @@ class TextMessage extends ChatMessage {
       user: user ?? this.user,
       createdAt: createdAt ?? this.createdAt,
       text: text ?? this.text,
-      isStreaming: isStreaming ?? this.isStreaming,
       thinkingText: thinkingText ?? this.thinkingText,
       parts: parts,
     );

@@ -38,6 +38,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   off. Nothing is committed when there is neither text nor reasoning to keep,
   which is what the cancel path always intended.
 
+### Removed
+
+- **Library consumers:** `TextMessage.isStreaming`, which nothing in this
+  repository set or read. Whether a reply is still being written is a fact
+  about the run in progress rather than about a message, and the transcript
+  now takes it from the streaming state. Passing the flag to `TextMessage`,
+  `TextMessage.create` or `copyWith` no longer compiles; a fork that only
+  passed it can drop the argument, and one that read it back was reading
+  whatever it had passed, since nothing else ever wrote it.
+
 ## [0.103.0+86] - 2026-09-02
 
 ### Added
