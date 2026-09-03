@@ -30,6 +30,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   writing into keeps its placeholder. Why it is empty — a turn that produced
   no words, or words lost in transit — is not something the app can tell from
   the outside, so the wording offers no reason.
+- Stopping a reply before its first word no longer leaves an empty message
+  behind. A run cut short between the moment a reply opened and its first
+  word had nothing on screen to preserve, but one was committed anyway, so
+  the transcript kept a blank assistant message that said the assistant had
+  answered with nothing — where the truth was that it had been stopped or cut
+  off. Nothing is committed when there is neither text nor reasoning to keep,
+  which is what the cancel path always intended.
 
 ## [0.103.0+86] - 2026-09-02
 

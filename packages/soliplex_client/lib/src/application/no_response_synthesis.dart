@@ -158,9 +158,13 @@ NoResponseSynthesisResult _synthesize({
 /// user was already watching vanishes when streaming is reset to
 /// [AwaitingText].
 ///
-/// No-op for [AwaitingText] or when the message id is already in the
-/// conversation; the latter guards against a normal `TextMessageEnd`
-/// having already finalized the same message.
+/// No-op for [AwaitingText], when the message id is already in the
+/// conversation, or when the reply holds neither text nor thinking. The
+/// second guards against a normal `TextMessageEnd` having already finalized
+/// the same message. The third is a terminal that landed between
+/// `TEXT_MESSAGE_START` and the first delta: there is nothing on screen to
+/// keep, and committing an empty reply would state that the assistant
+/// answered with nothing where the truth is that it was stopped or cut off.
 ///
 /// [terminalEvent] is included in the log line for diagnostics — the
 /// caller's name (e.g. `'RunFinishedEvent'`, `'cancelRun'`).
@@ -173,6 +177,17 @@ Conversation commitPartialTextOnTerminal({
 }) {
   if (streaming is! TextStreaming) return conversation;
   final messageId = streaming.messageId;
+  if (streaming.text.isEmpty && streaming.thinkingText.isEmpty) {
+    _logger.info(
+      'Nothing to commit on terminal: reply opened but never received text',
+      attributes: {
+        'runId': runId,
+        'messageId': messageId,
+        'terminalEvent': terminalEvent,
+      },
+    );
+    return conversation;
+  }
   if (conversation.messages.any((m) => m.id == messageId)) {
     _logger.info(
       'Skipped duplicate message ID on partial-text commit',
