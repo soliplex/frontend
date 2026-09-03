@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- A room whose agent, tools, MCP toolsets or skills failed to parse now says so
+  where anyone can see it. Those warnings were written straight to
+  `dart:developer`, which is the console the debugger attaches to and nothing
+  else, so they never reached the diagnostics screen or the backend log sink —
+  a room silently missing half its configuration looked, to anyone not running
+  a debugger, like a room that had none. The records now go through the log
+  manager like every other record, and they name the entry that failed and the
+  type that arrived instead of repeating the configuration block they failed
+  on, which carried the room's system prompt and the name of its provider-key
+  secret.
+
 ## [0.104.0+87] - 2026-09-03
 
 ### Fixed
