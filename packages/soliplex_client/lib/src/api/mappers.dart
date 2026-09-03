@@ -1,5 +1,3 @@
-import 'dart:developer' as developer;
-
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/file_upload.dart';
 import 'package:soliplex_client/src/domain/mcp_client_toolset.dart';
@@ -200,19 +198,22 @@ Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
 
 /// Parses a timestamp string, returning null on failure.
 ///
-/// [logName] attributes a malformed-timestamp log to the calling subsystem.
+/// [subsystem] attributes a malformed-timestamp log to the calling subsystem.
 DateTime? _tryParseTimestamp(
   String? raw, {
-  String logName = 'soliplex_client.document',
+  String subsystem = 'soliplex_client.document',
 }) {
   if (raw == null) return null;
   try {
     return parseTimestamp(raw);
-  } on FormatException catch (e) {
-    developer.log(
-      'Malformed timestamp ignored: $e',
-      name: logName,
-      level: 900,
+  } on FormatException catch (e, stackTrace) {
+    // `describeFailure` rather than `error: e`: a date parse puts the string
+    // it failed on into `FormatException.source`, and `toString()` renders a
+    // window of it.
+    _logger.warning(
+      'Malformed timestamp ignored',
+      stackTrace: stackTrace,
+      attributes: {'subsystem': subsystem, 'failure': describeFailure(e)},
     );
     return null;
   }
@@ -238,11 +239,9 @@ Room roomFromJson(Map<String, dynamic> json) {
       if (item is String) {
         suggestions.add(item);
       } else {
-        developer.log(
-          'Non-string suggestion ignored: '
-          '$item (${item.runtimeType})',
-          name: 'soliplex_client.room',
-          level: 900, // Warning level
+        _logger.warning(
+          'Non-string suggestion ignored',
+          attributes: {'runtimeType': item.runtimeType.toString()},
         );
       }
     }
@@ -254,11 +253,14 @@ Room roomFromJson(Map<String, dynamic> json) {
   if (agentJson != null) {
     try {
       agent = roomAgentFromJson(agentJson);
-    } on FormatException catch (e) {
-      developer.log(
-        'Malformed agent ignored: $e\n$agentJson',
-        name: 'soliplex_client.room',
-        level: 900,
+    } on FormatException catch (e, stackTrace) {
+      // The agent block carries `provider_key` and `system_prompt`, so it
+      // never reaches a sink; `describeFailure` names the field that was
+      // missing without echoing the block.
+      _logger.warning(
+        'Malformed agent ignored',
+        stackTrace: stackTrace,
+        attributes: {'failure': describeFailure(e)},
       );
     }
   }
@@ -270,10 +272,12 @@ Room roomFromJson(Map<String, dynamic> json) {
   if (rawTools is Map<String, dynamic>) {
     for (final entry in rawTools.entries) {
       if (entry.value is! Map<String, dynamic>) {
-        developer.log(
-          'Malformed tool ignored: ${entry.key}\n${entry.value}',
-          name: 'soliplex_client.room',
-          level: 900,
+        _logger.warning(
+          'Malformed tool ignored',
+          attributes: {
+            'tool': entry.key,
+            'runtimeType': entry.value.runtimeType.toString(),
+          },
         );
         continue;
       }
@@ -297,10 +301,12 @@ Room roomFromJson(Map<String, dynamic> json) {
   if (mcpJson != null) {
     for (final entry in mcpJson.entries) {
       if (entry.value is! Map<String, dynamic>) {
-        developer.log(
-          'Malformed MCP toolset ignored: ${entry.key}\n${entry.value}',
-          name: 'soliplex_client.room',
-          level: 900,
+        _logger.warning(
+          'Malformed MCP toolset ignored',
+          attributes: {
+            'toolset': entry.key,
+            'runtimeType': entry.value.runtimeType.toString(),
+          },
         );
         continue;
       }
@@ -316,10 +322,12 @@ Room roomFromJson(Map<String, dynamic> json) {
   if (skillsJson != null) {
     for (final entry in skillsJson.entries) {
       if (entry.value is! Map<String, dynamic>) {
-        developer.log(
-          'Malformed skill ignored: ${entry.key}\n${entry.value}',
-          name: 'soliplex_client.room',
-          level: 900,
+        _logger.warning(
+          'Malformed skill ignored',
+          attributes: {
+            'skill': entry.key,
+            'runtimeType': entry.value.runtimeType.toString(),
+          },
         );
         continue;
       }
@@ -499,16 +507,14 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
     // Present but wrong-typed (e.g. a backend switch to an epoch int): degrade
     // to null like a malformed string, but log it — an absent/null field is a
     // legitimate "no activity", a wrong type is a contract drift worth a trace.
-    developer.log(
-      'Non-string last_activity ignored: '
-      '$rawActivity (${rawActivity.runtimeType})',
-      name: 'soliplex_client.api',
-      level: 900,
+    _logger.warning(
+      'Non-string last_activity ignored',
+      attributes: {'runtimeType': rawActivity.runtimeType.toString()},
     );
   }
   return RoomStats(
     lastActivity: rawActivity is String
-        ? _tryParseTimestamp(rawActivity, logName: 'soliplex_client.api')
+        ? _tryParseTimestamp(rawActivity, subsystem: 'soliplex_client.api')
         : null,
   );
 }
@@ -539,7 +545,7 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
   // listing (mirrors roomStatsFromJson).
   final rawActivity = json['last_activity'];
   final lastActivity = rawActivity is String
-      ? _tryParseTimestamp(rawActivity, logName: 'soliplex_client.api')
+      ? _tryParseTimestamp(rawActivity, subsystem: 'soliplex_client.api')
       : null;
 
   return ThreadInfo(
@@ -666,10 +672,9 @@ QuestionType questionTypeFromJson(Map<String, dynamic> json) {
     'fill-blank' || 'fill_blank' => const FillBlank(),
     'qa' => const FreeForm(),
     _ => () {
-        developer.log(
-          'Unknown question type "$type", falling back to FreeForm',
-          name: 'soliplex_client.quiz',
-          level: 900, // Warning level
+        _logger.warning(
+          'Unknown question type, falling back to FreeForm',
+          attributes: {'questionType': type},
         );
         return const FreeForm();
       }(),
@@ -720,10 +725,8 @@ QuizAnswerResult quizAnswerResultFromJson(Map<String, dynamic> json) {
     'false' => IncorrectAnswer(
         expectedAnswer: expectedOutput ??
             () {
-              developer.log(
+              _logger.warning(
                 'Missing expected_output for incorrect answer',
-                name: 'soliplex_client.quiz',
-                level: 900, // Warning level
               );
               return '(correct answer not provided)';
             }(),

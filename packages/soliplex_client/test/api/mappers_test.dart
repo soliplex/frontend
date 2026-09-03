@@ -7,6 +7,7 @@ import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -2145,4 +2146,168 @@ void main() {
       });
     });
   });
+
+  // Every malformed-config warning in mappers.dart must reach the log manager
+  // (so it shows on the diagnostics screen and in the backend sink) and must
+  // not carry the backend-supplied block it failed on. `dart:developer` goes
+  // to DevTools only, which is neither.
+  group('malformed room config reporting', () {
+    _RecordingSink attach() {
+      final sink = _RecordingSink(forLoggerName: 'soliplex_client.mappers');
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      return sink;
+    }
+
+    test('a malformed agent is reported without the agent block', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        // No 'id' on the agent, so roomAgentFromJson throws.
+        'agent': <String, dynamic>{
+          'model_name': 'some-model',
+          'provider_key': 'secret:$_canary',
+          'system_prompt': 'prompt containing $_canary',
+        },
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.message, 'Malformed agent ignored');
+      expect(record.attributes['failure'], isNotNull);
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a malformed skill is reported by key, without its block', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'skills': <String, dynamic>{'broken_skill': 'blob-$_canary'},
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.attributes['skill'], 'broken_skill');
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a malformed tool is reported by key, without its block', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'tools': <String, dynamic>{'broken_tool': 'blob-$_canary'},
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.attributes['tool'], 'broken_tool');
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a malformed MCP toolset is reported by key, without its block', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'mcp_client_toolsets': <String, dynamic>{
+          'broken_toolset': 'blob-$_canary',
+        },
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.attributes['toolset'], 'broken_toolset');
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a non-string suggestion is reported by type, not by value', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'suggestions': <dynamic>[
+          <String, dynamic>{'leak': _canary},
+        ],
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.message, 'Non-string suggestion ignored');
+      expect(record.attributes['runtimeType'], isNotNull);
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a non-string last_activity is reported by type, not by value', () {
+      final sink = attach();
+
+      // Must not be a String: a String is a legitimate type here and would
+      // fall through to the timestamp parse, whose record would then be the
+      // one under assertion.
+      roomStatsFromJson(<String, dynamic>{
+        'last_activity': <String, dynamic>{'leak': _canary},
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.message, 'Non-string last_activity ignored');
+      expect(record.attributes['runtimeType'], isNotNull);
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a malformed timestamp is reported without its source window', () {
+      final sink = attach();
+
+      ragDocumentFromJson(<String, dynamic>{
+        'id': 'doc-1',
+        'uri': 'file:///doc',
+        'created_at': 'not-a-date-$_canary',
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.message, 'Malformed timestamp ignored');
+      expect(record.attributes['subsystem'], 'soliplex_client.document');
+      expect(record.attributes['failure'], isNotNull);
+      expect(_render(record), isNot(contains(_canary)));
+    });
+  });
+}
+
+/// A value no diagnostic needs. Any record echoing it is echoing backend
+/// config, which is what the logging rule forbids.
+const _canary = 'CANARY7f3a9b';
+
+/// Every part of [record] a sink could persist or export, flattened so one
+/// assertion covers message, attributes and error alike.
+String _render(LogRecord record) =>
+    '${record.message}|${record.attributes}|${record.error}';
+
+class _RecordingSink implements LogSink {
+  _RecordingSink({required this.forLoggerName});
+
+  /// Only records from this logger are captured, so assertions stay strict
+  /// without coupling to the rest of the codebase's log traffic.
+  final String forLoggerName;
+  final List<LogRecord> records = [];
+
+  @override
+  void write(LogRecord record) {
+    if (record.loggerName == forLoggerName) records.add(record);
+  }
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }
