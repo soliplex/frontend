@@ -37,6 +37,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   answered with nothing — where the truth was that it had been stopped or cut
   off. Nothing is committed when there is neither text nor reasoning to keep,
   which is what the cancel path always intended.
+- Bold, italic and links inside a quoted passage now render as written. Any
+  emphasis a reply put inside a block quote arrived on screen as plain text —
+  the markup was parsed and then discarded, so a quoted sentence lost every
+  distinction it carried while the same sentence outside a quote kept them.
+  Quoted passages also sit a little wider in their frame and a little tighter
+  above and below.
 
 ### Removed
 

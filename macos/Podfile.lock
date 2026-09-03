@@ -1,9 +1,9 @@
 PODS:
-  - AppAuth (2.0.0):
-    - AppAuth/Core (= 2.0.0)
-    - AppAuth/ExternalUserAgent (= 2.0.0)
-  - AppAuth/Core (2.0.0)
-  - AppAuth/ExternalUserAgent (2.0.0):
+  - AppAuth (2.1.0):
+    - AppAuth/Core (= 2.1.0)
+    - AppAuth/ExternalUserAgent (= 2.1.0)
+  - AppAuth/Core (2.1.0)
+  - AppAuth/ExternalUserAgent (2.1.0):
     - AppAuth/Core
   - cupertino_http (0.0.1):
     - Flutter
@@ -11,7 +11,7 @@ PODS:
   - file_picker (0.0.1):
     - FlutterMacOS
   - flutter_appauth (0.0.1):
-    - AppAuth (= 2.0.0)
+    - AppAuth (= 2.1.0)
     - FlutterMacOS
   - flutter_secure_storage_darwin (10.0.0):
     - Flutter
@@ -58,10 +58,10 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
 
 SPEC CHECKSUMS:
-  AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
+  AppAuth: ef4da5a3fc2e10b90c09a0a94a9baeaedc0341d5
   cupertino_http: 94ac07f5ff090b8effa6c5e2c47871d48ab7c86c
   file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
-  flutter_appauth: a7af6f450a5cbe7938c2222eddf34d13521038e6
+  flutter_appauth: 911dacbb7fb49572296bae6acae914b06756b6db
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870

@@ -1,9 +1,9 @@
 PODS:
-  - AppAuth (2.0.0):
-    - AppAuth/Core (= 2.0.0)
-    - AppAuth/ExternalUserAgent (= 2.0.0)
-  - AppAuth/Core (2.0.0)
-  - AppAuth/ExternalUserAgent (2.0.0):
+  - AppAuth (2.1.0):
+    - AppAuth/Core (= 2.1.0)
+    - AppAuth/ExternalUserAgent (= 2.1.0)
+  - AppAuth/Core (2.1.0)
+  - AppAuth/ExternalUserAgent (2.1.0):
     - AppAuth/Core
   - cupertino_http (0.0.1):
     - Flutter
@@ -44,7 +44,7 @@ PODS:
     - Flutter
   - Flutter (1.0.0)
   - flutter_appauth (0.0.1):
-    - AppAuth (= 2.0.0)
+    - AppAuth (= 2.1.0)
     - Flutter
   - flutter_native_splash (2.4.3):
     - Flutter
@@ -103,13 +103,13 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
+  AppAuth: ef4da5a3fc2e10b90c09a0a94a9baeaedc0341d5
   cupertino_http: 94ac07f5ff090b8effa6c5e2c47871d48ab7c86c
   DKImagePickerController: 946cec48c7873164274ecc4624d19e3da4c1ef3c
   DKPhotoGallery: b3834fecb755ee09a593d7c9e389d8b5d6deed60
   file_picker: a0560bc09d61de87f12d246fc47d2119e6ef37be
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_appauth: 53aecd8e5a88b27c0457bf06aa755d3b43625e85
+  flutter_appauth: ef1bef38e4798ec24309a87ca805b9123a64168f
   flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
