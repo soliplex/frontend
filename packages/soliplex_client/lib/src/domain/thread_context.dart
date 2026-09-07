@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 /// How full a thread's context window is, as far as anything knows.
@@ -22,6 +23,7 @@ class ThreadContext {
     this.modelName,
     this.measuredTokens,
     this.measuredAtRunId,
+    this.tokensByKind = const {},
   });
 
   /// A reading for a thread nothing is known about yet.
@@ -29,7 +31,8 @@ class ThreadContext {
       : maxModelLen = null,
         modelName = null,
         measuredTokens = null,
-        measuredAtRunId = null;
+        measuredAtRunId = null,
+        tokensByKind = const {};
 
   /// The model's context window, or null when the provider does not say.
   ///
@@ -47,6 +50,16 @@ class ThreadContext {
   /// Which run [measuredTokens] was measured on.
   final String? measuredAtRunId;
 
+  /// Where the measured tokens went, keyed by segment kind.
+  ///
+  /// Empty unless the reading was asked for in detail, and empty even
+  /// then when the provider has no tokenizer endpoint — a breakdown
+  /// nothing measured would be invention. The 'overhead' entry is the
+  /// residual against [measuredTokens], so it accounts for the
+  /// instructions, tool schemas and chat template without enumerating
+  /// them.
+  final Map<String, int> tokensByKind;
+
   /// Whether a percentage can be shown at all.
   bool get hasWindow => maxModelLen != null && maxModelLen! > 0;
 
@@ -57,11 +70,18 @@ class ThreadContext {
           other.maxModelLen == maxModelLen &&
           other.modelName == modelName &&
           other.measuredTokens == measuredTokens &&
-          other.measuredAtRunId == measuredAtRunId;
+          other.measuredAtRunId == measuredAtRunId &&
+          const MapEquality<String, int>()
+              .equals(other.tokensByKind, tokensByKind);
 
   @override
-  int get hashCode =>
-      Object.hash(maxModelLen, modelName, measuredTokens, measuredAtRunId);
+  int get hashCode => Object.hash(
+        maxModelLen,
+        modelName,
+        measuredTokens,
+        measuredAtRunId,
+        const MapEquality<String, int>().hash(tokensByKind),
+      );
 
   @override
   String toString() => 'ThreadContext(${measuredTokens ?? "?"} / '
