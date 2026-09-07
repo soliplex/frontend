@@ -10,6 +10,7 @@ import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
+import 'package:soliplex_client/src/domain/thread_context.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
@@ -571,6 +572,26 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
     lastActivity: rawActivity is String
         ? _tryParseTimestamp(rawActivity, subsystem: 'soliplex_client.api')
         : null,
+  );
+}
+
+// ============================================================
+// ThreadContext mappers
+// ============================================================
+
+/// Creates a [ThreadContext] from the backend's context reading.
+///
+/// Tolerant of every field being absent. A backend that predates the
+/// endpoint never answers at all; one talking to a provider that does
+/// not report a window omits 'max_model_len'; a thread whose runs have
+/// never reached the model omits the measurement. All three mean "not
+/// known", which the reading already models as null.
+ThreadContext threadContextFromJson(Map<String, dynamic> json) {
+  return ThreadContext(
+    maxModelLen: json['max_model_len'] as int?,
+    modelName: json['model_name'] as String?,
+    measuredTokens: json['measured_tokens'] as int?,
+    measuredAtRunId: json['measured_at_run_id'] as String?,
   );
 }
 
