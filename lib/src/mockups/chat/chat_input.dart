@@ -4,7 +4,10 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+// The mockup carries its own 'ContextUsage' (with the share breakdown the
+// shipped one does not have), so the package's is hidden here.
+import 'package:soliplex_agent/soliplex_agent.dart'
+    hide ContextUsage, State, largeContextWindow;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../shared/document_display.dart';
