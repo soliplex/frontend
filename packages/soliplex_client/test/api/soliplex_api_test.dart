@@ -1472,6 +1472,51 @@ void main() {
         );
       });
 
+      test('reads the breakdown', () async {
+        answerWith({
+          'measured_tokens': 1000,
+          'tokens_by_kind': {'userText': 100, 'overhead': 900},
+        });
+
+        final found = await api.getThreadContext(
+          'room-123',
+          'thread-456',
+          detail: true,
+        );
+
+        expect(found.tokensByKind, {'userText': 100, 'overhead': 900});
+      });
+
+      test('has no breakdown unless one was sent', () async {
+        answerWith({'measured_tokens': 1000});
+
+        final found = await api.getThreadContext('room-123', 'thread-456');
+
+        expect(found.tokensByKind, isEmpty);
+      });
+
+      test('asks for detail only when told to', () async {
+        answerWith(<String, dynamic>{});
+
+        await api.getThreadContext('room-123', 'thread-456');
+        await api.getThreadContext('room-123', 'thread-456', detail: true);
+
+        final uris = verify(
+          () => mockTransport.request<ThreadContext>(
+            'GET',
+            captureAny(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).captured.cast<Uri>();
+
+        expect(uris.first.queryParameters, isEmpty);
+        expect(uris.last.queryParameters, {'detail': 'true'});
+      });
+
       test('rejects an empty room id', () {
         expect(
           () => api.getThreadContext('', 'thread-456'),

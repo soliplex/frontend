@@ -292,13 +292,18 @@ class FakeSoliplexApi extends SoliplexApi {
   /// How many times [getThreadContext] was invoked.
   int getThreadContextCallCount = 0;
 
+  /// How many of those asked for the attribution as well.
+  int getThreadContextDetailCallCount = 0;
+
   @override
   Future<ThreadContext> getThreadContext(
     String roomId,
     String threadId, {
+    bool detail = false,
     CancelToken? cancelToken,
   }) async {
     getThreadContextCallCount++;
+    if (detail) getThreadContextDetailCallCount++;
     if (nextThreadContextError != null) throw nextThreadContextError!;
     return nextThreadContext;
   }

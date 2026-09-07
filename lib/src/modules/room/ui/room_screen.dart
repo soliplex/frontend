@@ -2512,6 +2512,22 @@ class _RoomScreenState extends State<RoomScreen> {
     _contextUsage?.draftChanged(_chatController.text);
   }
 
+  /// Opens the breakdown, fetching the attribution behind it first.
+  ///
+  /// The detailed reading costs the backend a tokenizer call per stored
+  /// message, so it is asked for on opening rather than kept current.
+  /// The dialog opens either way: without an attribution it still shows
+  /// the total, which is the number that was measured.
+  Future<void> _openContextBreakdown(
+    ContextUsageController controller,
+  ) async {
+    await controller.refresh(detail: true);
+
+    if (!mounted) return;
+
+    await showContextBreakdown(context, usage: controller.usage);
+  }
+
   /// The context controller for [threadView], rebuilt when it changes.
   ///
   /// Refreshes on first use and whenever a run finishes, which are the
@@ -2578,7 +2594,7 @@ class _RoomScreenState extends State<RoomScreen> {
       contextUsage: contextUsage,
       onContextTap: contextUsage == null
           ? null
-          : () => showContextBreakdown(context, usage: contextUsage),
+          : () => _openContextBreakdown(contextController!),
       // The composer's transient state belongs to the thread it is composing
       // for, and what the composer is saying about that state is held in widget
       // state, so a notice about a pick made into one thread would otherwise
