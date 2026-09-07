@@ -279,6 +279,30 @@ class FakeSoliplexApi extends SoliplexApi {
   String? nextMcpToken;
   Exception? nextMcpTokenError;
 
+  /// The reading [getThreadContext] answers with.
+  ///
+  /// Defaults to the unknown reading, which is what a provider that
+  /// reports no window and a thread with no measured run produce. That
+  /// keeps the context gauge hidden unless a test asks for it.
+  ThreadContext nextThreadContext = const ThreadContext.unknown();
+
+  /// Thrown by [getThreadContext] when set.
+  Exception? nextThreadContextError;
+
+  /// How many times [getThreadContext] was invoked.
+  int getThreadContextCallCount = 0;
+
+  @override
+  Future<ThreadContext> getThreadContext(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    getThreadContextCallCount++;
+    if (nextThreadContextError != null) throw nextThreadContextError!;
+    return nextThreadContext;
+  }
+
   List<ThreadInfo>? nextThreads;
   Exception? nextThreadsError;
 

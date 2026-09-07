@@ -1384,6 +1384,109 @@ void main() {
     // Runs
     // ============================================================
 
+    group('getThreadContext', () {
+      void answerWith(Map<String, dynamic> json) {
+        when(
+          () => mockTransport.request<ThreadContext>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          final fromJson = invocation.namedArguments[#fromJson] as ThreadContext
+              Function(Map<String, dynamic>);
+          return fromJson(json);
+        });
+      }
+
+      test('reads both numbers', () async {
+        answerWith({
+          'max_model_len': 8192,
+          'model_name': 'qwen',
+          'measured_tokens': 1800,
+          'measured_at_run_id': 'run-1',
+        });
+
+        final found = await api.getThreadContext('room-123', 'thread-456');
+
+        expect(found.maxModelLen, equals(8192));
+        expect(found.modelName, equals('qwen'));
+        expect(found.measuredTokens, equals(1800));
+        expect(found.measuredAtRunId, equals('run-1'));
+        expect(found.hasWindow, isTrue);
+      });
+
+      test('a provider reporting no window yields none', () async {
+        // Ollama answers '/v1/models' without 'max_model_len'. That is
+        // an answer, not a failure, and must not become a guess.
+        answerWith({'model_name': 'gpt-oss', 'measured_tokens': 582});
+
+        final found = await api.getThreadContext('room-123', 'thread-456');
+
+        expect(found.maxModelLen, isNull);
+        expect(found.hasWindow, isFalse);
+        expect(found.measuredTokens, equals(582));
+      });
+
+      test('an unmeasured thread yields no measurement', () async {
+        answerWith({'max_model_len': 8192, 'model_name': 'qwen'});
+
+        final found = await api.getThreadContext('room-123', 'thread-456');
+
+        expect(found.measuredTokens, isNull);
+        expect(found.measuredAtRunId, isNull);
+      });
+
+      test('an empty response is the unknown reading', () async {
+        answerWith(<String, dynamic>{});
+
+        final found = await api.getThreadContext('room-123', 'thread-456');
+
+        expect(found, equals(const ThreadContext.unknown()));
+      });
+
+      test('builds the context path under the thread', () async {
+        answerWith(<String, dynamic>{});
+
+        await api.getThreadContext('room-123', 'thread-456');
+
+        final uri = verify(
+          () => mockTransport.request<ThreadContext>(
+            'GET',
+            captureAny(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).captured.single as Uri;
+
+        expect(
+          uri.path,
+          endsWith('/rooms/room-123/agui/thread-456/context'),
+        );
+      });
+
+      test('rejects an empty room id', () {
+        expect(
+          () => api.getThreadContext('', 'thread-456'),
+          throwsArgumentError,
+        );
+      });
+
+      test('rejects an empty thread id', () {
+        expect(
+          () => api.getThreadContext('room-123', ''),
+          throwsArgumentError,
+        );
+      });
+    });
+
     group('createRun', () {
       test('returns RunInfo', () async {
         when(

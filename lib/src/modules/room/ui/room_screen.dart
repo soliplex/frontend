@@ -55,6 +55,8 @@ import '../workdir_controller.dart';
 import 'approval_handler.dart';
 import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
+import '../context_usage_controller.dart';
+import 'context_breakdown_sheet.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
 import 'copy_button.dart';
@@ -293,6 +295,15 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Disposer for the active thread's message subscription that advances the
   /// anchor. Re-wired on thread switch, cancelled on dispose.
   void Function()? _anchorAdvanceUnsub;
+
+  /// Context accounting for the thread on screen.
+  ///
+  /// Scoped to the thread, not just the room: the measurement is one
+  /// thread's, and carrying it across would show the previous
+  /// conversation's fullness against the new one.
+  ContextUsageController? _contextUsage;
+  (String, String)? _contextUsageKey;
+  void Function()? _contextRunUnsub;
 
   /// Disposer for the thread-list subscription that keeps the room read marker
   /// in sync with thread-unread state. Re-wired on room change, cancelled on
@@ -937,6 +948,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
+    _chatController.addListener(_onDraftChanged);
     _roomReadMarkers = widget.roomReadMarkers ?? RoomReadMarkers();
     _serverReadMarkers = widget.serverReadMarkers ?? ServerReadMarkers();
     _userId = widget.serverEntry.auth.currentUserId.value;
@@ -1260,6 +1272,9 @@ class _RoomScreenState extends State<RoomScreen> {
     _state.dispose();
     unawaited(_anchorTracker.dispose());
     unawaited(_threadReadTracker.dispose());
+    _contextRunUnsub?.call();
+    _contextUsage?.dispose();
+    _chatController.removeListener(_onDraftChanged);
     _chatController.dispose();
     _chatFocusNode.dispose();
     super.dispose();
@@ -2484,6 +2499,61 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Nothing here may carry a per-thread [Key]: that stability is the point,
   /// and a key that changes with the thread throws it away. State that has to
   /// be dropped on a thread change travels as a value instead.
+  void _onContextUsageChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Forwards the composer's draft to the current context controller.
+  ///
+  /// The draft is the one term of a reading nothing has measured, so it
+  /// is the only one that moves while someone types. The controller
+  /// debounces it.
+  void _onDraftChanged() {
+    _contextUsage?.draftChanged(_chatController.text);
+  }
+
+  /// The context controller for [threadView], rebuilt when it changes.
+  ///
+  /// Refreshes on first use and whenever a run finishes, which are the
+  /// only moments the measurement can move: it is the provider's own
+  /// count for the last request of a completed run.
+  ContextUsageController _contextUsageFor(ThreadViewState threadView) {
+    final key = (widget.roomId, threadView.threadId);
+
+    if (_contextUsageKey != key || _contextUsage == null) {
+      _contextRunUnsub?.call();
+      _contextRunUnsub = null;
+      _contextUsage?.dispose();
+
+      _contextUsageKey = key;
+      final controller = ContextUsageController(
+        api: widget.serverEntry.connection.api,
+        roomId: widget.roomId,
+        threadId: threadView.threadId,
+      );
+      _contextUsage = controller;
+      // Never fires during a build: a reading only moves after a fetch
+      // resolves or the draft debounce elapses.
+      controller.addListener(_onContextUsageChanged);
+      controller.draftChanged(_chatController.text);
+      unawaited(controller.refresh());
+
+      _contextRunUnsub = threadView.sessionState.subscribe((state) {
+        if (!mounted) return;
+        // A run that failed or was cancelled still consumed a request,
+        // so its usage is recorded and worth re-reading. Only an active
+        // run has nothing new to say yet.
+        if (state == AgentSessionState.spawning ||
+            state == AgentSessionState.running) {
+          return;
+        }
+        unawaited(controller.refresh());
+      });
+    }
+
+    return _contextUsage!;
+  }
+
   Widget _buildChatInput(
     ThreadViewState? threadView,
     Room? room,
@@ -2497,7 +2567,18 @@ class _RoomScreenState extends State<RoomScreen> {
           : () => _pickAndUploadToNewThread(pick);
     }
 
+    // Only a thread that exists has a request to measure. The welcome
+    // composer has nothing to count, and the gauge stays hidden there
+    // rather than showing a confident zero.
+    final contextController =
+        threadView == null ? null : _contextUsageFor(threadView);
+    final contextUsage = contextController?.usage;
+
     return ChatInput(
+      contextUsage: contextUsage,
+      onContextTap: contextUsage == null
+          ? null
+          : () => showContextBreakdown(context, usage: contextUsage),
       // The composer's transient state belongs to the thread it is composing
       // for, and what the composer is saying about that state is held in widget
       // state, so a notice about a pick made into one thread would otherwise
@@ -2508,6 +2589,10 @@ class _RoomScreenState extends State<RoomScreen> {
       // [ChatInput.composerScope] for what that would cost.
       composerScope: (_serverId, widget.roomId, threadView?.threadId),
       onSend: (parts) {
+        // Before the composer clears: the estimate has to hold the sent
+        // message's place until a run reports on it, or the gauge reads
+        // low for the length of the run.
+        contextController?.draftSent();
         if (threadView != null) {
           threadView.sendMessage(
             parts,

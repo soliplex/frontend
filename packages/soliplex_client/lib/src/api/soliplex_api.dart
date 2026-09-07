@@ -23,6 +23,7 @@ import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
+import 'package:soliplex_client/src/domain/thread_context.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
@@ -697,6 +698,40 @@ class SoliplexApi {
       ),
       cancelToken: cancelToken,
       fromJson: runInfoFromJson,
+    );
+  }
+
+  /// Reports how full [threadId]'s context window is.
+  ///
+  /// Both numbers in the reading are independently optional, and null
+  /// is an answer rather than an error: the provider may not report a
+  /// window, and a thread whose runs have never reached the model has
+  /// nothing measured. A caller with no window must show a count rather
+  /// than a percentage — a guessed denominator that is too large reads
+  /// as emptier than reality.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any ID is empty
+  /// - [NotFoundException] if the room or thread is not found (404)
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<ThreadContext> getThreadContext(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+
+    return _transport.request<ThreadContext>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'agui', threadId, 'context'],
+      ),
+      cancelToken: cancelToken,
+      fromJson: threadContextFromJson,
     );
   }
 
