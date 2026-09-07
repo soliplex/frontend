@@ -592,6 +592,10 @@ ThreadContext threadContextFromJson(Map<String, dynamic> json) {
     modelName: json['model_name'] as String?,
     measuredTokens: json['measured_tokens'] as int?,
     measuredAtRunId: json['measured_at_run_id'] as String?,
+    tokensByKind: (json['tokens_by_kind'] as Map<String, dynamic>?)?.map(
+          (key, value) => MapEntry(key, value as int),
+        ) ??
+        const {},
   );
 }
 
