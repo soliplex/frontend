@@ -269,6 +269,48 @@ void main() {
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
   });
 
+  testWidgets(
+    'a completed thinking step is muted, not the brand accent',
+    (tester) async {
+      // `tertiary` is where a whitelabel puts its loudest third color, so a
+      // warm brand lands one on an identical check_circle beside the success
+      // green and the row reads as a failure. The muted foreground is safe by
+      // construction: it is the slot the row's own label reads, so a brand
+      // cannot make it loud without wrecking its own secondary text.
+      const accent = Color(0xFFFF5934);
+      final theme = lowerBrandTheme(
+        const BrandTheme.soliplex().copyWith(
+          dark: const BrandTheme.soliplex().dark.copyWith(tertiary: accent),
+        ),
+        Brightness.dark,
+      );
+
+      events.value = const ThinkingStarted();
+      events.value = const RunCompleted();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [messageExpansionsProvider.overrideWithValue(store)],
+          child: MaterialApp(
+            theme: theme,
+            home: Scaffold(body: SingleChildScrollView(child: build())),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+
+      // Asserted against the row's own label rather than a named slot: the
+      // rule is that the icon reads as muted as the text beside it, which
+      // any future neutral satisfies and this brand's accent does not.
+      final icon = tester.widget<Icon>(find.byIcon(Icons.check_circle));
+      final label = tester.widget<Text>(find.text('Thinking'));
+      expect(icon.color, label.style?.color);
+      expect(icon.color, isNot(accent));
+    },
+  );
+
   testWidgets('running step shimmers its label instead of showing a spinner',
       (tester) async {
     // Started-but-not-completed: the step stays active.
