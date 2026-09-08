@@ -525,11 +525,13 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         return Icon(
           Icons.check_circle,
           size: _statusIconSize,
-          // A completed action is a success result → SymbolicColors.success.
-          // Thinking keeps a tertiary accent to read as reflection, not a
-          // pass/fail outcome.
+          // A completed action reports a success result, so it takes
+          // SymbolicColors.success. A completed thinking step reports no
+          // result, so it stays as muted as the label beside it — not
+          // `tertiary`, which is the brand's accent slot, where a warm brand
+          // puts a color that reads as a failure next to the success green.
           color: step.type == StepType.thinking
-              ? theme.colorScheme.tertiary
+              ? theme.colorScheme.onSurfaceVariant
               : context.success,
         );
     }
