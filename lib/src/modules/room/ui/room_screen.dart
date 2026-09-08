@@ -2393,7 +2393,6 @@ class _RoomScreenState extends State<RoomScreen> {
     _restoreUnsentText(sendError?.unsentText);
 
     final usage = _contextUsageFor(threadView).usage;
-    if (!usage.isNearlyFull) _contextWarningDismissed = false;
     final contextWarning =
         usage.isNearlyFull && !_contextWarningDismissed ? usage : null;
 
@@ -2517,7 +2516,17 @@ class _RoomScreenState extends State<RoomScreen> {
   /// and a key that changes with the thread throws it away. State that has to
   /// be dropped on a thread change travels as a value instead.
   void _onContextUsageChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+
+    setState(() {
+      // Re-arm the warning once the thread drops back under the
+      // threshold, so a banner dismissed at 81% returns if the
+      // conversation climbs again. Done here rather than in 'build',
+      // which must not mutate state.
+      if (!(_contextUsage?.usage.isNearlyFull ?? false)) {
+        _contextWarningDismissed = false;
+      }
+    });
   }
 
   /// Forwards the composer's draft to the current context controller.
