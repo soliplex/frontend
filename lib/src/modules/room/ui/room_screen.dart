@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart'
-    show AgentSessionState, ThreadKey;
+    show AgentSessionState, ContextUsage, ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
@@ -304,6 +304,12 @@ class _RoomScreenState extends State<RoomScreen> {
   ContextUsageController? _contextUsage;
   (String, String)? _contextUsageKey;
   void Function()? _contextRunUnsub;
+
+  /// Whether the context warning has been dismissed for the thread on
+  /// screen. Re-arms when the thread changes, and when usage falls back
+  /// under the threshold — a warning that never returns is one someone
+  /// silenced once and then sailed past.
+  bool _contextWarningDismissed = false;
 
   /// Disposer for the thread-list subscription that keeps the room read marker
   /// in sync with thread-unread state. Re-wired on room change, cancelled on
@@ -2386,6 +2392,11 @@ class _RoomScreenState extends State<RoomScreen> {
     final reconnectStatus = threadView.reconnectStatus.watch(context);
     _restoreUnsentText(sendError?.unsentText);
 
+    final usage = _contextUsageFor(threadView).usage;
+    if (!usage.isNearlyFull) _contextWarningDismissed = false;
+    final contextWarning =
+        usage.isNearlyFull && !_contextWarningDismissed ? usage : null;
+
     return Stack(
       children: [
         ApprovalHandler(
@@ -2399,6 +2410,12 @@ class _RoomScreenState extends State<RoomScreen> {
               _ReconnectBanner(
                 status: reconnectStatus!,
                 onDismiss: threadView.dismissReconnectStatus,
+              ),
+            if (contextWarning != null)
+              _ContextWarningBanner(
+                usage: contextWarning,
+                onDismiss: () =>
+                    setState(() => _contextWarningDismissed = true),
               ),
             Expanded(
               child: switch (status) {
@@ -2542,6 +2559,7 @@ class _RoomScreenState extends State<RoomScreen> {
       _contextUsage?.dispose();
 
       _contextUsageKey = key;
+      _contextWarningDismissed = false;
       final controller = ContextUsageController(
         api: widget.serverEntry.connection.api,
         roomId: widget.roomId,
@@ -2650,6 +2668,58 @@ class _RoomScreenState extends State<RoomScreen> {
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.outline,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Says the context window is filling up, while there is still room to
+/// act on it.
+///
+/// Shares its shape with the send-error and reconnect banners above:
+/// same padding, same 16px leading icon, same 'bodySmall' on a container
+/// surface, same flush dismiss button. A warning that looked like a
+/// different kind of object would read as a different kind of problem.
+class _ContextWarningBanner extends StatelessWidget {
+  const _ContextWarningBanner({required this.usage, required this.onDismiss});
+
+  final ContextUsage usage;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final percent = ((usage.fractionUsed ?? 0) * 100).round();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: SoliplexSpacing.s3,
+        vertical: SoliplexSpacing.s2,
+      ),
+      color: context.warningContainer,
+      child: Row(
+        children: [
+          // The symbolic warning colour, not the error one: the thread
+          // still works, it is just running out of room.
+          Icon(Icons.warning_amber_rounded, size: 16, color: context.warning),
+          const SizedBox(width: SoliplexSpacing.s2),
+          Expanded(
+            child: Text(
+              '$percent% of the context window is in use. Older messages '
+              'may start dropping out of the conversation.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.onWarningContainer,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: onDismiss,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
