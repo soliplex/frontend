@@ -8,6 +8,9 @@ import 'package:soliplex_agent/src/metering/context_segment.dart';
 /// evidence, has to be presented differently from a settled exact one —
 /// and the difference is the whole distinction between a useful gauge and
 /// a confidently wrong one.
+/// The window size at and above which the later warning applies.
+const largeContextWindow = 128000;
+
 @immutable
 class ContextUsage {
   /// Creates a reading.
@@ -72,6 +75,30 @@ class ContextUsage {
 
   /// Whether the reading should be presented with a caveat.
   bool get isApproximate => isProvisional || !isExact || hasUncountableContent;
+
+  /// The occupancy past which a window is worth warning about.
+  ///
+  /// A small window warns earlier, because the same percentage leaves
+  /// far less room in absolute terms: 20% of 32k is about 6,500 tokens,
+  /// perhaps two or three more exchanges, while 15% of 128k is nearly
+  /// 20,000 and several more. The point of the warning is to arrive
+  /// while there is still room to act on it.
+  ///
+  /// Null when no window is declared, because there is then no
+  /// occupancy to compare against.
+  double? get warningThreshold {
+    final window = contextWindow;
+    if (window == null || window <= 0) return null;
+    return window < largeContextWindow ? 0.80 : 0.85;
+  }
+
+  /// Whether the thread is close enough to full to say so unprompted.
+  bool get isNearlyFull {
+    final fraction = fractionUsed;
+    final threshold = warningThreshold;
+    if (fraction == null || threshold == null) return false;
+    return fraction >= threshold;
+  }
 
   @override
   String toString() => 'ContextUsage($tokens / ${contextWindow ?? "?"}, '
