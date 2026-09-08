@@ -21,4 +21,16 @@ extension SymbolicColors on BuildContext {
   Color get success => _statusColors.success;
   Color get warning => _statusColors.warning;
   Color get info => _statusColors.info;
+
+  /// Container surfaces for the status colours, and the on-colours that
+  /// go with them.
+  ///
+  /// These read the same existing tokens as the accessors above; they
+  /// exist so a caller wanting a status *surface* — a banner, say —
+  /// does not have to reach through `SoliplexTheme.of(context)`, which
+  /// throws outright when no Soliplex theme is installed. Everything
+  /// here degrades to the default palette instead, exactly as the
+  /// foreground colours already do.
+  Color get warningContainer => _statusColors.warningContainer;
+  Color get onWarningContainer => _statusColors.onWarningContainer;
 }
