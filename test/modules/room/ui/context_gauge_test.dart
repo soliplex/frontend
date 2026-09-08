@@ -139,8 +139,11 @@ void main() {
         ),
       );
 
-      expect(find.textContaining('Still calibrating'), findsOneWidget);
-      expect(find.textContaining('no exact tokenizer'), findsOneWidget);
+      // The wording tracks what the reading actually is now: the
+      // thread's own tokens are the provider's exact count, and only
+      // the unsent draft is estimated.
+      expect(find.textContaining('No reply has been measured'), findsOneWidget);
+      expect(find.textContaining('rounded up'), findsOneWidget);
       expect(find.textContaining('attachments'), findsOneWidget);
     });
 
