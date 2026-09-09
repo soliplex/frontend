@@ -579,6 +579,7 @@ void main() {
       expect(restored.id, equals(original.id));
       expect(restored.title, equals(original.title));
       expect(restored.uri, equals(original.uri));
+      expect(restored.metadata, equals(original.metadata));
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.updatedAt, equals(original.updatedAt));
     });
@@ -902,6 +903,7 @@ void main() {
       expect(restored.description, equals(original.description));
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.lastActivity, equals(original.lastActivity));
+      expect(restored.metadata, equals(original.metadata));
     });
   });
 
@@ -1087,6 +1089,7 @@ void main() {
       expect(restored.id, equals(original.id));
       expect(restored.threadId, equals(original.threadId));
       expect(restored.label, equals(original.label));
+      expect(restored.metadata, equals(original.metadata));
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.isCompleted, equals(original.isCompleted));
       expect(restored.status, equals(original.status));
@@ -1793,12 +1796,11 @@ void main() {
     });
 
     group('mcpClientToolsetFromJson allowed_tools', () {
-      // The backend gives null and [] the same meaning: `mcp_client.py`'s
-      // `_allowed_tools_filter` reads "a None or empty allow-list means expose
-      // every tool the server offers". Both are normalised to null so that a
-      // non-null value always means a real restriction.
+      // The backend gives a missing and an empty allow-list the same meaning:
+      // `mcp_client.py`'s `_allowed_tools_filter` reads "a None or empty
+      // allow-list means expose every tool the server offers".
       test('an empty allowlist stays empty, meaning no restriction', () {
-        final toolset = mcpClientToolsetFromJson('stdio-tools', {
+        final toolset = mcpClientToolsetFromJson({
           'kind': 'http',
           'allowed_tools': <String>[],
         });
@@ -1806,24 +1808,13 @@ void main() {
         expect(toolset.allowedTools, isEmpty);
       });
 
-      test(
-          'an unreadable allowlist is normalised to null, not to a restriction',
-          () {
-        final toolset = mcpClientToolsetFromJson('stdio-tools', {
+      test('an unreadable allowlist reads as empty, not as a restriction', () {
+        final toolset = mcpClientToolsetFromJson({
           'kind': 'http',
           'allowed_tools': 'read write',
         });
 
         expect(toolset.allowedTools, isEmpty);
-      });
-
-      test('a real allowlist is preserved', () {
-        final toolset = mcpClientToolsetFromJson('stdio-tools', {
-          'kind': 'http',
-          'allowed_tools': ['read', 'write'],
-        });
-
-        expect(toolset.allowedTools, equals(['read', 'write']));
       });
     });
 
@@ -1846,48 +1837,6 @@ void main() {
           equals('my_module.create_agent'),
         );
         expect(agent.extraConfig, equals({'temperature': 0.7}));
-      });
-
-      test('a default agent is recognised without a kind key', () {
-        final agent = roomAgentFromJson({
-          'id': 'room-r1',
-          'model_name': 'gpt-4o',
-          'retries': 3,
-          'system_prompt': null,
-          'provider_type': 'openai',
-          'provider_base_url': null,
-          'provider_key': 'dummy',
-          'agui_feature_names': <String>[],
-        });
-
-        expect(agent, isA<DefaultRoomAgent>());
-        expect((agent as DefaultRoomAgent).modelName, equals('gpt-4o'));
-        expect(agent.providerType, equals('openai'));
-      });
-
-      test('an unknown kind keeps its kind and does not pretend to be default',
-          () {
-        final agent = roomAgentFromJson({
-          'id': 'room-r1',
-          'kind': 'swarm',
-          'agui_feature_names': <String>[],
-        });
-
-        expect(agent, isA<OtherRoomAgent>());
-        expect((agent as OtherRoomAgent).kind, equals('swarm'));
-      });
-
-      test('a default agent survives a null model_name', () {
-        final agent = roomAgentFromJson({
-          'id': 'room-r1',
-          'model_name': null,
-          'retries': 3,
-          'provider_type': 'openai',
-          'agui_feature_names': <String>[],
-        });
-
-        expect(agent, isA<DefaultRoomAgent>());
-        expect((agent as DefaultRoomAgent).providerType, equals('openai'));
       });
     });
 

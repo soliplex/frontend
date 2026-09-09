@@ -118,7 +118,7 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   // exactly one variant, so presence — not value — tells them apart;
   // `model_name` is nullable but pydantic still emits the key.
   //
-  // A `kind` of `default` or `factory` cannot reach here today, since the
+  // A `kind` of `default` or `factory` does not reach here, since the
   // backend sets `kind` only on the variant it could not type. It decides
   // outright where it is present so that a backend which starts sending the
   // discriminator is read by it rather than second-guessed by shape.
@@ -167,7 +167,7 @@ DefaultRoomAgent _defaultAgentFromJson(
 ) {
   return DefaultRoomAgent(
     id: id,
-    // Nullable on the wire, and the card omits the row when it is absent.
+    // Nullable on the wire; the card omits the row when it is absent or empty.
     modelName: stringOrNull(json['model_name'], 'model_name'),
     retries: intOrNull(json['retries'], 'retries') ?? 0,
     systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
@@ -210,29 +210,19 @@ RoomTool roomToolFromJson(String name, Map<String, dynamic> json) {
 }
 
 /// Creates a [McpClientToolset] from JSON.
-McpClientToolset mcpClientToolsetFromJson(
-  String key,
-  Map<String, dynamic> json,
-) {
+McpClientToolset mcpClientToolsetFromJson(Map<String, dynamic> json) {
   // An absent and an empty allow-list are one state on the backend, whose
   // `_allowed_tools_filter` reads "a None or empty allow-list means expose
   // every tool the server offers" (`mcp_client.py`), so the empty list
   // carries both and no null is needed to tell them apart.
   //
-  // An unreadable one also reads as empty, which understates a restriction
-  // rather than inventing one. It is logged against the toolset key, because
-  // the screen cannot distinguish it and the record is the only way to.
-  final raw = json['allowed_tools'];
-  final allowedTools = stringList(raw, 'allowed_tools');
-  if (raw != null && (raw is! List || raw.length != allowedTools.length)) {
-    _logger.warning(
-      'Unreadable MCP allow-list, shown as unrestricted',
-      attributes: {'toolset': key, 'runtimeType': raw.runtimeType.toString()},
-    );
-  }
+  // A value that cannot be read reads as empty, and one whose entries cannot
+  // be read loses those entries: both understate a restriction rather than
+  // inventing one, which is the safer direction to be wrong in for a screen
+  // that only displays it. `stringList` reports either.
   return McpClientToolset(
     kind: stringOrNull(json['kind'], 'kind') ?? '',
-    allowedTools: allowedTools,
+    allowedTools: stringList(json['allowed_tools'], 'allowed_tools'),
     toolsetParams: jsonMap(json['toolset_params'], 'toolset_params'),
   );
 }
@@ -390,10 +380,8 @@ Room roomFromJson(Map<String, dynamic> json) {
       );
       continue;
     }
-    mcpClientToolsets[entry.key] = mcpClientToolsetFromJson(
-      entry.key,
-      entry.value as Map<String, dynamic>,
-    );
+    mcpClientToolsets[entry.key] =
+        mcpClientToolsetFromJson(entry.value as Map<String, dynamic>);
   }
 
   // Parse skills — skip malformed entries

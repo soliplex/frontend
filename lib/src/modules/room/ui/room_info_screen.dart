@@ -294,6 +294,8 @@ Widget _buildToolContent(RoomTool tool) {
   );
 }
 
+/// Renders an MCP toolset's kind and its allow-list.
+///
 /// `toolset_params` is deliberately not rendered. It is the raw,
 /// uninterpolated transport config — `headers` and `query_params` for an HTTP
 /// toolset, `env` for a stdio one (`config/tools.py`) — which is where an MCP
@@ -303,12 +305,13 @@ Widget _buildToolContent(RoomTool tool) {
 /// everyone who opens a room exactly what `roomAgentFromJson` declines
 /// `provider_key` for.
 ///
-/// A factory agent's `extra_config` is still rendered, on the narrower
-/// ground that it has no credential-bearing slot: it is whatever keys a
-/// factory author invented, whereas `headers`, `env` and `query_params` are
-/// named places a secret goes. That is a weaker line than it looks, and if
-/// a factory is ever found carrying one, it should follow this field.
-/// Renders an MCP toolset's kind and its allow-list.
+/// A factory agent's `extra_config` and a tool's `extra_parameters` are still
+/// rendered, on the narrower ground that neither has a credential-bearing
+/// slot, whereas `headers`, `env` and `query_params` are named places a
+/// secret goes. `extra_config` is operator-authored like this field, so the
+/// line rests only on that; it is never interpolated, so a `secret:` marker
+/// there would not resolve and an operator would have to write the credential
+/// literally. If one is ever found doing so, it should follow this field.
 Widget _buildToolsetContent(McpClientToolset toolset) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,9 +342,8 @@ class _AgentCard extends StatelessWidget {
     return SectionCard(
       title: 'AGENT',
       children: [
-        // Each variant labels its own headline row: the wire has no single
-        // field that names all three, and a shared one mislabelled a factory
-        // agent's dotted path and an unknown agent's kind as a "Model".
+        // The wire has no one field that names all three shapes, so each
+        // labels its own headline row.
         ...switch (agent) {
           DefaultRoomAgent(
             :final modelName,

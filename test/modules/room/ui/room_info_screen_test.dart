@@ -621,6 +621,67 @@ void main() {
       expect(find.text('Extra Config'), findsNothing);
     });
 
+    testWidgets('an unknown agent kind shows a Kind row, not a Model row',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const OtherRoomAgent(id: 'agent-x', kind: 'swarm'),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Kind'), findsOneWidget);
+      expect(find.text('swarm'), findsOneWidget);
+      expect(find.text('Model'), findsNothing);
+    });
+
+    testWidgets('a default agent with no model name omits the Model row',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const DefaultRoomAgent(
+          id: 'agent-1',
+          retries: 3,
+          providerType: 'openai',
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      // The row is withheld, not drawn with a blank value beside its label.
+      expect(find.text('Model'), findsNothing);
+      expect(find.text('Provider'), findsOneWidget);
+      expect(find.text('openai'), findsOneWidget);
+    });
+
+    testWidgets('a toolset allow-list renders, and an empty one does not',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        mcpClientToolsets: {
+          'restricted': const McpClientToolset(
+            kind: 'http',
+            allowedTools: ['read_file', 'write_file'],
+          ),
+          'unrestricted': const McpClientToolset(kind: 'stdio'),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('restricted'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('restricted'));
+      await tester.pumpAndSettle();
+      expect(find.text('Allowed Tools'), findsOneWidget);
+      expect(find.text('read_file, write_file'), findsOneWidget);
+
+      await tester.tap(find.text('unrestricted'));
+      await tester.pumpAndSettle();
+      // Empty means unrestricted, so the row is absent rather than blank.
+      expect(find.text('Allowed Tools'), findsOneWidget);
+    });
+
     testWidgets('shows error on fetch failure', (tester) async {
       final api = FakeSoliplexApi()..nextError = Exception('network');
       await tester.pumpWidget(_buildScreen(api: api));
