@@ -50,7 +50,7 @@ class SkillContentColumn extends StatelessWidget {
         const SizedBox(height: SoliplexSpacing.s2),
         field('state_namespace', skill.stateNamespace),
         if (skill.extraParameters.isNotEmpty ||
-            (skill.stateTypeSchema?.isNotEmpty ?? false))
+            skill.stateTypeSchema.isNotEmpty)
           DialogButton(
             label: 'Show more',
             onPressed: () => showDialog<void>(

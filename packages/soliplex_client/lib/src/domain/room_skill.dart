@@ -10,7 +10,7 @@ class RoomSkill {
     this.source,
     this.stateNamespace,
     this.extraParameters = const {},
-    this.stateTypeSchema,
+    this.stateTypeSchema = const {},
   });
 
   /// Skill name as configured in the backend.
@@ -28,8 +28,9 @@ class RoomSkill {
   /// Skill-specific configuration the backend passes through verbatim.
   final Map<String, dynamic> extraParameters;
 
-  /// JSON schema describing the skill's AG-UI state type.
-  final Map<String, dynamic>? stateTypeSchema;
+  /// JSON schema describing the skill's AG-UI state type. Empty for a skill
+  /// that carries no AG-UI state.
+  final Map<String, dynamic> stateTypeSchema;
 
   @override
   String toString() => 'RoomSkill(name: $name, source: $source)';

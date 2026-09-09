@@ -147,10 +147,10 @@ class RawParametersDialog extends StatelessWidget {
 
   final String title;
 
-  /// Section heading paired with the map to render beneath it. A null or
-  /// empty map renders as "Empty" rather than being omitted, so a section the
-  /// backend sent nothing for still accounts for itself.
-  final List<(String, Map<String, dynamic>?)> sections;
+  /// Section heading paired with the map to render beneath it. An empty map
+  /// renders as "Empty" rather than being omitted, so a section the backend
+  /// sent nothing for still accounts for itself.
+  final List<(String, Map<String, dynamic>)> sections;
 
   @override
   Widget build(BuildContext context) {
@@ -169,8 +169,8 @@ class RawParametersDialog extends StatelessWidget {
       color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
     );
 
-    Widget mapSection(String heading, Map<String, dynamic>? data) {
-      final isEmpty = data == null || data.isEmpty;
+    Widget mapSection(String heading, Map<String, dynamic> data) {
+      final isEmpty = data.isEmpty;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

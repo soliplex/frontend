@@ -17,6 +17,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   looked identically configured to one that was not. All three now appear
   behind the same "Show more" affordance the skills card already had.
 
+### Changed
+
+- `RoomSkill.stateTypeSchema` is a `Map<String, dynamic>` defaulting to empty
+  rather than a nullable map. Nothing could tell the two apart: the card's
+  "Show more" gate and the dialog both read an absent schema and an empty one
+  the same way, and the backend sends a populated schema or no key at all.
+
 ### Removed
 
 - `RoomSkill` no longer carries `license`, `compatibility`, `allowedTools` or
@@ -29,6 +36,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   toolset's own `allowedTools` is a different, real field that stays.
 
 ### Fixed
+
+- One drifted field in a room's configuration no longer discards the entire
+  room. The room-config parsers read most fields with a raw cast, so a value
+  of an unexpected type — a string where a map belonged, a list where an
+  object did — threw out of the field, out of the enclosing skill or tool, and
+  out of the whole room, leaving a configured room looking unreachable on the
+  strength of one bad key. Each field now degrades to its empty value and logs
+  what it saw, which is the policy `parse_utils` already documented and that
+  `allow_mcp` and `agui_feature_names` already followed. The same holds one
+  level up: a `skills`, `quizzes`, `suggestions`, `mcp_client_toolsets` or
+  `agent` block that is not a map at all now costs its own section instead of
+  the room. The agent block was already meant to fail soft, but the cast that
+  read it ran ahead of the guard that was supposed to catch it.
 
 - A room whose agent, tools, MCP toolsets or skills failed to parse now says so
   where anyone can see it. Those warnings were written straight to

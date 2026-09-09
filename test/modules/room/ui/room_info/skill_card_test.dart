@@ -81,7 +81,7 @@ void main() {
       expect(find.text('512'), findsOneWidget);
     });
 
-    testWidgets('shows Empty for null stateTypeSchema', (tester) async {
+    testWidgets('shows Empty for an absent stateTypeSchema', (tester) async {
       await tester.pumpWidget(wrap(SkillDetailDialog(skill: fullSkill)));
       expect(find.text('State Schema'), findsOneWidget);
       // fullSkill has no stateTypeSchema → should show Empty
