@@ -56,7 +56,6 @@ import 'approval_handler.dart';
 import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
 import '../context_usage_controller.dart';
-import 'context_breakdown_sheet.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
 import 'copy_button.dart';
@@ -2538,22 +2537,6 @@ class _RoomScreenState extends State<RoomScreen> {
     _contextUsage?.draftChanged(_chatController.text);
   }
 
-  /// Opens the breakdown, fetching the attribution behind it first.
-  ///
-  /// The detailed reading costs the backend a tokenizer call per stored
-  /// message, so it is asked for on opening rather than kept current.
-  /// The dialog opens either way: without an attribution it still shows
-  /// the total, which is the number that was measured.
-  Future<void> _openContextBreakdown(
-    ContextUsageController controller,
-  ) async {
-    await controller.refresh(detail: true);
-
-    if (!mounted) return;
-
-    await showContextBreakdown(context, usage: controller.usage);
-  }
-
   /// The context controller for [threadView], rebuilt when it changes.
   ///
   /// Refreshes on first use and whenever a run finishes, which are the
@@ -2619,9 +2602,6 @@ class _RoomScreenState extends State<RoomScreen> {
 
     return ChatInput(
       contextUsage: contextUsage,
-      onContextTap: contextUsage == null
-          ? null
-          : () => _openContextBreakdown(contextController!),
       // The composer's transient state belongs to the thread it is composing
       // for, and what the composer is saying about that state is held in widget
       // state, so a notice about a pick made into one thread would otherwise
