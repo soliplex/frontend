@@ -126,14 +126,28 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   final kind = stringOrNull(json['kind'], 'kind') ?? '';
 
   if (json.containsKey('factory_name')) {
-    return _factoryAgentFromJson(json, id, aguiFeatureNames);
+    return FactoryRoomAgent(
+      id: id,
+      factoryName: _requireString(json, 'factory_name', 'factory agent'),
+      extraConfig: jsonMap(json['extra_config'], 'extra_config'),
+      aguiFeatureNames: aguiFeatureNames,
+    );
   }
 
   // `provider_type` is checked too: it is required and non-null on the
   // default variant, so it survives a serialiser that omits a null
   // `model_name`.
   if (json.containsKey('model_name') || json.containsKey('provider_type')) {
-    return _defaultAgentFromJson(json, id, aguiFeatureNames);
+    return DefaultRoomAgent(
+      id: id,
+      // Nullable on the wire; the card omits the row when it is absent or
+      // empty.
+      modelName: stringOrNull(json['model_name'], 'model_name'),
+      retries: intOrNull(json['retries'], 'retries'),
+      systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
+      providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
+      aguiFeatureNames: aguiFeatureNames,
+    );
   }
 
   if (kind.isEmpty) {
@@ -147,35 +161,6 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   }
 
   return OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames);
-}
-
-FactoryRoomAgent _factoryAgentFromJson(
-  Map<String, dynamic> json,
-  String id,
-  List<String> aguiFeatureNames,
-) {
-  return FactoryRoomAgent(
-    id: id,
-    factoryName: _requireString(json, 'factory_name', 'factory agent'),
-    extraConfig: jsonMap(json['extra_config'], 'extra_config'),
-    aguiFeatureNames: aguiFeatureNames,
-  );
-}
-
-DefaultRoomAgent _defaultAgentFromJson(
-  Map<String, dynamic> json,
-  String id,
-  List<String> aguiFeatureNames,
-) {
-  return DefaultRoomAgent(
-    id: id,
-    // Nullable on the wire; the card omits the row when it is absent or empty.
-    modelName: stringOrNull(json['model_name'], 'model_name'),
-    retries: intOrNull(json['retries'], 'retries'),
-    systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
-    providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
-    aguiFeatureNames: aguiFeatureNames,
-  );
 }
 
 /// Extracts a required string field, throwing [FormatException] if missing
