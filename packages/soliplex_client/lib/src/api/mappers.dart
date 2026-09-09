@@ -250,6 +250,12 @@ Room roomFromJson(Map<String, dynamic> json) {
       );
       continue;
     }
+    // Only the title. The room payload nests each quiz whole — `randomize`,
+    // `max_questions` and every question with its `expected_output` — but the
+    // quiz screen fetches the quiz it is opening through `getQuiz`, which
+    // parses all of it. Reading the nested copy here would build a second
+    // set of `Quiz` objects that nothing opens, and leave two parses of the
+    // same wire shape to keep in step.
     quizzes[entry.key] = stringOrNull(quizData['title'], 'title') ?? 'Quiz';
   }
 
@@ -372,7 +378,6 @@ Room roomFromJson(Map<String, dynamic> json) {
     id: _requireString(json, 'id', 'room'),
     name: _requireString(json, 'name', 'room'),
     description: stringOrNull(json['description'], 'description') ?? '',
-    metadata: jsonMap(json['metadata'], 'metadata'),
     quizzes: quizzes,
     suggestions: suggestions,
     welcomeMessage:
@@ -424,7 +429,6 @@ Map<String, dynamic> roomToJson(Room room) {
     'id': room.id,
     'name': room.name,
     if (room.description.isNotEmpty) 'description': room.description,
-    if (room.metadata.isNotEmpty) 'metadata': room.metadata,
     if (room.welcomeMessage.isNotEmpty) 'welcome_message': room.welcomeMessage,
     if (room.skills.isNotEmpty)
       'skills': {

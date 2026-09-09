@@ -13,7 +13,6 @@ class Room {
     required this.id,
     required this.name,
     this.description = '',
-    this.metadata = const {},
     this.quizzes = const {},
     this.suggestions = const [],
     this.welcomeMessage = '',
@@ -36,9 +35,6 @@ class Room {
 
   /// Description of the room (empty string if not provided).
   final String description;
-
-  /// Metadata for the room (empty map if not provided).
-  final Map<String, dynamic> metadata;
 
   /// Quizzes available in this room, keyed by quiz ID with title
   /// as value.
@@ -115,7 +111,6 @@ class Room {
     String? id,
     String? name,
     String? description,
-    Map<String, dynamic>? metadata,
     Map<String, String>? quizzes,
     List<String>? suggestions,
     String? welcomeMessage,
@@ -133,7 +128,6 @@ class Room {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
-      metadata: metadata ?? this.metadata,
       quizzes: quizzes ?? this.quizzes,
       suggestions: suggestions ?? this.suggestions,
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,

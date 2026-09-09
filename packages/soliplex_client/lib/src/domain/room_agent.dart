@@ -11,6 +11,11 @@ sealed class RoomAgent {
   const RoomAgent({required this.id, this.aguiFeatureNames = const []});
 
   /// Unique identifier for the agent.
+  ///
+  /// Parsed but deliberately not rendered: the backend derives it as
+  /// `room-{room_id}` (`config/rooms.py`), so it restates the room id the
+  /// screen already shows. It is kept because its absence is what tells
+  /// `roomAgentFromJson` the agent block is malformed.
   final String id;
 
   /// AG-UI feature names enabled for this agent.

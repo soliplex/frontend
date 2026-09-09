@@ -40,14 +40,12 @@ void main() {
           id: 'room-1',
           name: 'Test Room',
           description: 'A test room',
-          metadata: {'key': 'value'},
           quizzes: {'quiz-1': 'Quiz One'},
         );
 
         expect(room.id, isA<String>());
         expect(room.name, isA<String>());
         expect(room.description, isA<String>());
-        expect(room.metadata, isA<Map<String, dynamic>>());
         expect(room.quizzes, isA<Map<String, String>>());
         expect(room.quizIds, isA<List<String>>());
         expect(room.hasDescription, isA<bool>());
@@ -60,7 +58,6 @@ void main() {
           id: 'room-2',
           name: 'New',
           description: 'desc',
-          metadata: {},
           quizzes: {},
         );
         expect(copied, isA<Room>());

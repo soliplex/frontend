@@ -123,6 +123,7 @@ void main() {
           'id': 'room-1',
           'name': 'Test Room',
           'description': 'A test room',
+          // Not a field the backend's Room model has; ignored, not stored.
           'metadata': {'key': 'value'},
         };
 
@@ -131,7 +132,6 @@ void main() {
         expect(room.id, equals('room-1'));
         expect(room.name, equals('Test Room'));
         expect(room.description, equals('A test room'));
-        expect(room.metadata, equals({'key': 'value'}));
       });
 
       test('survives a wrong-typed upload capability flag', () {
@@ -172,7 +172,6 @@ void main() {
         expect(room.description, equals(''));
         expect(room.acceptsRoomUploads, isFalse);
         expect(room.acceptsThreadUploads, isFalse);
-        expect(room.metadata, equals(const <String, dynamic>{}));
       });
 
       test('throws FormatException when id is missing', () {
@@ -205,18 +204,6 @@ void main() {
         final room = roomFromJson(json);
 
         expect(room.description, equals(''));
-      });
-
-      test('handles null metadata', () {
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'metadata': null,
-        };
-
-        final room = roomFromJson(json);
-
-        expect(room.metadata, equals(const <String, dynamic>{}));
       });
 
       test('parses suggestions correctly', () {
@@ -434,7 +421,6 @@ void main() {
           id: 'room-1',
           name: 'Test Room',
           description: 'A test room',
-          metadata: {'key': 'value'},
         );
 
         final json = roomToJson(room);
@@ -442,7 +428,6 @@ void main() {
         expect(json['id'], equals('room-1'));
         expect(json['name'], equals('Test Room'));
         expect(json['description'], equals('A test room'));
-        expect(json['metadata'], equals({'key': 'value'}));
       });
 
       test('excludes empty fields', () {
@@ -486,7 +471,6 @@ void main() {
         id: 'room-1',
         name: 'Test Room',
         description: 'A test room',
-        metadata: {'key': 'value'},
         skills: {
           'web_search': RoomSkill(
             name: 'Web Search',
@@ -504,7 +488,6 @@ void main() {
       expect(restored.id, equals(original.id));
       expect(restored.name, equals(original.name));
       expect(restored.description, equals(original.description));
-      expect(restored.metadata, equals(original.metadata));
       expect(restored.skills, hasLength(1));
       final skill = restored.skills['web_search']!;
       expect(skill.name, equals('Web Search'));
@@ -633,7 +616,6 @@ void main() {
       expect(restored.id, equals(original.id));
       expect(restored.title, equals(original.title));
       expect(restored.uri, equals(original.uri));
-      expect(restored.metadata, equals(original.metadata));
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.updatedAt, equals(original.updatedAt));
     });
@@ -957,7 +939,6 @@ void main() {
       expect(restored.description, equals(original.description));
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.lastActivity, equals(original.lastActivity));
-      expect(restored.metadata, equals(original.metadata));
     });
   });
 
@@ -1146,7 +1127,6 @@ void main() {
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.isCompleted, equals(original.isCompleted));
       expect(restored.status, equals(original.status));
-      expect(restored.metadata, equals(original.metadata));
     });
   });
 
@@ -2000,17 +1980,6 @@ void main() {
 
         expect(room.id, equals('r1'));
         expect(room.welcomeMessage, isEmpty);
-      });
-
-      test('a wrong-typed room metadata keeps the room', () {
-        final room = roomFromJson({
-          'id': 'r1',
-          'name': 'Room One',
-          'metadata': 'not-a-map',
-        });
-
-        expect(room.id, equals('r1'));
-        expect(room.metadata, isEmpty);
       });
     });
 
