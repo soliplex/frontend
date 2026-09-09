@@ -216,9 +216,12 @@ class RawParametersDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final (heading, data) in sections) ...[
+              for (final (index, (heading, data)) in sections.indexed) ...[
                 mapSection(heading, data),
-                const SizedBox(height: SoliplexSpacing.s4),
+                // Between sections only; a trailing one leaves dead space
+                // under the last.
+                if (index < sections.length - 1)
+                  const SizedBox(height: SoliplexSpacing.s4),
               ],
             ],
           ),
