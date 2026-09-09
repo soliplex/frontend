@@ -30,8 +30,8 @@ class DefaultRoomAgent extends RoomAgent {
   /// Creates a default room agent.
   const DefaultRoomAgent({
     required super.id,
-    required this.retries,
     required this.providerType,
+    this.retries,
     this.modelName,
     this.systemPrompt,
     super.aguiFeatureNames,
@@ -40,8 +40,9 @@ class DefaultRoomAgent extends RoomAgent {
   /// LLM model name (e.g., 'gpt-4o', 'claude-3-opus').
   final String? modelName;
 
-  /// Number of retry attempts for LLM calls.
-  final int retries;
+  /// Number of retry attempts for LLM calls, or null when the backend sent
+  /// none — the field is required on the wire, so its absence is drift.
+  final int? retries;
 
   /// The system prompt text, if configured.
   final String? systemPrompt;

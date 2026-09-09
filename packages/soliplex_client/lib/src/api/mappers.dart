@@ -118,30 +118,32 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   // exactly one variant, so presence — not value — tells them apart;
   // `model_name` is nullable but pydantic still emits the key.
   //
-  // A `kind` of `default` or `factory` does not reach here, since the
-  // backend sets `kind` only on the variant it could not type. It decides
-  // outright where it is present so that a backend which starts sending the
-  // discriminator is read by it rather than second-guessed by shape.
+  // `kind` itself is not dispatched on. The backend sets it only on the
+  // variant it could not type, so it never says `default` or `factory`, and a
+  // payload that contradicted its own shape would be better read by the shape
+  // — dispatching on a `kind` of `factory` with no `factory_name` throws and
+  // costs the card, where the shape read degrades to an unknown agent.
   final kind = stringOrNull(json['kind'], 'kind') ?? '';
-
-  if (kind.isNotEmpty) {
-    return switch (kind) {
-      'factory' => _factoryAgentFromJson(json, id, aguiFeatureNames),
-      'default' => _defaultAgentFromJson(json, id, aguiFeatureNames),
-      _ => OtherRoomAgent(
-          id: id,
-          kind: kind,
-          aguiFeatureNames: aguiFeatureNames,
-        ),
-    };
-  }
 
   if (json.containsKey('factory_name')) {
     return _factoryAgentFromJson(json, id, aguiFeatureNames);
   }
 
+  // `provider_type` is checked too: it is required and non-null on the
+  // default variant, so it survives a serialiser that omits a null
+  // `model_name`.
   if (json.containsKey('model_name') || json.containsKey('provider_type')) {
     return _defaultAgentFromJson(json, id, aguiFeatureNames);
+  }
+
+  if (kind.isEmpty) {
+    // No `kind`, and none of the keys that identify a variant. Nothing can be
+    // said about this agent beyond its id, so say that rather than rendering
+    // a card with a heading and nothing under it.
+    _logger.warning(
+      'Agent matched no known shape',
+      attributes: {'agent': id, 'keyCount': json.length},
+    );
   }
 
   return OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames);
@@ -169,7 +171,7 @@ DefaultRoomAgent _defaultAgentFromJson(
     id: id,
     // Nullable on the wire; the card omits the row when it is absent or empty.
     modelName: stringOrNull(json['model_name'], 'model_name'),
-    retries: intOrNull(json['retries'], 'retries') ?? 0,
+    retries: intOrNull(json['retries'], 'retries'),
     systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
     providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
     aguiFeatureNames: aguiFeatureNames,

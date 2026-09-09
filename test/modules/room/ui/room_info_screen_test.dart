@@ -652,7 +652,7 @@ void main() {
       expect(find.text('openai'), findsOneWidget);
     });
 
-    testWidgets('a toolset allow-list renders, and an empty one does not',
+    testWidgets('a toolset allow-list renders when the backend sends one',
         (tester) async {
       final room = _testRoom.copyWith(
         mcpClientToolsets: {
@@ -660,7 +660,6 @@ void main() {
             kind: 'http',
             allowedTools: ['read_file', 'write_file'],
           ),
-          'unrestricted': const McpClientToolset(kind: 'stdio'),
         },
       );
       await tester.pumpWidget(_buildScreen(room: room));
@@ -673,13 +672,125 @@ void main() {
       );
       await tester.tap(find.text('restricted'));
       await tester.pumpAndSettle();
+
       expect(find.text('Allowed Tools'), findsOneWidget);
       expect(find.text('read_file, write_file'), findsOneWidget);
+    });
 
+    testWidgets(
+        'an empty allow-list shows no row, since it means no restriction',
+        (tester) async {
+      // A single toolset, so nothing else on screen can supply the row and
+      // make the negative below pass for the wrong reason.
+      final room = _testRoom.copyWith(
+        mcpClientToolsets: {
+          'unrestricted': const McpClientToolset(kind: 'stdio'),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('unrestricted'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('unrestricted'));
       await tester.pumpAndSettle();
-      // Empty means unrestricted, so the row is absent rather than blank.
-      expect(find.text('Allowed Tools'), findsOneWidget);
+
+      // The card opened, so the absent row below is a decision, not a no-show.
+      expect(find.text('stdio'), findsOneWidget);
+      expect(find.text('Allowed Tools'), findsNothing);
+    });
+
+    testWidgets('an agent of no recognisable shape says so', (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const OtherRoomAgent(id: 'agent-x', kind: ''),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      // Not a card with a heading over blank space.
+      expect(find.text('AGENT'), findsOneWidget);
+      expect(
+        find.text('No agent configuration this app reads in this room.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an agent whose fields all came back empty draws no rows',
+        (tester) async {
+      // Every value here is what a degraded read produces, so each guard on
+      // the card has to withhold its row rather than draw a blank one.
+      final room = _testRoom.copyWith(
+        agent: const DefaultRoomAgent(
+          id: 'agent-1',
+          modelName: '',
+          providerType: '',
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(find.text('AGENT'), findsOneWidget);
+      expect(find.text('Model'), findsNothing);
+      expect(find.text('Provider'), findsNothing);
+      expect(find.text('Retries'), findsNothing);
+    });
+
+    testWidgets('an entrypoint skill withholds its operator-authored params',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        skills: {
+          'plugin': const RoomSkill(
+            name: 'plugin',
+            description: 'A third-party capability',
+            source: 'entrypoint',
+            extraParameters: {'api_key': 'sk-live-should-not-render'},
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('plugin'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('plugin'));
+      await tester.pumpAndSettle();
+
+      // The card opened; the params are withheld, not merely off screen.
+      expect(find.text('A third-party capability'), findsOneWidget);
+      expect(find.text('Show more'), findsNothing);
+      expect(find.textContaining('sk-live'), findsNothing);
+    });
+
+    testWidgets('a native skill still shows its computed params',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        skills: {
+          'rag': const RoomSkill(
+            name: 'rag',
+            description: 'Retrieval',
+            source: 'native',
+            extraParameters: {'database_names': 'docs'},
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('rag'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('rag'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Show more'), findsOneWidget);
     });
 
     testWidgets('shows error on fetch failure', (tester) async {

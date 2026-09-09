@@ -17,7 +17,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   to one that was not. Both now appear behind the same "Show more" affordance
   the skills card already had. An MCP toolset's `toolset_params` is left
   unrendered on purpose: it is raw transport config and can carry the
-  server's credentials.
+  server's credentials. An `entrypoint` skill's `extra_parameters` is
+  withheld for the same reason — the backend forwards that skill's whole
+  configuration block to a third-party plugin verbatim, so an operator can
+  put a credential in it. A `filesystem` or `native` skill's, and a tool's,
+  are computed by the backend and still render.
 
 ### Changed
 
@@ -26,12 +30,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   and an empty allow-list one meaning — `_allowed_tools_filter`: "a None or
   empty allow-list means expose every tool the server offers" — so the old
   nullable spelling advertised three states for a two-state field, and its own
-  doc comment described the empty case backwards. This is the one change on
-  this release that a consumer can get wrong **without a compile error**:
-  `if (allowedTools != null)` still analyses (as a warning) and is now always
-  true, and `allowedTools?.contains(x) ?? true` is now always the left branch —
-  both invert an allow-all into a deny-all. Read `allowedTools.isNotEmpty` to
-  ask whether a restriction exists.
+  doc comment described the empty case backwards. A consumer can get this
+  wrong **without a compile error**: `if (allowedTools != null)` still analyses
+  (as a warning) and is now always true, and `allowedTools?.contains(x) ?? true`
+  is now always the left branch — both invert an allow-all into a deny-all.
+  Read `allowedTools.isNotEmpty` to ask whether a restriction exists.
+
+- `DefaultRoomAgent.retries` is `int?`. It is required and non-null on the
+  wire, so an absent or drifted one is malformed; the card omits the row
+  rather than stating a retry count the backend never sent.
 
 - `DefaultRoomAgent.modelName` is `String?` and no longer `required`, matching
   the backend's `model_name: str | None`. A null one previously threw and cost
@@ -45,8 +52,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - `RoomSkill.stateTypeSchema` is a `Map<String, dynamic>` defaulting to empty
   rather than a nullable map. Nothing could tell the two apart: the card's
   "Show more" gate and the dialog both read an absent schema and an empty one
-  the same way, and the backend sends either a populated schema or null —
-  a JSON Schema is never empty.
+  the same way, and this backend sends either a populated schema or null: it
+  builds the value with `model_json_schema()`, which always carries at least a
+  title and a type. The same compile-invisible hazard as `allowedTools`
+  applies — `if (stateTypeSchema != null)` still analyses and is now always
+  true. Read `stateTypeSchema.isNotEmpty`.
 
 ### Removed
 

@@ -305,13 +305,17 @@ Widget _buildToolContent(RoomTool tool) {
 /// everyone who opens a room exactly what `roomAgentFromJson` declines
 /// `provider_key` for.
 ///
-/// A factory agent's `extra_config` and a tool's `extra_parameters` are still
-/// rendered, on the narrower ground that neither has a credential-bearing
-/// slot, whereas `headers`, `env` and `query_params` are named places a
-/// secret goes. `extra_config` is operator-authored like this field, so the
-/// line rests only on that; it is never interpolated, so a `secret:` marker
-/// there would not resolve and an operator would have to write the credential
-/// literally. If one is ever found doing so, it should follow this field.
+/// Three other raw maps are rendered, on the narrower ground that their key
+/// space is fixed by backend code even where the values are the operator's.
+/// A tool's `extra_parameters` is `{}` or a pair the backend names, and a
+/// skill's is shown only for the kinds with that property — see
+/// `_kindsWithBoundedParameters` in `skill_card.dart`, which withholds an
+/// `entrypoint` skill, whose keys are the operator's own YAML.
+/// A factory agent's `extra_config` is the weak one: it is an arbitrary
+/// operator dict like this field, and rests only on having no named slot a
+/// secret goes in. It is never interpolated, so a credential there would have
+/// to be written literally. If one is ever found, it should follow this
+/// field.
 Widget _buildToolsetContent(McpClientToolset toolset) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,7 +360,7 @@ class _AgentCard extends StatelessWidget {
                 InfoRow(label: 'Model', value: modelName),
               if (providerType.isNotEmpty)
                 InfoRow(label: 'Provider', value: providerType),
-              InfoRow(label: 'Retries', value: '$retries'),
+              if (retries != null) InfoRow(label: 'Retries', value: '$retries'),
               if (systemPrompt != null)
                 SystemPromptViewer(prompt: systemPrompt),
             ],
@@ -388,7 +392,10 @@ class _AgentCard extends StatelessWidget {
                 ),
             ],
           OtherRoomAgent(:final kind) => [
-              if (kind.isNotEmpty) InfoRow(label: 'Kind', value: kind),
+              if (kind.isNotEmpty)
+                InfoRow(label: 'Kind', value: kind)
+              else
+                const EmptyMessage(label: 'agent configuration this app reads'),
             ],
         },
         if (agent.aguiFeatureNames.isNotEmpty)

@@ -441,6 +441,7 @@ void main() {
             source: 'filesystem',
             stateNamespace: 'web_search',
             extraParameters: {'max_results': 5},
+            stateTypeSchema: {'type': 'object'},
           ),
         },
       );
@@ -458,6 +459,7 @@ void main() {
       expect(skill.source, equals('filesystem'));
       expect(skill.stateNamespace, equals('web_search'));
       expect(skill.extraParameters, equals({'max_results': 5}));
+      expect(skill.stateTypeSchema, equals({'type': 'object'}));
     });
   });
 
@@ -1535,11 +1537,18 @@ void main() {
         expect(room.agent, isNull);
       });
 
-      test('keeps a default agent whose model_name is absent', () {
+      test('keeps a default agent whose model_name is null', () {
         final json = <String, dynamic>{
           'id': 'room-1',
           'name': 'Test Room',
-          'agent': {'kind': 'default', 'id': 'agent-1', 'retries': 3},
+          // The shape pydantic emits: the key is always present, the value
+          // may be null.
+          'agent': {
+            'id': 'agent-1',
+            'model_name': null,
+            'retries': 3,
+            'provider_type': 'openai',
+          },
         };
 
         final room = roomFromJson(json);
@@ -1549,6 +1558,18 @@ void main() {
         final agent = room.agent! as DefaultRoomAgent;
         expect(agent.modelName, isNull);
         expect(agent.retries, equals(3));
+      });
+
+      test('recognises a default agent by provider_type alone', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'agent': {'id': 'agent-1', 'provider_type': 'openai'},
+        };
+
+        final room = roomFromJson(json);
+
+        expect(room.agent, isA<DefaultRoomAgent>());
       });
 
       test('keeps a default agent whose model_name is wrong-typed', () {
@@ -1564,7 +1585,7 @@ void main() {
         expect(agent.modelName, isNull);
       });
 
-      test('sets agent to null for factory agent missing factory_name', () {
+      test('keeps an unidentifiable factory agent as an unknown kind', () {
         final json = <String, dynamic>{
           'id': 'room-1',
           'name': 'Test Room',
@@ -1572,7 +1593,11 @@ void main() {
         };
 
         final room = roomFromJson(json);
-        expect(room.agent, isNull);
+
+        // Nothing identifies the shape, so the id and kind are kept rather
+        // than the agent being discarded over a field that never arrived.
+        expect(room.agent, isA<OtherRoomAgent>());
+        expect((room.agent! as OtherRoomAgent).kind, equals('factory'));
       });
     });
 
@@ -1753,6 +1778,7 @@ void main() {
         expect(skill.source, equals('filesystem'));
         expect(skill.stateNamespace, equals('web_search_state'));
         expect(skill.extraParameters, equals({'max_results': 5}));
+        expect(skill.stateTypeSchema, equals({'type': 'object'}));
         expect(skill.stateTypeSchema, equals({'type': 'object'}));
       });
 
@@ -1956,7 +1982,9 @@ void main() {
 
         final agent = room.agent! as DefaultRoomAgent;
         expect(agent.modelName, equals('gpt-4o'));
-        expect(agent.retries, equals(0));
+        // Required on the wire, so a drifted one is malformed and the card
+        // omits the row rather than stating a number nothing sent.
+        expect(agent.retries, isNull);
         expect(agent.systemPrompt, isNull);
         expect(agent.providerType, isEmpty);
       });
@@ -2330,6 +2358,22 @@ void main() {
       expect(record.level, LogLevel.warning);
       expect(record.message, 'Malformed agent ignored');
       expect(record.attributes['failure'], isNotNull);
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('an agent matching no known shape is reported by id', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'agent': <String, dynamic>{'id': 'room-1', 'mystery': 'blob-$_canary'},
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.attributes['agent'], 'room-1');
       expect(_render(record), isNot(contains(_canary)));
     });
 
