@@ -1,57 +1,40 @@
 import 'package:meta/meta.dart';
-import 'package:soliplex_agent/src/metering/context_segment.dart';
+
+/// The window size at and above which the later warning applies.
+const largeContextWindow = 128000;
 
 /// A reading of how much context a thread currently occupies.
 ///
 /// Carries its own confidence rather than leaving the UI to infer it. A
-/// number with no denominator, or one taken before calibration has any
-/// evidence, has to be presented differently from a settled exact one —
-/// and the difference is the whole distinction between a useful gauge and
-/// a confidently wrong one.
-/// The window size at and above which the later warning applies.
-const largeContextWindow = 128000;
-
+/// number with no denominator has to be presented differently from a
+/// settled exact one — and the difference is the whole distinction
+/// between a useful gauge and a confidently wrong one.
 @immutable
 class ContextUsage {
   /// Creates a reading.
   const ContextUsage({
     required this.tokens,
-    required this.byKind,
     this.contextWindow,
-    this.isProvisional = true,
     this.isExact = false,
-    this.hasUncountableContent = false,
   });
 
   /// A reading for a thread nothing is known about yet.
   const ContextUsage.unknown()
       : tokens = 0,
-        byKind = const {},
         contextWindow = null,
-        isProvisional = true,
-        isExact = false,
-        hasUncountableContent = false;
+        isExact = false;
 
-  /// Estimated tokens the next request will carry.
+  /// Tokens the next request is expected to carry.
   final int tokens;
 
-  /// Where those tokens come from.
-  final Map<SegmentKind, int> byKind;
-
-  /// The model's window, when the room declares one.
+  /// The model's window, when the provider reports one.
   final int? contextWindow;
 
-  /// Whether calibration has too little evidence to trust yet.
-  final bool isProvisional;
-
-  /// Whether the count came from the model's real tokenizer rather than an
-  /// approximation.
+  /// Whether every token in [tokens] was counted by the provider.
+  ///
+  /// False while an unsent draft is included, since that term is
+  /// estimated locally and deliberately over-stated.
   final bool isExact;
-
-  /// Whether the thread holds something no text tokenizer can measure —
-  /// an image, most often. Calibration cannot absorb it, because its cost
-  /// varies with the attachment rather than staying constant.
-  final bool hasUncountableContent;
 
   /// Fraction of the window used, or null when no window is declared.
   ///
@@ -74,7 +57,7 @@ class ContextUsage {
   }
 
   /// Whether the reading should be presented with a caveat.
-  bool get isApproximate => isProvisional || !isExact || hasUncountableContent;
+  bool get isApproximate => !isExact;
 
   /// The occupancy past which a window is worth warning about.
   ///
@@ -101,6 +84,6 @@ class ContextUsage {
   }
 
   @override
-  String toString() => 'ContextUsage($tokens / ${contextWindow ?? "?"}, '
-      'exact: $isExact, provisional: $isProvisional)';
+  String toString() =>
+      'ContextUsage($tokens / ${contextWindow ?? "?"}, exact: $isExact)';
 }

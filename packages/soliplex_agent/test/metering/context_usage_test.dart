@@ -3,9 +3,7 @@ import 'package:test/test.dart';
 
 ContextUsage _at(int tokens, {int? window}) => ContextUsage(
       tokens: tokens,
-      byKind: const {},
       contextWindow: window,
-      isProvisional: false,
       isExact: true,
     );
 
