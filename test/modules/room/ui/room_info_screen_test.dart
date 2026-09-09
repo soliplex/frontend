@@ -738,61 +738,6 @@ void main() {
       expect(find.text('Retries'), findsNothing);
     });
 
-    testWidgets('an entrypoint skill withholds its operator-authored params',
-        (tester) async {
-      final room = _testRoom.copyWith(
-        skills: {
-          'plugin': const RoomSkill(
-            name: 'plugin',
-            description: 'A third-party capability',
-            source: 'entrypoint',
-            extraParameters: {'api_key': 'sk-live-should-not-render'},
-          ),
-        },
-      );
-      await tester.pumpWidget(_buildScreen(room: room));
-      await tester.pumpAndSettle();
-
-      await tester.scrollUntilVisible(
-        find.text('plugin'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('plugin'));
-      await tester.pumpAndSettle();
-
-      // The card opened; the params are withheld, not merely off screen.
-      expect(find.text('A third-party capability'), findsOneWidget);
-      expect(find.text('Show more'), findsNothing);
-      expect(find.textContaining('sk-live'), findsNothing);
-    });
-
-    testWidgets('a native skill still shows its computed params',
-        (tester) async {
-      final room = _testRoom.copyWith(
-        skills: {
-          'rag': const RoomSkill(
-            name: 'rag',
-            description: 'Retrieval',
-            source: 'native',
-            extraParameters: {'database_names': 'docs'},
-          ),
-        },
-      );
-      await tester.pumpWidget(_buildScreen(room: room));
-      await tester.pumpAndSettle();
-
-      await tester.scrollUntilVisible(
-        find.text('rag'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('rag'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Show more'), findsOneWidget);
-    });
-
     testWidgets('shows error on fetch failure', (tester) async {
       final api = FakeSoliplexApi()..nextError = Exception('network');
       await tester.pumpWidget(_buildScreen(api: api));

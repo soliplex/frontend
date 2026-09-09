@@ -298,24 +298,20 @@ Widget _buildToolContent(RoomTool tool) {
 ///
 /// `toolset_params` is deliberately not rendered. It is the raw,
 /// uninterpolated transport config — `headers` and `query_params` for an HTTP
-/// toolset, `env` for a stdio one (`config/tools.py`) — which is where an MCP
-/// server's credentials live, either literally or as the `secret:` markers
-/// only the backend resolves. The backend's own interpolated copy is a
-/// separate property it does not send. Showing it would put in front of
-/// everyone who opens a room exactly what `roomAgentFromJson` declines
-/// `provider_key` for.
+/// toolset, `env` for a stdio one (`config/tools.py`) — and those are named
+/// places a credential goes, either literally or as the `secret:` markers
+/// only the backend resolves. The interpolated copy the backend builds to
+/// reach the server is a separate property it does not send.
 ///
-/// Three other raw maps are rendered, on the narrower ground that their key
-/// space is fixed by backend code even where the values are the operator's.
-/// A tool's `extra_parameters` is `{}` or a pair the backend names, and a
-/// skill's is shown only for the kinds with that property — see
-/// `_kindsWithBoundedParameters` in `skill_card.dart`, which withholds an
-/// `entrypoint` skill, whose keys are the operator's own YAML.
-/// A factory agent's `extra_config` is the weak one: it is an arbitrary
-/// operator dict like this field, and rests only on having no named slot a
-/// secret goes in. It is never interpolated, so a credential there would have
-/// to be written literally. If one is ever found, it should follow this
-/// field.
+/// This is not a confidentiality boundary. The room payload carrying those
+/// values already reaches every user authorised for the room, so withholding
+/// them reduces incidental exposure — screenshots, screen shares, a support
+/// session — and nothing more. The fix that would matter is the backend not
+/// serialising them. That is also why the other raw maps on this screen are
+/// still rendered: a skill's and a tool's `extra_parameters` and a factory
+/// agent's `extra_config` are arbitrary operator dicts with no named slot a
+/// secret goes in, and hiding them would buy less than the inconsistency
+/// costs.
 Widget _buildToolsetContent(McpClientToolset toolset) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,

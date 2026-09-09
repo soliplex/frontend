@@ -17,11 +17,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   to one that was not. Both now appear behind the same "Show more" affordance
   the skills card already had. An MCP toolset's `toolset_params` is left
   unrendered on purpose: it is raw transport config and can carry the
-  server's credentials. An `entrypoint` skill's `extra_parameters` is
-  withheld for the same reason — the backend forwards that skill's whole
-  configuration block to a third-party plugin verbatim, so an operator can
-  put a credential in it. A `filesystem` or `native` skill's, and a tool's,
-  are computed by the backend and still render.
+  server's credentials. That reduces incidental exposure rather than
+  preventing disclosure — the same authorised users already receive the room
+  payload — so the other raw maps on the screen still render.
 
 ### Changed
 
