@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-/// Diameter of the painted ring. Smaller than its hit target on purpose —
-/// the control has to read as a quiet status dot while still being
-/// comfortably tappable.
+/// Diameter of the painted ring. Smaller than the box it sits in on
+/// purpose — it has to read as a quiet status dot beside the send button,
+/// not compete with it.
 const _ringDiameter = 18.0;
 
-/// Minimum tap target, per the platform accessibility guidance.
-const _hitTarget = 44.0;
+/// Footprint the ring reserves in the composer row.
+const _slotSize = 44.0;
 
 /// Fraction above which the ring warns, then alarms.
 const _warnAt = 0.75;
@@ -18,28 +18,24 @@ const _alarmAt = 0.90;
 
 /// A small ring in the composer showing how full the context window is.
 ///
-/// Three states, because the underlying reading has three:
+/// Two states, because the underlying reading has two:
 ///
-/// - **No window declared** — a hollow dot. The room has not said how large
-///   its model's context is, and inventing a denominator would turn an
-///   honest count into a confidently wrong percentage.
-/// - **Provisional** — a hairline ring. Calibration has not seen enough
-///   runs to correct for what the client cannot measure, so the number is
-///   known to read low.
-/// - **Settled** — a filled arc, tinted neutral, warning, or danger.
+/// - **No window reported** — a hollow dot. The provider has not said how
+///   large the model's context is, and inventing a denominator would turn
+///   an honest count into a confidently wrong percentage.
+/// - **Measured** — a filled arc, tinted neutral, warning, or danger.
+///
+/// It reports rather than acts: there is nothing behind it to open, so it
+/// is not a button and does not take focus.
 class ContextGauge extends StatelessWidget {
   /// Creates a gauge.
   const ContextGauge({
     required this.usage,
-    this.onTap,
     super.key,
   });
 
   /// The current reading.
   final ContextUsage usage;
-
-  /// Opens the breakdown. Null disables the control.
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -54,25 +50,19 @@ class ContextGauge extends StatelessWidget {
     };
 
     return Semantics(
-      button: true,
       label: _semanticsLabel,
       child: Tooltip(
         message: _tooltip,
-        child: InkResponse(
-          onTap: onTap,
-          radius: _hitTarget / 2,
-          child: SizedBox(
-            width: _hitTarget,
-            height: _hitTarget,
-            child: Center(
-              child: CustomPaint(
-                size: const Size.square(_ringDiameter),
-                painter: _RingPainter(
-                  fraction: fraction,
-                  color: color,
-                  trackColor: scheme.outlineVariant,
-                  isProvisional: usage.isProvisional,
-                ),
+        child: SizedBox(
+          width: _slotSize,
+          height: _slotSize,
+          child: Center(
+            child: CustomPaint(
+              size: const Size.square(_ringDiameter),
+              painter: _RingPainter(
+                fraction: fraction,
+                color: color,
+                trackColor: scheme.outlineVariant,
               ),
             ),
           ),
@@ -106,19 +96,17 @@ class _RingPainter extends CustomPainter {
     required this.fraction,
     required this.color,
     required this.trackColor,
-    required this.isProvisional,
   });
 
   final double? fraction;
   final Color color;
   final Color trackColor;
-  final bool isProvisional;
 
   @override
   void paint(Canvas canvas, Size size) {
     final centre = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 1.5;
-    final strokeWidth = isProvisional ? 1.0 : 2.0;
+    const strokeWidth = 2.0;
 
     final track = Paint()
       ..style = PaintingStyle.stroke
@@ -149,6 +137,5 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(_RingPainter old) =>
       old.fraction != fraction ||
       old.color != color ||
-      old.trackColor != trackColor ||
-      old.isProvisional != isProvisional;
+      old.trackColor != trackColor;
 }

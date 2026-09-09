@@ -22,11 +22,7 @@ void main() {
 
   void answerWith(ThreadContext context) {
     when(
-      () => api.getThreadContext(
-        _roomId,
-        _threadId,
-        detail: any(named: 'detail'),
-      ),
+      () => api.getThreadContext(_roomId, _threadId),
     ).thenAnswer((_) async => context);
   }
 
@@ -109,11 +105,7 @@ void main() {
       await controller.refresh();
 
       when(
-        () => api.getThreadContext(
-          _roomId,
-          _threadId,
-          detail: any(named: 'detail'),
-        ),
+        () => api.getThreadContext(_roomId, _threadId),
       ).thenThrow(const NetworkException(message: 'down'));
 
       await controller.refresh();
@@ -123,11 +115,7 @@ void main() {
 
     test('a failure before any reading stays unknown', () async {
       when(
-        () => api.getThreadContext(
-          _roomId,
-          _threadId,
-          detail: any(named: 'detail'),
-        ),
+        () => api.getThreadContext(_roomId, _threadId),
       ).thenThrow(const NetworkException(message: 'down'));
       final controller = build();
 
@@ -258,94 +246,6 @@ void main() {
       await controller.refresh();
 
       expect(controller.usage.tokens, held);
-    });
-  });
-
-  group('the breakdown', () {
-    test('is empty until asked for in detail', () async {
-      answerWith(const ThreadContext(maxModelLen: 8192, measuredTokens: 900));
-      final controller = build();
-
-      await controller.refresh();
-
-      expect(controller.usage.byKind, isEmpty);
-    });
-
-    test('translates the wire names to segment kinds', () async {
-      answerWith(
-        const ThreadContext(
-          maxModelLen: 8192,
-          measuredTokens: 1000,
-          tokensByKind: {
-            'userText': 100,
-            'assistantText': 200,
-            'toolCallArguments': 50,
-            'toolResult': 150,
-            'overhead': 500,
-          },
-        ),
-      );
-      final controller = build();
-
-      await controller.refresh(detail: true);
-
-      expect(controller.usage.byKind, {
-        SegmentKind.userText: 100,
-        SegmentKind.assistantText: 200,
-        SegmentKind.toolCallArguments: 50,
-        SegmentKind.toolResult: 150,
-        SegmentKind.overhead: 500,
-      });
-    });
-
-    test('drops a kind it does not recognise', () async {
-      // Dropping it loses a slice; folding it into a neighbour would
-      // silently inflate that one instead, which reads as fact.
-      answerWith(
-        const ThreadContext(
-          maxModelLen: 8192,
-          measuredTokens: 1000,
-          tokensByKind: {'userText': 100, 'somethingNew': 400},
-        ),
-      );
-      final controller = build();
-
-      await controller.refresh(detail: true);
-
-      expect(controller.usage.byKind, {SegmentKind.userText: 100});
-    });
-
-    test('counts the draft as user text', () async {
-      answerWith(
-        const ThreadContext(
-          maxModelLen: 8192,
-          measuredTokens: 1000,
-          tokensByKind: {'userText': 100, 'overhead': 900},
-        ),
-      );
-      final controller = build();
-      await controller.refresh(detail: true);
-
-      controller.draftChanged('a draft being typed right now');
-      await Future<void>.delayed(Duration.zero);
-
-      expect(
-        controller.usage.byKind[SegmentKind.userText],
-        greaterThan(100),
-      );
-    });
-
-    test('asks the backend for detail only when told to', () async {
-      answerWith(const ThreadContext(measuredTokens: 1));
-      final controller = build();
-
-      await controller.refresh();
-      await controller.refresh(detail: true);
-
-      verify(() => api.getThreadContext(_roomId, _threadId, detail: false))
-          .called(1);
-      verify(() => api.getThreadContext(_roomId, _threadId, detail: true))
-          .called(1);
     });
   });
 
