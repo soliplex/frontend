@@ -420,6 +420,39 @@ void main() {
       expect(find.text('Show more'), findsNothing);
     });
 
+    testWidgets('never renders an MCP toolset\'s transport config',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        mcpClientToolsets: {
+          'stdio-tools': const McpClientToolset(
+            kind: 'stdio',
+            toolsetParams: {
+              'command': 'uvx',
+              'env': {'API_KEY': 'secret:PROD_KEY'},
+              'headers': {'Authorization': 'Bearer tok-abc123'},
+            },
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('stdio-tools'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('stdio-tools'));
+      await tester.pumpAndSettle();
+
+      // The card opened — the negatives below are about what it withholds.
+      expect(find.text('stdio'), findsOneWidget);
+      expect(find.text('Show more'), findsNothing);
+      expect(find.textContaining('secret:PROD_KEY'), findsNothing);
+      expect(find.textContaining('tok-abc123'), findsNothing);
+      expect(find.textContaining('uvx'), findsNothing);
+    });
+
     testWidgets('shows MCP toolsets section', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle();
@@ -583,7 +616,8 @@ void main() {
 
       // The `FactoryRoomAgent` arm is unguarded, so the Extra Config block is
       // withheld by the condition inside it. This fails if that is dropped.
-      expect(find.text('Factory: my_module.create_agent'), findsOneWidget);
+      expect(find.text('Factory'), findsOneWidget);
+      expect(find.text('my_module.create_agent'), findsOneWidget);
       expect(find.text('Extra Config'), findsNothing);
     });
 

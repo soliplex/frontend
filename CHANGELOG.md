@@ -40,6 +40,18 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- The agent card labels each agent for what it is. Every agent shared one
+  "Model" row fed by a single accessor, so a factory agent read
+  `Model: Factory: my.module.build` and an agent of a kind this client does
+  not model read `Model:` followed by its kind. Each shape now names its own
+  row — Model, Factory or Kind — and a row whose value the backend did not
+  send is omitted rather than drawn blank.
+
+- A factory agent is recognised at all. The parser discriminated on a `kind`
+  field that the backend does not put on the wire for its two real agent
+  shapes, so every factory agent fell through to the unknown-kind case and
+  rendered nothing but an empty row.
+
 - One drifted field in a room's configuration no longer discards the entire
   room. The room-config parsers read most fields with a raw cast, so a value
   of an unexpected type — a string where a map belonged, a list where an

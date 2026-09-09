@@ -1532,7 +1532,7 @@ void main() {
         expect(room.agent, isNull);
       });
 
-      test('keeps a default agent that has no model_name', () {
+      test('keeps a default agent whose model_name is absent', () {
         final json = <String, dynamic>{
           'id': 'room-1',
           'name': 'Test Room',
@@ -1543,8 +1543,22 @@ void main() {
 
         // `model_name` is nullable on the wire, so its absence costs the one
         // row rather than the whole agent.
-        expect(room.agent, isA<DefaultRoomAgent>());
-        expect((room.agent! as DefaultRoomAgent).retries, equals(3));
+        final agent = room.agent! as DefaultRoomAgent;
+        expect(agent.modelName, isNull);
+        expect(agent.retries, equals(3));
+      });
+
+      test('keeps a default agent whose model_name is wrong-typed', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'agent': {'kind': 'default', 'id': 'agent-1', 'model_name': 42},
+        };
+
+        final room = roomFromJson(json);
+
+        final agent = room.agent! as DefaultRoomAgent;
+        expect(agent.modelName, isNull);
       });
 
       test('sets agent to null for factory agent missing factory_name', () {
@@ -1670,7 +1684,7 @@ void main() {
         final room = roomFromJson(json);
 
         final toolset = room.mcpClientToolsets['my_toolset']!;
-        expect(toolset.allowedTools, isNull);
+        expect(toolset.allowedTools, isEmpty);
       });
 
       test('filters non-string items from allowed_tools', () {
@@ -1783,28 +1797,28 @@ void main() {
       // `_allowed_tools_filter` reads "a None or empty allow-list means expose
       // every tool the server offers". Both are normalised to null so that a
       // non-null value always means a real restriction.
-      test('an empty allowlist is normalised to null', () {
-        final toolset = mcpClientToolsetFromJson({
+      test('an empty allowlist stays empty, meaning no restriction', () {
+        final toolset = mcpClientToolsetFromJson('stdio-tools', {
           'kind': 'http',
           'allowed_tools': <String>[],
         });
 
-        expect(toolset.allowedTools, isNull);
+        expect(toolset.allowedTools, isEmpty);
       });
 
       test(
           'an unreadable allowlist is normalised to null, not to a restriction',
           () {
-        final toolset = mcpClientToolsetFromJson({
+        final toolset = mcpClientToolsetFromJson('stdio-tools', {
           'kind': 'http',
           'allowed_tools': 'read write',
         });
 
-        expect(toolset.allowedTools, isNull);
+        expect(toolset.allowedTools, isEmpty);
       });
 
       test('a real allowlist is preserved', () {
-        final toolset = mcpClientToolsetFromJson({
+        final toolset = mcpClientToolsetFromJson('stdio-tools', {
           'kind': 'http',
           'allowed_tools': ['read', 'write'],
         });
@@ -1885,7 +1899,7 @@ void main() {
           'name': 'Room One',
           'tools': {
             'broken': {
-              'kind': 'bare',
+              'kind': 42,
               'tool_name': 42,
               'tool_description': <String>['nope'],
               'tool_requires': 42,
@@ -1899,7 +1913,7 @@ void main() {
 
         expect(room.tools, hasLength(2));
         final broken = room.tools['broken']!;
-        expect(broken.kind, equals('bare'));
+        expect(broken.kind, isEmpty);
         expect(broken.name, equals('broken'), reason: 'falls back to key');
         expect(broken.description, isEmpty);
         expect(broken.toolRequires, isEmpty);
@@ -1915,7 +1929,7 @@ void main() {
           'id': 'r1',
           'name': 'Room One',
           'mcp_client_toolsets': {
-            'broken': {'kind': 'stdio', 'toolset_params': 'nope'},
+            'broken': {'kind': 42, 'toolset_params': 'nope'},
             'intact': {
               'kind': 'http',
               'toolset_params': {'url': 'x'},
@@ -1925,7 +1939,7 @@ void main() {
 
         expect(room.mcpClientToolsets, hasLength(2));
         expect(room.mcpClientToolsets['broken']!.toolsetParams, isEmpty);
-        expect(room.mcpClientToolsets['broken']!.kind, equals('stdio'));
+        expect(room.mcpClientToolsets['broken']!.kind, isEmpty);
         expect(
           room.mcpClientToolsets['intact']!.toolsetParams,
           equals({'url': 'x'}),
@@ -1967,11 +1981,13 @@ void main() {
           'name': 'Room One',
           'quizzes': {
             'broken': 'not-a-map',
+            'untitled': {'title': 42},
             'intact': {'title': 'Real Quiz'},
           },
         });
 
         expect(room.quizzes['intact'], equals('Real Quiz'));
+        expect(room.quizzes['untitled'], equals('Quiz'));
         expect(room.quizzes.containsKey('broken'), isFalse);
       });
 
@@ -1981,6 +1997,7 @@ void main() {
           'name': 'Room One',
           'agent': {
             'id': 'room-r1',
+            'kind': 7,
             'model_name': 'gpt-4o',
             'retries': 'three',
             'system_prompt': <String>['hi'],

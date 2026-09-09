@@ -299,17 +299,25 @@ Widget _buildToolContent(RoomTool tool) {
 /// toolset, `env` for a stdio one (`config/tools.py`) — which is where an MCP
 /// server's credentials live, either literally or as the `secret:` markers
 /// only the backend resolves. The backend's own interpolated copy is a
-/// separate property it does not send. Showing it would put on an exportable
-/// screen exactly what `roomAgentFromJson` declines `provider_key` for.
+/// separate property it does not send. Showing it would put in front of
+/// everyone who opens a room exactly what `roomAgentFromJson` declines
+/// `provider_key` for.
+///
+/// A factory agent's `extra_config` is still rendered, on the narrower
+/// ground that it has no credential-bearing slot: it is whatever keys a
+/// factory author invented, whereas `headers`, `env` and `query_params` are
+/// named places a secret goes. That is a weaker line than it looks, and if
+/// a factory is ever found carrying one, it should follow this field.
+/// Renders an MCP toolset's kind and its allow-list.
 Widget _buildToolsetContent(McpClientToolset toolset) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       InfoRow(label: 'Kind', value: toolset.kind),
-      if (toolset.allowedTools != null)
+      if (toolset.allowedTools.isNotEmpty)
         InfoRow(
           label: 'Allowed Tools',
-          value: toolset.allowedTools!.join(', '),
+          value: toolset.allowedTools.join(', '),
         ),
     ],
   );
@@ -331,20 +339,27 @@ class _AgentCard extends StatelessWidget {
     return SectionCard(
       title: 'AGENT',
       children: [
-        InfoRow(label: 'Model', value: agent.displayModelName),
+        // Each variant labels its own headline row: the wire has no single
+        // field that names all three, and a shared one mislabelled a factory
+        // agent's dotted path and an unknown agent's kind as a "Model".
         ...switch (agent) {
           DefaultRoomAgent(
+            :final modelName,
             :final providerType,
             :final retries,
             :final systemPrompt,
           ) =>
             [
-              InfoRow(label: 'Provider', value: providerType),
+              if (modelName != null && modelName.isNotEmpty)
+                InfoRow(label: 'Model', value: modelName),
+              if (providerType.isNotEmpty)
+                InfoRow(label: 'Provider', value: providerType),
               InfoRow(label: 'Retries', value: '$retries'),
               if (systemPrompt != null)
                 SystemPromptViewer(prompt: systemPrompt),
             ],
-          FactoryRoomAgent(:final extraConfig) => [
+          FactoryRoomAgent(:final factoryName, :final extraConfig) => [
+              InfoRow(label: 'Factory', value: factoryName),
               if (extraConfig.isNotEmpty)
                 Padding(
                   padding:
@@ -370,9 +385,9 @@ class _AgentCard extends StatelessWidget {
                   ),
                 ),
             ],
-          // OtherRoomAgent's `displayModelName` is its `kind`, so the Model
-          // row above already prints it; a Kind row here would repeat it.
-          OtherRoomAgent() => <Widget>[],
+          OtherRoomAgent(:final kind) => [
+              if (kind.isNotEmpty) InfoRow(label: 'Kind', value: kind),
+            ],
         },
         if (agent.aguiFeatureNames.isNotEmpty)
           InfoRow(

@@ -83,7 +83,6 @@ BackendVersionInfo backendVersionInfoFromJson(Map<String, dynamic> json) {
 
 /// Creates a [RoomAgent] from JSON.
 ///
-/// Discriminates by 'kind' field: 'default', 'factory', or other.
 /// Three fields across the agent variants are deliberately not modelled.
 ///
 /// `provider_key` is a secret *reference* of the form `secret:SECRET_NAME`
@@ -97,7 +96,8 @@ BackendVersionInfo backendVersionInfoFromJson(Map<String, dynamic> json) {
 /// holds whatever an operator puts there, so the resolved value is not known
 /// to be safe to display. Nothing renders it, so nothing reads it.
 ///
-/// Neither is checked for at runtime on purpose. Sniffing a value for
+/// Neither `provider_key` nor `provider_base_url` is checked for at runtime
+/// on purpose. Sniffing a value for
 /// credential-shaped content would be a guess that goes stale silently;
 /// declining the field is what actually holds.
 ///
@@ -113,37 +113,67 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
 
   // The variant is read off the shape, because the wire carries no
   // discriminator to read instead: the backend's `DefaultAgent` and
-  // `FactoryAgent` models declare no `kind` field, and only `OtherAgent`
-  // does. `factory_name` and `model_name` are each required on exactly one
-  // variant, which makes their presence the discriminator the payload has.
-  // An explicit `kind` is honoured first so that a backend which starts
-  // sending the discriminator is read by it rather than by inference.
+  // `FactoryAgent` declare no `kind` field, and only `OtherAgent` does.
+  // `factory_name`, `model_name` and `provider_type` are each required on
+  // exactly one variant, so presence — not value — tells them apart;
+  // `model_name` is nullable but pydantic still emits the key.
+  //
+  // A `kind` of `default` or `factory` cannot reach here today, since the
+  // backend sets `kind` only on the variant it could not type. It decides
+  // outright where it is present so that a backend which starts sending the
+  // discriminator is read by it rather than second-guessed by shape.
   final kind = stringOrNull(json['kind'], 'kind') ?? '';
 
-  if (kind == 'factory' || json.containsKey('factory_name')) {
-    return FactoryRoomAgent(
-      id: id,
-      factoryName: _requireString(json, 'factory_name', 'factory agent'),
-      extraConfig: jsonMap(json['extra_config'], 'extra_config'),
-      aguiFeatureNames: aguiFeatureNames,
-    );
+  if (kind.isNotEmpty) {
+    return switch (kind) {
+      'factory' => _factoryAgentFromJson(json, id, aguiFeatureNames),
+      'default' => _defaultAgentFromJson(json, id, aguiFeatureNames),
+      _ => OtherRoomAgent(
+          id: id,
+          kind: kind,
+          aguiFeatureNames: aguiFeatureNames,
+        ),
+    };
   }
 
-  if (kind == 'default' ||
-      json.containsKey('model_name') ||
-      json.containsKey('provider_type')) {
-    return DefaultRoomAgent(
-      id: id,
-      // Nullable on the wire, so absence costs the row and not the card.
-      modelName: stringOrNull(json['model_name'], 'model_name') ?? '',
-      retries: intOrNull(json['retries'], 'retries') ?? 0,
-      systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
-      providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
-      aguiFeatureNames: aguiFeatureNames,
-    );
+  if (json.containsKey('factory_name')) {
+    return _factoryAgentFromJson(json, id, aguiFeatureNames);
+  }
+
+  if (json.containsKey('model_name') || json.containsKey('provider_type')) {
+    return _defaultAgentFromJson(json, id, aguiFeatureNames);
   }
 
   return OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames);
+}
+
+FactoryRoomAgent _factoryAgentFromJson(
+  Map<String, dynamic> json,
+  String id,
+  List<String> aguiFeatureNames,
+) {
+  return FactoryRoomAgent(
+    id: id,
+    factoryName: _requireString(json, 'factory_name', 'factory agent'),
+    extraConfig: jsonMap(json['extra_config'], 'extra_config'),
+    aguiFeatureNames: aguiFeatureNames,
+  );
+}
+
+DefaultRoomAgent _defaultAgentFromJson(
+  Map<String, dynamic> json,
+  String id,
+  List<String> aguiFeatureNames,
+) {
+  return DefaultRoomAgent(
+    id: id,
+    // Nullable on the wire, and the card omits the row when it is absent.
+    modelName: stringOrNull(json['model_name'], 'model_name'),
+    retries: intOrNull(json['retries'], 'retries') ?? 0,
+    systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
+    providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
+    aguiFeatureNames: aguiFeatureNames,
+  );
 }
 
 /// Extracts a required string field, throwing [FormatException] if missing
@@ -180,17 +210,29 @@ RoomTool roomToolFromJson(String name, Map<String, dynamic> json) {
 }
 
 /// Creates a [McpClientToolset] from JSON.
-McpClientToolset mcpClientToolsetFromJson(Map<String, dynamic> json) {
-  // Null and an empty list are one state on the backend, whose
+McpClientToolset mcpClientToolsetFromJson(
+  String key,
+  Map<String, dynamic> json,
+) {
+  // An absent and an empty allow-list are one state on the backend, whose
   // `_allowed_tools_filter` reads "a None or empty allow-list means expose
-  // every tool the server offers" (`mcp_client.py`). Both are normalised to
-  // null so a non-null value always names a real restriction — which is also
-  // what keeps an unreadable value from being shown as an empty allowlist,
-  // the one reading that would invert the backend's meaning.
-  final allowedTools = stringList(json['allowed_tools'], 'allowed_tools');
+  // every tool the server offers" (`mcp_client.py`), so the empty list
+  // carries both and no null is needed to tell them apart.
+  //
+  // An unreadable one also reads as empty, which understates a restriction
+  // rather than inventing one. It is logged against the toolset key, because
+  // the screen cannot distinguish it and the record is the only way to.
+  final raw = json['allowed_tools'];
+  final allowedTools = stringList(raw, 'allowed_tools');
+  if (raw != null && (raw is! List || raw.length != allowedTools.length)) {
+    _logger.warning(
+      'Unreadable MCP allow-list, shown as unrestricted',
+      attributes: {'toolset': key, 'runtimeType': raw.runtimeType.toString()},
+    );
+  }
   return McpClientToolset(
     kind: stringOrNull(json['kind'], 'kind') ?? '',
-    allowedTools: allowedTools.isEmpty ? null : allowedTools,
+    allowedTools: allowedTools,
     toolsetParams: jsonMap(json['toolset_params'], 'toolset_params'),
   );
 }
@@ -349,6 +391,7 @@ Room roomFromJson(Map<String, dynamic> json) {
       continue;
     }
     mcpClientToolsets[entry.key] = mcpClientToolsetFromJson(
+      entry.key,
       entry.value as Map<String, dynamic>,
     );
   }
