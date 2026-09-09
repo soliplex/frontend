@@ -1374,9 +1374,7 @@ void main() {
         tester,
         const ContextUsage(
           tokens: 1800,
-          byKind: {},
           contextWindow: 8192,
-          isProvisional: false,
           isExact: true,
         ),
       );
@@ -1384,33 +1382,5 @@ void main() {
       expect(find.byType(ContextGauge), findsOneWidget);
     });
 
-    testWidgets('opens the breakdown when tapped', (tester) async {
-      var taps = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: soliplexLightTheme(),
-          home: Scaffold(
-            body: ChatInput(
-              onSend: (_) {},
-              onCancel: () {},
-              sessionState: signal<AgentSessionState?>(null),
-              contextUsage: const ContextUsage(
-                tokens: 1800,
-                byKind: {},
-                contextWindow: 8192,
-                isProvisional: false,
-                isExact: true,
-              ),
-              onContextTap: () => taps++,
-            ),
-          ),
-        ),
-      );
-
-      await tester.tap(find.byType(ContextGauge));
-      await tester.pump();
-
-      expect(taps, 1);
-    });
   });
 }

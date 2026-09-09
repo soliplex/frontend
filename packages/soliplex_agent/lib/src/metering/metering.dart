@@ -7,6 +7,5 @@
 /// shape a reading arrives in, not the arithmetic that produced it.
 library;
 
-export 'context_segment.dart';
 export 'context_usage.dart';
 export 'draft_estimator.dart';

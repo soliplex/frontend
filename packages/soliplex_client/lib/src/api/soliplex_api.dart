@@ -710,10 +710,6 @@ class SoliplexApi {
   /// than a percentage — a guessed denominator that is too large reads
   /// as emptier than reality.
   ///
-  /// [detail] additionally asks where the tokens went. It costs the
-  /// backend one tokenizer call per stored message, so it belongs to
-  /// opening a breakdown, not to drawing a gauge.
-  ///
   /// Throws:
   /// - [ArgumentError] if any ID is empty
   /// - [NotFoundException] if the room or thread is not found (404)
@@ -724,7 +720,6 @@ class SoliplexApi {
   Future<ThreadContext> getThreadContext(
     String roomId,
     String threadId, {
-    bool detail = false,
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
@@ -734,7 +729,6 @@ class SoliplexApi {
       'GET',
       _urlBuilder.build(
         pathSegments: ['rooms', roomId, 'agui', threadId, 'context'],
-        queryParameters: detail ? const {'detail': 'true'} : null,
       ),
       cancelToken: cancelToken,
       fromJson: threadContextFromJson,

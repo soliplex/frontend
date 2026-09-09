@@ -64,7 +64,6 @@ class ChatInput extends StatefulWidget {
     this.openImagePicker,
     this.composerScope,
     this.contextUsage,
-    this.onContextTap,
   });
 
   final void Function(List<MessagePart> parts) onSend;
@@ -113,9 +112,6 @@ class ChatInput extends StatefulWidget {
   /// Null hides the gauge entirely, which is what a room whose usage
   /// cannot be measured should do rather than show a wrong number.
   final ContextUsage? contextUsage;
-
-  /// Opens the breakdown for [contextUsage].
-  final VoidCallback? onContextTap;
 
   @override
   State<ChatInput> createState() => _ChatInputState();
@@ -678,10 +674,7 @@ class _ChatInputState extends State<ChatInput> {
                   ),
                 ),
                 if (widget.contextUsage case final usage?)
-                  ContextGauge(
-                    usage: usage,
-                    onTap: widget.onContextTap,
-                  )
+                  ContextGauge(usage: usage)
                 else
                   const SizedBox(width: SoliplexSpacing.s2),
                 if (active)

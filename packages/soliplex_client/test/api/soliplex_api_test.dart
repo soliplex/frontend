@@ -1472,34 +1472,23 @@ void main() {
         );
       });
 
-      test('reads the breakdown', () async {
+      test('ignores a breakdown the backend no longer sends', () async {
+        // An older backend may still answer with 'tokens_by_kind'. It is
+        // dropped rather than rejected: the reading is the total.
         answerWith({
           'measured_tokens': 1000,
           'tokens_by_kind': {'userText': 100, 'overhead': 900},
         });
 
-        final found = await api.getThreadContext(
-          'room-123',
-          'thread-456',
-          detail: true,
-        );
-
-        expect(found.tokensByKind, {'userText': 100, 'overhead': 900});
-      });
-
-      test('has no breakdown unless one was sent', () async {
-        answerWith({'measured_tokens': 1000});
-
         final found = await api.getThreadContext('room-123', 'thread-456');
 
-        expect(found.tokensByKind, isEmpty);
+        expect(found.measuredTokens, 1000);
       });
 
-      test('asks for detail only when told to', () async {
+      test('asks for nothing beyond the reading itself', () async {
         answerWith(<String, dynamic>{});
 
         await api.getThreadContext('room-123', 'thread-456');
-        await api.getThreadContext('room-123', 'thread-456', detail: true);
 
         final uris = verify(
           () => mockTransport.request<ThreadContext>(
@@ -1513,8 +1502,7 @@ void main() {
           ),
         ).captured.cast<Uri>();
 
-        expect(uris.first.queryParameters, isEmpty);
-        expect(uris.last.queryParameters, {'detail': 'true'});
+        expect(uris.single.queryParameters, isEmpty);
       });
 
       test('rejects an empty room id', () {
