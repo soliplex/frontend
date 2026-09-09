@@ -294,6 +294,13 @@ Widget _buildToolContent(RoomTool tool) {
   );
 }
 
+/// `toolset_params` is deliberately not rendered. It is the raw,
+/// uninterpolated transport config — `headers` and `query_params` for an HTTP
+/// toolset, `env` for a stdio one (`config/tools.py`) — which is where an MCP
+/// server's credentials live, either literally or as the `secret:` markers
+/// only the backend resolves. The backend's own interpolated copy is a
+/// separate property it does not send. Showing it would put on an exportable
+/// screen exactly what `roomAgentFromJson` declines `provider_key` for.
 Widget _buildToolsetContent(McpClientToolset toolset) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,19 +310,6 @@ Widget _buildToolsetContent(McpClientToolset toolset) {
         InfoRow(
           label: 'Allowed Tools',
           value: toolset.allowedTools!.join(', '),
-        ),
-      if (toolset.toolsetParams.isNotEmpty)
-        Builder(
-          builder: (context) => DialogButton(
-            label: 'Show more',
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => RawParametersDialog(
-                title: toolset.kind,
-                sections: [('Toolset Parameters', toolset.toolsetParams)],
-              ),
-            ),
-          ),
         ),
     ],
   );

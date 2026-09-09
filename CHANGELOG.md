@@ -11,11 +11,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Added
 
 - The room info screen now shows the configuration the backend actually sends
-  for a skill, tool or MCP toolset. A skill's `extra_parameters`, a tool's
-  `extra_parameters` and a toolset's `toolset_params` all arrived on the wire
-  and none of them were rendered anywhere, so a room configured through them
-  looked identically configured to one that was not. All three now appear
-  behind the same "Show more" affordance the skills card already had.
+  for a skill or a tool. A skill's `extra_parameters` and a tool's
+  `extra_parameters` both arrived on the wire and neither was rendered
+  anywhere, so a room configured through them looked identically configured
+  to one that was not. Both now appear behind the same "Show more" affordance
+  the skills card already had. An MCP toolset's `toolset_params` is left
+  unrendered on purpose: it is raw transport config and carries the server's
+  credentials.
 
 ### Changed
 

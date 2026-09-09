@@ -417,49 +417,6 @@ void main() {
       expect(find.text('Show more'), findsNothing);
     });
 
-    testWidgets('toolset with params offers Show more', (tester) async {
-      final room = _testRoom.copyWith(
-        mcpClientToolsets: {
-          'stdio-tools': const McpClientToolset(
-            kind: 'stdio',
-            toolsetParams: {'command': 'uvx'},
-          ),
-        },
-      );
-      await tester.pumpWidget(_buildScreen(room: room));
-      await tester.pumpAndSettle();
-
-      await tester.scrollUntilVisible(
-        find.text('stdio-tools'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('stdio-tools'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Show more'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Toolset Parameters'), findsOneWidget);
-      expect(find.text('command'), findsOneWidget);
-      expect(find.text('uvx'), findsOneWidget);
-    });
-
-    testWidgets('toolset without params has no Show more', (tester) async {
-      await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
-
-      await tester.scrollUntilVisible(
-        find.text('stdio-tools'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('stdio-tools'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Show more'), findsNothing);
-    });
-
     testWidgets('shows MCP toolsets section', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle();
