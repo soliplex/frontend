@@ -123,6 +123,7 @@ void main() {
           'id': 'room-1',
           'name': 'Test Room',
           'description': 'A test room',
+          // Not a field the backend's Room model has; ignored, not stored.
           'metadata': {'key': 'value'},
         };
 
@@ -131,7 +132,6 @@ void main() {
         expect(room.id, equals('room-1'));
         expect(room.name, equals('Test Room'));
         expect(room.description, equals('A test room'));
-        expect(room.metadata, equals({'key': 'value'}));
       });
 
       test('survives a wrong-typed upload capability flag', () {
@@ -172,7 +172,6 @@ void main() {
         expect(room.description, equals(''));
         expect(room.acceptsRoomUploads, isFalse);
         expect(room.acceptsThreadUploads, isFalse);
-        expect(room.metadata, equals(const <String, dynamic>{}));
       });
 
       test('throws FormatException when id is missing', () {
@@ -205,18 +204,6 @@ void main() {
         final room = roomFromJson(json);
 
         expect(room.description, equals(''));
-      });
-
-      test('handles null metadata', () {
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'metadata': null,
-        };
-
-        final room = roomFromJson(json);
-
-        expect(room.metadata, equals(const <String, dynamic>{}));
       });
 
       test('parses suggestions correctly', () {
@@ -318,23 +305,6 @@ void main() {
         expect(names, containsAll(['search', 'lookup']));
       });
 
-      test('parses tools list (fallback format)', () {
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'tools': [
-            {'tool_name': 'search', 'tool_description': 'Search documents'},
-            {'tool_name': 'lookup', 'tool_description': 'Lookup data'},
-          ],
-        };
-
-        final room = roomFromJson(json);
-
-        expect(room.toolDefinitions, hasLength(2));
-        expect(room.toolDefinitions[0]['tool_name'], equals('search'));
-        expect(room.toolDefinitions[1]['tool_name'], equals('lookup'));
-      });
-
       test('handles empty tools map', () {
         final json = <String, dynamic>{
           'id': 'room-1',
@@ -367,26 +337,6 @@ void main() {
         final room = roomFromJson(json);
 
         expect(room.toolDefinitions, isEmpty);
-      });
-
-      test('filters out non-map tool entries', () {
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'tools': [
-            {'tool_name': 'valid'},
-            'not-a-map',
-            42,
-            null,
-            {'tool_name': 'also-valid'},
-          ],
-        };
-
-        final room = roomFromJson(json);
-
-        expect(room.toolDefinitions, hasLength(2));
-        expect(room.toolDefinitions[0]['tool_name'], equals('valid'));
-        expect(room.toolDefinitions[1]['tool_name'], equals('also-valid'));
       });
 
       test('parses agui_feature_names', () {
@@ -434,7 +384,6 @@ void main() {
           id: 'room-1',
           name: 'Test Room',
           description: 'A test room',
-          metadata: {'key': 'value'},
         );
 
         final json = roomToJson(room);
@@ -442,7 +391,6 @@ void main() {
         expect(json['id'], equals('room-1'));
         expect(json['name'], equals('Test Room'));
         expect(json['description'], equals('A test room'));
-        expect(json['metadata'], equals({'key': 'value'}));
       });
 
       test('excludes empty fields', () {
@@ -486,15 +434,14 @@ void main() {
         id: 'room-1',
         name: 'Test Room',
         description: 'A test room',
-        metadata: {'key': 'value'},
         skills: {
           'web_search': RoomSkill(
             name: 'Web Search',
             description: 'Search the web',
             source: 'filesystem',
-            license: 'MIT',
-            allowedTools: ['search', 'fetch'],
-            metadata: {'author': 'test'},
+            stateNamespace: 'web_search',
+            extraParameters: {'max_results': 5},
+            stateTypeSchema: {'type': 'object'},
           ),
         },
       );
@@ -505,15 +452,14 @@ void main() {
       expect(restored.id, equals(original.id));
       expect(restored.name, equals(original.name));
       expect(restored.description, equals(original.description));
-      expect(restored.metadata, equals(original.metadata));
       expect(restored.skills, hasLength(1));
       final skill = restored.skills['web_search']!;
       expect(skill.name, equals('Web Search'));
       expect(skill.description, equals('Search the web'));
       expect(skill.source, equals('filesystem'));
-      expect(skill.license, equals('MIT'));
-      expect(skill.allowedTools, equals(['search', 'fetch']));
-      expect(skill.metadata, equals({'author': 'test'}));
+      expect(skill.stateNamespace, equals('web_search'));
+      expect(skill.extraParameters, equals({'max_results': 5}));
+      expect(skill.stateTypeSchema, equals({'type': 'object'}));
     });
   });
 
@@ -1145,10 +1091,10 @@ void main() {
       expect(restored.id, equals(original.id));
       expect(restored.threadId, equals(original.threadId));
       expect(restored.label, equals(original.label));
+      expect(restored.metadata, equals(original.metadata));
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.isCompleted, equals(original.isCompleted));
       expect(restored.status, equals(original.status));
-      expect(restored.metadata, equals(original.metadata));
     });
   });
 
@@ -1591,18 +1537,55 @@ void main() {
         expect(room.agent, isNull);
       });
 
-      test('sets agent to null for default agent missing model_name', () {
+      test('keeps a default agent whose model_name is null', () {
         final json = <String, dynamic>{
           'id': 'room-1',
           'name': 'Test Room',
-          'agent': {'kind': 'default', 'id': 'agent-1'},
+          // The shape pydantic emits: the key is always present, the value
+          // may be null.
+          'agent': {
+            'id': 'agent-1',
+            'model_name': null,
+            'retries': 3,
+            'provider_type': 'openai',
+          },
         };
 
         final room = roomFromJson(json);
-        expect(room.agent, isNull);
+
+        // `model_name` is nullable on the wire, so its absence costs the one
+        // row rather than the whole agent.
+        final agent = room.agent! as DefaultRoomAgent;
+        expect(agent.modelName, isNull);
+        expect(agent.retries, equals(3));
       });
 
-      test('sets agent to null for factory agent missing factory_name', () {
+      test('recognises a default agent by provider_type alone', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'agent': {'id': 'agent-1', 'provider_type': 'openai'},
+        };
+
+        final room = roomFromJson(json);
+
+        expect(room.agent, isA<DefaultRoomAgent>());
+      });
+
+      test('keeps a default agent whose model_name is wrong-typed', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'agent': {'kind': 'default', 'id': 'agent-1', 'model_name': 42},
+        };
+
+        final room = roomFromJson(json);
+
+        final agent = room.agent! as DefaultRoomAgent;
+        expect(agent.modelName, isNull);
+      });
+
+      test('keeps an unidentifiable factory agent as an unknown kind', () {
         final json = <String, dynamic>{
           'id': 'room-1',
           'name': 'Test Room',
@@ -1610,7 +1593,11 @@ void main() {
         };
 
         final room = roomFromJson(json);
-        expect(room.agent, isNull);
+
+        // Nothing identifies the shape, so the id and kind are kept rather
+        // than the agent being discarded over a field that never arrived.
+        expect(room.agent, isA<OtherRoomAgent>());
+        expect((room.agent! as OtherRoomAgent).kind, equals('factory'));
       });
     });
 
@@ -1725,7 +1712,7 @@ void main() {
         final room = roomFromJson(json);
 
         final toolset = room.mcpClientToolsets['my_toolset']!;
-        expect(toolset.allowedTools, isNull);
+        expect(toolset.allowedTools, isEmpty);
       });
 
       test('filters non-string items from allowed_tools', () {
@@ -1781,23 +1768,36 @@ void main() {
           'name': 'Web Search',
           'description': 'Search the web',
           'source': 'filesystem',
-          'license': 'MIT',
-          'compatibility': '>=1.0.0',
-          'allowed_tools': 'search fetch',
           'state_namespace': 'web_search_state',
-          'metadata': {'author': 'test'},
+          'extra_parameters': {'max_results': 5},
           'state_type_schema': {'type': 'object'},
         });
 
         expect(skill.name, equals('Web Search'));
         expect(skill.description, equals('Search the web'));
         expect(skill.source, equals('filesystem'));
-        expect(skill.license, equals('MIT'));
-        expect(skill.compatibility, equals('>=1.0.0'));
-        expect(skill.allowedTools, equals(['search', 'fetch']));
         expect(skill.stateNamespace, equals('web_search_state'));
-        expect(skill.metadata, equals({'author': 'test'}));
+        expect(skill.extraParameters, equals({'max_results': 5}));
         expect(skill.stateTypeSchema, equals({'type': 'object'}));
+        expect(skill.stateTypeSchema, equals({'type': 'object'}));
+      });
+
+      test('degrades every wrong-typed field rather than throwing', () {
+        final skill = roomSkillFromJson('web_search', {
+          'name': 42,
+          'description': <String>['nope'],
+          'source': 42,
+          'state_namespace': <String, dynamic>{},
+          'extra_parameters': 'not-a-map',
+          'state_type_schema': <String>['object'],
+        });
+
+        expect(skill.name, equals('web_search'), reason: 'falls back to key');
+        expect(skill.description, isEmpty);
+        expect(skill.source, isNull);
+        expect(skill.stateNamespace, isNull);
+        expect(skill.extraParameters, isEmpty);
+        expect(skill.stateTypeSchema, isEmpty);
       });
 
       test('defaults name to key when missing', () {
@@ -1815,12 +1815,216 @@ void main() {
 
         expect(skill.description, equals('Basic skill'));
         expect(skill.source, isNull);
-        expect(skill.license, isNull);
-        expect(skill.compatibility, isNull);
-        expect(skill.allowedTools, isNull);
         expect(skill.stateNamespace, isNull);
-        expect(skill.metadata, isEmpty);
-        expect(skill.stateTypeSchema, isNull);
+        expect(skill.extraParameters, isEmpty);
+        expect(skill.stateTypeSchema, isEmpty);
+      });
+    });
+
+    group('mcpClientToolsetFromJson allowed_tools', () {
+      // The backend gives a missing and an empty allow-list the same meaning:
+      // `mcp_client.py`'s `_allowed_tools_filter` reads "a None or empty
+      // allow-list means expose every tool the server offers".
+      test('an empty allowlist stays empty, meaning no restriction', () {
+        final toolset = mcpClientToolsetFromJson({
+          'kind': 'http',
+          'allowed_tools': <String>[],
+        });
+
+        expect(toolset.allowedTools, isEmpty);
+      });
+
+      test('an unreadable allowlist reads as empty, not as a restriction', () {
+        final toolset = mcpClientToolsetFromJson({
+          'kind': 'http',
+          'allowed_tools': 'read write',
+        });
+
+        expect(toolset.allowedTools, isEmpty);
+      });
+    });
+
+    group('roomAgentFromJson discriminates on the shape the backend sends', () {
+      // The backend's DefaultAgent and FactoryAgent models carry no `kind`
+      // field; only OtherAgent does. These payloads are the exact key sets
+      // `model_dump_json()` produces.
+      test('a factory agent is recognised by factory_name', () {
+        final agent = roomAgentFromJson({
+          'id': 'room-r1',
+          'factory_name': 'my_module.create_agent',
+          'with_agent_config': true,
+          'extra_config': {'temperature': 0.7},
+          'agui_feature_names': <String>[],
+        });
+
+        expect(agent, isA<FactoryRoomAgent>());
+        expect(
+          (agent as FactoryRoomAgent).factoryName,
+          equals('my_module.create_agent'),
+        );
+        expect(agent.extraConfig, equals({'temperature': 0.7}));
+      });
+    });
+
+    group('one malformed field does not sink the room', () {
+      test('a tool with a wrong-typed field keeps the room and its siblings',
+          () {
+        final room = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'tools': {
+            'broken': {
+              'kind': 42,
+              'tool_name': 42,
+              'tool_description': <String>['nope'],
+              'tool_requires': 42,
+              'allow_mcp': 'yes',
+              'extra_parameters': 7,
+              'agui_feature_names': 'streaming',
+            },
+            'intact': {'kind': 'bare', 'tool_description': 'Fine'},
+          },
+        });
+
+        expect(room.tools, hasLength(2));
+        final broken = room.tools['broken']!;
+        expect(broken.kind, isEmpty);
+        expect(broken.name, equals('broken'), reason: 'falls back to key');
+        expect(broken.description, isEmpty);
+        expect(broken.toolRequires, isEmpty);
+        expect(broken.allowMcp, isFalse);
+        expect(broken.extraParameters, isEmpty);
+        expect(broken.aguiFeatureNames, isEmpty);
+        expect(room.tools['intact']!.description, equals('Fine'));
+      });
+
+      test('a toolset with a wrong-typed field keeps the room and its siblings',
+          () {
+        final room = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'mcp_client_toolsets': {
+            'broken': {'kind': 42, 'toolset_params': 'nope'},
+            'intact': {
+              'kind': 'http',
+              'toolset_params': {'url': 'x'},
+            },
+          },
+        });
+
+        expect(room.mcpClientToolsets, hasLength(2));
+        expect(room.mcpClientToolsets['broken']!.toolsetParams, isEmpty);
+        expect(room.mcpClientToolsets['broken']!.kind, isEmpty);
+        expect(
+          room.mcpClientToolsets['intact']!.toolsetParams,
+          equals({'url': 'x'}),
+        );
+      });
+
+      test('every wrong-typed container and scalar degrades, keeping the room',
+          () {
+        final room = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'skills': <String>['not', 'a', 'map'],
+          'tools': 'not-a-map',
+          'mcp_client_toolsets': 'not-a-map',
+          'quizzes': <String>['nope'],
+          'suggestions': 'not-a-list',
+          'welcome_message': <String>['hi'],
+          'description': 42,
+          'allow_mcp': 'yes',
+          'agent': 'not-a-map',
+        });
+
+        expect(room.id, equals('r1'));
+        expect(room.name, equals('Room One'));
+        expect(room.skills, isEmpty);
+        expect(room.tools, isEmpty);
+        expect(room.mcpClientToolsets, isEmpty);
+        expect(room.quizzes, isEmpty);
+        expect(room.suggestions, isEmpty);
+        expect(room.welcomeMessage, isEmpty);
+        expect(room.description, isEmpty);
+        expect(room.allowMcp, isFalse);
+        expect(room.agent, isNull);
+      });
+
+      test('a wrong-typed quiz entry keeps the room and its siblings', () {
+        final room = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'quizzes': {
+            'broken': 'not-a-map',
+            'untitled': {'title': 42},
+            'intact': {'title': 'Real Quiz'},
+          },
+        });
+
+        expect(room.quizzes['intact'], equals('Real Quiz'));
+        expect(room.quizzes['untitled'], equals('Quiz'));
+        expect(room.quizzes.containsKey('broken'), isFalse);
+      });
+
+      test('an unreadable agent block is told apart from an absent one', () {
+        final absent = roomFromJson({'id': 'r1', 'name': 'Room One'});
+        final unreadable = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'agent': 'not-a-map',
+        });
+        final unparseable = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          // A map, but with no `id` for `_requireString` to read.
+          'agent': <String, dynamic>{'model_name': 'gpt-4o'},
+        });
+
+        expect(absent.agent, isNull);
+        expect(absent.agentUnreadable, isFalse);
+
+        expect(unreadable.agent, isNull);
+        expect(unreadable.agentUnreadable, isTrue);
+
+        expect(unparseable.agent, isNull);
+        expect(unparseable.agentUnreadable, isTrue);
+      });
+
+      test('a wrong-typed agent field degrades without losing the agent', () {
+        final room = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'agent': {
+            'id': 'room-r1',
+            'kind': 7,
+            'model_name': 'gpt-4o',
+            'retries': 'three',
+            'system_prompt': <String>['hi'],
+            'provider_type': 42,
+          },
+        });
+
+        final agent = room.agent! as DefaultRoomAgent;
+        expect(agent.modelName, equals('gpt-4o'));
+        // Required on the wire, so a drifted one is malformed and the card
+        // omits the row rather than stating a number nothing sent.
+        expect(agent.retries, isNull);
+        expect(agent.systemPrompt, isNull);
+        expect(agent.providerType, isEmpty);
+      });
+
+      test('a wrong-typed factory extra_config degrades to empty', () {
+        final room = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'agent': {
+            'id': 'room-r1',
+            'factory_name': 'm.create',
+            'extra_config': 'not-a-map',
+          },
+        });
+
+        expect((room.agent! as FactoryRoomAgent).extraConfig, isEmpty);
       });
     });
 
@@ -2179,6 +2383,66 @@ void main() {
       expect(record.message, 'Malformed agent ignored');
       expect(record.attributes['failure'], isNotNull);
       expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('an agent matching no known shape is reported by id', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'agent': <String, dynamic>{'id': 'room-1', 'mystery': 'blob-$_canary'},
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.attributes['agent'], 'room-1');
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a malformed quiz is reported by key, without its block', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'quizzes': <String, dynamic>{'broken_quiz': 'blob-$_canary'},
+      });
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.attributes['quiz'], 'broken_quiz');
+      expect(_render(record), isNot(contains(_canary)));
+    });
+
+    test('a malformed suggestions block is reported without its content', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'suggestions': 'blob-$_canary',
+      });
+
+      expect(sink.records, hasLength(1));
+      expect(sink.records.single.level, LogLevel.warning);
+      expect(_render(sink.records.single), isNot(contains(_canary)));
+    });
+
+    test('a non-map agent is reported without its content', () {
+      final sink = attach();
+
+      roomFromJson(<String, dynamic>{
+        'id': 'room-1',
+        'name': 'Room One',
+        'agent': 'blob-$_canary',
+      });
+
+      expect(sink.records, hasLength(1));
+      expect(sink.records.single.level, LogLevel.warning);
+      expect(_render(sink.records.single), isNot(contains(_canary)));
     });
 
     test('a malformed skill is reported by key, without its block', () {

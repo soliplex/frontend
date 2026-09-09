@@ -371,6 +371,88 @@ void main() {
       expect(find.text('search'), findsOneWidget);
     });
 
+    testWidgets('tool with extra parameters offers Show more', (tester) async {
+      final room = _testRoom.copyWith(
+        tools: {
+          'search': const RoomTool(
+            name: 'search',
+            description: 'Search the web',
+            kind: 'bare',
+            extraParameters: {'timeout_s': 30},
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('search'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('search'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Show more'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Extra Parameters'), findsOneWidget);
+      expect(find.text('timeout_s'), findsOneWidget);
+      expect(find.text('30'), findsOneWidget);
+    });
+
+    testWidgets('tool without extra parameters has no Show more',
+        (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('search'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('search'));
+      await tester.pumpAndSettle();
+
+      // Assert the card actually opened first, so the negative below cannot
+      // pass on a card that never expanded.
+      expect(find.text('Search the web'), findsOneWidget);
+      expect(find.text('Show more'), findsNothing);
+    });
+
+    testWidgets('never renders an MCP toolset\'s transport config',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        mcpClientToolsets: {
+          'stdio-tools': const McpClientToolset(
+            kind: 'stdio',
+            toolsetParams: {
+              'command': 'uvx',
+              'env': {'API_KEY': 'secret:PROD_KEY'},
+              'headers': {'Authorization': 'Bearer tok-abc123'},
+            },
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('stdio-tools'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('stdio-tools'));
+      await tester.pumpAndSettle();
+
+      // The card opened — the negatives below are about what it withholds.
+      expect(find.text('stdio'), findsOneWidget);
+      expect(find.text('Show more'), findsNothing);
+      expect(find.textContaining('secret:PROD_KEY'), findsNothing);
+      expect(find.textContaining('tok-abc123'), findsNothing);
+      expect(find.textContaining('uvx'), findsNothing);
+    });
+
     testWidgets('shows MCP toolsets section', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle();
@@ -412,7 +494,7 @@ void main() {
             name: 'Web Search',
             description: 'Search the web',
             source: 'filesystem',
-            metadata: {'author': 'test-user'},
+            extraParameters: {'max_results': 5},
           ),
         },
       );
@@ -435,10 +517,10 @@ void main() {
       await tester.tap(find.text('Show more'));
       await tester.pumpAndSettle();
 
-      // Dialog shows metadata
-      expect(find.text('Metadata'), findsOneWidget);
-      expect(find.text('author'), findsOneWidget);
-      expect(find.text('test-user'), findsOneWidget);
+      // Dialog shows the skill's extra parameters
+      expect(find.text('Extra Parameters'), findsOneWidget);
+      expect(find.text('max_results'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
     });
 
     testWidgets('shows empty skills section when no skills', (tester) async {
@@ -519,6 +601,168 @@ void main() {
 
       expect(find.text('Extra Config'), findsOneWidget);
       expect(find.textContaining('0.7'), findsOneWidget);
+    });
+
+    testWidgets('a factory agent without extra config omits the block',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const FactoryRoomAgent(
+          id: 'agent-factory',
+          factoryName: 'my_module.create_agent',
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      // The `FactoryRoomAgent` arm is unguarded, so the Extra Config block is
+      // withheld by the condition inside it. This fails if that is dropped.
+      expect(find.text('Factory'), findsOneWidget);
+      expect(find.text('my_module.create_agent'), findsOneWidget);
+      expect(find.text('Extra Config'), findsNothing);
+    });
+
+    testWidgets('an unknown agent kind shows a Kind row, not a Model row',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const OtherRoomAgent(id: 'agent-x', kind: 'swarm'),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Kind'), findsOneWidget);
+      expect(find.text('swarm'), findsOneWidget);
+      expect(find.text('Model'), findsNothing);
+    });
+
+    testWidgets('a default agent with no model name omits the Model row',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const DefaultRoomAgent(
+          id: 'agent-1',
+          retries: 3,
+          providerType: 'openai',
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      // The row is withheld, not drawn with a blank value beside its label.
+      expect(find.text('Model'), findsNothing);
+      expect(find.text('Provider'), findsOneWidget);
+      expect(find.text('openai'), findsOneWidget);
+    });
+
+    testWidgets('a toolset allow-list renders when the backend sends one',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        mcpClientToolsets: {
+          'restricted': const McpClientToolset(
+            kind: 'http',
+            allowedTools: ['read_file', 'write_file'],
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('restricted'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('restricted'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Allowed Tools'), findsOneWidget);
+      expect(find.text('read_file, write_file'), findsOneWidget);
+    });
+
+    testWidgets(
+        'an empty allow-list shows no row, since it means no restriction',
+        (tester) async {
+      // A single toolset, so nothing else on screen can supply the row and
+      // make the negative below pass for the wrong reason.
+      final room = _testRoom.copyWith(
+        mcpClientToolsets: {
+          'unrestricted': const McpClientToolset(kind: 'stdio'),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('unrestricted'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('unrestricted'));
+      await tester.pumpAndSettle();
+
+      // The card opened, so the absent row below is a decision, not a no-show.
+      expect(find.text('stdio'), findsOneWidget);
+      expect(find.text('Allowed Tools'), findsNothing);
+    });
+
+    testWidgets('an agent of no recognisable shape says so', (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const OtherRoomAgent(id: 'agent-x', kind: ''),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      // Not a card with a heading over blank space.
+      expect(find.text('AGENT'), findsOneWidget);
+      expect(
+        find.text('No agent configuration this app reads in this room.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an agent whose fields all came back empty draws no rows',
+        (tester) async {
+      // Every value here is what a degraded read produces, so each guard on
+      // the card has to withhold its row rather than draw a blank one.
+      final room = _testRoom.copyWith(
+        agent: const DefaultRoomAgent(
+          id: 'agent-1',
+          modelName: '',
+          providerType: '',
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(find.text('AGENT'), findsOneWidget);
+      expect(find.text('Model'), findsNothing);
+      expect(find.text('Provider'), findsNothing);
+      expect(find.text('Retries'), findsNothing);
+    });
+
+    testWidgets('an unreadable agent block does not claim the room has none',
+        (tester) async {
+      // Built directly: `copyWith` cannot clear `agent`.
+      const room = Room(
+        id: 'room-1',
+        name: 'Test Room',
+        agentUnreadable: true,
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('No readable agent configuration in this room.'),
+        findsOneWidget,
+      );
+      expect(find.text('No agent in this room.'), findsNothing);
+    });
+
+    testWidgets('a room configured without an agent still says so',
+        (tester) async {
+      const room = Room(id: 'room-1', name: 'Test Room');
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No agent in this room.'), findsOneWidget);
     });
 
     testWidgets('shows error on fetch failure', (tester) async {

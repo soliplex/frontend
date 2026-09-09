@@ -208,7 +208,10 @@ class _RoomInfoBody extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
-            _AgentCard(agent: room.agent),
+            _AgentCard(
+              agent: room.agent,
+              unreadable: room.agentUnreadable,
+            ),
             FeaturesCard(room: room, api: api, roomId: roomId),
             QuizzesCard(
               quizzes: room.quizzes,
@@ -277,78 +280,130 @@ Widget _buildToolContent(RoomTool tool) {
           label: 'AG-UI Features',
           value: tool.aguiFeatureNames.join(', '),
         ),
+      if (tool.extraParameters.isNotEmpty)
+        Builder(
+          builder: (context) => DialogButton(
+            label: 'Show more',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => RawParametersDialog(
+                title: tool.name,
+                sections: [('Extra Parameters', tool.extraParameters)],
+              ),
+            ),
+          ),
+        ),
     ],
   );
 }
 
+/// Renders an MCP toolset's kind and its allow-list.
+///
+/// `toolset_params` is deliberately not rendered. It is the raw,
+/// uninterpolated transport config — `headers` and `query_params` for an HTTP
+/// toolset, `env` for a stdio one (`config/tools.py`) — and those are named
+/// places a credential goes, either literally or as the `secret:` markers
+/// only the backend resolves. The interpolated copy the backend builds to
+/// reach the server is a separate property it does not send.
+///
+/// This is not a confidentiality boundary. The room payload carrying those
+/// values already reaches every user authorised for the room, so withholding
+/// them reduces incidental exposure — screenshots, screen shares, a support
+/// session — and nothing more. The fix that would matter is the backend not
+/// serialising them. That is also why the other raw maps on this screen are
+/// still rendered: a skill's and a tool's `extra_parameters` and a factory
+/// agent's `extra_config` are arbitrary operator dicts with no named slot a
+/// secret goes in, and hiding them would buy less than the inconsistency
+/// costs.
 Widget _buildToolsetContent(McpClientToolset toolset) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       InfoRow(label: 'Kind', value: toolset.kind),
-      if (toolset.allowedTools != null)
+      if (toolset.allowedTools.isNotEmpty)
         InfoRow(
           label: 'Allowed Tools',
-          value: toolset.allowedTools!.join(', '),
+          value: toolset.allowedTools.join(', '),
         ),
     ],
   );
 }
 
 class _AgentCard extends StatelessWidget {
-  const _AgentCard({required this.agent});
+  const _AgentCard({required this.agent, required this.unreadable});
   final RoomAgent? agent;
+
+  /// The payload carried an agent this client could not read, so the card
+  /// must not say the room has none.
+  final bool unreadable;
 
   @override
   Widget build(BuildContext context) {
     final agent = this.agent;
     if (agent == null) {
-      return const SectionCard(
+      return SectionCard(
         title: 'AGENT',
-        children: [EmptyMessage(label: 'agent')],
+        children: [
+          EmptyMessage(
+            label: unreadable ? 'readable agent configuration' : 'agent',
+          ),
+        ],
       );
     }
     return SectionCard(
       title: 'AGENT',
       children: [
-        InfoRow(label: 'Model', value: agent.displayModelName),
+        // The wire has no one field that names all three shapes, so each
+        // labels its own headline row.
         ...switch (agent) {
           DefaultRoomAgent(
+            :final modelName,
             :final providerType,
             :final retries,
             :final systemPrompt,
           ) =>
             [
-              InfoRow(label: 'Provider', value: providerType),
-              InfoRow(label: 'Retries', value: '$retries'),
+              if (modelName != null && modelName.isNotEmpty)
+                InfoRow(label: 'Model', value: modelName),
+              if (providerType.isNotEmpty)
+                InfoRow(label: 'Provider', value: providerType),
+              if (retries != null) InfoRow(label: 'Retries', value: '$retries'),
               if (systemPrompt != null)
                 SystemPromptViewer(prompt: systemPrompt),
             ],
-          FactoryRoomAgent(:final extraConfig) when extraConfig.isNotEmpty => [
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Extra Config',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: SoliplexSpacing.s1),
-                    formatDynamicValue(
-                      context,
-                      extraConfig,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+          FactoryRoomAgent(:final factoryName, :final extraConfig) => [
+              InfoRow(label: 'Factory', value: factoryName),
+              if (extraConfig.isNotEmpty)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Extra Config',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: SoliplexSpacing.s1),
+                      formatDynamicValue(
+                        context,
+                        extraConfig,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
-          _ => <Widget>[],
+          OtherRoomAgent(:final kind) => [
+              if (kind.isNotEmpty)
+                InfoRow(label: 'Kind', value: kind)
+              else
+                const EmptyMessage(label: 'agent configuration this app reads'),
+            ],
         },
         if (agent.aguiFeatureNames.isNotEmpty)
           InfoRow(

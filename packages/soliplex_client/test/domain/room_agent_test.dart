@@ -34,17 +34,6 @@ void main() {
         expect(agent.aguiFeatureNames, isEmpty);
       });
 
-      test('has display model name', () {
-        const agent = DefaultRoomAgent(
-          id: 'agent-1',
-          modelName: 'gpt-4o',
-          retries: 3,
-          providerType: 'openai',
-        );
-
-        expect(agent.displayModelName, equals('gpt-4o'));
-      });
-
       test('toString includes id and modelName', () {
         const agent = DefaultRoomAgent(
           id: 'agent-1',
@@ -83,15 +72,6 @@ void main() {
         expect(agent.aguiFeatureNames, isEmpty);
       });
 
-      test('has display model name from factory', () {
-        const agent = FactoryRoomAgent(
-          id: 'agent-2',
-          factoryName: 'my.custom.agent',
-        );
-
-        expect(agent.displayModelName, equals('Factory: my.custom.agent'));
-      });
-
       test('toString includes id and factoryName', () {
         const agent = FactoryRoomAgent(
           id: 'agent-2',
@@ -120,12 +100,6 @@ void main() {
         const agent = OtherRoomAgent(id: 'agent-3', kind: 'custom');
 
         expect(agent.aguiFeatureNames, isEmpty);
-      });
-
-      test('has display model name from kind', () {
-        const agent = OtherRoomAgent(id: 'agent-3', kind: 'custom');
-
-        expect(agent.displayModelName, equals('custom'));
       });
 
       test('toString includes id and kind', () {

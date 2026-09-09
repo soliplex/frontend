@@ -13,12 +13,12 @@ class Room {
     required this.id,
     required this.name,
     this.description = '',
-    this.metadata = const {},
     this.quizzes = const {},
     this.suggestions = const [],
     this.welcomeMessage = '',
     this.allowMcp = false,
     this.agent,
+    this.agentUnreadable = false,
     this.skills = const {},
     this.tools = const {},
     this.mcpClientToolsets = const {},
@@ -37,9 +37,6 @@ class Room {
   /// Description of the room (empty string if not provided).
   final String description;
 
-  /// Metadata for the room (empty map if not provided).
-  final Map<String, dynamic> metadata;
-
   /// Quizzes available in this room, keyed by quiz ID with title
   /// as value.
   final Map<String, String> quizzes;
@@ -55,6 +52,13 @@ class Room {
 
   /// Agent configuration for this room.
   final RoomAgent? agent;
+
+  /// Whether the payload carried an agent block this client could not read.
+  ///
+  /// Tells a room configured without an agent apart from one whose agent
+  /// block arrived and could not be parsed; [agent] is null for both, and
+  /// only the second is a failure worth telling anyone about.
+  final bool agentUnreadable;
 
   /// Skills configured in this room, keyed by skill name.
   final Map<String, RoomSkill> skills;
@@ -115,12 +119,12 @@ class Room {
     String? id,
     String? name,
     String? description,
-    Map<String, dynamic>? metadata,
     Map<String, String>? quizzes,
     List<String>? suggestions,
     String? welcomeMessage,
     bool? allowMcp,
     RoomAgent? agent,
+    bool? agentUnreadable,
     Map<String, RoomSkill>? skills,
     Map<String, RoomTool>? tools,
     Map<String, McpClientToolset>? mcpClientToolsets,
@@ -133,12 +137,12 @@ class Room {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
-      metadata: metadata ?? this.metadata,
       quizzes: quizzes ?? this.quizzes,
       suggestions: suggestions ?? this.suggestions,
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       allowMcp: allowMcp ?? this.allowMcp,
       agent: agent ?? this.agent,
+      agentUnreadable: agentUnreadable ?? this.agentUnreadable,
       skills: skills ?? this.skills,
       tools: tools ?? this.tools,
       mcpClientToolsets: mcpClientToolsets ?? this.mcpClientToolsets,

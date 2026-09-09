@@ -19,20 +19,8 @@ void main() {
       const toolset = McpClientToolset(kind: 'stdio');
 
       expect(toolset.kind, equals('stdio'));
-      expect(toolset.allowedTools, isNull);
-      expect(toolset.toolsetParams, isEmpty);
-    });
-
-    test('null allowedTools means all tools allowed', () {
-      const toolset = McpClientToolset(kind: 'http');
-
-      expect(toolset.allowedTools, isNull);
-    });
-
-    test('empty allowedTools means no tools allowed', () {
-      const toolset = McpClientToolset(kind: 'http', allowedTools: []);
-
       expect(toolset.allowedTools, isEmpty);
+      expect(toolset.toolsetParams, isEmpty);
     });
 
     test('toString includes kind', () {

@@ -11,11 +11,8 @@ void main() {
     name: 'my-skill',
     description: 'Does cool things',
     source: 'filesystem',
-    license: 'MIT',
-    compatibility: '>=1.0.0',
-    allowedTools: ['tool_a', 'tool_b'],
     stateNamespace: 'my_ns',
-    metadata: {'author': 'Alice'},
+    extraParameters: {'chunk_size': 512},
   );
 
   const emptySkill = RoomSkill(
@@ -32,12 +29,6 @@ void main() {
       expect(find.text('Does cool things'), findsOneWidget);
       expect(find.text('source'), findsOneWidget);
       expect(find.text('filesystem'), findsOneWidget);
-      expect(find.text('license'), findsOneWidget);
-      expect(find.text('MIT'), findsOneWidget);
-      expect(find.text('compatibility'), findsOneWidget);
-      expect(find.text('>=1.0.0'), findsOneWidget);
-      expect(find.text('allowed_tools'), findsOneWidget);
-      expect(find.text('tool_a, tool_b'), findsOneWidget);
       expect(find.text('state_namespace'), findsOneWidget);
       expect(find.text('my_ns'), findsOneWidget);
     });
@@ -46,12 +37,12 @@ void main() {
       await tester.pumpWidget(wrap(
         SingleChildScrollView(child: SkillContentColumn(skill: emptySkill)),
       ));
-      // description is empty string → None
-      // source, license, compatibility, allowedTools, stateNamespace are null → None
-      expect(find.text('None'), findsWidgets);
+      // description is an empty string, source and stateNamespace are null.
+      // The count is exact so that deleting a row fails this test.
+      expect(find.text('None'), findsNWidgets(3));
     });
 
-    testWidgets('Show more button appears when metadata is non-empty',
+    testWidgets('Show more button appears when extraParameters is non-empty',
         (tester) async {
       await tester.pumpWidget(wrap(
         SingleChildScrollView(child: SkillContentColumn(skill: fullSkill)),
@@ -73,7 +64,7 @@ void main() {
       expect(find.text('Show more'), findsOneWidget);
     });
 
-    testWidgets('Show more button hidden when no metadata or schema',
+    testWidgets('Show more button hidden when no extraParameters or schema',
         (tester) async {
       await tester.pumpWidget(wrap(
         SingleChildScrollView(child: SkillContentColumn(skill: emptySkill)),
@@ -83,21 +74,22 @@ void main() {
   });
 
   group('SkillDetailDialog', () {
-    testWidgets('shows metadata entries', (tester) async {
+    testWidgets('shows extra parameter entries', (tester) async {
       await tester.pumpWidget(wrap(SkillDetailDialog(skill: fullSkill)));
-      expect(find.text('Metadata'), findsOneWidget);
-      expect(find.text('author'), findsOneWidget);
-      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('Extra Parameters'), findsOneWidget);
+      expect(find.text('chunk_size'), findsOneWidget);
+      expect(find.text('512'), findsOneWidget);
     });
 
-    testWidgets('shows Empty for null stateTypeSchema', (tester) async {
+    testWidgets('shows Empty for an absent stateTypeSchema', (tester) async {
       await tester.pumpWidget(wrap(SkillDetailDialog(skill: fullSkill)));
       expect(find.text('State Schema'), findsOneWidget);
       // fullSkill has no stateTypeSchema → should show Empty
       expect(find.text('Empty'), findsOneWidget);
     });
 
-    testWidgets('shows Empty for null metadata and schema', (tester) async {
+    testWidgets('shows Empty for absent extraParameters and schema',
+        (tester) async {
       await tester.pumpWidget(wrap(SkillDetailDialog(skill: emptySkill)));
       // Both sections are empty → two "Empty" labels
       expect(find.text('Empty'), findsNWidgets(2));

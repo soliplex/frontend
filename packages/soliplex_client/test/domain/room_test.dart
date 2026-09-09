@@ -9,7 +9,6 @@ void main() {
       expect(room.id, equals('room-1'));
       expect(room.name, equals('Test Room'));
       expect(room.description, equals(''));
-      expect(room.metadata, equals(const <String, dynamic>{}));
       expect(room.quizzes, equals(const <String, String>{}));
       expect(room.suggestions, equals(const <String>[]));
       expect(room.welcomeMessage, equals(''));
@@ -46,7 +45,6 @@ void main() {
         id: 'room-1',
         name: 'Test Room',
         description: 'A test room',
-        metadata: {'key': 'value'},
         quizzes: {'quiz-1': 'Quiz One', 'quiz-2': 'Quiz Two'},
         suggestions: ['How can I help?', 'Tell me more'],
         welcomeMessage: 'Welcome!',
@@ -63,7 +61,6 @@ void main() {
       expect(room.id, equals('room-1'));
       expect(room.name, equals('Test Room'));
       expect(room.description, equals('A test room'));
-      expect(room.metadata, equals({'key': 'value'}));
       expect(
         room.quizzes,
         equals({'quiz-1': 'Quiz One', 'quiz-2': 'Quiz Two'}),
@@ -101,7 +98,6 @@ void main() {
           id: 'room-2',
           name: 'New Room',
           description: 'New description',
-          metadata: {'new': 'data'},
           quizzes: {'quiz-1': 'Quiz One'},
           suggestions: ['Suggestion 1', 'Suggestion 2'],
           welcomeMessage: 'Hello!',
@@ -114,7 +110,6 @@ void main() {
         expect(modified.id, equals('room-2'));
         expect(modified.name, equals('New Room'));
         expect(modified.description, equals('New description'));
-        expect(modified.metadata, equals({'new': 'data'}));
         expect(modified.quizzes, equals({'quiz-1': 'Quiz One'}));
         expect(modified.quizIds, equals(['quiz-1']));
         expect(modified.suggestions, equals(['Suggestion 1', 'Suggestion 2']));
@@ -128,7 +123,6 @@ void main() {
           id: 'room-1',
           name: 'Test Room',
           description: 'A description',
-          metadata: {'key': 'value'},
           quizzes: {'quiz-1': 'Quiz One'},
           suggestions: ['Suggestion'],
           welcomeMessage: 'Hi',
@@ -142,7 +136,6 @@ void main() {
         expect(copy.id, equals(room.id));
         expect(copy.name, equals(room.name));
         expect(copy.description, equals(room.description));
-        expect(copy.metadata, equals(room.metadata));
         expect(copy.quizzes, equals(room.quizzes));
         expect(copy.quizIds, equals(room.quizIds));
         expect(copy.suggestions, equals(room.suggestions));

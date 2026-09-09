@@ -83,35 +83,84 @@ BackendVersionInfo backendVersionInfoFromJson(Map<String, dynamic> json) {
 
 /// Creates a [RoomAgent] from JSON.
 ///
-/// Discriminates by 'kind' field: 'default', 'factory', or other.
+/// Three fields across the agent variants are deliberately not modelled.
+///
+/// `provider_key` is a secret *reference* of the form `secret:SECRET_NAME`
+/// that only the backend's `get_secret()` can resolve, or the placeholder
+/// `"dummy"` where a room configured none (`models.py`). Neither is usable
+/// here, and the first would put the name of a secret on a screen that can
+/// be exported.
+///
+/// `provider_base_url` is the resolved endpoint URL. The backend interpolates
+/// `env:` markers into it (`config/agents.py`) and an environment variable
+/// holds whatever an operator puts there, so the resolved value is not known
+/// to be safe to display. Nothing renders it, so nothing reads it.
+///
+/// Neither `provider_key` nor `provider_base_url` is checked for at runtime
+/// on purpose. Sniffing a value for
+/// credential-shaped content would be a guess that goes stale silently;
+/// declining the field is what actually holds.
+///
+/// `with_agent_config` decides whether the backend hands its factory callable
+/// an `agent_config` keyword argument (`config/agents.py`). It is a Python
+/// calling convention with no counterpart anyone using this app can observe,
+/// so rendering it would put a bare `Yes` on a card whose every other row
+/// says what the agent is or does.
 RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
-  final kind = json['kind'] as String? ?? '';
   final id = _requireString(json, 'id', 'agent');
   final aguiFeatureNames =
       stringList(json['agui_feature_names'], 'agui_feature_names');
 
-  // Backend omits kind for default agents; infer from model_name presence
-  final effectiveKind =
-      kind.isEmpty && json.containsKey('model_name') ? 'default' : kind;
+  // The variant is read off the shape, because the wire carries no
+  // discriminator to read instead: the backend's `DefaultAgent` and
+  // `FactoryAgent` declare no `kind` field, and only `OtherAgent` does.
+  // `factory_name`, `model_name` and `provider_type` are each required on
+  // exactly one variant, so presence — not value — tells them apart;
+  // `model_name` is nullable but pydantic still emits the key.
+  //
+  // `kind` itself is not dispatched on. The backend sets it only on the
+  // variant it could not type, so it never says `default` or `factory`, and a
+  // payload that contradicted its own shape would be better read by the shape
+  // — dispatching on a `kind` of `factory` with no `factory_name` throws and
+  // costs the card, where the shape read degrades to an unknown agent.
+  final kind = stringOrNull(json['kind'], 'kind') ?? '';
 
-  return switch (effectiveKind) {
-    'default' => DefaultRoomAgent(
-        id: id,
-        modelName: _requireString(json, 'model_name', 'default agent'),
-        retries: json['retries'] as int? ?? 0,
-        systemPrompt: json['system_prompt'] as String?,
-        providerType: json['provider_type'] as String? ?? '',
-        aguiFeatureNames: aguiFeatureNames,
-      ),
-    'factory' => FactoryRoomAgent(
-        id: id,
-        factoryName: _requireString(json, 'factory_name', 'factory agent'),
-        extraConfig:
-            (json['extra_config'] as Map<String, dynamic>?) ?? const {},
-        aguiFeatureNames: aguiFeatureNames,
-      ),
-    _ => OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames),
-  };
+  if (json.containsKey('factory_name')) {
+    return FactoryRoomAgent(
+      id: id,
+      factoryName: _requireString(json, 'factory_name', 'factory agent'),
+      extraConfig: jsonMap(json['extra_config'], 'extra_config'),
+      aguiFeatureNames: aguiFeatureNames,
+    );
+  }
+
+  // `provider_type` is checked too: it is required and non-null on the
+  // default variant, so it survives a serialiser that omits a null
+  // `model_name`.
+  if (json.containsKey('model_name') || json.containsKey('provider_type')) {
+    return DefaultRoomAgent(
+      id: id,
+      // Nullable on the wire; the card omits the row when it is absent or
+      // empty.
+      modelName: stringOrNull(json['model_name'], 'model_name'),
+      retries: intOrNull(json['retries'], 'retries'),
+      systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
+      providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
+      aguiFeatureNames: aguiFeatureNames,
+    );
+  }
+
+  if (kind.isEmpty) {
+    // No `kind`, and none of the keys that identify a variant. Nothing can be
+    // said about this agent beyond its id, so say that rather than rendering
+    // a card with a heading and nothing under it.
+    _logger.warning(
+      'Agent matched no known shape',
+      attributes: {'agent': id, 'keyCount': json.length},
+    );
+  }
+
+  return OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames);
 }
 
 /// Extracts a required string field, throwing [FormatException] if missing
@@ -135,13 +184,13 @@ String _requireString(Map<String, dynamic> json, String field, String context) {
 /// Creates a [RoomTool] from JSON.
 RoomTool roomToolFromJson(String name, Map<String, dynamic> json) {
   return RoomTool(
-    name: (json['tool_name'] as String?) ?? name,
-    description: (json['tool_description'] as String?) ?? '',
-    kind: (json['kind'] as String?) ?? '',
-    toolRequires: (json['tool_requires'] as String?) ?? '',
+    name: stringOrNull(json['tool_name'], 'tool_name') ?? name,
+    description:
+        stringOrNull(json['tool_description'], 'tool_description') ?? '',
+    kind: stringOrNull(json['kind'], 'kind') ?? '',
+    toolRequires: stringOrNull(json['tool_requires'], 'tool_requires') ?? '',
     allowMcp: boolOrNull(json['allow_mcp'], 'allow_mcp') ?? false,
-    extraParameters:
-        (json['extra_parameters'] as Map<String, dynamic>?) ?? const {},
+    extraParameters: jsonMap(json['extra_parameters'], 'extra_parameters'),
     aguiFeatureNames:
         stringList(json['agui_feature_names'], 'agui_feature_names'),
   );
@@ -149,34 +198,32 @@ RoomTool roomToolFromJson(String name, Map<String, dynamic> json) {
 
 /// Creates a [McpClientToolset] from JSON.
 McpClientToolset mcpClientToolsetFromJson(Map<String, dynamic> json) {
-  final allowedToolsRaw = json['allowed_tools'] as List<dynamic>?;
+  // An absent and an empty allow-list are one state on the backend, whose
+  // `_allowed_tools_filter` reads "a None or empty allow-list means expose
+  // every tool the server offers" (`mcp_client.py`), so the empty list
+  // carries both and no null is needed to tell them apart.
+  //
+  // A value that cannot be read reads as empty, and one whose entries cannot
+  // be read loses those entries: both understate a restriction rather than
+  // inventing one, which is the safer direction to be wrong in for a screen
+  // that only displays it. `stringList` reports either.
   return McpClientToolset(
-    kind: json['kind'] as String? ?? '',
-    allowedTools: allowedToolsRaw?.whereType<String>().toList(),
-    toolsetParams:
-        (json['toolset_params'] as Map<String, dynamic>?) ?? const {},
+    kind: stringOrNull(json['kind'], 'kind') ?? '',
+    allowedTools: stringList(json['allowed_tools'], 'allowed_tools'),
+    toolsetParams: jsonMap(json['toolset_params'], 'toolset_params'),
   );
 }
 
 /// Creates a [RoomSkill] from JSON.
 RoomSkill roomSkillFromJson(String key, Map<String, dynamic> json) {
   return RoomSkill(
-    name: (json['name'] as String?) ?? key,
-    description: (json['description'] as String?) ?? '',
-    source: json['source'] as String?,
-    license: json['license'] as String?,
-    compatibility: json['compatibility'] as String?,
-    allowedTools: _splitAllowedTools(json['allowed_tools'] as String?),
-    stateNamespace: json['state_namespace'] as String?,
-    metadata: (json['metadata'] as Map<String, dynamic>?) ?? const {},
-    stateTypeSchema: json['state_type_schema'] as Map<String, dynamic>?,
+    name: stringOrNull(json['name'], 'name') ?? key,
+    description: stringOrNull(json['description'], 'description') ?? '',
+    source: stringOrNull(json['source'], 'source'),
+    stateNamespace: stringOrNull(json['state_namespace'], 'state_namespace'),
+    extraParameters: jsonMap(json['extra_parameters'], 'extra_parameters'),
+    stateTypeSchema: jsonMap(json['state_type_schema'], 'state_type_schema'),
   );
-}
-
-/// Splits a space-separated allowed-tools string into a list.
-List<String>? _splitAllowedTools(String? raw) {
-  if (raw == null || raw.isEmpty) return null;
-  return raw.split(' ').where((s) => s.isNotEmpty).toList();
 }
 
 /// Converts a [RoomSkill] to JSON.
@@ -185,13 +232,10 @@ Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
     'name': skill.name,
     if (skill.description.isNotEmpty) 'description': skill.description,
     if (skill.source != null) 'source': skill.source,
-    if (skill.license != null) 'license': skill.license,
-    if (skill.compatibility != null) 'compatibility': skill.compatibility,
-    if (skill.allowedTools != null)
-      'allowed_tools': skill.allowedTools!.join(' '),
     if (skill.stateNamespace != null) 'state_namespace': skill.stateNamespace,
-    if (skill.metadata.isNotEmpty) 'metadata': skill.metadata,
-    if (skill.stateTypeSchema != null)
+    if (skill.extraParameters.isNotEmpty)
+      'extra_parameters': skill.extraParameters,
+    if (skill.stateTypeSchema.isNotEmpty)
       'state_type_schema': skill.stateTypeSchema,
   };
 }
@@ -222,19 +266,31 @@ DateTime? _tryParseTimestamp(
 /// Creates a [Room] from JSON.
 Room roomFromJson(Map<String, dynamic> json) {
   // Extract quizzes map: {quizId: {title: "...", ...}}
-  final quizzesJson = json['quizzes'] as Map<String, dynamic>?;
   final quizzes = <String, String>{};
-  if (quizzesJson != null) {
-    for (final entry in quizzesJson.entries) {
-      final quizData = entry.value as Map<String, dynamic>?;
-      final title = (quizData?['title'] as String?) ?? 'Quiz';
-      quizzes[entry.key] = title;
+  for (final entry in jsonMap(json['quizzes'], 'quizzes').entries) {
+    final quizData = entry.value;
+    if (quizData is! Map<String, dynamic>) {
+      _logger.warning(
+        'Malformed quiz ignored',
+        attributes: {
+          'quiz': entry.key,
+          'runtimeType': quizData.runtimeType.toString(),
+        },
+      );
+      continue;
     }
+    // Only the title. The room payload nests each quiz whole, including
+    // every question's `expected_output`, which `quizQuestionFromJson`
+    // deliberately drops so an answer key never reaches a `Quiz` the UI
+    // holds — grading reads it from the answer-submission response instead.
+    // Parsing the nested copy here would have to repeat that omission in a
+    // second place.
+    quizzes[entry.key] = stringOrNull(quizData['title'], 'title') ?? 'Quiz';
   }
 
-  final suggestionsRaw = json['suggestions'] as List<dynamic>?;
+  final suggestionsRaw = json['suggestions'];
   final suggestions = <String>[];
-  if (suggestionsRaw != null) {
+  if (suggestionsRaw is List) {
     for (final item in suggestionsRaw) {
       if (item is String) {
         suggestions.add(item);
@@ -245,10 +301,23 @@ Room roomFromJson(Map<String, dynamic> json) {
         );
       }
     }
+  } else if (suggestionsRaw != null) {
+    _logger.warning(
+      'Malformed suggestions ignored',
+      attributes: {'runtimeType': suggestionsRaw.runtimeType.toString()},
+    );
   }
 
-  // Parse agent — malformed agent data should not prevent the room from loading
-  final agentJson = json['agent'] as Map<String, dynamic>?;
+  // Parse agent — malformed agent data should not prevent the room from
+  // loading, including an agent block that is not a map at all.
+  final rawAgent = json['agent'];
+  final agentJson = rawAgent is Map<String, dynamic> ? rawAgent : null;
+  if (rawAgent != null && agentJson == null) {
+    _logger.warning(
+      'Malformed agent ignored',
+      attributes: {'runtimeType': rawAgent.runtimeType.toString()},
+    );
+  }
   RoomAgent? agent;
   if (agentJson != null) {
     try {
@@ -265,87 +334,74 @@ Room roomFromJson(Map<String, dynamic> json) {
     }
   }
 
-  // Parse tools — accept Map (backend) or List (fallback) format
-  final rawTools = json['tools'];
+  // Parse tools — skip malformed entries
   final tools = <String, RoomTool>{};
   final toolDefinitions = <Map<String, dynamic>>[];
-  if (rawTools is Map<String, dynamic>) {
-    for (final entry in rawTools.entries) {
-      if (entry.value is! Map<String, dynamic>) {
-        _logger.warning(
-          'Malformed tool ignored',
-          attributes: {
-            'tool': entry.key,
-            'runtimeType': entry.value.runtimeType.toString(),
-          },
-        );
-        continue;
-      }
-      tools[entry.key] = roomToolFromJson(
-        entry.key,
-        entry.value as Map<String, dynamic>,
+  for (final entry in jsonMap(json['tools'], 'tools').entries) {
+    final toolJson = entry.value;
+    if (toolJson is! Map<String, dynamic>) {
+      _logger.warning(
+        'Malformed tool ignored',
+        attributes: {
+          'tool': entry.key,
+          'runtimeType': toolJson.runtimeType.toString(),
+        },
       );
-      toolDefinitions.add(entry.value as Map<String, dynamic>);
+      continue;
     }
-  } else if (rawTools is List) {
-    for (final item in rawTools) {
-      if (item is Map<String, dynamic>) {
-        toolDefinitions.add(item);
-      }
-    }
+    tools[entry.key] = roomToolFromJson(entry.key, toolJson);
+    toolDefinitions.add(toolJson);
   }
 
   // Parse MCP client toolsets — skip malformed entries
-  final mcpJson = json['mcp_client_toolsets'] as Map<String, dynamic>?;
+  final mcpJson = jsonMap(json['mcp_client_toolsets'], 'mcp_client_toolsets');
   final mcpClientToolsets = <String, McpClientToolset>{};
-  if (mcpJson != null) {
-    for (final entry in mcpJson.entries) {
-      if (entry.value is! Map<String, dynamic>) {
-        _logger.warning(
-          'Malformed MCP toolset ignored',
-          attributes: {
-            'toolset': entry.key,
-            'runtimeType': entry.value.runtimeType.toString(),
-          },
-        );
-        continue;
-      }
-      mcpClientToolsets[entry.key] = mcpClientToolsetFromJson(
-        entry.value as Map<String, dynamic>,
+  for (final entry in mcpJson.entries) {
+    if (entry.value is! Map<String, dynamic>) {
+      _logger.warning(
+        'Malformed MCP toolset ignored',
+        attributes: {
+          'toolset': entry.key,
+          'runtimeType': entry.value.runtimeType.toString(),
+        },
       );
+      continue;
     }
+    mcpClientToolsets[entry.key] =
+        mcpClientToolsetFromJson(entry.value as Map<String, dynamic>);
   }
 
   // Parse skills — skip malformed entries
-  final skillsJson = json['skills'] as Map<String, dynamic>?;
+  final skillsJson = jsonMap(json['skills'], 'skills');
   final skills = <String, RoomSkill>{};
-  if (skillsJson != null) {
-    for (final entry in skillsJson.entries) {
-      if (entry.value is! Map<String, dynamic>) {
-        _logger.warning(
-          'Malformed skill ignored',
-          attributes: {
-            'skill': entry.key,
-            'runtimeType': entry.value.runtimeType.toString(),
-          },
-        );
-        continue;
-      }
-      skills[entry.key] = roomSkillFromJson(
-        entry.key,
-        entry.value as Map<String, dynamic>,
+  for (final entry in skillsJson.entries) {
+    if (entry.value is! Map<String, dynamic>) {
+      _logger.warning(
+        'Malformed skill ignored',
+        attributes: {
+          'skill': entry.key,
+          'runtimeType': entry.value.runtimeType.toString(),
+        },
       );
+      continue;
     }
+    skills[entry.key] = roomSkillFromJson(
+      entry.key,
+      entry.value as Map<String, dynamic>,
+    );
   }
 
   return Room(
     id: _requireString(json, 'id', 'room'),
+    // The block arrived and nothing came of it, which is not the same as a
+    // room that configures no agent.
+    agentUnreadable: json['agent'] != null && agent == null,
     name: _requireString(json, 'name', 'room'),
-    description: (json['description'] as String?) ?? '',
-    metadata: (json['metadata'] as Map<String, dynamic>?) ?? const {},
+    description: stringOrNull(json['description'], 'description') ?? '',
     quizzes: quizzes,
     suggestions: suggestions,
-    welcomeMessage: (json['welcome_message'] as String?) ?? '',
+    welcomeMessage:
+        stringOrNull(json['welcome_message'], 'welcome_message') ?? '',
     allowMcp: boolOrNull(json['allow_mcp'], 'allow_mcp') ?? false,
     agent: agent,
     skills: skills,
@@ -393,7 +449,6 @@ Map<String, dynamic> roomToJson(Room room) {
     'id': room.id,
     'name': room.name,
     if (room.description.isNotEmpty) 'description': room.description,
-    if (room.metadata.isNotEmpty) 'metadata': room.metadata,
     if (room.welcomeMessage.isNotEmpty) 'welcome_message': room.welcomeMessage,
     if (room.skills.isNotEmpty)
       'skills': {

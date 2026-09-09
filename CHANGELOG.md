@@ -8,7 +8,105 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- The room info screen now shows the configuration the backend actually sends
+  for a skill or a tool. A skill's `extra_parameters` and a tool's
+  `extra_parameters` both arrived on the wire and neither was rendered
+  anywhere, so a room configured through them looked identically configured
+  to one that was not. Both now appear behind the same "Show more" affordance
+  the skills card already had. An MCP toolset's `toolset_params` is left
+  unrendered on purpose: it is raw transport config and can carry the
+  server's credentials. That reduces incidental exposure rather than
+  preventing disclosure — the same authorised users already receive the room
+  payload — so the other raw maps on the screen still render.
+
+### Changed
+
+- `McpClientToolset.allowedTools` is a non-nullable `List<String>` defaulting
+  to empty, and empty means no restriction. The backend gives a missing
+  and an empty allow-list one meaning — `_allowed_tools_filter`: "a None or
+  empty allow-list means expose every tool the server offers" — so the old
+  nullable spelling advertised three states for a two-state field, and its own
+  doc comment described the empty case backwards. A consumer can get this
+  wrong **without a compile error**: `if (allowedTools != null)` still analyses
+  (as a warning) and is now always true, and `allowedTools?.contains(x) ?? true`
+  is now always the left branch — both invert an allow-all into a deny-all.
+  Read `allowedTools.isNotEmpty` to ask whether a restriction exists.
+
+- `DefaultRoomAgent.retries` is `int?`. It is required and non-null on the
+  wire, so an absent or drifted one is malformed; the card omits the row
+  rather than stating a retry count the backend never sent.
+
+- `DefaultRoomAgent.modelName` is `String?` and no longer `required`, matching
+  the backend's `model_name: str | None`. A null one previously threw and cost
+  the room its entire agent card. Interpolating it directly now yields the
+  string `"null"`; the room info screen omits the row instead.
+
+- `roomFromJson` no longer accepts `tools` as a list. Every backend revision
+  has sent `dict[str, Tool]`; a list now degrades to no tools, logged. Anything
+  behind a translating proxy that reshaped it will lose its tool list.
+
+- `RoomSkill.stateTypeSchema` is a `Map<String, dynamic>` defaulting to empty
+  rather than a nullable map. Nothing could tell the two apart: the card's
+  "Show more" gate and the dialog both read an absent schema and an empty one
+  the same way, and this backend sends either a populated schema or null: it
+  builds the value with `model_json_schema()`, which always carries at least a
+  title and a type. The same compile-invisible hazard as `allowedTools`
+  applies — `if (stateTypeSchema != null)` still analyses and is now always
+  true. Read `stateTypeSchema.isNotEmpty`.
+
+### Removed
+
+- `RoomSkill` no longer carries `license`, `compatibility`, `allowedTools` or
+  `metadata`. The backend stopped sending all four in a commit whose own
+  subject calls them fossils, so the skills card rendered three rows reading
+  "None" for every skill in every room and a "Show more" dialog whose Metadata
+  section was always empty. There is no replacement: no backend the client
+  talks to has ever populated a skill licence, and `extraParameters` — which
+  is new here — carries a different thing, the skill's own configuration.
+  Code reading these fields should be deleted. `RoomSkill.stateNamespace` is
+  unaffected, and the MCP toolset's `allowedTools` is a different, real field.
+
+- `Room.metadata` is gone, along with its `copyWith` parameter. The backend's
+  `Room` model has never declared the field, so it was always an empty map.
+
+- `RoomAgent.displayModelName` is gone from the sealed base. It asserted that
+  every agent has a model name over a hierarchy where two of three shapes do
+  not, and paid for that by rendering a factory path and an unknown kind under
+  a "Model" label. Each shape now names its own row at the call site.
+
 ### Fixed
+
+- The agent card labels each agent for what it is. Every agent shared one
+  "Model" row fed by a single accessor, so an agent of a kind this client does
+  not model read `Model:` followed by its kind, and one whose model name the
+  backend left null read `Model:` followed by nothing. Each shape now names its
+  own row — Model, Factory or Kind — and a row the backend sent no value for is
+  omitted rather than drawn blank.
+
+- A factory agent is recognised at all. The parser discriminated on a `kind`
+  field that the backend does not put on the wire for its two real agent
+  shapes, so every factory agent fell through to the unknown-kind case and
+  rendered nothing but an empty row.
+
+- A room whose agent block cannot be read says so, rather than reporting that
+  the room has no agent. Tolerating a malformed block means the room still
+  loads, but the card was then stating as fact something it had not read — and
+  the same sentence covered a room deliberately configured without an agent.
+
+- One drifted field in a room's configuration no longer discards the entire
+  room. The room-config parsers read most fields with a raw cast, so a value
+  of an unexpected type — a string where a map belonged, a list where an
+  object did — threw out of the field, out of the enclosing skill or tool, and
+  out of the whole room, leaving a configured room looking unreachable on the
+  strength of one bad key. Each field now degrades to its empty value and logs
+  what it saw, which is the policy `parse_utils` already documented and that
+  `allow_mcp` and `agui_feature_names` already followed. The same holds one
+  level up: a `skills`, `quizzes`, `suggestions`, `mcp_client_toolsets` or
+  `agent` block that is not a map at all now costs its own section instead of
+  the room. The agent block was already meant to fail soft, but the cast that
+  read it ran ahead of the guard that was supposed to catch it.
 
 - A room whose agent, tools, MCP toolsets or skills failed to parse now says so
   where anyone can see it. Those warnings were written straight to
