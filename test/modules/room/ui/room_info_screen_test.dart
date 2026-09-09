@@ -738,6 +738,33 @@ void main() {
       expect(find.text('Retries'), findsNothing);
     });
 
+    testWidgets('an unreadable agent block does not claim the room has none',
+        (tester) async {
+      // Built directly: `copyWith` cannot clear `agent`.
+      const room = Room(
+        id: 'room-1',
+        name: 'Test Room',
+        agentUnreadable: true,
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('No readable agent configuration in this room.'),
+        findsOneWidget,
+      );
+      expect(find.text('No agent in this room.'), findsNothing);
+    });
+
+    testWidgets('a room configured without an agent still says so',
+        (tester) async {
+      const room = Room(id: 'room-1', name: 'Test Room');
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No agent in this room.'), findsOneWidget);
+    });
+
     testWidgets('shows error on fetch failure', (tester) async {
       final api = FakeSoliplexApi()..nextError = Exception('network');
       await tester.pumpWidget(_buildScreen(api: api));

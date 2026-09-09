@@ -408,6 +408,9 @@ Room roomFromJson(Map<String, dynamic> json) {
 
   return Room(
     id: _requireString(json, 'id', 'room'),
+    // The block arrived and nothing came of it, which is not the same as a
+    // room that configures no agent.
+    agentUnreadable: json['agent'] != null && agent == null,
     name: _requireString(json, 'name', 'room'),
     description: stringOrNull(json['description'], 'description') ?? '',
     quizzes: quizzes,

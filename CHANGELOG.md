@@ -90,6 +90,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   shapes, so every factory agent fell through to the unknown-kind case and
   rendered nothing but an empty row.
 
+- A room whose agent block cannot be read says so, rather than reporting that
+  the room has no agent. Tolerating a malformed block means the room still
+  loads, but the card was then stating as fact something it had not read — and
+  the same sentence covered a room deliberately configured without an agent.
+
 - One drifted field in a room's configuration no longer discards the entire
   room. The room-config parsers read most fields with a raw cast, so a value
   of an unexpected type — a string where a map belonged, a list where an

@@ -208,7 +208,10 @@ class _RoomInfoBody extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
-            _AgentCard(agent: room.agent),
+            _AgentCard(
+              agent: room.agent,
+              unreadable: room.agentUnreadable,
+            ),
             FeaturesCard(room: room, api: api, roomId: roomId),
             QuizzesCard(
               quizzes: room.quizzes,
@@ -327,16 +330,24 @@ Widget _buildToolsetContent(McpClientToolset toolset) {
 }
 
 class _AgentCard extends StatelessWidget {
-  const _AgentCard({required this.agent});
+  const _AgentCard({required this.agent, required this.unreadable});
   final RoomAgent? agent;
+
+  /// The payload carried an agent this client could not read, so the card
+  /// must not say the room has none.
+  final bool unreadable;
 
   @override
   Widget build(BuildContext context) {
     final agent = this.agent;
     if (agent == null) {
-      return const SectionCard(
+      return SectionCard(
         title: 'AGENT',
-        children: [EmptyMessage(label: 'agent')],
+        children: [
+          EmptyMessage(
+            label: unreadable ? 'readable agent configuration' : 'agent',
+          ),
+        ],
       );
     }
     return SectionCard(

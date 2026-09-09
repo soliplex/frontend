@@ -1966,6 +1966,30 @@ void main() {
         expect(room.quizzes.containsKey('broken'), isFalse);
       });
 
+      test('an unreadable agent block is told apart from an absent one', () {
+        final absent = roomFromJson({'id': 'r1', 'name': 'Room One'});
+        final unreadable = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          'agent': 'not-a-map',
+        });
+        final unparseable = roomFromJson({
+          'id': 'r1',
+          'name': 'Room One',
+          // A map, but with no `id` for `_requireString` to read.
+          'agent': <String, dynamic>{'model_name': 'gpt-4o'},
+        });
+
+        expect(absent.agent, isNull);
+        expect(absent.agentUnreadable, isFalse);
+
+        expect(unreadable.agent, isNull);
+        expect(unreadable.agentUnreadable, isTrue);
+
+        expect(unparseable.agent, isNull);
+        expect(unparseable.agentUnreadable, isTrue);
+      });
+
       test('a wrong-typed agent field degrades without losing the agent', () {
         final room = roomFromJson({
           'id': 'r1',

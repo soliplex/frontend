@@ -18,6 +18,7 @@ class Room {
     this.welcomeMessage = '',
     this.allowMcp = false,
     this.agent,
+    this.agentUnreadable = false,
     this.skills = const {},
     this.tools = const {},
     this.mcpClientToolsets = const {},
@@ -51,6 +52,13 @@ class Room {
 
   /// Agent configuration for this room.
   final RoomAgent? agent;
+
+  /// Whether the payload carried an agent block this client could not read.
+  ///
+  /// Tells a room configured without an agent apart from one whose agent
+  /// block arrived and could not be parsed; [agent] is null for both, and
+  /// only the second is a failure worth telling anyone about.
+  final bool agentUnreadable;
 
   /// Skills configured in this room, keyed by skill name.
   final Map<String, RoomSkill> skills;
@@ -116,6 +124,7 @@ class Room {
     String? welcomeMessage,
     bool? allowMcp,
     RoomAgent? agent,
+    bool? agentUnreadable,
     Map<String, RoomSkill>? skills,
     Map<String, RoomTool>? tools,
     Map<String, McpClientToolset>? mcpClientToolsets,
@@ -133,6 +142,7 @@ class Room {
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       allowMcp: allowMcp ?? this.allowMcp,
       agent: agent ?? this.agent,
+      agentUnreadable: agentUnreadable ?? this.agentUnreadable,
       skills: skills ?? this.skills,
       tools: tools ?? this.tools,
       mcpClientToolsets: mcpClientToolsets ?? this.mcpClientToolsets,
