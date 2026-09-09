@@ -84,6 +84,30 @@ BackendVersionInfo backendVersionInfoFromJson(Map<String, dynamic> json) {
 /// Creates a [RoomAgent] from JSON.
 ///
 /// Discriminates by 'kind' field: 'default', 'factory', or other.
+/// Three fields on the agent block are deliberately not modelled.
+///
+/// `provider_key` is a secret *reference* of the form `secret:SECRET_NAME`
+/// (`config/agents.py`) that only the backend's `get_secret()` can resolve,
+/// so the value is useless here and carrying it would put the name of a
+/// secret on a screen that can be exported.
+///
+/// `provider_base_url` is a resolved endpoint URL. Nothing in the backend
+/// states whether it may carry a credential, and it need not: the field
+/// interpolates `env:` markers, and an environment variable can hold
+/// anything an operator puts in it, so a URL with embedded credentials is
+/// reachable without misconfiguring anything the backend validates. Reading
+/// it would place that value in the log buffer the diagnostics screen
+/// exports. Nothing renders it, so nothing needs to read it.
+///
+/// Neither is checked for at runtime on purpose. Sniffing a value for
+/// credential-shaped content would be a guess that goes stale silently;
+/// declining the field is what actually holds.
+///
+/// `with_agent_config` decides whether the backend hands its factory callable
+/// an `agent_config` keyword argument (`config/agents.py`). It is a Python
+/// calling convention with no counterpart anyone using this app can observe,
+/// so rendering it would put a bare `Yes` on a card whose every other row
+/// says what the agent is or does.
 RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   final kind = stringOrNull(json['kind'], 'kind') ?? '';
   final id = _requireString(json, 'id', 'agent');

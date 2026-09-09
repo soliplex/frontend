@@ -350,31 +350,35 @@ class _AgentCard extends StatelessWidget {
               if (systemPrompt != null)
                 SystemPromptViewer(prompt: systemPrompt),
             ],
-          FactoryRoomAgent(:final extraConfig) when extraConfig.isNotEmpty => [
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Extra Config',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: SoliplexSpacing.s1),
-                    formatDynamicValue(
-                      context,
-                      extraConfig,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+          FactoryRoomAgent(:final extraConfig) => [
+              if (extraConfig.isNotEmpty)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Extra Config',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: SoliplexSpacing.s1),
+                      formatDynamicValue(
+                        context,
+                        extraConfig,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
-          _ => <Widget>[],
+          // OtherRoomAgent's `displayModelName` is its `kind`, so the Model
+          // row above already prints it; a Kind row here would repeat it.
+          OtherRoomAgent() => <Widget>[],
         },
         if (agent.aguiFeatureNames.isNotEmpty)
           InfoRow(

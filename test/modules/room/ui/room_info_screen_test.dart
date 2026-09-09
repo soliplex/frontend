@@ -610,6 +610,23 @@ void main() {
       expect(find.textContaining('0.7'), findsOneWidget);
     });
 
+    testWidgets('a factory agent without extra config omits the block',
+        (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const FactoryRoomAgent(
+          id: 'agent-factory',
+          factoryName: 'my_module.create_agent',
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      // The arm matches unguarded now, so the block has to be withheld by the
+      // condition inside it rather than by the pattern failing to match.
+      expect(find.text('Factory: my_module.create_agent'), findsOneWidget);
+      expect(find.text('Extra Config'), findsNothing);
+    });
+
     testWidgets('shows error on fetch failure', (tester) async {
       final api = FakeSoliplexApi()..nextError = Exception('network');
       await tester.pumpWidget(_buildScreen(api: api));
