@@ -23,21 +23,6 @@ import '../../core/util/debouncer.dart';
 /// Refreshing is a cold path. The measurement only changes when a run
 /// finishes, so it is fetched on thread open and after each run, never
 /// while someone types.
-/// Wire names for the segment kinds the backend reports.
-///
-/// A name the backend adds but this does not know is dropped rather
-/// than lumped into a neighbour, so an unrecognised slice goes missing
-/// from the pie instead of quietly inflating another one.
-const _kindsByName = <String, SegmentKind>{
-  'userText': SegmentKind.userText,
-  'assistantText': SegmentKind.assistantText,
-  'toolCallArguments': SegmentKind.toolCallArguments,
-  'toolResult': SegmentKind.toolResult,
-  'compactedReceipt': SegmentKind.compactedReceipt,
-  'compactedCapsule': SegmentKind.compactedCapsule,
-  'overhead': SegmentKind.overhead,
-};
-
 class ContextUsageController extends ChangeNotifier {
   /// Creates a controller for [threadId] in [roomId].
   ContextUsageController({
@@ -75,43 +60,11 @@ class ContextUsageController extends ChangeNotifier {
 
     return ContextUsage(
       tokens: (measured ?? 0) + unmeasured,
-      byKind: _byKind(),
       contextWindow: _context.maxModelLen,
-      // The thread's own tokens are the provider's count, not an
-      // approximation, and the estimated terms are over-stated rather
-      // than under-stated. Nothing here is waiting on more evidence.
-      isProvisional: false,
+      // Exact only while nothing estimated is folded in: the thread's
+      // own tokens are the provider's own count, but a draft is not.
       isExact: measured != null && unmeasured == 0,
     );
-  }
-
-  /// The breakdown, translated to the kinds the UI groups by.
-  ///
-  /// The estimated terms are folded in as user text: that is what a
-  /// draft is, and what a sent-but-unmeasured message was.
-  Map<SegmentKind, int> _byKind() {
-    final measured = _context.tokensByKind;
-
-    if (measured.isEmpty) return const {};
-
-    final byKind = <SegmentKind, int>{};
-
-    for (final entry in measured.entries) {
-      final kind = _kindsByName[entry.key];
-
-      if (kind == null) continue;
-
-      byKind[kind] = (byKind[kind] ?? 0) + entry.value;
-    }
-
-    final unmeasured = _draftTokens + _inFlightTokens;
-
-    if (unmeasured > 0) {
-      byKind[SegmentKind.userText] =
-          (byKind[SegmentKind.userText] ?? 0) + unmeasured;
-    }
-
-    return byKind;
   }
 
   /// The most recent reading fetched from the backend.
@@ -122,19 +75,11 @@ class ContextUsageController extends ChangeNotifier {
   /// Call on thread open and when a run finishes. Failure is silent by
   /// design: a context indicator that cannot refresh should keep showing
   /// its last honest reading, not interrupt the conversation.
-  ///
-  /// [detail] additionally asks where the tokens went, which costs the
-  /// backend a tokenizer call per stored message. It belongs to opening
-  /// the breakdown, not to drawing the gauge.
-  Future<void> refresh({bool detail = false}) async {
+  Future<void> refresh() async {
     final ThreadContext found;
 
     try {
-      found = await _api.getThreadContext(
-        _roomId,
-        _threadId,
-        detail: detail,
-      );
+      found = await _api.getThreadContext(_roomId, _threadId);
     } on Exception {
       return;
     }
