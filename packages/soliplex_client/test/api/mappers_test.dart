@@ -492,9 +492,8 @@ void main() {
             name: 'Web Search',
             description: 'Search the web',
             source: 'filesystem',
-            license: 'MIT',
-            allowedTools: ['search', 'fetch'],
-            metadata: {'author': 'test'},
+            stateNamespace: 'web_search',
+            extraParameters: {'max_results': 5},
           ),
         },
       );
@@ -511,9 +510,8 @@ void main() {
       expect(skill.name, equals('Web Search'));
       expect(skill.description, equals('Search the web'));
       expect(skill.source, equals('filesystem'));
-      expect(skill.license, equals('MIT'));
-      expect(skill.allowedTools, equals(['search', 'fetch']));
-      expect(skill.metadata, equals({'author': 'test'}));
+      expect(skill.stateNamespace, equals('web_search'));
+      expect(skill.extraParameters, equals({'max_results': 5}));
     });
   });
 
@@ -1781,22 +1779,16 @@ void main() {
           'name': 'Web Search',
           'description': 'Search the web',
           'source': 'filesystem',
-          'license': 'MIT',
-          'compatibility': '>=1.0.0',
-          'allowed_tools': 'search fetch',
           'state_namespace': 'web_search_state',
-          'metadata': {'author': 'test'},
+          'extra_parameters': {'max_results': 5},
           'state_type_schema': {'type': 'object'},
         });
 
         expect(skill.name, equals('Web Search'));
         expect(skill.description, equals('Search the web'));
         expect(skill.source, equals('filesystem'));
-        expect(skill.license, equals('MIT'));
-        expect(skill.compatibility, equals('>=1.0.0'));
-        expect(skill.allowedTools, equals(['search', 'fetch']));
         expect(skill.stateNamespace, equals('web_search_state'));
-        expect(skill.metadata, equals({'author': 'test'}));
+        expect(skill.extraParameters, equals({'max_results': 5}));
         expect(skill.stateTypeSchema, equals({'type': 'object'}));
       });
 
@@ -1815,11 +1807,8 @@ void main() {
 
         expect(skill.description, equals('Basic skill'));
         expect(skill.source, isNull);
-        expect(skill.license, isNull);
-        expect(skill.compatibility, isNull);
-        expect(skill.allowedTools, isNull);
         expect(skill.stateNamespace, isNull);
-        expect(skill.metadata, isEmpty);
+        expect(skill.extraParameters, isEmpty);
         expect(skill.stateTypeSchema, isNull);
       });
     });

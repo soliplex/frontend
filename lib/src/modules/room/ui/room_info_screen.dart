@@ -277,6 +277,19 @@ Widget _buildToolContent(RoomTool tool) {
           label: 'AG-UI Features',
           value: tool.aguiFeatureNames.join(', '),
         ),
+      if (tool.extraParameters.isNotEmpty)
+        Builder(
+          builder: (context) => DialogButton(
+            label: 'Show more',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => RawParametersDialog(
+                title: tool.name,
+                sections: [('Extra Parameters', tool.extraParameters)],
+              ),
+            ),
+          ),
+        ),
     ],
   );
 }
@@ -290,6 +303,19 @@ Widget _buildToolsetContent(McpClientToolset toolset) {
         InfoRow(
           label: 'Allowed Tools',
           value: toolset.allowedTools!.join(', '),
+        ),
+      if (toolset.toolsetParams.isNotEmpty)
+        Builder(
+          builder: (context) => DialogButton(
+            label: 'Show more',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => RawParametersDialog(
+                title: toolset.kind,
+                sections: [('Toolset Parameters', toolset.toolsetParams)],
+              ),
+            ),
+          ),
         ),
     ],
   );

@@ -164,19 +164,11 @@ RoomSkill roomSkillFromJson(String key, Map<String, dynamic> json) {
     name: (json['name'] as String?) ?? key,
     description: (json['description'] as String?) ?? '',
     source: json['source'] as String?,
-    license: json['license'] as String?,
-    compatibility: json['compatibility'] as String?,
-    allowedTools: _splitAllowedTools(json['allowed_tools'] as String?),
     stateNamespace: json['state_namespace'] as String?,
-    metadata: (json['metadata'] as Map<String, dynamic>?) ?? const {},
+    extraParameters:
+        (json['extra_parameters'] as Map<String, dynamic>?) ?? const {},
     stateTypeSchema: json['state_type_schema'] as Map<String, dynamic>?,
   );
-}
-
-/// Splits a space-separated allowed-tools string into a list.
-List<String>? _splitAllowedTools(String? raw) {
-  if (raw == null || raw.isEmpty) return null;
-  return raw.split(' ').where((s) => s.isNotEmpty).toList();
 }
 
 /// Converts a [RoomSkill] to JSON.
@@ -185,12 +177,9 @@ Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
     'name': skill.name,
     if (skill.description.isNotEmpty) 'description': skill.description,
     if (skill.source != null) 'source': skill.source,
-    if (skill.license != null) 'license': skill.license,
-    if (skill.compatibility != null) 'compatibility': skill.compatibility,
-    if (skill.allowedTools != null)
-      'allowed_tools': skill.allowedTools!.join(' '),
     if (skill.stateNamespace != null) 'state_namespace': skill.stateNamespace,
-    if (skill.metadata.isNotEmpty) 'metadata': skill.metadata,
+    if (skill.extraParameters.isNotEmpty)
+      'extra_parameters': skill.extraParameters,
     if (skill.stateTypeSchema != null)
       'state_type_schema': skill.stateTypeSchema,
   };

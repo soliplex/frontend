@@ -371,6 +371,95 @@ void main() {
       expect(find.text('search'), findsOneWidget);
     });
 
+    testWidgets('tool with extra parameters offers Show more', (tester) async {
+      final room = _testRoom.copyWith(
+        tools: {
+          'search': const RoomTool(
+            name: 'search',
+            description: 'Search the web',
+            kind: 'bare',
+            extraParameters: {'timeout_s': 30},
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('search'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('search'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Show more'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Extra Parameters'), findsOneWidget);
+      expect(find.text('timeout_s'), findsOneWidget);
+      expect(find.text('30'), findsOneWidget);
+    });
+
+    testWidgets('tool without extra parameters has no Show more',
+        (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('search'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('search'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Show more'), findsNothing);
+    });
+
+    testWidgets('toolset with params offers Show more', (tester) async {
+      final room = _testRoom.copyWith(
+        mcpClientToolsets: {
+          'stdio-tools': const McpClientToolset(
+            kind: 'stdio',
+            toolsetParams: {'command': 'uvx'},
+          ),
+        },
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('stdio-tools'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('stdio-tools'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Show more'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Toolset Parameters'), findsOneWidget);
+      expect(find.text('command'), findsOneWidget);
+      expect(find.text('uvx'), findsOneWidget);
+    });
+
+    testWidgets('toolset without params has no Show more', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('stdio-tools'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('stdio-tools'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Show more'), findsNothing);
+    });
+
     testWidgets('shows MCP toolsets section', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle();
@@ -412,7 +501,7 @@ void main() {
             name: 'Web Search',
             description: 'Search the web',
             source: 'filesystem',
-            metadata: {'author': 'test-user'},
+            extraParameters: {'max_results': 5},
           ),
         },
       );
@@ -435,10 +524,10 @@ void main() {
       await tester.tap(find.text('Show more'));
       await tester.pumpAndSettle();
 
-      // Dialog shows metadata
-      expect(find.text('Metadata'), findsOneWidget);
-      expect(find.text('author'), findsOneWidget);
-      expect(find.text('test-user'), findsOneWidget);
+      // Dialog shows the skill's extra parameters
+      expect(find.text('Extra Parameters'), findsOneWidget);
+      expect(find.text('max_results'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
     });
 
     testWidgets('shows empty skills section when no skills', (tester) async {

@@ -8,6 +8,26 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- The room info screen now shows the configuration the backend actually sends
+  for a skill, tool or MCP toolset. A skill's `extra_parameters`, a tool's
+  `extra_parameters` and a toolset's `toolset_params` all arrived on the wire
+  and none of them were rendered anywhere, so a room configured through them
+  looked identically configured to one that was not. All three now appear
+  behind the same "Show more" affordance the skills card already had.
+
+### Removed
+
+- `RoomSkill` no longer carries `license`, `compatibility`, `allowedTools` or
+  `metadata`. The backend stopped sending all four in a commit whose own
+  subject calls them fossils, so the skills card rendered four rows that read
+  "None" for every skill in every room, and the parser accepted values nothing
+  could produce. A fork reading `skill.license` should read the skill's
+  `extraParameters` instead, which is where the backend puts skill-specific
+  configuration. `RoomSkill.stateNamespace` is unaffected, and the MCP
+  toolset's own `allowedTools` is a different, real field that stays.
+
 ### Fixed
 
 - A room whose agent, tools, MCP toolsets or skills failed to parse now says so

@@ -135,3 +135,101 @@ SelectableText formatDynamicValue(
     style: isComplex ? context.monospaceOn(style) : style,
   );
 }
+
+/// Dialog rendering one or more raw parameter maps the backend passes
+/// through verbatim, each under its own heading.
+class RawParametersDialog extends StatelessWidget {
+  const RawParametersDialog({
+    super.key,
+    required this.title,
+    required this.sections,
+  });
+
+  final String title;
+
+  /// Section heading paired with the map to render beneath it. A null or
+  /// empty map renders as "Empty" rather than being omitted, so a section the
+  /// backend sent nothing for still accounts for itself.
+  final List<(String, Map<String, dynamic>?)> sections;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sectionStyle = theme.textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: colorScheme.onSurfaceVariant,
+    );
+    final valueStyle = theme.textTheme.bodySmall;
+    final noneStyle = theme.textTheme.bodySmall?.copyWith(
+      fontStyle: FontStyle.italic,
+      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+    );
+
+    Widget mapSection(String heading, Map<String, dynamic>? data) {
+      final isEmpty = data == null || data.isEmpty;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(heading, style: sectionStyle),
+          const SizedBox(height: SoliplexSpacing.s2),
+          if (isEmpty)
+            Text('Empty', style: noneStyle)
+          else
+            for (final entry in data.entries) ...[
+              SizedBox(
+                width: double.infinity,
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(SoliplexSpacing.s3),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(entry.key, style: labelStyle),
+                        const SizedBox(height: SoliplexSpacing.s1),
+                        formatDynamicValue(
+                          context,
+                          entry.value,
+                          style: valueStyle,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: SoliplexSpacing.s2),
+            ],
+        ],
+      );
+    }
+
+    return AlertDialog(
+      title: Text(title, overflow: TextOverflow.ellipsis, maxLines: 1),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (heading, data) in sections) ...[
+                mapSection(heading, data),
+                const SizedBox(height: SoliplexSpacing.s4),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        SoliplexButton.text(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
