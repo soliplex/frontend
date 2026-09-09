@@ -16,8 +16,11 @@ class McpClientToolset {
   /// Transport kind (e.g., 'stdio', 'http').
   final String kind;
 
-  /// Tools allowed from this toolset. Null means all tools are
-  /// allowed; empty list means no tools are allowed.
+  /// Tools this toolset is restricted to, or null for no restriction.
+  ///
+  /// Never empty: the backend treats an empty allow-list and a missing one
+  /// as the same state — every tool the server offers — so the mapper
+  /// normalises both to null.
   final List<String>? allowedTools;
 
   /// Transport parameters (e.g., url for http, command for stdio).

@@ -14,8 +14,9 @@ sealed class RoomAgent {
   ///
   /// Parsed but deliberately not rendered: the backend derives it as
   /// `room-{room_id}` (`config/rooms.py`), so it restates the room id the
-  /// screen already shows. It is kept because its absence is what tells
-  /// `roomAgentFromJson` the agent block is malformed.
+  /// screen already shows. It is kept because for an agent kind this client
+  /// does not model, its absence is the only thing `roomAgentFromJson` can
+  /// reject the block on.
   final String id;
 
   /// AG-UI feature names enabled for this agent.

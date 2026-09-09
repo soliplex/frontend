@@ -414,6 +414,9 @@ void main() {
       await tester.tap(find.text('search'));
       await tester.pumpAndSettle();
 
+      // Assert the card actually opened first, so the negative below cannot
+      // pass on a card that never expanded.
+      expect(find.text('Search the web'), findsOneWidget);
       expect(find.text('Show more'), findsNothing);
     });
 
@@ -578,8 +581,8 @@ void main() {
       await tester.pumpWidget(_buildScreen(room: room));
       await tester.pumpAndSettle();
 
-      // The arm matches unguarded now, so the block has to be withheld by the
-      // condition inside it rather than by the pattern failing to match.
+      // The `FactoryRoomAgent` arm is unguarded, so the Extra Config block is
+      // withheld by the condition inside it. This fails if that is dropped.
       expect(find.text('Factory: my_module.create_agent'), findsOneWidget);
       expect(find.text('Extra Config'), findsNothing);
     });

@@ -24,7 +24,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - `RoomSkill.stateTypeSchema` is a `Map<String, dynamic>` defaulting to empty
   rather than a nullable map. Nothing could tell the two apart: the card's
   "Show more" gate and the dialog both read an absent schema and an empty one
-  the same way, and the backend sends a populated schema or no key at all.
+  the same way, and the backend sends either a populated schema or null —
+  a JSON Schema is never empty.
 
 ### Removed
 

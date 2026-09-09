@@ -29,12 +29,6 @@ void main() {
       expect(toolset.allowedTools, isNull);
     });
 
-    test('empty allowedTools means no tools allowed', () {
-      const toolset = McpClientToolset(kind: 'http', allowedTools: []);
-
-      expect(toolset.allowedTools, isEmpty);
-    });
-
     test('toString includes kind', () {
       const toolset = McpClientToolset(kind: 'http');
 
