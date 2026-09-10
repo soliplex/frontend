@@ -24,7 +24,10 @@
 
 # Flutter/Dart/Pub related
 .dart_tool/
+# fvm's local SDK selection. The version CI builds with is pinned in
+# .github/actions/setup-dart-env/action.yaml, not here.
 .fvm/
+.fvmrc
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
@@ -116,7 +119,6 @@ app.*.symbols
 !**/ios/**/default.mode2v3
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
-!.vscode/settings.json
 
 # Scratchpad
 scratchpad/*
