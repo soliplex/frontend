@@ -646,13 +646,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   overflow: TextOverflow.ellipsis,
                 )
               : null,
-          trailing: IconButton(
-            icon: Icon(
-              Icons.delete_outline,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => _confirmRemoveServer(context, entry),
-          ),
+          // Only servers that remove synchronously carry the button. A
+          // signed-in server's removal would have to end the IdP session
+          // first — async, fallible, and this screen has no retry surface.
+          trailing: entry.auth.isAuthenticated
+              ? null
+              : IconButton(
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: () => _confirmRemoveServer(context, entry),
+                ),
           // Connected enters the lobby on this server; logged-out prefills
           // the address and runs the connect flow, which saves the selection
           // before reporting Connected, so that path lands on this server

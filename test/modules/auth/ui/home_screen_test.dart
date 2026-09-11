@@ -1107,6 +1107,59 @@ void main() {
       // lobby on the persisted server would contradict them.
       expect(find.text('Go to Lobby'), findsNothing);
     });
+
+    testWidgets('a signed-in server offers no remove button', (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://api.example.com',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+
+      // Removing it would have to end the IdP session first — async and
+      // fallible, and this screen has no retry surface. Sign out from the
+      // lobby instead.
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+    });
+
+    testWidgets('a no-auth server is removable', (tester) async {
+      final manager = _createServerManager();
+      manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+
+      // No session to end, so removal is synchronous and completes outright.
+      expect(manager.servers.value, isEmpty);
+    });
+
+    testWidgets('a logged-out auth server is removable', (tester) async {
+      final manager = _createServerManager();
+      manager.addServer(
+        serverId: 'https://api.example.com',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+
+      expect(manager.servers.value, isEmpty);
+    });
   });
 
   group('HomeScreen consent gate', () {
