@@ -493,10 +493,11 @@ class LobbyState {
   final Signal<String?> _selectedServerId = Signal<String?>(null);
   ReadonlySignal<String?> get selectedServerId => _selectedServerId;
 
-  /// Set once [_loadSelectedServer] has resolved. Until then the persisted
-  /// load owns the initial selection, so [_reconcileSelection] must not
-  /// race ahead and auto-pick the first server (which would shadow a
-  /// still-loading persisted choice).
+  /// Set once the initial selection is decided — either the constructor
+  /// seeds it synchronously from a winning `initialServerId`, or
+  /// [_loadSelectedServer] resolves the persisted/first-server default.
+  /// Until then [_reconcileSelection] must not race ahead and auto-pick the
+  /// first server (which would shadow a still-loading persisted choice).
   bool _selectionInitialized = false;
 
   /// Restores the persisted selection if it still maps to a known server,

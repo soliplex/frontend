@@ -671,6 +671,39 @@ void main() {
       expect(find.text('Show 2 more'), findsNothing);
     });
 
+    testWidgets('collapse cap applies to the combined roster, not per group',
+        (tester) async {
+      final serverManager = _createServerManager();
+      for (var i = 0; i < 5; i++) {
+        final entry = serverManager.addServer(
+          serverId: 'connected$i',
+          serverUrl: Uri.parse('https://connected$i.example.com'),
+        );
+        _loginEntry(entry);
+      }
+      for (var i = 0; i < 2; i++) {
+        serverManager.addServer(
+          serverId: 'loggedout$i',
+          serverUrl: Uri.parse('https://loggedout$i.example.com'),
+        );
+      }
+
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      // The 5 connected servers fill the cap...
+      for (var i = 0; i < 5; i++) {
+        expect(find.text('https://connected$i.example.com'), findsOneWidget);
+      }
+      // ...so neither logged-out server is shown, even though the combined
+      // roster has only 7 entries. A per-group cap (5 of each group) would
+      // show all 7 with no "Show more" button — this is the deliberate,
+      // accepted cost of capping the combined list.
+      expect(find.text('https://loggedout0.example.com'), findsNothing);
+      expect(find.text('https://loggedout1.example.com'), findsNothing);
+      expect(find.text('Show 2 more'), findsOneWidget);
+    });
+
     testWidgets('delete button removes server after confirmation',
         (tester) async {
       final serverManager = _createServerManager();
