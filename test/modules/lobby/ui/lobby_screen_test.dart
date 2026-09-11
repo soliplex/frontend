@@ -29,16 +29,18 @@ Widget _buildApp(
   ServerManager manager, {
   void Function(Uri location)? onHomeRoute,
   ApiResolver? apiResolver,
+  String initialLocation = '/lobby',
 }) {
   final router = GoRouter(
-    initialLocation: '/lobby',
+    initialLocation: initialLocation,
     routes: [
       GoRoute(
         path: '/lobby',
-        builder: (_, __) => LobbyScreen(
+        builder: (_, state) => LobbyScreen(
           serverManager: manager,
           identity: testIdentity(),
           apiResolver: apiResolver,
+          initialServerId: state.uri.queryParameters['server'],
         ),
       ),
       GoRoute(
@@ -893,6 +895,43 @@ void main() {
       final freshY = tester.getTopLeft(find.text('Fresh')).dy;
       final quietY = tester.getTopLeft(find.text('Quiet')).dy;
       expect(freshY, lessThan(quietY));
+    });
+
+    testWidgets('the server query parameter selects that server on arrival',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      // Added first, so a plain first-server default would win if the query
+      // parameter were ignored — the assertion below only passes because the
+      // parameter overrides it.
+      manager.addServer(
+        serverId: 'alpha',
+        serverUrl: Uri.parse('http://alpha.test:8000'),
+        requiresAuth: false,
+      );
+      manager.addServer(
+        serverId: 'bravo',
+        serverUrl: Uri.parse('http://bravo.test:8000'),
+        requiresAuth: false,
+      );
+
+      final alphaApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'Alpha room')];
+      final bravoApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r2', name: 'Bravo room')];
+
+      await tester.pumpWidget(_buildApp(
+        manager,
+        initialLocation: '/lobby?server=bravo',
+        apiResolver: (entry) => entry.serverId == 'alpha' ? alphaApi : bravoApi,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bravo room'), findsOneWidget);
+      expect(find.text('Alpha room'), findsNothing);
     });
 
     testWidgets(
