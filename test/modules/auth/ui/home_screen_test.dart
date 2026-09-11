@@ -243,7 +243,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextFormField), 'api.example.com');
+      await tester.enterText(find.byType(TextFormField), 'demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -254,8 +254,8 @@ void main() {
         (tester) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
-        serverId: 'https://api.example.com',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       _loginEntry(entry);
 
@@ -266,7 +266,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -317,7 +317,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextFormField), 'api.example.com');
+      await tester.enterText(find.byType(TextFormField), 'demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -336,7 +336,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -355,7 +355,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -374,7 +374,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -399,7 +399,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextFormField), 'api.example.com');
+      await tester.enterText(find.byType(TextFormField), 'demo.example.com');
       await tester.tap(find.text('Connect'));
       // Use pump() — pumpAndSettle times out due to the loading spinner.
       await tester.pump();
@@ -443,7 +443,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'ftp://api.example.com');
+          find.byType(TextFormField), 'ftp://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -463,11 +463,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Sign in to api.example.com'), findsOneWidget);
+      expect(find.text('Sign in to demo.example.com'), findsOneWidget);
       expect(find.text('Connect to a Soliplex server'), findsNothing);
     });
 
@@ -481,7 +481,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -513,7 +513,7 @@ void main() {
       expect(find.text('Your servers'), findsOneWidget);
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -541,7 +541,7 @@ void main() {
 
       // Connect — multiple providers, so we get provider selection phase.
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -570,7 +570,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
@@ -597,7 +597,7 @@ void main() {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
 
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
@@ -609,7 +609,7 @@ void main() {
 
       // Server section visible.
       expect(find.text('Your servers'), findsOneWidget);
-      expect(find.text('https://api.example.com'), findsOneWidget);
+      expect(find.text('demo.example.com'), findsOneWidget);
     });
 
     testWidgets('tapping logged-out server connects and navigates to lobby',
@@ -626,7 +626,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('https://staging.example.com'));
+      await tester.tap(find.text('staging.example.com'));
       await tester.pumpAndSettle();
 
       expect(find.text('Lobby placeholder'), findsOneWidget);
@@ -647,11 +647,11 @@ void main() {
 
       // First 5 visible.
       for (var i = 0; i < 5; i++) {
-        expect(find.text('https://server$i.example.com'), findsOneWidget);
+        expect(find.text('server$i.example.com'), findsOneWidget);
       }
       // 6th and 7th hidden.
-      expect(find.text('https://server5.example.com'), findsNothing);
-      expect(find.text('https://server6.example.com'), findsNothing);
+      expect(find.text('server5.example.com'), findsNothing);
+      expect(find.text('server6.example.com'), findsNothing);
 
       // Show more button.
       expect(find.text('Show 2 more'), findsOneWidget);
@@ -663,10 +663,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // All visible now (scroll to bottom to verify last entries).
-      await tester.ensureVisible(find.text('https://server6.example.com'));
+      await tester.ensureVisible(find.text('server6.example.com'));
       await tester.pumpAndSettle();
       for (var i = 0; i < 7; i++) {
-        expect(find.text('https://server$i.example.com'), findsOneWidget);
+        expect(find.text('server$i.example.com'), findsOneWidget);
       }
       expect(find.text('Show 2 more'), findsNothing);
     });
@@ -693,14 +693,14 @@ void main() {
 
       // The 5 connected servers fill the cap...
       for (var i = 0; i < 5; i++) {
-        expect(find.text('https://connected$i.example.com'), findsOneWidget);
+        expect(find.text('connected$i.example.com'), findsOneWidget);
       }
       // ...so neither logged-out server is shown, even though the combined
       // roster has only 7 entries. A per-group cap (5 of each group) would
       // show all 7 with no "Show more" button — this is the deliberate,
       // accepted cost of capping the combined list.
-      expect(find.text('https://loggedout0.example.com'), findsNothing);
-      expect(find.text('https://loggedout1.example.com'), findsNothing);
+      expect(find.text('loggedout0.example.com'), findsNothing);
+      expect(find.text('loggedout1.example.com'), findsNothing);
       expect(find.text('Show 2 more'), findsOneWidget);
     });
 
@@ -709,24 +709,24 @@ void main() {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
 
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
       await tester.pumpAndSettle();
 
-      expect(find.text('https://api.example.com'), findsOneWidget);
+      expect(find.text('demo.example.com'), findsOneWidget);
 
       // Tapping delete asks first; the server is still there.
       await tester.tap(find.byIcon(Icons.delete_outline));
       await tester.pumpAndSettle();
       expect(find.text('Remove server?'), findsOneWidget);
-      expect(find.text('https://api.example.com'), findsOneWidget);
+      expect(find.text('demo.example.com'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
       await tester.pumpAndSettle();
 
-      expect(find.text('https://api.example.com'), findsNothing);
+      expect(find.text('demo.example.com'), findsNothing);
       // Section heading also gone since no servers remain.
       expect(find.text('Your servers'), findsNothing);
     });
@@ -736,7 +736,7 @@ void main() {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
 
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
@@ -748,7 +748,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(serverManager.servers.value.containsKey('test'), isTrue);
-      expect(find.text('https://api.example.com'), findsOneWidget);
+      expect(find.text('demo.example.com'), findsOneWidget);
     });
 
     testWidgets('updates when server is added externally', (tester) async {
@@ -756,15 +756,15 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
       await tester.pumpAndSettle();
 
-      expect(find.text('https://api.example.com'), findsNothing);
+      expect(find.text('demo.example.com'), findsNothing);
 
       serverManager.addServer(
         serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('https://api.example.com'), findsOneWidget);
+      expect(find.text('demo.example.com'), findsOneWidget);
     });
 
     testWidgets('no-auth server counts as connected', (tester) async {
@@ -777,7 +777,7 @@ void main() {
 
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('http://localhost:8000'));
+      await tester.tap(find.text('localhost:8000'));
       await tester.pumpAndSettle();
 
       // Permanently connected, so the row takes the connected branch —
@@ -867,7 +867,7 @@ void main() {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
       await tester.pumpAndSettle();
@@ -895,7 +895,7 @@ void main() {
       final serverManager = _createServerManager();
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
-        defaultBackendUrl: 'https://api.example.com',
+        defaultBackendUrl: 'https://demo.example.com',
       ));
       await tester.pumpAndSettle();
 
@@ -911,7 +911,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
       await tester.pumpAndSettle();
 
-      expect(editableText.controller.text, 'https://api.example.comx');
+      expect(editableText.controller.text, 'https://demo.example.comx');
     });
 
     testWidgets('a control key restores focus without typing anything',
@@ -949,12 +949,12 @@ void main() {
       final serverManager = _createServerManager();
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
-        defaultBackendUrl: 'https://api.example.com',
+        defaultBackendUrl: 'https://demo.example.com',
       ));
       await tester.pumpAndSettle();
 
       final field = tester.widget<TextFormField>(find.byType(TextFormField));
-      expect(field.controller!.text, 'https://api.example.com');
+      expect(field.controller!.text, 'https://demo.example.com');
     });
 
     testWidgets('does not pre-populate URL when servers exist', (tester) async {
@@ -966,7 +966,7 @@ void main() {
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
-        defaultBackendUrl: 'https://api.example.com',
+        defaultBackendUrl: 'https://demo.example.com',
       ));
       await tester.pumpAndSettle();
 
@@ -976,7 +976,7 @@ void main() {
 
     testWidgets('autoConnectUrl sets URL and triggers connect', (tester) async {
       final serverManager = _createServerManager();
-      final encodedUrl = Uri.encodeComponent('https://api.example.com');
+      final encodedUrl = Uri.encodeComponent('https://demo.example.com');
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
@@ -1013,7 +1013,7 @@ void main() {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
 
       await tester.pumpWidget(_buildApp(
@@ -1040,19 +1040,19 @@ void main() {
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
-        defaultBackendUrl: 'https://api.example.com',
+        defaultBackendUrl: 'https://demo.example.com',
       ));
       await tester.pumpAndSettle();
 
       final field = tester.widget<TextFormField>(find.byType(TextFormField));
-      expect(field.controller!.text, 'https://api.example.com');
+      expect(field.controller!.text, 'https://demo.example.com');
     });
 
     testWidgets('lists a connected server with a status dot', (tester) async {
       final manager = _createServerManager();
       final entry = manager.addServer(
-        serverId: 'https://api.example.com',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       _loginEntry(entry);
 
@@ -1060,7 +1060,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Before this change the list filtered connected servers out entirely.
-      expect(find.text('https://api.example.com'), findsOneWidget);
+      expect(find.text('demo.example.com'), findsOneWidget);
       expect(find.byType(ServerStatusDot), findsOneWidget);
     });
 
@@ -1082,10 +1082,8 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
 
-      final connectedY =
-          tester.getTopLeft(find.text('https://aaa.example.com')).dy;
-      final loggedOutY =
-          tester.getTopLeft(find.text('https://zzz.example.com')).dy;
+      final connectedY = tester.getTopLeft(find.text('aaa.example.com')).dy;
+      final loggedOutY = tester.getTopLeft(find.text('zzz.example.com')).dy;
       expect(connectedY, lessThan(loggedOutY));
     });
 
@@ -1112,10 +1110,9 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
 
-      final liveY = tester.getTopLeft(find.text('https://live.example.com')).dy;
-      final staleY =
-          tester.getTopLeft(find.text('https://stale.example.com')).dy;
-      final localY = tester.getTopLeft(find.text('http://localhost:8000')).dy;
+      final liveY = tester.getTopLeft(find.text('live.example.com')).dy;
+      final staleY = tester.getTopLeft(find.text('stale.example.com')).dy;
+      final localY = tester.getTopLeft(find.text('localhost:8000')).dy;
 
       // A signed-out auth server outranks a no-auth one even though the no-auth
       // server needs no sign-in: rank asks which server matters, not which is
@@ -1128,8 +1125,8 @@ void main() {
         (tester) async {
       final manager = _createServerManager();
       manager.addServer(
-        serverId: 'https://api.example.com',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       manager.addServer(
         serverId: 'http://localhost:8000',
@@ -1145,8 +1142,8 @@ void main() {
       // ListTile drops minLeadingWidth/horizontalTitleGap for that row and the
       // title slides left.
       expect(
-        tester.getTopLeft(find.text('http://localhost:8000')).dx,
-        tester.getTopLeft(find.text('https://api.example.com')).dx,
+        tester.getTopLeft(find.text('localhost:8000')).dx,
+        tester.getTopLeft(find.text('demo.example.com')).dx,
       );
     });
 
@@ -1154,19 +1151,19 @@ void main() {
         (tester) async {
       final manager = _createServerManager();
       final entry = manager.addServer(
-        serverId: 'https://api.example.com',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       _loginEntry(entry);
 
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('https://api.example.com'));
+      await tester.tap(find.text('demo.example.com'));
       await tester.pumpAndSettle();
 
       expect(find.text('Lobby placeholder'), findsOneWidget);
       // The id must travel on the route, not just land on "some" lobby.
-      expect(find.text('server=https://api.example.com'), findsOneWidget);
+      expect(find.text('server=https://demo.example.com'), findsOneWidget);
     });
 
     testWidgets('a no-auth server is listed without a status dot',
@@ -1181,7 +1178,7 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
 
-      expect(find.text('http://localhost:8000'), findsOneWidget);
+      expect(find.text('localhost:8000'), findsOneWidget);
       // Permanently connected, so a sign-in dot would be meaningless.
       expect(find.byType(ServerStatusDot), findsNothing);
     });
@@ -1189,8 +1186,8 @@ void main() {
     testWidgets('the Go to Lobby button is gone', (tester) async {
       final manager = _createServerManager();
       final entry = manager.addServer(
-        serverId: 'https://api.example.com',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       _loginEntry(entry);
 
@@ -1205,8 +1202,8 @@ void main() {
     testWidgets('a signed-in server offers no remove button', (tester) async {
       final manager = _createServerManager();
       final entry = manager.addServer(
-        serverId: 'https://api.example.com',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
       _loginEntry(entry);
 
@@ -1241,8 +1238,8 @@ void main() {
     testWidgets('a logged-out auth server is removable', (tester) async {
       final manager = _createServerManager();
       manager.addServer(
-        serverId: 'https://api.example.com',
-        serverUrl: Uri.parse('https://api.example.com'),
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
       );
 
       await tester.pumpWidget(_buildApp(serverManager: manager));
@@ -1265,7 +1262,7 @@ void main() {
 
     Future<void> reachConsent(WidgetTester tester) async {
       await tester.enterText(
-          find.byType(TextFormField), 'https://api.example.com');
+          find.byType(TextFormField), 'https://demo.example.com');
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
     }
