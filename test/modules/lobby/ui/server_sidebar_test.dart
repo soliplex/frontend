@@ -479,6 +479,37 @@ void main() {
         expect(entry.auth.isAuthenticated, isTrue);
       });
 
+      testWidgets('an unselected tile surfaces its failure', (tester) async {
+        final (manager, _, flow) = failingLogout();
+
+        // No selection and no hover, so this tile's ⋮ is hidden — reachable
+        // only by long-press, which is the path that can start a log-out here.
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          overrides: overridesFor(flow),
+        ));
+        await tester.longPress(find.text('api.example.com'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pumpAndSettle();
+
+        // A hidden Visibility still keeps its child in the tree, so finding
+        // the icon proves nothing — assert nothing above it is hiding it. The
+        // outcome has to be visible even though the ⋮ is not: a second
+        // long-press is inert by design, so this is the only surface the
+        // failure has.
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+        expect(
+          find.ancestor(
+            of: find.byIcon(Icons.error_outline),
+            matching:
+                find.byWidgetPredicate((w) => w is Visibility && !w.visible),
+          ),
+          findsNothing,
+        );
+      });
+
       testWidgets('a long-press opens no menu while the tile shows an error',
           (tester) async {
         final (manager, _, flow) = failingLogout();
@@ -668,10 +699,11 @@ void main() {
         completer.complete();
         await tester.pumpAndSettle();
 
+        // Only the post-await `removeServer` rebinds: `logoutServer` takes the
+        // entry as an argument before the await, so asserting on sessions here
+        // would pass with or without the key.
         expect(manager.servers.value.containsKey('bravo'), isFalse);
         expect(manager.servers.value.containsKey('alpha'), isTrue);
-        expect(bravo.auth.isAuthenticated, isFalse);
-        expect(alpha.auth.isAuthenticated, isTrue);
       });
     });
 
@@ -1099,19 +1131,18 @@ void main() {
             ),
           );
 
-      testWidgets('orders signed-in, then signed-out, then no-auth servers',
+      testWidgets('renders servers in the shared display order',
           (tester) async {
         final manager = _createManager();
         // Added in reverse of the expected order, so insertion order — which
         // is all this list had before — cannot produce the assertion below.
+        // Two ranks is all this needs: the full ladder belongs to the
+        // comparator's own test, and no server is selected here, so the pin
+        // cannot account for the result either.
         manager.addServer(
           serverId: 'local',
           serverUrl: Uri.parse('http://localhost:8000'),
           requiresAuth: false,
-        );
-        manager.addServer(
-          serverId: 'stale',
-          serverUrl: Uri.parse('https://stale.example.com'),
         );
         final live = manager.addServer(
           serverId: 'live',
@@ -1125,14 +1156,10 @@ void main() {
         ));
         await tester.pumpAndSettle();
 
-        final liveY = tester.getTopLeft(find.text('live.example.com')).dy;
-        final staleY = tester.getTopLeft(find.text('stale.example.com')).dy;
-        final localY = tester.getTopLeft(find.text('localhost:8000')).dy;
-
-        // Same rule as the home list, from the same comparator, so a user
-        // moving between the screens finds servers where they left them.
-        expect(liveY, lessThan(staleY));
-        expect(staleY, lessThan(localY));
+        expect(
+          tester.getTopLeft(find.text('live.example.com')).dy,
+          lessThan(tester.getTopLeft(find.text('localhost:8000')).dy),
+        );
       });
 
       testWidgets('pins the selected server above the sorted rest',

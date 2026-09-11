@@ -104,19 +104,16 @@ class LobbyState {
     // user off the server they chose. Seeding before the subscribe also keeps
     // _reconcileSelection's immediate fire a no-op (selection is already
     // initialized and valid).
-    final seedId = (initialServerId != null &&
-            _serverManager.servers.value.containsKey(initialServerId))
-        ? initialServerId
-        : null;
-    if (seedId != null) {
-      _selectedServerId.value = seedId;
+    if (initialServerId != null &&
+        _serverManager.servers.value.containsKey(initialServerId)) {
+      _selectedServerId.value = initialServerId;
       _selectionInitialized = true;
-      _persistSelection(seedId);
+      _persistSelection(initialServerId);
     }
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
-    if (seedId == null) unawaited(_loadSelectedServer());
+    if (!_selectionInitialized) unawaited(_loadSelectedServer());
     _watchRunCompletions();
   }
 

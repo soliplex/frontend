@@ -250,11 +250,12 @@ class _ServerTileState extends State<_ServerTile> {
 
   /// Opens the trailing ⋮ menu from the tile's long-press and secondary tap.
   ///
-  /// Null exactly while a log-out is outstanding or has failed, because the
-  /// menu is not built then — the slot holds a spinner or an error button — so
-  /// the gestures go inert without a flag to keep in step. The menu survives
-  /// being hidden (`Visibility.maintainState`), which is what lets an
-  /// unselected tile, the case with no visible ⋮, answer the gesture at all.
+  /// `currentState` is null exactly while a log-out is outstanding or has
+  /// failed, because the menu is not built then — the slot holds a spinner or
+  /// an error button — so the gestures go inert without a flag to keep in
+  /// step. A hidden menu is still built (`Visibility.maintainState`), which is
+  /// what lets an unselected tile, the case with no visible ⋮, answer the
+  /// gesture at all.
   final _menuKey = GlobalKey<PopupMenuButtonState<_ServerTileAction>>();
 
   @override
@@ -282,17 +283,9 @@ class _ServerTileState extends State<_ServerTile> {
           // padding, so the glyph still clears the rounded corner and the tap
           // target stays full size.
           contentPadding: const EdgeInsets.only(left: SoliplexSpacing.s4),
-          // The status dot only signals sign-in state, which is meaningless for
-          // a no-auth server (it's always ready) — so those show no dot, but
-          // keep its slot so every title shares one indent. Tighten the slot so
-          // the dot reads as a marker beside the name rather than a far-left
-          // icon.
-          leading: SizedBox(
-            width: ServerStatusDot.size,
-            child: widget.entry.requiresAuth
-                ? ServerStatusDot(entry: widget.entry)
-                : null,
-          ),
+          // Tighten the slot so the dot reads as a marker beside the name
+          // rather than a far-left icon.
+          leading: ServerStatusDot.leadingSlot(widget.entry),
           minLeadingWidth: 0,
           horizontalTitleGap: SoliplexSpacing.s3,
           selected: widget.selected,
@@ -305,18 +298,13 @@ class _ServerTileState extends State<_ServerTile> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: Visibility(
-            visible: showMenu,
-            maintainSize: true,
-            maintainAnimation: true,
-            maintainState: true,
-            child: _ServerTileMenu(
-              menuKey: _menuKey,
-              entry: widget.entry,
-              serverManager: widget.serverManager,
-              onSignIn: widget.onSignIn,
-              onMarkAllRead: widget.onMarkAllRead,
-            ),
+          trailing: _ServerTileMenu(
+            menuKey: _menuKey,
+            revealed: showMenu,
+            entry: widget.entry,
+            serverManager: widget.serverManager,
+            onSignIn: widget.onSignIn,
+            onMarkAllRead: widget.onMarkAllRead,
           ),
           dense: true,
           onTap: widget.onTap,
@@ -368,15 +356,22 @@ enum _AfterLogout {
 /// failure.
 class _ServerTileMenu extends ConsumerStatefulWidget {
   const _ServerTileMenu({
+    required this.menuKey,
+    required this.revealed,
     required this.entry,
     required this.serverManager,
     required this.onSignIn,
     required this.onMarkAllRead,
-    this.menuKey,
   });
 
   /// Handed to the inner [PopupMenuButton] so the tile's gestures can open it.
-  final Key? menuKey;
+  /// Typed to that state, not to [Key], because any other key compiles and
+  /// then silently leaves both gestures dead.
+  final GlobalKey<PopupMenuButtonState<_ServerTileAction>> menuKey;
+
+  /// Whether the idle ⋮ is shown. A spinner or an error ignores this and shows
+  /// regardless — see [_ServerTileMenuState.build].
+  final bool revealed;
 
   final ServerEntry entry;
   final ServerManager serverManager;
@@ -506,6 +501,11 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
 
   @override
   Widget build(BuildContext context) {
+    // A spinner and an error both show unconditionally: only the idle ⋮ is
+    // hidden by [_ServerTileMenu.revealed]. An outcome the user cannot see is
+    // worse than a busy-looking tile, and a long-press can start a removal on
+    // a tile that never reveals its ⋮ — hiding the result would leave the
+    // failure with nowhere to appear.
     if (_busy) {
       return const SizedBox.square(
         dimension: 24,
@@ -529,45 +529,51 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
     }
     final entry = widget.entry;
     final connected = entry.isConnected;
-    return PopupMenuButton<_ServerTileAction>(
-      key: widget.menuKey,
-      icon: const Icon(Icons.more_vert),
-      tooltip: 'Server actions',
-      onSelected: _handle,
-      itemBuilder: (context) => [
-        if (!connected)
+    return Visibility(
+      visible: widget.revealed,
+      maintainSize: true,
+      maintainAnimation: true,
+      maintainState: true,
+      child: PopupMenuButton<_ServerTileAction>(
+        key: widget.menuKey,
+        icon: const Icon(Icons.more_vert),
+        tooltip: 'Server actions',
+        onSelected: _handle,
+        itemBuilder: (context) => [
+          if (!connected)
+            const PopupMenuItem(
+              value: _ServerTileAction.signIn,
+              child: MenuRow(icon: Icons.login, label: 'Sign in'),
+            ),
+          if (connected && entry.requiresAuth)
+            const PopupMenuItem(
+              value: _ServerTileAction.logOut,
+              child: MenuRow(icon: Icons.logout, label: 'Log out'),
+            ),
           const PopupMenuItem(
-            value: _ServerTileAction.signIn,
-            child: MenuRow(icon: Icons.login, label: 'Sign in'),
+            value: _ServerTileAction.markAllRead,
+            child: MenuRow(
+              icon: Icons.mark_chat_read_outlined,
+              label: 'Mark all as read',
+            ),
           ),
-        if (connected && entry.requiresAuth)
           const PopupMenuItem(
-            value: _ServerTileAction.logOut,
-            child: MenuRow(icon: Icons.logout, label: 'Log out'),
+            value: _ServerTileAction.copyAddress,
+            child: MenuRow(
+              icon: Icons.content_copy,
+              label: 'Copy server address',
+            ),
           ),
-        const PopupMenuItem(
-          value: _ServerTileAction.markAllRead,
-          child: MenuRow(
-            icon: Icons.mark_chat_read_outlined,
-            label: 'Mark all as read',
+          PopupMenuItem(
+            value: _ServerTileAction.remove,
+            child: MenuRow(
+              icon: Icons.delete_outline,
+              label: 'Remove',
+              destructive: true,
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: _ServerTileAction.copyAddress,
-          child: MenuRow(
-            icon: Icons.content_copy,
-            label: 'Copy server address',
-          ),
-        ),
-        PopupMenuItem(
-          value: _ServerTileAction.remove,
-          child: MenuRow(
-            icon: Icons.delete_outline,
-            label: 'Remove',
-            destructive: true,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
