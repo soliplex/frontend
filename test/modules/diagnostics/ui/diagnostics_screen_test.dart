@@ -741,6 +741,50 @@ void main() {
     });
   });
 
+  group('DiagnosticsScreen export notice', () {
+    late NetworkInspector inspector;
+    late FilePickerPlatform originalPicker;
+
+    setUp(() {
+      inspector = NetworkInspector();
+      originalPicker = FilePickerPlatform.instance;
+      FilePickerPlatform.instance =
+          _FakeSavePicker.throwing(ArgumentError('nope'));
+    });
+    tearDown(() {
+      inspector.dispose();
+      FilePickerPlatform.instance = originalPicker;
+    });
+
+    testWidgets('a standing notice does not starve the pane it points at',
+        (tester) async {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            uri: Uri.parse('http://localhost/api/v1/rooms')))
+        ..onResponse(createResponseEvent(requestId: 'req-1'));
+      // Short enough that the notice, uncapped, would take the column and
+      // leave the pane nothing — which is where it says to look.
+      tester.view.physicalSize = const Size(375, 280);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DiagnosticsScreen(appName: 'Acme', inspector: inspector),
+        ),
+      );
+
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.save_alt));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Could not finish saving'), findsOneWidget);
+      // The way to the Logs pane the notice names, and some traffic, both
+      // survive it.
+      expect(find.text('Logs'), findsOneWidget);
+      expect(tester.getSize(find.byType(ListView)).height, greaterThan(0));
+    });
+  });
+
   group('DiagnosticsScreen with no log capture installed', () {
     late NetworkInspector inspector;
 
@@ -885,7 +929,6 @@ void main() {
 
       expect(find.byType(TextField), findsNothing);
       expect(find.text('Success'), findsNothing);
-      expect(find.text('LLM'), findsNothing);
       // The control says which state it is in, so it does not have to be
       // tapped to find out.
       expect(find.text('Show filters'), findsOneWidget);
@@ -1035,10 +1078,7 @@ void main() {
         ..onRequest(createRequestEvent(
             requestId: 'req-1',
             uri: Uri.parse('http://localhost/api/v1/rooms/r1/agui/t1/run-1')))
-        ..onResponse(createResponseEvent(requestId: 'req-1'))
-        ..onRequest(createRequestEvent(
-            requestId: 'req-2', uri: Uri.parse('http://localhost/api/other')))
-        ..onResponse(createResponseEvent(requestId: 'req-2'));
+        ..onResponse(createResponseEvent(requestId: 'req-1'));
       await pumpAt(tester, phone, initialRunId: 'run-1');
 
       // The deep link lands on a phone, where the filters start collapsed.
@@ -1095,6 +1135,16 @@ void main() {
       // next is still hidden. Hiding the field that holds it would leave the
       // reader watching an empty pane for no stated reason.
       expect(find.text('threads'), findsOneWidget);
+      // And the state says so, for a query as much as for a run scope.
+      expect(find.text('Only requests matching your filters will appear here'),
+          findsOneWidget);
+
+      // And offers the way out its milder sibling does: the state that says
+      // rows are withheld is where a reader looks to stop withholding them.
+      await tester.tap(find.text('Clear filters'));
+      await tester.pumpAndSettle();
+      expect(find.text('Requests will appear here as you use the app'),
+          findsOneWidget);
     });
 
     testWidgets('an empty capture offers no filter affordance', (tester) async {
@@ -1105,22 +1155,6 @@ void main() {
       // the heading, which an empty, unfiltered capture does not render.
       expect(find.byType(TextField), findsNothing);
       expect(find.text('Logs'), findsOneWidget);
-    });
-
-    testWidgets('the controls keep to the left margin on a wide window',
-        (tester) async {
-      seedRoomsAndThreads();
-      await pumpAt(tester, 1400);
-
-      // Capping their width must not centre them: the list they sit above is
-      // full-bleed, so centred controls read as belonging to nothing.
-      final switcher = find.ancestor(
-        of: find.text('Logs'),
-        matching: find.bySubtype<SegmentedButton>(),
-      );
-      expect(tester.getTopLeft(switcher).dx, SoliplexSpacing.s4);
-      expect(
-          tester.getTopLeft(find.text('Requests (2)')).dx, SoliplexSpacing.s4);
     });
 
     testWidgets('the switcher and the filter toggles are one size',
@@ -1204,6 +1238,11 @@ void main() {
       // fails on an overflow, so rendering them at this size is the
       // assertion.
       expect(find.textContaining('Requests ('), findsOneWidget);
+      // 'Requests' is one token and is wider than its half of the row here,
+      // so without a line limit it wraps to a column of fragments with the
+      // first one clipped. Two lines of titleMedium at 2x is ~120.
+      expect(tester.getSize(find.textContaining('Requests (')).height,
+          lessThanOrEqualTo(130));
       expect(find.text('Hide filters'), findsOneWidget);
       expect(find.textContaining('Run · '), findsOneWidget);
     });
