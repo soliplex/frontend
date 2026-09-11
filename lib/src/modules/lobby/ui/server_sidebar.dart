@@ -173,6 +173,15 @@ class _ServerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Selected server first, then the shared display order, so the tile beside
+    // the visible rooms never scrolls away. Selecting does reorder the list;
+    // accepted because selection is occasional. Safe to mutate in place —
+    // serversInDisplayOrder returns a fresh list.
+    final ordered = serversInDisplayOrder(servers.values);
+    final selectedIndex =
+        ordered.indexWhere((e) => e.serverId == selectedServerId);
+    if (selectedIndex > 0) ordered.insert(0, ordered.removeAt(selectedIndex));
+
     return ListView(
       children: [
         Padding(
@@ -187,8 +196,13 @@ class _ServerList extends StatelessWidget {
                 ),
           ),
         ),
-        for (final entry in _sidebarOrder(servers.values, selectedServerId))
+        for (final entry in ordered)
           _ServerTile(
+            // Keyed by server, because this list reorders (the pin, and rank
+            // on sign-in). Without it ListView matches elements by index, so a
+            // reorder rebinds a tile's live log-out state to a different
+            // server and its post-await `removeServer` drops the wrong one.
+            key: ValueKey(entry.serverId),
             entry: entry,
             serverManager: serverManager,
             selected: entry.serverId == selectedServerId,
@@ -209,29 +223,9 @@ class _ServerList extends StatelessWidget {
   }
 }
 
-/// The sidebar's server order: the selected server first, then everything else
-/// in the order the home list uses, so the two screens agree on everything but
-/// the pin.
-///
-/// The pin exists because this list sits beside the rooms of exactly one
-/// server; keeping that server at the top means the tile you are reading never
-/// scrolls out from under the rooms it produced. The cost is that selecting a
-/// server reorders the list beneath the pointer — acceptable here because
-/// selection is occasional, and the reason the home list does not pin anything.
-List<ServerEntry> _sidebarOrder(
-  Iterable<ServerEntry> servers,
-  String? selectedServerId,
-) {
-  // Safe to mutate: serversInDisplayOrder returns a fresh list.
-  final ordered = serversInDisplayOrder(servers);
-  final index = ordered.indexWhere((e) => e.serverId == selectedServerId);
-  // No selection, an id naming no known server, or already on top.
-  if (index <= 0) return ordered;
-  return [ordered.removeAt(index), ...ordered];
-}
-
 class _ServerTile extends StatefulWidget {
   const _ServerTile({
+    super.key,
     required this.entry,
     required this.serverManager,
     required this.selected,
@@ -254,24 +248,14 @@ class _ServerTile extends StatefulWidget {
 class _ServerTileState extends State<_ServerTile> {
   bool _hovered = false;
 
-  /// Reaches the trailing menu's state so the tile's long-press and secondary
-  /// tap can open it. The menu keeps its state while hidden
-  /// (`Visibility.maintainState`), which is what lets an unselected tile — the
-  /// case with no visible ⋮ — still answer the gesture.
-  final _menuKey = GlobalKey<_ServerTileMenuState>();
-
-  /// Opens the tile's menu at the pointer. Anchoring to the finger or cursor
-  /// rather than to the tile is what makes this read as a context menu.
-  void _openMenuAt(Offset globalPosition) {
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    _menuKey.currentState?.openMenuAt(
-      RelativeRect.fromRect(
-        Rect.fromPoints(globalPosition, globalPosition),
-        Offset.zero & overlay.size,
-      ),
-    );
-  }
+  /// Opens the trailing ⋮ menu from the tile's long-press and secondary tap.
+  ///
+  /// Null exactly while a log-out is outstanding or has failed, because the
+  /// menu is not built then — the slot holds a spinner or an error button — so
+  /// the gestures go inert without a flag to keep in step. The menu survives
+  /// being hidden (`Visibility.maintainState`), which is what lets an
+  /// unselected tile, the case with no visible ⋮, answer the gesture at all.
+  final _menuKey = GlobalKey<PopupMenuButtonState<_ServerTileAction>>();
 
   @override
   Widget build(BuildContext context) {
@@ -286,13 +270,12 @@ class _ServerTileState extends State<_ServerTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      // Long-press and right-click summon the same menu the ⋮ holds. Without
-      // them an unselected tile has no reachable actions on touch, because
-      // hover never fires there — you would have to select the server first,
-      // swapping the main pane just to reach its menu.
+      // Long-press and right-click open the ⋮ menu directly — hover never
+      // fires on touch, so an unselected tile would otherwise have no
+      // reachable actions without first selecting the server.
       child: GestureDetector(
-        onLongPressStart: (details) => _openMenuAt(details.globalPosition),
-        onSecondaryTapDown: (details) => _openMenuAt(details.globalPosition),
+        onLongPress: () => _menuKey.currentState?.showButtonMenu(),
+        onSecondaryTap: () => _menuKey.currentState?.showButtonMenu(),
         child: ListTile(
           // ListTile pads both sides by 16 unless told otherwise. Drop the right
           // pad so the ⋮ reaches the tile's edge; the button keeps its own
@@ -328,7 +311,7 @@ class _ServerTileState extends State<_ServerTile> {
             maintainAnimation: true,
             maintainState: true,
             child: _ServerTileMenu(
-              key: _menuKey,
+              menuKey: _menuKey,
               entry: widget.entry,
               serverManager: widget.serverManager,
               onSignIn: widget.onSignIn,
@@ -358,49 +341,6 @@ String _signedInName(UserProfile? profile) {
 /// depends on the server's connection state (see [_ServerTileMenu]).
 enum _ServerTileAction { signIn, logOut, markAllRead, copyAddress, remove }
 
-/// The tile's actions, scoped to [entry]'s connection state. Shared by the ⋮
-/// button and by the tile's long-press / secondary-tap, so a server offers the
-/// same actions however the menu was summoned.
-List<PopupMenuEntry<_ServerTileAction>> _serverTileMenuItems(
-  ServerEntry entry,
-) {
-  final connected = entry.isConnected;
-  return [
-    if (!connected)
-      const PopupMenuItem(
-        value: _ServerTileAction.signIn,
-        child: MenuRow(icon: Icons.login, label: 'Sign in'),
-      ),
-    if (connected && entry.requiresAuth)
-      const PopupMenuItem(
-        value: _ServerTileAction.logOut,
-        child: MenuRow(icon: Icons.logout, label: 'Log out'),
-      ),
-    const PopupMenuItem(
-      value: _ServerTileAction.markAllRead,
-      child: MenuRow(
-        icon: Icons.mark_chat_read_outlined,
-        label: 'Mark all as read',
-      ),
-    ),
-    const PopupMenuItem(
-      value: _ServerTileAction.copyAddress,
-      child: MenuRow(
-        icon: Icons.content_copy,
-        label: 'Copy server address',
-      ),
-    ),
-    PopupMenuItem(
-      value: _ServerTileAction.remove,
-      child: MenuRow(
-        icon: Icons.delete_outline,
-        label: 'Remove',
-        destructive: true,
-      ),
-    ),
-  ];
-}
-
 /// What happens to the entry after a log-out attempt. The error-menu escape
 /// hatch (remove even when sign-out fails) is a third outcome beyond "keep"
 /// and "remove on a clean sign-out", so the disposition needs an enum, not a
@@ -428,12 +368,15 @@ enum _AfterLogout {
 /// failure.
 class _ServerTileMenu extends ConsumerStatefulWidget {
   const _ServerTileMenu({
-    super.key,
     required this.entry,
     required this.serverManager,
     required this.onSignIn,
     required this.onMarkAllRead,
+    this.menuKey,
   });
+
+  /// Handed to the inner [PopupMenuButton] so the tile's gestures can open it.
+  final Key? menuKey;
 
   final ServerEntry entry;
   final ServerManager serverManager;
@@ -447,24 +390,6 @@ class _ServerTileMenu extends ConsumerStatefulWidget {
 class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
   bool _busy = false;
   _LogoutFailure? _failure;
-
-  /// Opens the same menu the ⋮ shows, anchored at [position] — the entry point
-  /// for the tile's long-press and secondary tap.
-  ///
-  /// A no-op while a log-out is outstanding or has failed: the ⋮ is not a menu
-  /// in those states, it is a spinner or an error affordance, and offering
-  /// "Log out" again mid-round-trip would start a second one. Reaching the
-  /// error menu stays a deliberate tap on the error icon.
-  Future<void> openMenuAt(RelativeRect position) async {
-    if (_busy || _failure != null) return;
-    final action = await showMenu<_ServerTileAction>(
-      context: context,
-      position: position,
-      items: _serverTileMenuItems(widget.entry),
-    );
-    if (action == null || !mounted) return;
-    await _handle(action);
-  }
 
   Future<void> _handle(_ServerTileAction action) async {
     switch (action) {
@@ -602,11 +527,47 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         onRemove: () => _runLogout(_AfterLogout.removeRegardless),
       );
     }
+    final entry = widget.entry;
+    final connected = entry.isConnected;
     return PopupMenuButton<_ServerTileAction>(
+      key: widget.menuKey,
       icon: const Icon(Icons.more_vert),
       tooltip: 'Server actions',
       onSelected: _handle,
-      itemBuilder: (context) => _serverTileMenuItems(widget.entry),
+      itemBuilder: (context) => [
+        if (!connected)
+          const PopupMenuItem(
+            value: _ServerTileAction.signIn,
+            child: MenuRow(icon: Icons.login, label: 'Sign in'),
+          ),
+        if (connected && entry.requiresAuth)
+          const PopupMenuItem(
+            value: _ServerTileAction.logOut,
+            child: MenuRow(icon: Icons.logout, label: 'Log out'),
+          ),
+        const PopupMenuItem(
+          value: _ServerTileAction.markAllRead,
+          child: MenuRow(
+            icon: Icons.mark_chat_read_outlined,
+            label: 'Mark all as read',
+          ),
+        ),
+        const PopupMenuItem(
+          value: _ServerTileAction.copyAddress,
+          child: MenuRow(
+            icon: Icons.content_copy,
+            label: 'Copy server address',
+          ),
+        ),
+        PopupMenuItem(
+          value: _ServerTileAction.remove,
+          child: MenuRow(
+            icon: Icons.delete_outline,
+            label: 'Remove',
+            destructive: true,
+          ),
+        ),
+      ],
     );
   }
 }

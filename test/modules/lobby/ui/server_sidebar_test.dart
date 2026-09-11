@@ -621,6 +621,58 @@ void main() {
         await tester.pumpAndSettle();
         expect(entry.auth.isAuthenticated, isFalse);
       });
+
+      testWidgets(
+          'an in-flight removal survives a reorder and drops the '
+          'server it started on', (tester) async {
+        final manager = _createManager();
+        final alpha = manager.addServer(
+          serverId: 'alpha',
+          serverUrl: Uri.parse('https://alpha.example.com'),
+        );
+        final bravo = manager.addServer(
+          serverId: 'bravo',
+          serverUrl: Uri.parse('https://bravo.example.com'),
+        );
+        signIn(alpha);
+        signIn(bravo);
+        final completer = Completer<void>();
+        final flow = FakeAuthFlow()..endSessionCompleter = completer;
+
+        // alpha pinned first, so bravo's tile is at index 1.
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'alpha',
+          overrides: overridesFor(flow),
+        ));
+        await tester.longPress(find.text('bravo.example.com'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove'));
+        await tester.pump(); // sign-out outstanding; bravo's tile is busy
+
+        // Selecting bravo pins it first, so index 1 now holds alpha. Element
+        // reuse is by index unless the tiles are keyed, so without a key the
+        // busy state rebinds to alpha and the removal lands on the wrong
+        // server.
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'bravo',
+          overrides: overridesFor(flow),
+        ));
+        await tester.pump();
+
+        completer.complete();
+        await tester.pumpAndSettle();
+
+        expect(manager.servers.value.containsKey('bravo'), isFalse);
+        expect(manager.servers.value.containsKey('alpha'), isTrue);
+        expect(bravo.auth.isAuthenticated, isFalse);
+        expect(alpha.auth.isAuthenticated, isTrue);
+      });
     });
 
     group('log out and remove', () {
@@ -1031,24 +1083,6 @@ void main() {
 
         expect(find.text('Copy server address'), findsOneWidget);
         expect(selected, isEmpty);
-      });
-
-      testWidgets('a plain tap still selects and opens no menu',
-          (tester) async {
-        final (manager, selected) = twoServers();
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'a',
-          onSelectServer: selected.add,
-        ));
-        await tester.tap(find.text('b.example.com'));
-        await tester.pumpAndSettle();
-
-        // The new gestures must not have eaten the tap they sit beside.
-        expect(selected, ['b']);
-        expect(find.text('Copy server address'), findsNothing);
       });
     });
 

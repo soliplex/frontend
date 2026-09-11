@@ -600,8 +600,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Map<String, ServerEntry> servers,
   ) {
     // Auth servers first (signed in, then signed out), no-auth servers last,
-    // alphabetical within each — shared with the lobby sidebar so the two
-    // lists cannot drift. The collapse applies to the combined roster.
+    // alphabetical within each. The lobby sidebar applies the same order, then
+    // pins whichever server it is showing. The collapse applies to the
+    // combined roster.
     final ordered = serversInDisplayOrder(servers.values);
 
     final visibleServers =
@@ -651,6 +652,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Only servers that remove synchronously carry the button. A
           // signed-in server's removal would have to end the IdP session
           // first — async, fallible, and this screen has no retry surface.
+          //
+          // Read outside a Watch, unlike the dot: a session ending without a
+          // server-map mutation (inactivity logout) reaches this row through
+          // `connectionRevision`, the router's refreshListenable, which
+          // rebuilds the page.
           trailing: entry.auth.isAuthenticated
               ? null
               : IconButton(
