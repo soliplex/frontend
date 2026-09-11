@@ -479,6 +479,30 @@ void main() {
         expect(entry.auth.isAuthenticated, isTrue);
       });
 
+      testWidgets('a long-press opens no menu while the tile shows an error',
+          (tester) async {
+        final (manager, _, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+
+        await tester.longPress(find.text('api.example.com'));
+        await tester.pumpAndSettle();
+
+        // The trailing slot is an error affordance now, not a menu. Serving
+        // "Log out" from a gesture here would start a second round-trip behind
+        // a failure the user has not dealt with, so the gesture stays inert and
+        // the error keeps the tile.
+        expect(find.text('Copy server address'), findsNothing);
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      });
+
       testWidgets('the error menu offers retry, detail, and remove',
           (tester) async {
         final (manager, _, flow) = failingLogout();
@@ -951,6 +975,80 @@ void main() {
         // The block falls back to Guest; the signed-in name is gone.
         expect(find.text('Guest'), findsOneWidget);
         expect(find.text('Ada Lovelace'), findsNothing);
+      });
+    });
+
+    group('opening a tile menu by gesture', () {
+      /// Two servers with 'a' selected, so 'b' is the unselected tile whose ⋮
+      /// is hidden — the case these gestures exist for.
+      (ServerManager, List<String>) twoServers() {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'a',
+          serverUrl: Uri.parse('https://a.example.com'),
+        );
+        manager.addServer(
+          serverId: 'b',
+          serverUrl: Uri.parse('https://b.example.com'),
+        );
+        return (manager, <String>[]);
+      }
+
+      testWidgets(
+          'long-press opens an unselected tile\'s menu without '
+          'selecting it', (tester) async {
+        final (manager, selected) = twoServers();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'a',
+          onSelectServer: selected.add,
+        ));
+        await tester.longPress(find.text('b.example.com'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Copy server address'), findsOneWidget);
+        // The whole point: acting on a server must not navigate to it and
+        // swap the main pane out from under the user.
+        expect(selected, isEmpty);
+      });
+
+      testWidgets('secondary tap opens the menu', (tester) async {
+        final (manager, selected) = twoServers();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'a',
+          onSelectServer: selected.add,
+        ));
+        await tester.tap(
+          find.text('b.example.com'),
+          buttons: kSecondaryButton,
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Copy server address'), findsOneWidget);
+        expect(selected, isEmpty);
+      });
+
+      testWidgets('a plain tap still selects and opens no menu',
+          (tester) async {
+        final (manager, selected) = twoServers();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'a',
+          onSelectServer: selected.add,
+        ));
+        await tester.tap(find.text('b.example.com'));
+        await tester.pumpAndSettle();
+
+        // The new gestures must not have eaten the tap they sit beside.
+        expect(selected, ['b']);
+        expect(find.text('Copy server address'), findsNothing);
       });
     });
 
