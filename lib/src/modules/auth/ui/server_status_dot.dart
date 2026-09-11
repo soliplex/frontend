@@ -11,14 +11,18 @@ import '../server_entry.dart';
 /// - **red** (`danger`) — not signed in (or expired).
 ///
 /// Only meaningful for servers where `requiresAuth` is true: a no-auth server
-/// is always ready, so callers omit the dot for those. Reads the per-entry
-/// session signal, so the dot lives in a [Watch] and updates on sign-in /
-/// expiry without a server-map mutation. The tooltip carries the same status
-/// as text for accessibility.
+/// is always ready, so callers omit the dot for those — but they keep a [size]
+/// -wide slot for it, so titles line up whether or not a row has a dot. Reads
+/// the per-entry session signal, so the dot lives in a [Watch] and updates on
+/// sign-in / expiry without a server-map mutation. The tooltip carries the same
+/// status as text for accessibility.
 class ServerStatusDot extends StatelessWidget {
   const ServerStatusDot({super.key, required this.entry});
 
-  static const double _size = 8;
+  /// Width the dot occupies. Public so a dotless row can reserve the same
+  /// slot — `ListTile` drops `minLeadingWidth` and `horizontalTitleGap`
+  /// entirely when `leading` is null, which would pull that title left.
+  static const double size = 8;
 
   final ServerEntry entry;
 
@@ -31,8 +35,8 @@ class ServerStatusDot extends StatelessWidget {
       return Tooltip(
         message: label,
         child: Container(
-          width: _size,
-          height: _size,
+          width: size,
+          height: size,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       );

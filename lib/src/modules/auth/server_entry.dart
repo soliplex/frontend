@@ -70,3 +70,28 @@ class ServerEntry {
 
   bool get isConnected => !requiresAuth || auth.isAuthenticated;
 }
+
+/// Servers in the order both server lists render them: auth-required servers
+/// first — signed in, then signed out — and no-auth servers last, with each
+/// rank sorted alphabetically by [ServerEntry.displayName], ignoring case.
+///
+/// Auth-required servers lead because they are the deployments people work in;
+/// a no-auth server is typically local or for testing. That is why a signed-out
+/// auth server outranks a no-auth one despite being the less immediately usable
+/// of the two — the rank asks which server matters, not which needs fewer taps.
+///
+/// Rank moves only when a server's sign-in state actually changes, so rows do
+/// not reshuffle under the pointer for any other reason.
+List<ServerEntry> serversInDisplayOrder(Iterable<ServerEntry> servers) {
+  int rank(ServerEntry entry) {
+    if (!entry.requiresAuth) return 2;
+    return entry.auth.isAuthenticated ? 0 : 1;
+  }
+
+  return servers.toList()
+    ..sort((a, b) {
+      final byRank = rank(a).compareTo(rank(b));
+      if (byRank != 0) return byRank;
+      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+    });
+}

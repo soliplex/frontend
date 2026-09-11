@@ -1089,6 +1089,67 @@ void main() {
       expect(connectedY, lessThan(loggedOutY));
     });
 
+    testWidgets('orders signed-in, then signed-out, then no-auth servers',
+        (tester) async {
+      final manager = _createServerManager();
+      // Added in reverse of the expected order, so insertion order alone
+      // cannot produce the assertion below.
+      manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      manager.addServer(
+        serverId: 'https://stale.example.com',
+        serverUrl: Uri.parse('https://stale.example.com'),
+      );
+      final signedIn = manager.addServer(
+        serverId: 'https://live.example.com',
+        serverUrl: Uri.parse('https://live.example.com'),
+      );
+      _loginEntry(signedIn);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+
+      final liveY = tester.getTopLeft(find.text('https://live.example.com')).dy;
+      final staleY =
+          tester.getTopLeft(find.text('https://stale.example.com')).dy;
+      final localY = tester.getTopLeft(find.text('http://localhost:8000')).dy;
+
+      // A signed-out auth server outranks a no-auth one even though the no-auth
+      // server needs no sign-in: rank asks which server matters, not which is
+      // fewer taps away.
+      expect(liveY, lessThan(staleY));
+      expect(staleY, lessThan(localY));
+    });
+
+    testWidgets('a no-auth row indents its title like a dotted row',
+        (tester) async {
+      final manager = _createServerManager();
+      manager.addServer(
+        serverId: 'https://api.example.com',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+
+      // A no-auth row carries no dot but still reserves its slot, so every
+      // title starts at the same x down the column. Without the reserved slot
+      // ListTile drops minLeadingWidth/horizontalTitleGap for that row and the
+      // title slides left.
+      expect(
+        tester.getTopLeft(find.text('http://localhost:8000')).dx,
+        tester.getTopLeft(find.text('https://api.example.com')).dx,
+      );
+    });
+
     testWidgets('tapping a connected server opens the lobby on that server',
         (tester) async {
       final manager = _createServerManager();

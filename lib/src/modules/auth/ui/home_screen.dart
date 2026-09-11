@@ -599,13 +599,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context,
     Map<String, ServerEntry> servers,
   ) {
-    // Connected servers first (a tap enters the lobby on that server), then
-    // logged-out ones (a tap prefills and reconnects). The collapse applies to
-    // the combined roster.
-    final ordered = [
-      ...servers.values.where((e) => e.isConnected),
-      ...servers.values.where((e) => !e.isConnected),
-    ];
+    // Auth servers first (signed in, then signed out), no-auth servers last,
+    // alphabetical within each — shared with the lobby sidebar so the two
+    // lists cannot drift. The collapse applies to the combined roster.
+    final ordered = serversInDisplayOrder(servers.values);
 
     final visibleServers =
         _showAllServers ? ordered : ordered.take(_maxCollapsedServers).toList();
@@ -632,8 +629,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ListTile(
           // A sign-in status dot marks auth servers (green signed-in / red
           // logged-out); no-auth servers are always ready, so they carry
-          // none.
-          leading: entry.requiresAuth ? ServerStatusDot(entry: entry) : null,
+          // none — but the slot stays, so every title shares one indent.
+          leading: SizedBox(
+            width: ServerStatusDot.size,
+            child: entry.requiresAuth ? ServerStatusDot(entry: entry) : null,
+          ),
           minLeadingWidth: 0,
           horizontalTitleGap: SoliplexSpacing.s3,
           // Friendly name when known; raw address otherwise. The address
