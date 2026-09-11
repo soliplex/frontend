@@ -203,14 +203,18 @@ class _RequestsPaneState extends State<RequestsPane> {
       // the control read as the two ends of one row.
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Half the row each, so neither can push the other off the edge: at
-        // a large Dynamic Type setting they wrap inside their halves.
+        // Half the row each, so neither can push the other off the edge.
+        // The count ellipsizes rather than wrapping into its half: at a large
+        // Dynamic Type setting 'Requests' alone is wider than the half, and
+        // a lone token cannot wrap — it would be clipped mid-glyph.
         Flexible(
           child: Text(
             _filterActive
                 ? 'Requests ($visible / $total)'
                 : 'Requests ($total)',
             style: Theme.of(context).textTheme.titleMedium,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         // Named and pointed, not a glyph: an icon alone says neither what
@@ -240,7 +244,7 @@ class _RequestsPaneState extends State<RequestsPane> {
       children: [
         Icon(Icons.tag, size: 16, color: theme.colorScheme.primary),
         const SizedBox(width: SoliplexSpacing.s1),
-        // Flexible, or a non-flex child of a min-size Row lays out against an
+        // Flexible, or a non-flex child of a Row lays out against an
         // unbounded width and runs off the edge at a large Dynamic Type
         // setting. The id is already shortened, so the ellipsis is a floor
         // rather than the usual outcome.
@@ -344,12 +348,23 @@ class _RequestsPaneState extends State<RequestsPane> {
       title: 'No HTTP requests yet',
       // A filter survives a clear, so the unfiltered promise would be
       // wrong: whatever arrives next is still filtered out of this list.
-      detail: Text(
-        _filterActive
-            ? 'Only requests matching your filters will appear here'
-            : 'Requests will appear here as you use the app',
-        style: theme.textTheme.bodyMedium
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      detail: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _filterActive
+                ? 'Only requests matching your filters will appear here'
+                : 'Requests will appear here as you use the app',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          // The state that says rows are withheld is the natural place to
+          // stop withholding them, which its milder sibling already does.
+          if (_filterActive) ...[
+            const SizedBox(height: SoliplexSpacing.s2),
+            _clearFiltersButton(),
+          ],
+        ],
       ),
     );
   }
@@ -358,13 +373,15 @@ class _RequestsPaneState extends State<RequestsPane> {
         context,
         icon: Icons.filter_alt_off_outlined,
         title: 'No requests match these filters',
-        // It goes with the filters, and it came from a deep link nothing on
-        // this screen can put back.
-        detail: SoliplexButton.text(
-          onPressed: _clearFilters,
-          child: Text(
-            widget.runId == null ? 'Clear filters' : 'Clear filters and run',
-          ),
+        detail: _clearFiltersButton(),
+      );
+
+  /// Names the run scope when there is one: it goes with the filters, and it
+  /// came from a deep link nothing on this screen can put back.
+  Widget _clearFiltersButton() => SoliplexButton.text(
+        onPressed: _clearFilters,
+        child: Text(
+          widget.runId == null ? 'Clear filters' : 'Clear filters and run',
         ),
       );
 
@@ -378,25 +395,31 @@ class _RequestsPaneState extends State<RequestsPane> {
   }) {
     final theme = Theme.of(context);
     return Center(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: SoliplexSpacing.s4),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+      // Squeezed to the list's floor this shows its icon and nothing else,
+      // so it says there is more below the way the controls above it do.
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 64,
+                color:
+                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
               ),
-            ),
-            const SizedBox(height: SoliplexSpacing.s2),
-            detail,
-          ],
+              const SizedBox(height: SoliplexSpacing.s4),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: SoliplexSpacing.s2),
+              detail,
+            ],
+          ),
         ),
       ),
     );

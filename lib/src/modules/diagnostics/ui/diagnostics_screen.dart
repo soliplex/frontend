@@ -84,7 +84,7 @@ class DiagnosticsScreen extends StatefulWidget {
   final NetworkInspector inspector;
 
   /// When set (via the per-message deep link), the request list opens scoped to
-  /// this agent run, shown as a removable chip.
+  /// this agent run, shown as a removable run scope.
   final String? initialRunId;
 
   @override
@@ -217,8 +217,20 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                   ],
                 ),
                 if (_exportProblem case final problem?)
-                  _ExportProblemNotice(
-                      problem: problem, hasLogSink: _logSink != null),
+                  // Its height is its line count, and both grow as the
+                  // viewport narrows and the text scales. Unbounded it takes
+                  // the screen and starves the pane it points the reader at,
+                  // so it is capped and scrolls, the way the pane's own
+                  // controls are.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(context).height / 3,
+                    ),
+                    child: SingleChildScrollView(
+                      child: _ExportProblemNotice(
+                          problem: problem, hasLogSink: _logSink != null),
+                    ),
+                  ),
                 Expanded(
                   child: switch (_view) {
                     _View.requests => RequestsPane(
