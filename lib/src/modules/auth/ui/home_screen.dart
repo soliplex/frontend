@@ -16,6 +16,7 @@ import '../server_entry.dart';
 import '../server_manager.dart';
 import 'connect_flow_rail.dart';
 import 'home_shell.dart';
+import 'server_status_dot.dart';
 import '../../../shared/selectable_content.dart';
 import '../../../shared/type_to_focus.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -598,13 +599,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context,
     Map<String, ServerEntry> servers,
   ) {
-    final loggedOut = servers.values.where((e) => !e.isConnected).toList();
-    final connectedCount = servers.values.where((e) => e.isConnected).length;
+    // Connected servers first (a tap enters the lobby on that server), then
+    // logged-out ones (a tap prefills and reconnects). The collapse applies to
+    // the combined roster.
+    final ordered = [
+      ...servers.values.where((e) => e.isConnected),
+      ...servers.values.where((e) => !e.isConnected),
+    ];
 
-    final visibleServers = _showAllServers
-        ? loggedOut
-        : loggedOut.take(_maxCollapsedServers).toList();
-    final hiddenCount = loggedOut.length - visibleServers.length;
+    final visibleServers =
+        _showAllServers ? ordered : ordered.take(_maxCollapsedServers).toList();
+    final hiddenCount = ordered.length - visibleServers.length;
 
     return [
       const SizedBox(height: SoliplexSpacing.s6),
@@ -623,18 +628,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const Expanded(child: Divider()),
         ],
       ),
-      if (connectedCount > 0)
-        Align(
-          alignment: Alignment.centerRight,
-          child: SoliplexButton.text(
-            onPressed: () => context.go(AppRoutes.lobby),
-            iconAlignment: IconAlignment.end,
-            icon: const Icon(Icons.arrow_forward),
-            child: const Text('Go to Lobby'),
-          ),
-        ),
       for (final entry in visibleServers)
         ListTile(
+          // A sign-in status dot marks auth servers (green signed-in / red
+          // logged-out); no-auth servers are always ready, so they carry
+          // none.
+          leading: entry.requiresAuth ? ServerStatusDot(entry: entry) : null,
+          minLeadingWidth: 0,
+          horizontalTitleGap: SoliplexSpacing.s3,
           // Friendly name when known; raw address otherwise. The address
           // drops to a subtitle only when a name is shown.
           title: Text(entry.displayName),
@@ -652,10 +653,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             onPressed: () => _confirmRemoveServer(context, entry),
           ),
-          onTap: () {
-            _urlController.text = entry.serverUrl.toString();
-            _connect();
-          },
+          // Connected enters the lobby on this server; logged-out prefills
+          // the address and runs the connect flow, which saves the selection
+          // before reporting Connected, so that path lands on this server
+          // too.
+          onTap: entry.isConnected
+              ? () => context.go(AppRoutes.lobbyForServer(entry.serverId))
+              : () {
+                  _urlController.text = entry.serverUrl.toString();
+                  _connect();
+                },
         ),
       if (hiddenCount > 0)
         Center(

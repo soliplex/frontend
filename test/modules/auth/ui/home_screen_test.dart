@@ -17,6 +17,7 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/connect_flow_rail.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/home_screen.dart';
+import 'package:soliplex_frontend/src/modules/auth/ui/server_status_dot.dart';
 import 'package:soliplex_frontend/src/shared/markdown/prose_markdown.dart';
 import 'package:soliplex_frontend/version.dart';
 
@@ -104,9 +105,17 @@ Widget _buildApp({
       ),
       GoRoute(
         path: '/lobby',
-        builder: (_, __) => const Scaffold(
-          body: Text('Lobby placeholder'),
-        ),
+        builder: (_, state) {
+          final server = state.uri.queryParameters['server'];
+          return Scaffold(
+            body: Column(
+              children: [
+                const Text('Lobby placeholder'),
+                if (server != null) Text('server=$server'),
+              ],
+            ),
+          );
+        },
       ),
     ],
   );
@@ -603,38 +612,6 @@ void main() {
       expect(find.text('https://api.example.com'), findsOneWidget);
     });
 
-    testWidgets('hides connected servers from list', (tester) async {
-      final serverManager = _createServerManager();
-      final entry = serverManager.addServer(
-        serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
-      );
-      _loginEntry(entry);
-
-      await tester.pumpWidget(_buildApp(serverManager: serverManager));
-      await tester.pumpAndSettle();
-
-      // Server section heading shown (server exists).
-      expect(find.text('Your servers'), findsOneWidget);
-      // But the server itself is not listed (it's connected).
-      expect(find.text('https://api.example.com'), findsNothing);
-    });
-
-    testWidgets('shows Go to Lobby when authenticated servers exist',
-        (tester) async {
-      final serverManager = _createServerManager();
-      final entry = serverManager.addServer(
-        serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
-      );
-      _loginEntry(entry);
-
-      await tester.pumpWidget(_buildApp(serverManager: serverManager));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Go to Lobby'), findsOneWidget);
-    });
-
     testWidgets('tapping logged-out server connects and navigates to lobby',
         (tester) async {
       final serverManager = _createServerManager();
@@ -757,24 +734,6 @@ void main() {
       expect(find.text('https://api.example.com'), findsOneWidget);
     });
 
-    testWidgets('no-auth server is hidden from logged-out list',
-        (tester) async {
-      final serverManager = _createServerManager();
-      serverManager.addServer(
-        serverId: 'local',
-        serverUrl: Uri.parse('http://localhost:8000'),
-        requiresAuth: false,
-      );
-
-      await tester.pumpWidget(_buildApp(serverManager: serverManager));
-      await tester.pumpAndSettle();
-
-      // Server section heading shown (server exists).
-      expect(find.text('Your servers'), findsOneWidget);
-      // But the no-auth server is not listed (it's connected).
-      expect(find.text('http://localhost:8000'), findsNothing);
-    });
-
     testWidgets('no-auth server counts as connected', (tester) async {
       final serverManager = _createServerManager();
       serverManager.addServer(
@@ -785,9 +744,13 @@ void main() {
 
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('http://localhost:8000'));
+      await tester.pumpAndSettle();
 
-      // A no-auth server is connected, so the section offers "Go to Lobby".
-      expect(find.text('Go to Lobby'), findsOneWidget);
+      // Permanently connected, so the row takes the connected branch —
+      // straight to the lobby on this server, not back through the connect
+      // flow. The route carries the server id, not its address.
+      expect(find.text('server=local'), findsOneWidget);
     });
 
     testWidgets('keystroke refocuses URL field when unfocused', (tester) async {
@@ -1050,6 +1013,99 @@ void main() {
 
       final field = tester.widget<TextFormField>(find.byType(TextFormField));
       expect(field.controller!.text, 'https://api.example.com');
+    });
+
+    testWidgets('lists a connected server with a status dot', (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://api.example.com',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+
+      // Before this change the list filtered connected servers out entirely.
+      expect(find.text('https://api.example.com'), findsOneWidget);
+      expect(find.byType(ServerStatusDot), findsOneWidget);
+    });
+
+    testWidgets('lists connected servers above logged-out ones',
+        (tester) async {
+      final manager = _createServerManager();
+      // Added logged-out first, so passing on insertion order alone is
+      // impossible.
+      manager.addServer(
+        serverId: 'https://zzz.example.com',
+        serverUrl: Uri.parse('https://zzz.example.com'),
+      );
+      final connected = manager.addServer(
+        serverId: 'https://aaa.example.com',
+        serverUrl: Uri.parse('https://aaa.example.com'),
+      );
+      _loginEntry(connected);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+
+      final connectedY =
+          tester.getTopLeft(find.text('https://aaa.example.com')).dy;
+      final loggedOutY =
+          tester.getTopLeft(find.text('https://zzz.example.com')).dy;
+      expect(connectedY, lessThan(loggedOutY));
+    });
+
+    testWidgets('tapping a connected server opens the lobby on that server',
+        (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://api.example.com',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('https://api.example.com'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lobby placeholder'), findsOneWidget);
+      // The id must travel on the route, not just land on "some" lobby.
+      expect(find.text('server=https://api.example.com'), findsOneWidget);
+    });
+
+    testWidgets('a no-auth server is listed without a status dot',
+        (tester) async {
+      final manager = _createServerManager();
+      manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+
+      expect(find.text('http://localhost:8000'), findsOneWidget);
+      // Permanently connected, so a sign-in dot would be meaningless.
+      expect(find.byType(ServerStatusDot), findsNothing);
+    });
+
+    testWidgets('the Go to Lobby button is gone', (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://api.example.com',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+
+      // Every row now routes to its own server; a button that opens the
+      // lobby on the persisted server would contradict them.
+      expect(find.text('Go to Lobby'), findsNothing);
     });
   });
 
