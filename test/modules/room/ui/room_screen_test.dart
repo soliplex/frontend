@@ -451,6 +451,115 @@ void main() {
     expect(find.text('Test thread'), findsOneWidget);
   });
 
+  group('the context warning banner', () {
+    Future<void> openThread(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    const banner = 'context window is in use';
+
+    testWidgets('stays away while there is room', (tester) async {
+      api.nextThreadContext = const ThreadContext(
+        maxModelLen: 32768,
+        measuredTokens: 1000,
+      );
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('appears once a small window passes 80%', (tester) async {
+      api.nextThreadContext = const ThreadContext(
+        maxModelLen: 32768,
+        measuredTokens: 27000,
+      );
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsOneWidget);
+      expect(
+          find.text('82% of the context window is in use. Older messages '
+              'may start dropping out of the conversation.'),
+          findsOneWidget);
+    });
+
+    testWidgets('holds off on a large window at the same fraction',
+        (tester) async {
+      // 82% would have warned on a 32k window; a 200k one still has
+      // tens of thousands of tokens of room.
+      api.nextThreadContext = const ThreadContext(
+        maxModelLen: 200000,
+        measuredTokens: 164000,
+      );
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('appears once a large window passes 85%', (tester) async {
+      api.nextThreadContext = const ThreadContext(
+        maxModelLen: 200000,
+        measuredTokens: 172000,
+      );
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsOneWidget);
+    });
+
+    testWidgets('stays away when no window is reported', (tester) async {
+      // Ollama and the OpenAI API report none. Without a denominator
+      // there is no occupancy to warn about.
+      api.nextThreadContext = const ThreadContext(measuredTokens: 999999);
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('can be dismissed', (tester) async {
+      api.nextThreadContext = const ThreadContext(
+        maxModelLen: 32768,
+        measuredTokens: 27000,
+      );
+      await openThread(tester);
+      expect(find.textContaining(banner), findsOneWidget);
+
+      await tester.tap(
+        find.descendant(
+          of: find
+              .ancestor(
+                of: find.textContaining(banner),
+                matching: find.byType(Row),
+              )
+              .first,
+          matching: find.byIcon(Icons.close),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+  });
+
   testWidgets('narrow layout shows AppBar', (tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;

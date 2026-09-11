@@ -12,6 +12,7 @@ import 'package:soliplex_frontend/src/modules/room/composer_draft.dart';
 import 'package:soliplex_frontend/src/modules/room/pick_file.dart';
 import 'package:soliplex_frontend/src/modules/room/pick_image.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/context_gauge.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/inline_image_composer_controller.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -1341,5 +1342,45 @@ void main() {
 
       expect(tester.getSize(find.byType(TextField)).width, before);
     });
+  });
+
+  group('the context gauge', () {
+    Future<void> pumpWith(WidgetTester tester, ContextUsage? usage) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: soliplexLightTheme(),
+          home: Scaffold(
+            body: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+              sessionState: signal<AgentSessionState?>(null),
+              contextUsage: usage,
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('is absent when there is no reading', (tester) async {
+      // A room whose usage cannot be measured shows nothing rather than
+      // a wrong number.
+      await pumpWith(tester, null);
+
+      expect(find.byType(ContextGauge), findsNothing);
+    });
+
+    testWidgets('sits beside send once there is one', (tester) async {
+      await pumpWith(
+        tester,
+        const ContextUsage(
+          tokens: 1800,
+          contextWindow: 8192,
+          isExact: true,
+        ),
+      );
+
+      expect(find.byType(ContextGauge), findsOneWidget);
+    });
+
   });
 }
