@@ -6,6 +6,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../models/log_record_format.dart';
+import 'pane_layout.dart';
 
 /// The captured log records, newest first.
 ///
@@ -14,7 +15,12 @@ import '../models/log_record_format.dart';
 /// pane is mounted, so there is nothing here to tell about it. (The screen
 /// stays subscribed for its own header actions.)
 class LogsPane extends StatefulWidget {
-  const LogsPane({required this.sink, super.key});
+  const LogsPane({required this.sink, required this.viewSwitcher, super.key});
+
+  /// The Requests/Logs control, placed with this pane's heading so it
+  /// scrolls and aligns with it. Built by the screen, which owns which pane
+  /// is showing.
+  final Widget viewSwitcher;
 
   /// Null when no memory sink is installed, which this pane reports
   /// differently from a sink with no records: nothing is being collected,
@@ -65,66 +71,72 @@ class _LogsPaneState extends State<LogsPane> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final sink = widget.sink;
-
-    // Said plainly rather than shown as an empty list: a reader who sees "no
-    // records" concludes the code logged nothing and looks elsewhere, when in
-    // fact nothing was ever collected to look at.
-    if (sink == null) {
-      return _Message(
-        'No log sink is installed in this build, so no records are being '
-        'kept. Their absence here says nothing about what happened.',
-      );
-    }
 
     // A snapshot, not the sink's live view. `MemorySink.records` recomputes
     // `length` on every read, and once the buffer is full it also recomputes
     // every index from the current head — so a record written between
     // `ListView.builder` capturing `itemCount` and running `itemBuilder` would
     // shift the rows under it, and a `clear` in that window would throw.
-    final records = List.of(sink.records);
+    final records = sink == null ? null : List.of(sink.records);
 
+    return PaneLayout(
+      controls: _buildHeader(context, records),
+      list: _buildBody(context, records),
+    );
+  }
+
+  /// Above every state this pane can be in, because the switcher is the only
+  /// way back to the requests and an absent sink is not a reason to strand
+  /// the reader here.
+  Widget _buildHeader(BuildContext context, List<LogRecord>? records) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Named and counted like the request list, so switching panes
+        // doesn't lose track of how much was captured.
+        if (records != null && records.isNotEmpty) ...[
+          Text(
+            'Log records (${records.length})',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: SoliplexSpacing.s1),
+        ],
+        widget.viewSwitcher,
+      ],
+    );
+  }
+
+  Widget _buildBody(BuildContext context, List<LogRecord>? records) {
+    // Said plainly rather than shown as an empty list: a reader who sees "no
+    // records" concludes the code logged nothing and looks elsewhere, when in
+    // fact nothing was ever collected to look at.
+    if (records == null) {
+      return _Message(
+        'No log sink is installed in this build, so no records are being '
+        'kept. Their absence here says nothing about what happened.',
+      );
+    }
     if (records.isEmpty) {
       return _Message('No log records captured.');
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Named and counted like the request list, so switching panes doesn't
-        // lose track of how much was captured.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            SoliplexSpacing.s4,
-            SoliplexSpacing.s4,
-            SoliplexSpacing.s4,
-            SoliplexSpacing.s2,
+    final theme = Theme.of(context);
+    // Newest first, matching the request list's ordering.
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
+      itemCount: records.length,
+      itemBuilder: (context, index) {
+        final record = records[records.length - 1 - index];
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
+          child: SelectableText(
+            formatLogRecord(record),
+            style: context.monospaceOn(theme.textTheme.bodySmall),
           ),
-          child: Text(
-            'Log records (${records.length})',
-            style: theme.textTheme.titleMedium,
-          ),
-        ),
-        Expanded(
-          // Newest first, matching the request list's ordering.
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
-            itemCount: records.length,
-            itemBuilder: (context, index) {
-              final record = records[records.length - 1 - index];
-              return Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-                child: SelectableText(
-                  formatLogRecord(record),
-                  style: context.monospaceOn(theme.textTheme.bodySmall),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -137,14 +149,20 @@ class _Message extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Scrollable for the same reason the request placeholders are: squeezed
+    // into a box shorter than itself, a paragraph reports the box's height
+    // and paints the rest anyway — no overflow, no error, just sentences the
+    // reader never sees.
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(SoliplexSpacing.s4),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(SoliplexSpacing.s4),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
