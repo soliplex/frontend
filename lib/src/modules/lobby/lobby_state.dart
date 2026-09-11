@@ -91,15 +91,32 @@ class LobbyState {
     RunRegistry? registry,
     RoomReadMarkers? roomReadMarkers,
     ServerReadMarkers? serverReadMarkers,
+    String? initialServerId,
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver,
         _registry = registry,
         _roomReadMarkers = roomReadMarkers ?? RoomReadMarkers(),
         _serverReadMarkers = serverReadMarkers ?? ServerReadMarkers() {
+    // An explicit incoming selection (the user tapped a specific server on the
+    // home screen) is seeded synchronously so it wins over the async
+    // persisted/first-server load. Routing it through _loadSelectedServer would
+    // let the awaited storage read overwrite it a frame later, snapping the
+    // user off the server they chose. Seeding before the subscribe also keeps
+    // _reconcileSelection's immediate fire a no-op (selection is already
+    // initialized and valid).
+    final seedId = (initialServerId != null &&
+            _serverManager.servers.value.containsKey(initialServerId))
+        ? initialServerId
+        : null;
+    if (seedId != null) {
+      _selectedServerId.value = seedId;
+      _selectionInitialized = true;
+      _persistSelection(seedId);
+    }
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
-    unawaited(_loadSelectedServer());
+    if (seedId == null) unawaited(_loadSelectedServer());
     _watchRunCompletions();
   }
 

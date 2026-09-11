@@ -1214,6 +1214,41 @@ void main() {
         state.dispose();
       });
 
+      test('initialServerId is seeded synchronously and takes precedence',
+          () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'b',
+        });
+        final state = LobbyState(
+          serverManager: managerWith(['a', 'b', 'c']),
+          apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
+          initialServerId: 'c',
+        );
+        // Seeded synchronously — no null-selection frame before the async
+        // persisted load resolves.
+        expect(state.selectedServerId.value, 'c');
+        await Future<void>.delayed(Duration.zero);
+        // The async load must not clobber the explicit choice, and it sticks.
+        expect(state.selectedServerId.value, 'c');
+        expect(await SelectedServerStorage.load(), 'c');
+        state.dispose();
+      });
+
+      test('falls back to persisted/first when initialServerId is unknown',
+          () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'b',
+        });
+        final state = LobbyState(
+          serverManager: managerWith(['a', 'b']),
+          apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
+          initialServerId: 'gone',
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(state.selectedServerId.value, 'b');
+        state.dispose();
+      });
+
       test('clears the selection and storage when the only server is removed',
           () async {
         SharedPreferences.setMockInitialValues({

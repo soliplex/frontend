@@ -16,6 +16,10 @@ class AppRoutes {
   static String diagnosticsForRun(String runId) =>
       '$diagnostics?run=${Uri.encodeComponent(runId)}';
 
+  /// The lobby, opened with a specific server pre-selected.
+  static String lobbyForServer(String serverId) =>
+      '$lobby?server=${Uri.encodeComponent(serverId)}';
+
   static String homeWithUrl(String url, {String? returnTo}) {
     final base = '/?url=${Uri.encodeComponent(url)}';
     if (returnTo == null) return base;
