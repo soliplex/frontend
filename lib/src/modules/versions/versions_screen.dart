@@ -247,45 +247,75 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
         final hasError = snapshot.hasError;
         final info = isDone && !hasError ? snapshot.data : null;
         final url = formatServerUrl(widget.entry.serverUrl);
+        final theme = Theme.of(context);
 
         return ListTile(
           leading: const Icon(Icons.dns_outlined),
-          title: SelectableText(url),
-          subtitle: switch ((isDone, hasError, info)) {
-            (false, _, _) => const Text('Loading…'),
-            (true, true, _) => const Text('Unavailable'),
-            (true, false, BackendVersionInfo(:final soliplexVersion)) =>
-              SelectableText('Backend version: $soliplexVersion'),
-            _ => const Text('Unavailable'),
-          },
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+          // The address and the actions share one run while both fit, and the
+          // actions drop to their own run once they do not, so a long address
+          // wraps to full width instead of being squeezed into a column.
+          title: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: SoliplexSpacing.s2,
+            runSpacing: SoliplexSpacing.s1,
             children: [
-              if (isDone && hasError)
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Retry',
-                  onPressed: _retry,
-                )
-              else
-                SoliplexButton.text(
-                  onPressed: info == null
-                      ? null
-                      : () => context.push(
-                            AppRoutes.versionsForServer(widget.entry.alias),
-                          ),
-                  child: const Text('View packages'),
-                ),
-              IconButton(
-                icon: const Icon(Icons.copy),
-                tooltip: 'Copy',
-                onPressed: info == null
-                    ? null
-                    : () => Clipboard.setData(
-                          ClipboardData(
-                            text: '$url ${info.soliplexVersion}',
-                          ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SelectableText(url),
+                  // Nothing styles the title slot as a subtitle, so pick up
+                  // the subtitle style here to keep a ListTileTheme override
+                  // reaching this line.
+                  DefaultTextStyle(
+                    style: ListTileTheme.of(context).subtitleTextStyle ??
+                        theme.textTheme.bodyMedium!.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
+                    child: switch ((isDone, hasError, info)) {
+                      (false, _, _) => const Text('Loading…'),
+                      (
+                        true,
+                        false,
+                        BackendVersionInfo(:final soliplexVersion)
+                      ) =>
+                        SelectableText('Backend version: $soliplexVersion'),
+                      _ => const Text('Unavailable'),
+                    },
+                  ),
+                ],
+              ),
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (isDone && hasError)
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Retry',
+                      onPressed: _retry,
+                    )
+                  else
+                    SoliplexButton.text(
+                      onPressed: info == null
+                          ? null
+                          : () => context.push(
+                                AppRoutes.versionsForServer(widget.entry.alias),
+                              ),
+                      child: const Text('View packages'),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.copy),
+                    tooltip: 'Copy',
+                    onPressed: info == null
+                        ? null
+                        : () => Clipboard.setData(
+                              ClipboardData(
+                                text: '$url ${info.soliplexVersion}',
+                              ),
+                            ),
+                  ),
+                ],
               ),
             ],
           ),
