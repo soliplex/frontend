@@ -254,6 +254,25 @@ class _ServerTile extends StatefulWidget {
 class _ServerTileState extends State<_ServerTile> {
   bool _hovered = false;
 
+  /// Reaches the trailing menu's state so the tile's long-press and secondary
+  /// tap can open it. The menu keeps its state while hidden
+  /// (`Visibility.maintainState`), which is what lets an unselected tile — the
+  /// case with no visible ⋮ — still answer the gesture.
+  final _menuKey = GlobalKey<_ServerTileMenuState>();
+
+  /// Opens the tile's menu at the pointer. Anchoring to the finger or cursor
+  /// rather than to the tile is what makes this read as a context menu.
+  void _openMenuAt(Offset globalPosition) {
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    _menuKey.currentState?.openMenuAt(
+      RelativeRect.fromRect(
+        Rect.fromPoints(globalPosition, globalPosition),
+        Offset.zero & overlay.size,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // No auth/identity subtitle: the account block shows who's signed in on the
@@ -267,49 +286,58 @@ class _ServerTileState extends State<_ServerTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: ListTile(
-        // ListTile pads both sides by 16 unless told otherwise. Drop the right
-        // pad so the ⋮ reaches the tile's edge; the button keeps its own
-        // padding, so the glyph still clears the rounded corner and the tap
-        // target stays full size.
-        contentPadding: const EdgeInsets.only(left: SoliplexSpacing.s4),
-        // The status dot only signals sign-in state, which is meaningless for
-        // a no-auth server (it's always ready) — so those show no dot, but
-        // keep its slot so every title shares one indent. Tighten the slot so
-        // the dot reads as a marker beside the name rather than a far-left
-        // icon.
-        leading: SizedBox(
-          width: ServerStatusDot.size,
-          child: widget.entry.requiresAuth
-              ? ServerStatusDot(entry: widget.entry)
-              : null,
-        ),
-        minLeadingWidth: 0,
-        horizontalTitleGap: SoliplexSpacing.s3,
-        selected: widget.selected,
-        // Prefer the server's human-readable name; fall back to the address,
-        // without its scheme so it reads the same here as in the room header.
-        // The tile shows only the label — the full address is reachable (and
-        // copyable) from the ⋮ menu's "Copy server address" action.
-        title: Text(
-          widget.entry.listLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Visibility(
-          visible: showMenu,
-          maintainSize: true,
-          maintainAnimation: true,
-          maintainState: true,
-          child: _ServerTileMenu(
-            entry: widget.entry,
-            serverManager: widget.serverManager,
-            onSignIn: widget.onSignIn,
-            onMarkAllRead: widget.onMarkAllRead,
+      // Long-press and right-click summon the same menu the ⋮ holds. Without
+      // them an unselected tile has no reachable actions on touch, because
+      // hover never fires there — you would have to select the server first,
+      // swapping the main pane just to reach its menu.
+      child: GestureDetector(
+        onLongPressStart: (details) => _openMenuAt(details.globalPosition),
+        onSecondaryTapDown: (details) => _openMenuAt(details.globalPosition),
+        child: ListTile(
+          // ListTile pads both sides by 16 unless told otherwise. Drop the right
+          // pad so the ⋮ reaches the tile's edge; the button keeps its own
+          // padding, so the glyph still clears the rounded corner and the tap
+          // target stays full size.
+          contentPadding: const EdgeInsets.only(left: SoliplexSpacing.s4),
+          // The status dot only signals sign-in state, which is meaningless for
+          // a no-auth server (it's always ready) — so those show no dot, but
+          // keep its slot so every title shares one indent. Tighten the slot so
+          // the dot reads as a marker beside the name rather than a far-left
+          // icon.
+          leading: SizedBox(
+            width: ServerStatusDot.size,
+            child: widget.entry.requiresAuth
+                ? ServerStatusDot(entry: widget.entry)
+                : null,
           ),
+          minLeadingWidth: 0,
+          horizontalTitleGap: SoliplexSpacing.s3,
+          selected: widget.selected,
+          // Prefer the server's human-readable name; fall back to the address,
+          // without its scheme so it reads the same here as in the room header.
+          // The tile shows only the label — the full address is reachable (and
+          // copyable) from the ⋮ menu's "Copy server address" action.
+          title: Text(
+            widget.entry.listLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Visibility(
+            visible: showMenu,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: _ServerTileMenu(
+              key: _menuKey,
+              entry: widget.entry,
+              serverManager: widget.serverManager,
+              onSignIn: widget.onSignIn,
+              onMarkAllRead: widget.onMarkAllRead,
+            ),
+          ),
+          dense: true,
+          onTap: widget.onTap,
         ),
-        dense: true,
-        onTap: widget.onTap,
       ),
     );
   }
@@ -329,6 +357,49 @@ String _signedInName(UserProfile? profile) {
 /// Per-server actions behind a tile's trailing ⋮ menu. The available set
 /// depends on the server's connection state (see [_ServerTileMenu]).
 enum _ServerTileAction { signIn, logOut, markAllRead, copyAddress, remove }
+
+/// The tile's actions, scoped to [entry]'s connection state. Shared by the ⋮
+/// button and by the tile's long-press / secondary-tap, so a server offers the
+/// same actions however the menu was summoned.
+List<PopupMenuEntry<_ServerTileAction>> _serverTileMenuItems(
+  ServerEntry entry,
+) {
+  final connected = entry.isConnected;
+  return [
+    if (!connected)
+      const PopupMenuItem(
+        value: _ServerTileAction.signIn,
+        child: MenuRow(icon: Icons.login, label: 'Sign in'),
+      ),
+    if (connected && entry.requiresAuth)
+      const PopupMenuItem(
+        value: _ServerTileAction.logOut,
+        child: MenuRow(icon: Icons.logout, label: 'Log out'),
+      ),
+    const PopupMenuItem(
+      value: _ServerTileAction.markAllRead,
+      child: MenuRow(
+        icon: Icons.mark_chat_read_outlined,
+        label: 'Mark all as read',
+      ),
+    ),
+    const PopupMenuItem(
+      value: _ServerTileAction.copyAddress,
+      child: MenuRow(
+        icon: Icons.content_copy,
+        label: 'Copy server address',
+      ),
+    ),
+    PopupMenuItem(
+      value: _ServerTileAction.remove,
+      child: MenuRow(
+        icon: Icons.delete_outline,
+        label: 'Remove',
+        destructive: true,
+      ),
+    ),
+  ];
+}
 
 /// What happens to the entry after a log-out attempt. The error-menu escape
 /// hatch (remove even when sign-out fails) is a third outcome beyond "keep"
@@ -357,6 +428,7 @@ enum _AfterLogout {
 /// failure.
 class _ServerTileMenu extends ConsumerStatefulWidget {
   const _ServerTileMenu({
+    super.key,
     required this.entry,
     required this.serverManager,
     required this.onSignIn,
@@ -375,6 +447,24 @@ class _ServerTileMenu extends ConsumerStatefulWidget {
 class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
   bool _busy = false;
   _LogoutFailure? _failure;
+
+  /// Opens the same menu the ⋮ shows, anchored at [position] — the entry point
+  /// for the tile's long-press and secondary tap.
+  ///
+  /// A no-op while a log-out is outstanding or has failed: the ⋮ is not a menu
+  /// in those states, it is a spinner or an error affordance, and offering
+  /// "Log out" again mid-round-trip would start a second one. Reaching the
+  /// error menu stays a deliberate tap on the error icon.
+  Future<void> openMenuAt(RelativeRect position) async {
+    if (_busy || _failure != null) return;
+    final action = await showMenu<_ServerTileAction>(
+      context: context,
+      position: position,
+      items: _serverTileMenuItems(widget.entry),
+    );
+    if (action == null || !mounted) return;
+    await _handle(action);
+  }
 
   Future<void> _handle(_ServerTileAction action) async {
     switch (action) {
@@ -512,46 +602,11 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         onRemove: () => _runLogout(_AfterLogout.removeRegardless),
       );
     }
-    final entry = widget.entry;
-    final connected = entry.isConnected;
     return PopupMenuButton<_ServerTileAction>(
       icon: const Icon(Icons.more_vert),
       tooltip: 'Server actions',
       onSelected: _handle,
-      itemBuilder: (context) => [
-        if (!connected)
-          const PopupMenuItem(
-            value: _ServerTileAction.signIn,
-            child: MenuRow(icon: Icons.login, label: 'Sign in'),
-          ),
-        if (connected && entry.requiresAuth)
-          const PopupMenuItem(
-            value: _ServerTileAction.logOut,
-            child: MenuRow(icon: Icons.logout, label: 'Log out'),
-          ),
-        const PopupMenuItem(
-          value: _ServerTileAction.markAllRead,
-          child: MenuRow(
-            icon: Icons.mark_chat_read_outlined,
-            label: 'Mark all as read',
-          ),
-        ),
-        const PopupMenuItem(
-          value: _ServerTileAction.copyAddress,
-          child: MenuRow(
-            icon: Icons.content_copy,
-            label: 'Copy server address',
-          ),
-        ),
-        PopupMenuItem(
-          value: _ServerTileAction.remove,
-          child: MenuRow(
-            icon: Icons.delete_outline,
-            label: 'Remove',
-            destructive: true,
-          ),
-        ),
-      ],
+      itemBuilder: (context) => _serverTileMenuItems(widget.entry),
     );
   }
 }
