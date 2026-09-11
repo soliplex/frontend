@@ -13,6 +13,7 @@ import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_logout.dart';
 import '../../auth/server_manager.dart';
+import '../../auth/ui/server_status_dot.dart';
 import '../lobby_state.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -250,8 +251,9 @@ class _ServerTileState extends State<_ServerTile> {
         // a no-auth server (it's always ready) — so those carry no leading
         // dot at all. Tighten the slot so the dot reads as a marker beside the
         // name rather than a far-left icon.
-        leading:
-            widget.entry.requiresAuth ? _StatusDot(entry: widget.entry) : null,
+        leading: widget.entry.requiresAuth
+            ? ServerStatusDot(entry: widget.entry)
+            : null,
         minLeadingWidth: 0,
         horizontalTitleGap: SoliplexSpacing.s3,
         selected: widget.selected,
@@ -280,41 +282,6 @@ class _ServerTileState extends State<_ServerTile> {
         onTap: widget.onTap,
       ),
     );
-  }
-}
-
-/// A small sign-in status dot for an auth-required server tile:
-///
-/// - **green** (`success`) — signed in;
-/// - **red** (`danger`) — not signed in (or expired).
-///
-/// Only rendered for servers where `requiresAuth` is true: a no-auth server
-/// is always ready, so it carries no dot (see [_ServerTile]). Reads the
-/// per-entry session signal, so the dot lives in a [Watch] and updates on
-/// sign-in / expiry without a server-map mutation. The tooltip carries the
-/// same status as text for accessibility.
-class _StatusDot extends StatelessWidget {
-  const _StatusDot({required this.entry});
-
-  static const double _size = 8;
-
-  final ServerEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Watch((context) {
-      final signedIn = entry.auth.session.value is ActiveSession;
-      final color = signedIn ? context.success : context.danger;
-      final label = signedIn ? 'Signed in' : 'Not signed in';
-      return Tooltip(
-        message: label,
-        child: Container(
-          width: _size,
-          height: _size,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-      );
-    });
   }
 }
 
