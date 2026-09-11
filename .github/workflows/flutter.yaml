@@ -107,7 +107,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq lcov
-          lcov --remove coverage/lcov.info 'packages/*' \
+          # Mockups are prototypes (see docs/mockups.md); their smoke tests
+          # load them without exercising them.
+          lcov --remove coverage/lcov.info 'packages/*' 'lib/src/mockups/*' \
             -o coverage/lcov.info --ignore-errors unused
           COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 \
             | grep "lines" | sed 's/.*: \([0-9.]*\)%.*/\1/')
