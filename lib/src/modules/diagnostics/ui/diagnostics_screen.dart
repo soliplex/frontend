@@ -98,14 +98,11 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
 
   /// Whether the request filters are on screen, once the user has said.
   ///
-  /// Held here, not in [RequestsPane], for the same reason [_runId] is:
-  /// switching panes disposes that pane, and a user who collapsed the chrome
-  /// to read the list would find it back every time they looked at the log.
+  /// Held here, not in [RequestsPane], for the same reason [_runId] is: a
+  /// pane switch disposes that pane.
   ///
-  /// Null until they say, which leaves the shortest side to decide: the
-  /// filters cost enough of a phone screen that the list loses to them, and
-  /// the list is what was asked for. An answer, once given, outlives a
-  /// resize.
+  /// Null until they say, which leaves the default to the build; an answer,
+  /// once given, outlives a resize.
   bool? _filtersExpanded;
 
   /// Guards against a second export starting while one is in flight, which on

@@ -23,8 +23,8 @@ enum _CategoryFilter { all, llm, auth, system }
 ///
 /// Stateful because the search and bucket filters are the pane's own concern:
 /// changing one rebuilds the list without disturbing the screen's chrome. They
-/// reset when the pane is swapped out, which the run filter deliberately does
-/// not — see [runId].
+/// reset when the pane is swapped out, which the run filter and the filters'
+/// expanded state deliberately do not — see [runId] and [filtersExpanded].
 ///
 /// Reads [inspector] in `build` without listening to it: the screen wraps this
 /// pane in a `ListenableBuilder`, so a new instance arrives on every captured
@@ -42,9 +42,8 @@ class RequestsPane extends StatefulWidget {
 
   final NetworkInspector inspector;
 
-  /// The Requests/Logs control, placed with this pane's own toggles so it
-  /// scrolls and aligns with them. Built by the screen, which owns which
-  /// pane is showing.
+  /// The Requests/Logs control, built by the screen and laid out with this
+  /// pane's own controls.
   final Widget viewSwitcher;
 
   /// Whether the search field and the filter toggles are on screen. Collapsing
@@ -168,7 +167,7 @@ class _RequestsPaneState extends State<RequestsPane> {
   ) {
     if (allGroups.isEmpty) return _buildEmptyState(context);
     if (groups.isEmpty) return _buildNoMatchState(context);
-    return _buildList(context, groups);
+    return _buildList(groups);
   }
 
   Widget _buildControls(BuildContext context, int total, int visible) {
@@ -176,16 +175,14 @@ class _RequestsPaneState extends State<RequestsPane> {
     // leaves the query and the buckets set, and hiding them here would apply
     // them to everything that arrives next with nothing on screen saying so.
     final anythingToFilter = total > 0 || _filterActive;
-    // [PaneLayout] gives these their padding and their width cap. The
-    // switcher, the toggles and the search field fill what it gives them, so
-    // those share both edges at any size.
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Both of these say rows are being withheld, which is what a reader
-        // with the filters hidden cannot otherwise see, so they sit outside
-        // the collapsible block.
+        // The count and the run scope say rows are being withheld, which a
+        // reader with the filters hidden cannot otherwise see, so they sit
+        // outside the collapsible block. The scope shows whenever it is set,
+        // because a run id makes [_filterActive] true.
         if (anythingToFilter) ...[
           _buildHeading(context, total, visible),
           const SizedBox(height: SoliplexSpacing.s1),
@@ -243,7 +240,17 @@ class _RequestsPaneState extends State<RequestsPane> {
       children: [
         Icon(Icons.tag, size: 16, color: theme.colorScheme.primary),
         const SizedBox(width: SoliplexSpacing.s1),
-        Text('Run · ${_shortRun(runId)}', style: theme.textTheme.labelMedium),
+        // Flexible, or a non-flex child of a min-size Row lays out against an
+        // unbounded width and runs off the edge at a large Dynamic Type
+        // setting. The id is already shortened, so the ellipsis is a floor
+        // rather than the usual outcome.
+        Flexible(
+          child: Text(
+            'Run · ${_shortRun(runId)}',
+            style: theme.textTheme.labelMedium,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
         IconButton(
           icon: const Icon(Icons.close, size: 16),
           tooltip: 'Clear run filter',
@@ -311,7 +318,7 @@ class _RequestsPaneState extends State<RequestsPane> {
     );
   }
 
-  Widget _buildList(BuildContext context, List<HttpEventGroup> groups) {
+  Widget _buildList(List<HttpEventGroup> groups) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final tabular = constraints.maxWidth >= SoliplexBreakpoints.tablet;
@@ -335,9 +342,8 @@ class _RequestsPaneState extends State<RequestsPane> {
       context,
       icon: Icons.http,
       title: 'No HTTP requests yet',
-      // Filters survive a clear, so promising whatever the app does next
-      // would be wrong: everything they exclude is dropped on arrival, and
-      // the controls above are what say which ones are set.
+      // A filter survives a clear, so the unfiltered promise would be
+      // wrong: whatever arrives next is still filtered out of this list.
       detail: Text(
         _filterActive
             ? 'Only requests matching your filters will appear here'
@@ -352,8 +358,8 @@ class _RequestsPaneState extends State<RequestsPane> {
         context,
         icon: Icons.filter_alt_off_outlined,
         title: 'No requests match these filters',
-        // Names the run scope when there is one: it goes with the filters,
-        // and it came from a deep link nothing on this screen can put back.
+        // It goes with the filters, and it came from a deep link nothing on
+        // this screen can put back.
         detail: SoliplexButton.text(
           onPressed: _clearFilters,
           child: Text(
@@ -363,8 +369,7 @@ class _RequestsPaneState extends State<RequestsPane> {
       );
 
   /// Taller than the floor [PaneLayout] leaves the list, so it scrolls
-  /// rather than overflows. [_buildNoMatchState] puts the only guaranteed way
-  /// out of an everything-hiding filter in here, so it has to stay reachable.
+  /// rather than overflows.
   Widget _buildPlaceholder(
     BuildContext context, {
     required IconData icon,
