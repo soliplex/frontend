@@ -96,6 +96,18 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   Timer? _exportRevertTimer;
   _View _view = _View.requests;
 
+  /// Whether the request filters are on screen, once the user has said.
+  ///
+  /// Held here, not in [RequestsPane], for the same reason [_runId] is:
+  /// switching panes disposes that pane, and a user who collapsed the chrome
+  /// to read the list would find it back every time they looked at the log.
+  ///
+  /// Null until they say, which leaves the shortest side to decide: the
+  /// filters cost enough of a phone screen that the list loses to them, and
+  /// the list is what was asked for. An answer, once given, outlives a
+  /// resize.
+  bool? _filtersExpanded;
+
   /// Guards against a second export starting while one is in flight, which on
   /// desktop would open two save dialogs over each other.
   bool _exporting = false;
@@ -161,6 +173,13 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       listenable: widget.inspector,
       builder: (context, _) {
         final hasRequests = widget.inspector.events.isNotEmpty;
+        // Shortest side, not width: a phone in landscape is wide enough to
+        // look like a tablet, and short enough that opening the filters
+        // leaves almost nothing for the list. A short, wide desktop window is
+        // collapsed by the same rule, at the price of one tap.
+        final filtersExpanded = _filtersExpanded ??
+            MediaQuery.sizeOf(context).shortestSide >=
+                SoliplexBreakpoints.tablet;
 
         return Scaffold(
           body: SafeArea(
@@ -203,33 +222,21 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                 if (_exportProblem case final problem?)
                   _ExportProblemNotice(
                       problem: problem, hasLogSink: _logSink != null),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: SoliplexSpacing.s4,
-                    vertical: SoliplexSpacing.s2,
-                  ),
-                  child: SegmentedButton<_View>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: _View.requests,
-                        label: Text('Requests'),
-                      ),
-                      ButtonSegment(value: _View.logs, label: Text('Logs')),
-                    ],
-                    selected: {_view},
-                    onSelectionChanged: (selection) =>
-                        setState(() => _view = selection.first),
-                  ),
-                ),
                 Expanded(
                   child: switch (_view) {
                     _View.requests => RequestsPane(
                         inspector: widget.inspector,
                         runId: _runId,
                         onRunFilterCleared: () => setState(() => _runId = null),
+                        viewSwitcher: _buildViewSwitcher(),
+                        filtersExpanded: filtersExpanded,
+                        onFiltersExpandedToggled: () =>
+                            setState(() => _filtersExpanded = !filtersExpanded),
                       ),
-                    _View.logs => LogsPane(sink: _logSink),
+                    _View.logs => LogsPane(
+                        sink: _logSink,
+                        viewSwitcher: _buildViewSwitcher(),
+                      ),
                   },
                 ),
               ],
@@ -239,6 +246,24 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       },
     );
   }
+
+  /// Handed to whichever pane is showing, so it sits with that pane's own
+  /// controls. Deliberately outside the block [RequestsPane] collapses: a
+  /// switcher that vanished with the filters would leave a reader who hid
+  /// them with no way to the logs.
+  Widget _buildViewSwitcher() => SegmentedButton<_View>(
+        showSelectedIcon: false,
+        // Fills the width it is given, so it lines up with the filter
+        // toggles whenever those are showing.
+        expandedInsets: EdgeInsets.zero,
+        segments: const [
+          ButtonSegment(value: _View.requests, label: Text('Requests')),
+          ButtonSegment(value: _View.logs, label: Text('Logs')),
+        ],
+        selected: {_view},
+        onSelectionChanged: (selection) =>
+            setState(() => _view = selection.first),
+      );
 
   /// Clears whichever capture is on screen, so the action never looks live
   /// while doing nothing to the visible list. Null disables it when there is

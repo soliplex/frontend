@@ -6,9 +6,12 @@ import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/network_inspector.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/ui/diagnostics_screen.dart';
+import 'package:soliplex_frontend/src/modules/diagnostics/ui/pane_layout.dart';
+import 'package:soliplex_frontend/src/modules/diagnostics/ui/requests_pane.dart';
 
 import '../../../helpers/http_event_factories.dart';
 
@@ -398,7 +401,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('No requests match these filters'), findsOneWidget);
 
-      await tester.tap(find.text('Clear filters'));
+      // Named for what it takes: the scope goes with the filters, and the
+      // deep link that set it cannot be re-followed from here.
+      await tester.tap(find.text('Clear filters and run'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Run · '), findsNothing);
@@ -476,6 +481,8 @@ void main() {
       await tester.tap(find.text('Logs'));
       await tester.pumpAndSettle();
       expect(find.text('No log records captured.'), findsOneWidget);
+      // Counting nothing competes with the message that says why.
+      expect(find.textContaining('Log records ('), findsNothing);
 
       LogManager.instance.getLogger('soliplex.probe').warning('arrived late');
       await tester.pumpAndSettle();
@@ -741,6 +748,37 @@ void main() {
     });
     tearDown(() => inspector.dispose());
 
+    testWidgets('the message is laid out in full, however short the pane',
+        (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // One width throughout, so the line count is fixed and only the room
+      // for it changes.
+      Future<void> pumpTall(double height) async {
+        tester.view.physicalSize = Size(390, height);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DiagnosticsScreen(appName: 'Acme', inspector: inspector),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      final message = find.textContaining('No log sink is installed');
+      await pumpTall(844);
+      await tester.tap(find.text('Logs'));
+      await tester.pumpAndSettle();
+      final roomy = tester.getSize(message);
+
+      // Squeezed into a box shorter than itself, a paragraph reports the
+      // box's height and paints the rest anyway — silently losing the half
+      // of this message that says what its absence does not mean. Laid out
+      // in full and scrolled, its height does not depend on the viewport.
+      await pumpTall(280);
+      expect(tester.getSize(message), roomy);
+    });
+
     testWidgets('says nothing is being collected, not that nothing happened',
         (tester) async {
       // Reporting an empty capture here would tell the reader the code logged
@@ -759,6 +797,9 @@ void main() {
 
       expect(find.textContaining('No log sink is installed'), findsOneWidget);
       expect(find.text('No log records captured.'), findsNothing);
+      // An absent sink is not a reason to strand the reader here: the
+      // switcher sits above every state this pane can be in.
+      expect(find.text('Requests'), findsOneWidget);
       // And the clear action does not offer to empty a capture that is absent.
       expect(
         tester
@@ -768,6 +809,393 @@ void main() {
             .onPressed,
         isNull,
       );
+    });
+  });
+
+  group('DiagnosticsScreen controls', () {
+    late NetworkInspector inspector;
+
+    setUp(() {
+      inspector = NetworkInspector();
+    });
+
+    tearDown(() {
+      inspector.dispose();
+    });
+
+    void seedRoomsAndThreads() {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            method: 'GET',
+            uri: Uri.parse('http://localhost/api/v1/rooms')))
+        ..onResponse(createResponseEvent(requestId: 'req-1'))
+        ..onRequest(createRequestEvent(
+            requestId: 'req-2',
+            method: 'POST',
+            uri: Uri.parse('http://localhost/api/v1/threads')))
+        ..onResponse(createResponseEvent(requestId: 'req-2'));
+    }
+
+    // The app's own theme, not Material's defaults: the toggles are measured
+    // here, and a density set in the shared theme would be invisible to a
+    // bare MaterialApp.
+    final theme =
+        lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light);
+
+    Future<void> pumpAt(
+      WidgetTester tester,
+      double width, {
+      double height = 900,
+      String? initialRunId,
+    }) async {
+      tester.view.physicalSize = Size(width, height);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: DiagnosticsScreen(
+            appName: 'Acme',
+            inspector: inspector,
+            initialRunId: initialRunId,
+          ),
+        ),
+      );
+    }
+
+    // Either side of SoliplexBreakpoints.tablet (600).
+    const phone = 400.0;
+    const tablet = 700.0;
+
+    testWidgets(
+        'collapsing the filters leaves the switcher and count on screen',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, tablet);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Success'), findsOneWidget);
+
+      await tester.tap(find.text('Hide filters'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Success'), findsNothing);
+      expect(find.text('LLM'), findsNothing);
+      // The control says which state it is in, so it does not have to be
+      // tapped to find out.
+      expect(find.text('Show filters'), findsOneWidget);
+      // Neither the switcher nor the count is part of what collapses: the
+      // first would strand a user who collapsed the chrome while the Logs
+      // pane was up, and the second is what says rows are being withheld.
+      expect(find.text('Logs'), findsOneWidget);
+      expect(find.text('Requests (2)'), findsOneWidget);
+    });
+
+    testWidgets('a filter that hides rows keeps saying so once collapsed',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, tablet);
+      await tester.enterText(find.byType(TextField), 'threads');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Hide filters'));
+      await tester.pumpAndSettle();
+
+      // The count is the only thing left saying rows are being withheld.
+      expect(find.text('Requests (1 / 2)'), findsOneWidget);
+      expect(find.text('/api/v1/rooms'), findsNothing);
+
+      await tester.tap(find.text('Show filters'));
+      await tester.pumpAndSettle();
+
+      // And collapsing is not a quiet reset: the query comes back with it.
+      expect(find.text('threads'), findsOneWidget);
+    });
+
+    testWidgets('a resize decides for a user who has not answered',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, phone);
+      // The chrome costs enough of a phone screen that the list loses to
+      // it, and the list is what the reader came for.
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Show filters'), findsOneWidget);
+
+      await pumpAt(tester, tablet);
+
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Hide filters'), findsOneWidget);
+    });
+
+    testWidgets('a phone in landscape is wide but short, and stays collapsed',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, 844, height: 390);
+
+      // Width alone would call this a tablet and open the filters, which in
+      // 390 of height would leave almost nothing for the list.
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Show filters'), findsOneWidget);
+    });
+
+    // Without the cap the control block is a fixed-height child and blows
+    // through a viewport too short for it. A test fails on an overflow, so
+    // reaching this state is most of the assertion.
+    //
+    // Not covered here: at large Dynamic Type HomeShellHeader overflows on
+    // its own account, which no assertion in this file can see past.
+    testWidgets('the filters yield rather than overflow a short viewport',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, 844, height: 330);
+
+      await tester.tap(find.text('Show filters'));
+      await tester.pumpAndSettle();
+
+      // And the list keeps exactly the floor it is promised — `greaterThan(0)`
+      // would pass on a one-pixel stub.
+      expect(find.byType(ListView), findsOneWidget);
+      expect(tester.getSize(find.byType(ListView)).height,
+          PaneLayout.minListExtent);
+
+      // The placeholder that replaces the list has the same problem and the
+      // same answer: it is taller than what is left for it here, and the way
+      // out of the filter has to stay reachable.
+      await tester.enterText(find.byType(TextField), 'zzz-no-match');
+      await tester.pumpAndSettle();
+
+      expect(find.text('No requests match these filters'), findsOneWidget);
+      // Scrolled to, not merely attached: a clip would leave the finder
+      // happy and the button forever out of reach.
+      await tester.ensureVisible(find.text('Clear filters'));
+      await tester.tap(find.text('Clear filters'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+    });
+
+    testWidgets('the collapse control sits flush with the controls it opens',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, tablet);
+
+      // Its right edge matches the full-width switcher's, so the heading
+      // and the control read as the two ends of one row rather than as two
+      // things adrift in the middle of it.
+      final control = find.widgetWithText(SoliplexButton, 'Hide filters');
+      final switcher = find.ancestor(
+        of: find.text('Logs'),
+        matching: find.bySubtype<SegmentedButton>(),
+      );
+      expect(
+        tester.getBottomRight(control).dx,
+        tester.getBottomRight(switcher).dx,
+      );
+    });
+
+    testWidgets('a resize does not re-decide for a user who has answered',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, tablet);
+      await tester.tap(find.text('Hide filters'));
+      await tester.pumpAndSettle();
+
+      await pumpAt(tester, phone);
+      await pumpAt(tester, tablet);
+
+      // Tablet width would open them, and did before the tap. Re-deciding on
+      // every build would quietly undo it.
+      expect(find.byType(TextField), findsNothing);
+    });
+
+    testWidgets('a phone remembers the filters being asked for',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, phone);
+
+      await tester.tap(find.text('Show filters'));
+      await tester.pumpAndSettle();
+
+      // After the user answers, a pane switch must not re-decide for them.
+      expect(find.byType(TextField), findsOneWidget);
+      await tester.tap(find.text('Logs'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Requests'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+    });
+
+    testWidgets('a run-scoped list says so with the filters collapsed',
+        (tester) async {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            uri: Uri.parse('http://localhost/api/v1/rooms/r1/agui/t1/run-1')))
+        ..onResponse(createResponseEvent(requestId: 'req-1'))
+        ..onRequest(createRequestEvent(
+            requestId: 'req-2', uri: Uri.parse('http://localhost/api/other')))
+        ..onResponse(createResponseEvent(requestId: 'req-2'));
+      await pumpAt(tester, phone, initialRunId: 'run-1');
+
+      // The deep link lands on a phone, where the filters start collapsed.
+      expect(find.byType(TextField), findsNothing);
+      // The scope is not a filter control: it withholds rows, so it names
+      // itself and stays dismissable rather than hiding with the toggles.
+      expect(find.text('Run · run-1'), findsOneWidget);
+      expect(find.byTooltip('Clear run filter'), findsOneWidget);
+    });
+
+    testWidgets('clearing the capture leaves the run scope visible and named',
+        (tester) async {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            uri: Uri.parse('http://localhost/api/v1/rooms/r1/agui/t1/run-1')))
+        ..onResponse(createResponseEvent(requestId: 'req-1'));
+      await pumpAt(tester, tablet, initialRunId: 'run-1');
+
+      await tester.tap(find.byTooltip('Clear all requests'));
+      await tester.pumpAndSettle();
+
+      // Clearing empties the capture but not the scope, so traffic from
+      // anything else still will not appear. Saying it will, with nothing on
+      // screen naming the scope or offering to drop it, is a lie the user
+      // cannot see through.
+      expect(find.text('Run · run-1'), findsOneWidget);
+      expect(find.byTooltip('Clear run filter'), findsOneWidget);
+      expect(find.text('Only requests matching your filters will appear here'),
+          findsOneWidget);
+      expect(
+        find.text('Requests will appear here as you use the app'),
+        findsNothing,
+      );
+
+      await tester.tap(find.byTooltip('Clear run filter'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Requests will appear here as you use the app'),
+          findsOneWidget);
+    });
+
+    testWidgets('a filter outlives the capture it was narrowing',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, tablet);
+      await tester.enterText(find.byType(TextField), 'threads');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Clear all requests'));
+      await tester.pumpAndSettle();
+
+      // Clearing the list does not clear the query, so it still drops
+      // whatever arrives next. Hiding the field that holds it would leave
+      // the reader watching an empty pane for no stated reason.
+      expect(find.text('threads'), findsOneWidget);
+      expect(find.text('Only requests matching your filters will appear here'),
+          findsOneWidget);
+      expect(find.text('Requests will appear here as you use the app'),
+          findsNothing);
+    });
+
+    testWidgets('an empty capture offers no filter affordance', (tester) async {
+      await pumpAt(tester, tablet);
+
+      expect(find.text('Hide filters'), findsNothing);
+      // Nor the filters themselves: the control that puts them away lives in
+      // the heading, which an empty, unfiltered capture does not render.
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Logs'), findsOneWidget);
+    });
+
+    testWidgets('the controls keep to the left margin on a wide window',
+        (tester) async {
+      seedRoomsAndThreads();
+      await pumpAt(tester, 1400);
+
+      // Capping their width must not centre them: the list they sit above is
+      // full-bleed, so centred controls read as belonging to nothing.
+      final switcher = find.ancestor(
+        of: find.text('Logs'),
+        matching: find.bySubtype<SegmentedButton>(),
+      );
+      expect(tester.getTopLeft(switcher).dx, SoliplexSpacing.s4);
+      expect(
+          tester.getTopLeft(find.text('Requests (2)')).dx, SoliplexSpacing.s4);
+    });
+
+    testWidgets('the switcher and the filter toggles are one size',
+        (tester) async {
+      seedRoomsAndThreads();
+      // Wider than the control column's cap, so the toggles are measured at
+      // the width they hold on any larger screen — and wide enough that no
+      // segment label wraps under the test font, which would make the heights
+      // differ for a reason no real font reproduces.
+      await pumpAt(tester, tablet);
+
+      // Named by a label unique to each: 'All' is a segment of both filters.
+      Finder toggleWith(String label) => find.ancestor(
+            of: find.text(label),
+            matching: find.bySubtype<SegmentedButton>(),
+          );
+      final switcher = tester.getSize(toggleWith('Logs'));
+      final status = tester.getSize(toggleWith('Success'));
+      final category = tester.getSize(toggleWith('LLM'));
+
+      expect(switcher, status);
+      expect(switcher, category);
+      expect(switcher.width, SoliplexBreakpoints.tablet);
+      // Stacked toggles, so a mis-tap that falls short lands on the
+      // neighbouring filter rather than on nothing. The group pumps the real
+      // theme, so a density set there is caught as well as one set here.
+      expect(switcher.height, kMinInteractiveDimension);
+    });
+  });
+
+  group('RequestsPane heading', () {
+    testWidgets('the heading and its control share a row that cannot overflow',
+        (tester) async {
+      final inspector = NetworkInspector();
+      addTearDown(inspector.dispose);
+      for (var n = 0; n < 12; n++) {
+        inspector
+          ..onRequest(createRequestEvent(
+              requestId: 'r$n',
+              uri: Uri.parse('http://localhost/api/v1/rooms')))
+          ..onResponse(createResponseEvent(requestId: 'r$n'));
+      }
+
+      // The narrowest supported width at an accessibility text size, pumped
+      // without the screen around it: HomeShellHeader overflows on its own
+      // account here, and would fail this test for a fault it does not own.
+      const size = Size(SoliplexBreakpoints.mobile, 800);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: size,
+              textScaler: TextScaler.linear(2),
+            ),
+            child: Scaffold(
+              body: RequestsPane(
+                inspector: inspector,
+                onRunFilterCleared: () {},
+                viewSwitcher: const SizedBox(height: 48),
+                filtersExpanded: true,
+                onFiltersExpandedToggled: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Neither child may push the other off the edge. A test fails on an
+      // overflow, so rendering both of these at this size is the assertion.
+      expect(find.textContaining('Requests ('), findsOneWidget);
+      expect(find.text('Hide filters'), findsOneWidget);
     });
   });
 }
