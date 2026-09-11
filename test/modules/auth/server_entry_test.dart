@@ -74,4 +74,77 @@ void main() {
       );
     });
   });
+
+  group('serversInDisplayOrder', () {
+    ServerEntry authSignedIn(String name) => createTestServerEntry(
+          serverId: 'https://$name.example.com',
+          requiresAuth: true,
+          auth: authInActiveSession(),
+          name: name,
+        );
+    ServerEntry authSignedOut(String name) => createTestServerEntry(
+          serverId: 'https://$name.example.com',
+          requiresAuth: true,
+          name: name,
+        );
+    ServerEntry noAuth(String name) => createTestServerEntry(
+          serverId: 'http://$name.local:8000',
+          requiresAuth: false,
+          name: name,
+        );
+
+    test('ranks signed-in auth, then signed-out auth, then no-auth', () {
+      // Supplied in reverse rank order, and in reverse alphabetical order too,
+      // so neither insertion order nor the name comparison alone can produce
+      // the expected result.
+      final ordered = serversInDisplayOrder([
+        noAuth('zeta'),
+        authSignedOut('yankee'),
+        authSignedIn('xray'),
+      ]);
+
+      expect(
+        ordered.map((e) => e.displayName),
+        ['xray', 'yankee', 'zeta'],
+      );
+    });
+
+    test('a signed-out auth server still outranks a no-auth one', () {
+      // The rank is deliberately coarser than "usable right now": a no-auth
+      // server is always reachable, but it is typically local or test-only, so
+      // it sorts below a real deployment the user merely has to sign back in to.
+      final ordered = serversInDisplayOrder([
+        noAuth('always-ready'),
+        authSignedOut('needs-sign-in'),
+      ]);
+
+      expect(
+        ordered.map((e) => e.displayName),
+        ['needs-sign-in', 'always-ready'],
+      );
+    });
+
+    test('sorts alphabetically within a rank, ignoring case', () {
+      final ordered = serversInDisplayOrder([
+        authSignedIn('Charlie'),
+        authSignedIn('alpha'),
+        authSignedIn('Bravo'),
+      ]);
+
+      // Case-insensitive: a plain string sort would put every capitalised name
+      // ahead of every lowercase one.
+      expect(
+        ordered.map((e) => e.displayName),
+        ['alpha', 'Bravo', 'Charlie'],
+      );
+    });
+
+    test('leaves the caller collection untouched', () {
+      final servers = [noAuth('zeta'), authSignedIn('alpha')];
+
+      serversInDisplayOrder(servers);
+
+      expect(servers.map((e) => e.displayName), ['zeta', 'alpha']);
+    });
+  });
 }

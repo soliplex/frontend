@@ -187,14 +187,14 @@ class _ServerList extends StatelessWidget {
                 ),
           ),
         ),
-        for (final entry in servers.entries)
+        for (final entry in _sidebarOrder(servers.values, selectedServerId))
           _ServerTile(
-            entry: entry.value,
+            entry: entry,
             serverManager: serverManager,
-            selected: entry.key == selectedServerId,
-            onTap: () => onSelectServer(entry.key),
-            onSignIn: () => onSignIn(entry.key),
-            onMarkAllRead: () => onMarkServerRead(entry.key),
+            selected: entry.serverId == selectedServerId,
+            onTap: () => onSelectServer(entry.serverId),
+            onSignIn: () => onSignIn(entry.serverId),
+            onMarkAllRead: () => onMarkServerRead(entry.serverId),
           ),
         Padding(
           padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
@@ -207,6 +207,27 @@ class _ServerList extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The sidebar's server order: the selected server first, then everything else
+/// in the order the home list uses, so the two screens agree on everything but
+/// the pin.
+///
+/// The pin exists because this list sits beside the rooms of exactly one
+/// server; keeping that server at the top means the tile you are reading never
+/// scrolls out from under the rooms it produced. The cost is that selecting a
+/// server reorders the list beneath the pointer — acceptable here because
+/// selection is occasional, and the reason the home list does not pin anything.
+List<ServerEntry> _sidebarOrder(
+  Iterable<ServerEntry> servers,
+  String? selectedServerId,
+) {
+  // Safe to mutate: serversInDisplayOrder returns a fresh list.
+  final ordered = serversInDisplayOrder(servers);
+  final index = ordered.indexWhere((e) => e.serverId == selectedServerId);
+  // No selection, an id naming no known server, or already on top.
+  if (index <= 0) return ordered;
+  return [ordered.removeAt(index), ...ordered];
 }
 
 class _ServerTile extends StatefulWidget {
@@ -248,12 +269,16 @@ class _ServerTileState extends State<_ServerTile> {
       onExit: (_) => setState(() => _hovered = false),
       child: ListTile(
         // The status dot only signals sign-in state, which is meaningless for
-        // a no-auth server (it's always ready) — so those carry no leading
-        // dot at all. Tighten the slot so the dot reads as a marker beside the
-        // name rather than a far-left icon.
-        leading: widget.entry.requiresAuth
-            ? ServerStatusDot(entry: widget.entry)
-            : null,
+        // a no-auth server (it's always ready) — so those show no dot, but
+        // keep its slot so every title shares one indent. Tighten the slot so
+        // the dot reads as a marker beside the name rather than a far-left
+        // icon.
+        leading: SizedBox(
+          width: ServerStatusDot.size,
+          child: widget.entry.requiresAuth
+              ? ServerStatusDot(entry: widget.entry)
+              : null,
+        ),
         minLeadingWidth: 0,
         horizontalTitleGap: SoliplexSpacing.s3,
         selected: widget.selected,

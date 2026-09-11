@@ -953,5 +953,120 @@ void main() {
         expect(find.text('Ada Lovelace'), findsNothing);
       });
     });
+
+    group('server order and indent', () {
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      testWidgets('orders signed-in, then signed-out, then no-auth servers',
+          (tester) async {
+        final manager = _createManager();
+        // Added in reverse of the expected order, so insertion order — which
+        // is all this list had before — cannot produce the assertion below.
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        manager.addServer(
+          serverId: 'stale',
+          serverUrl: Uri.parse('https://stale.example.com'),
+        );
+        final live = manager.addServer(
+          serverId: 'live',
+          serverUrl: Uri.parse('https://live.example.com'),
+        );
+        signIn(live);
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+        ));
+        await tester.pumpAndSettle();
+
+        final liveY = tester.getTopLeft(find.text('live.example.com')).dy;
+        final staleY = tester.getTopLeft(find.text('stale.example.com')).dy;
+        final localY = tester.getTopLeft(find.text('localhost:8000')).dy;
+
+        // Same rule as the home list, from the same comparator, so a user
+        // moving between the screens finds servers where they left them.
+        expect(liveY, lessThan(staleY));
+        expect(staleY, lessThan(localY));
+      });
+
+      testWidgets('pins the selected server above the sorted rest',
+          (tester) async {
+        final manager = _createManager();
+        final live = manager.addServer(
+          serverId: 'live',
+          serverUrl: Uri.parse('https://live.example.com'),
+        );
+        signIn(live);
+        manager.addServer(
+          serverId: 'stale',
+          serverUrl: Uri.parse('https://stale.example.com'),
+        );
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          // Deliberately the lowest-ranked server, so pinning is the only
+          // thing that could lift it above the other two.
+          selectedServerId: 'local',
+        ));
+        await tester.pumpAndSettle();
+
+        final localY = tester.getTopLeft(find.text('localhost:8000')).dy;
+        final liveY = tester.getTopLeft(find.text('live.example.com')).dy;
+        final staleY = tester.getTopLeft(find.text('stale.example.com')).dy;
+
+        // The server whose rooms fill the main pane sits at the top; everything
+        // below it keeps the shared display order.
+        expect(localY, lessThan(liveY));
+        expect(liveY, lessThan(staleY));
+      });
+
+      testWidgets('a no-auth row indents its title like a dotted row',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'auth',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+        ));
+        await tester.pumpAndSettle();
+
+        // A no-auth row shows no dot but keeps its slot. Without that,
+        // ListTile drops minLeadingWidth/horizontalTitleGap for the row and
+        // pulls its title left of every dotted neighbour.
+        expect(
+          tester.getTopLeft(find.text('localhost:8000')).dx,
+          tester.getTopLeft(find.text('api.example.com')).dx,
+        );
+      });
+    });
   });
 }
