@@ -17,6 +17,40 @@ ServerManager _serverManager() => ServerManager(
 
 Widget _buildApp(Widget child) => MaterialApp(home: child);
 
+/// A screen holding one server whose address needs the full tile width to
+/// render on a phone.
+Widget _screenWithOneServer() {
+  final manager = _serverManager()
+    ..addServer(
+      serverId: 'https://rag.example.test',
+      serverUrl: Uri.parse('https://rag.example.test'),
+      requiresAuth: false,
+    );
+
+  return VersionsScreen(
+    appName: 'Acme',
+    serverManager: manager,
+    versionLoader: () async => '0.0.46+48',
+    versionFetcher: (_) async => const BackendVersionInfo(
+      soliplexVersion: '0.36.dev0',
+      packageVersions: {},
+    ),
+  );
+}
+
+Future<void> _pumpAt(WidgetTester tester, Size size, Widget child) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+
+  await tester.pumpWidget(_buildApp(child));
+  await tester.pumpAndSettle();
+}
+
+Rect _copyButtonIn(WidgetTester tester, Finder tile) => tester.getRect(
+      find.descendant(of: tile, matching: find.byIcon(Icons.copy)),
+    );
+
 void main() {
   group('VersionsScreen', () {
     testWidgets('shows the branded bar without the about button',
@@ -199,6 +233,68 @@ void main() {
         packageVersions: {},
       ));
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('server tile keeps its actions beside the address when wide',
+        (tester) async {
+      await _pumpAt(tester, const Size(900, 600), _screenWithOneServer());
+
+      final viewPackages = tester.getRect(
+        find.widgetWithText(TextButton, 'View packages'),
+      );
+      final version = tester.getRect(find.text('Backend version: 0.36.dev0'));
+
+      expect(viewPackages.top, lessThan(version.bottom));
+
+      // Right-aligned, which is what keeps this tile's copy button in the
+      // same column as the one on every row above it.
+      expect(
+        _copyButtonIn(tester, find.byType(ListTile).last).left,
+        _copyButtonIn(tester, find.widgetWithText(ListTile, 'App')).left,
+      );
+    });
+
+    testWidgets('server tile stacks its actions under the address when narrow',
+        (tester) async {
+      await _pumpAt(tester, const Size(320, 600), _screenWithOneServer());
+
+      final address = tester.getRect(find.text('https://rag.example.test'));
+      final version = tester.getRect(find.text('Backend version: 0.36.dev0'));
+      final viewPackages = tester.getRect(
+        find.widgetWithText(TextButton, 'View packages'),
+      );
+
+      expect(viewPackages.top, greaterThanOrEqualTo(version.bottom));
+      expect(viewPackages.left, address.left);
+
+      // The actions break among themselves too, rather than overflowing.
+      expect(
+        _copyButtonIn(tester, find.byType(ListTile).last).top,
+        greaterThanOrEqualTo(viewPackages.bottom),
+      );
+    });
+
+    testWidgets('server tile version line takes the themed subtitle style',
+        (tester) async {
+      await _pumpAt(
+        tester,
+        const Size(900, 600),
+        ListTileTheme(
+          data: const ListTileThemeData(
+            subtitleTextStyle: TextStyle(
+              fontSize: 31,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          child: _screenWithOneServer(),
+        ),
+      );
+
+      final style = tester
+          .widget<EditableText>(find.text('Backend version: 0.36.dev0'))
+          .style;
+      expect(style.fontSize, 31);
+      expect(style.fontStyle, FontStyle.italic);
     });
 
     testWidgets(
