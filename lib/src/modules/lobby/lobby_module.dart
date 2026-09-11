@@ -42,13 +42,14 @@ class LobbyAppModule extends AppModule {
         routes: [
           GoRoute(
             path: AppRoutes.lobby,
-            pageBuilder: (_, __) => NoTransitionPage(
+            pageBuilder: (_, state) => NoTransitionPage(
               child: LobbyScreen(
                 serverManager: serverManager,
                 identity: identity,
                 registry: registry,
                 roomReadMarkers: roomReadMarkers,
                 serverReadMarkers: serverReadMarkers,
+                initialServerId: state.uri.queryParameters['server'],
               ),
             ),
           ),

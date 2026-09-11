@@ -40,6 +40,7 @@ class LobbyScreen extends StatefulWidget {
     this.roomReadMarkers,
     this.serverReadMarkers,
     this.apiResolver,
+    this.initialServerId,
   });
 
   final ServerManager serverManager;
@@ -65,6 +66,10 @@ class LobbyScreen extends StatefulWidget {
   @visibleForTesting
   final ApiResolver? apiResolver;
 
+  /// Server to open selected on arrival (from `/lobby?server=<id>`), overriding
+  /// the persisted/first-server default. Ignored when it names no known server.
+  final String? initialServerId;
+
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
 }
@@ -81,6 +86,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       registry: widget.registry,
       roomReadMarkers: widget.roomReadMarkers,
       serverReadMarkers: widget.serverReadMarkers,
+      initialServerId: widget.initialServerId,
     );
   }
 
