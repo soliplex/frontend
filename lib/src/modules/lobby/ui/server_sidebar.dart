@@ -268,6 +268,11 @@ class _ServerTileState extends State<_ServerTile> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: ListTile(
+        // ListTile pads both sides by 16 unless told otherwise. Drop the right
+        // pad so the ⋮ reaches the tile's edge; the button keeps its own
+        // padding, so the glyph still clears the rounded corner and the tap
+        // target stays full size.
+        contentPadding: const EdgeInsets.only(left: SoliplexSpacing.s4),
         // The status dot only signals sign-in state, which is meaningless for
         // a no-auth server (it's always ready) — so those show no dot, but
         // keep its slot so every title shares one indent. Tighten the slot so
@@ -284,10 +289,10 @@ class _ServerTileState extends State<_ServerTile> {
         selected: widget.selected,
         // Prefer the server's human-readable name; fall back to the address,
         // without its scheme so it reads the same here as in the room header.
-        // The tile shows only the name — the full address is reachable (and
+        // The tile shows only the label — the full address is reachable (and
         // copyable) from the ⋮ menu's "Copy server address" action.
         title: Text(
-          stripUrlScheme(widget.entry.displayName),
+          widget.entry.listLabel,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

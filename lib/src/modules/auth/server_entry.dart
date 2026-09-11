@@ -68,12 +68,30 @@ class ServerEntry {
   /// otherwise the formatted server address.
   String get displayName => name ?? formatServerUrl(serverUrl);
 
+  /// The address without its scheme, port kept. Adding a server passes a
+  /// blocking "this connection is not encrypted" screen when the scheme is
+  /// `http`, so the list does not repeat that warning on every row.
+  String get bareAddress => stripUrlScheme(formatServerUrl(serverUrl));
+
+  /// What the server lists show: the human [name] when set, otherwise
+  /// [bareAddress].
+  ///
+  /// Distinct from [displayName] because a caller must never run
+  /// [stripUrlScheme] over a name — a server called `https://prod (legacy)`
+  /// would come out mangled. Composing from [name] and [serverUrl] instead
+  /// keeps the regex on the only string that is guaranteed to be a URL.
+  String get listLabel => name ?? bareAddress;
+
   bool get isConnected => !requiresAuth || auth.isAuthenticated;
 }
 
 /// Servers in the order both server lists render them: auth-required servers
 /// first — signed in, then signed out — and no-auth servers last, with each
-/// rank sorted alphabetically by [ServerEntry.displayName], ignoring case.
+/// rank sorted alphabetically by [ServerEntry.listLabel], ignoring case.
+///
+/// Sorting on the label rather than the full address means the order matches
+/// what the reader sees; sorting on the address would rank by scheme first, so
+/// `http://zebra` would precede `https://apple`.
 ///
 /// Auth-required servers lead because they are the deployments people work in;
 /// a no-auth server is typically local or for testing. That is why a signed-out
@@ -92,6 +110,6 @@ List<ServerEntry> serversInDisplayOrder(Iterable<ServerEntry> servers) {
     ..sort((a, b) {
       final byRank = rank(a).compareTo(rank(b));
       if (byRank != 0) return byRank;
-      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+      return a.listLabel.toLowerCase().compareTo(b.listLabel.toLowerCase());
     });
 }

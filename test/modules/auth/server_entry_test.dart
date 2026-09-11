@@ -19,6 +19,46 @@ void main() {
     });
   });
 
+  group('listLabel', () {
+    test('drops the scheme from an address', () {
+      final entry = createTestServerEntry(serverId: 'https://api.example.com');
+      expect(entry.listLabel, 'api.example.com');
+    });
+
+    test('keeps a non-default port', () {
+      final entry = createTestServerEntry(serverId: 'http://localhost:8000');
+      expect(entry.listLabel, 'localhost:8000');
+    });
+
+    test('returns a human name untouched', () {
+      final entry = createTestServerEntry(
+        serverId: 'https://api.example.com',
+        name: 'Demo Server',
+      );
+      expect(entry.listLabel, 'Demo Server');
+    });
+
+    test('never regexes a name that looks like a URL', () {
+      // The bug this getter exists to avoid: running stripUrlScheme over
+      // displayName mangles a name the operator actually chose.
+      final entry = createTestServerEntry(
+        serverId: 'https://api.example.com',
+        name: 'https://prod (legacy)',
+      );
+      expect(entry.listLabel, 'https://prod (legacy)');
+    });
+  });
+
+  group('bareAddress', () {
+    test('is the address without its scheme, name or not', () {
+      final named = createTestServerEntry(
+        serverId: 'https://api.example.com',
+        name: 'Demo Server',
+      );
+      expect(named.bareAddress, 'api.example.com');
+    });
+  });
+
   group('stripUrlScheme', () {
     test('drops a leading http(s) scheme', () {
       expect(stripUrlScheme('https://api.example.com'), 'api.example.com');

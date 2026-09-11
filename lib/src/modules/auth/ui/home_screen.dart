@@ -636,12 +636,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           minLeadingWidth: 0,
           horizontalTitleGap: SoliplexSpacing.s3,
-          // Friendly name when known; raw address otherwise. The address
-          // drops to a subtitle only when a name is shown.
-          title: Text(entry.displayName),
+          // Friendly name when known; bare address otherwise. The address
+          // drops to a subtitle only when a name is shown. Schemes are elided
+          // on both — adding an http server already passes a blocking
+          // "not encrypted" screen, so the list need not repeat it per row.
+          title: Text(entry.listLabel),
           subtitle: entry.name != null
               ? Text(
-                  formatServerUrl(entry.serverUrl),
+                  entry.bareAddress,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 )
