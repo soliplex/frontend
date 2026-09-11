@@ -17,9 +17,8 @@ import 'pane_layout.dart';
 class LogsPane extends StatefulWidget {
   const LogsPane({required this.sink, required this.viewSwitcher, super.key});
 
-  /// The Requests/Logs control, placed with this pane's heading so it
-  /// scrolls and aligns with it. Built by the screen, which owns which pane
-  /// is showing.
+  /// The Requests/Logs control, built by the screen and laid out with this
+  /// pane's heading.
   final Widget viewSwitcher;
 
   /// Null when no memory sink is installed, which this pane reports
@@ -149,10 +148,8 @@ class _Message extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Scrollable for the same reason the request placeholders are: squeezed
-    // into a box shorter than itself, a paragraph reports the box's height
-    // and paints the rest anyway — no overflow, no error, just sentences the
-    // reader never sees.
+    // Squeezed shorter than its text, a Text clips silently — no overflow,
+    // no error, just sentences the reader never sees.
     return Center(
       child: SingleChildScrollView(
         child: Padding(

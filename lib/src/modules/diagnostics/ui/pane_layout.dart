@@ -4,31 +4,25 @@ import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
 
-/// What the list keeps when the controls cannot fit: roughly one collapsed
-/// row of either pane's list, so a squeezed pane still shows something.
-const double _minListExtent = 72;
-
 /// A pane's controls above its list.
 ///
-/// Controls are a fixed-height child of a column, so a viewport too short for
-/// them — a phone in landscape, a large Dynamic Type setting — would overflow
-/// rather than give way. Capping them at what is left over [_minListExtent]
-/// and making them scrollable is what gives way instead. Until the viewport
-/// is that short this changes nothing: the box takes its child's height.
-///
-/// The request filters are what reach that point in a viewport anyone would
-/// use; the log heading rarely does. Both panes share this anyway, because
-/// two panes laying out the same two slots two ways is how one of them ends
-/// up with the bug the other already fixed.
+/// Without a cap the controls would be a fixed-height child of a column, so a
+/// viewport too short for them — a phone in landscape, a large Dynamic Type
+/// setting — would overflow rather than give way. Capping them at what is
+/// left over [minListExtent] and making them scrollable is what gives way
+/// instead. Until the viewport is that short this changes nothing: the box
+/// takes its child's height.
 ///
 /// Needs a bounded height: it hands one child the rest of the column.
 class PaneLayout extends StatefulWidget {
   const PaneLayout({required this.controls, required this.list, super.key});
 
-  /// What the list is guaranteed, however tall the controls grow.
-  static const double minListExtent = _minListExtent;
+  /// The height the list keeps when the controls cannot fit, so a squeezed
+  /// pane still shows rows rather than collapsing to its controls.
+  static const double minListExtent = 72;
 
-  /// Whatever sits directly above the list and yields with it. A pane may
+  /// Whatever sits directly above the list and yields when the pane is
+  /// squeezed. A pane may
   /// stack something above [PaneLayout] itself — the concurrency strip does —
   /// and that keeps its own height, outside everything guaranteed here.
   ///
@@ -65,7 +59,10 @@ class _PaneLayoutState extends State<PaneLayout> {
         children: [
           ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: math.max(0, constraints.maxHeight - _minListExtent),
+              // Below the floor the controls get nothing: a pane this short
+              // is the list or it is neither.
+              maxHeight:
+                  math.max(0, constraints.maxHeight - PaneLayout.minListExtent),
             ),
             child: Scrollbar(
               // Visible at rest, not only mid-drag: a squeezed control block
@@ -82,8 +79,7 @@ class _PaneLayoutState extends State<PaneLayout> {
                     SoliplexSpacing.s2,
                   ),
                   // Capped so the controls do not stretch the width of a
-                  // desktop window, and capped in one place so the two panes
-                  // cannot disagree about how wide the same control is.
+                  // desktop window.
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(
                       maxWidth: SoliplexBreakpoints.tablet,

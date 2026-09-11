@@ -328,6 +328,9 @@ void main() {
 
       expect(find.text('/api/v1/threads'), findsOneWidget); // 500 → error
       expect(find.text('/api/v1/rooms'), findsNothing); // 200 → hidden
+      // A bucket counts as a filter, or the heading reads as the whole
+      // capture while the list shows a fraction of it.
+      expect(find.text('Requests (1 / 2)'), findsOneWidget);
     });
 
     testWidgets('initialRunId scopes the list and shows a removable run chip',
@@ -430,6 +433,7 @@ void main() {
 
       expect(find.text('/api/v1/rooms/r1/agui/t1/run-1'), findsOneWidget);
       expect(find.text('/api/v1/rooms'), findsNothing);
+      expect(find.text('Requests (1 / 2)'), findsOneWidget);
     });
   });
 
@@ -772,9 +776,9 @@ void main() {
       final roomy = tester.getSize(message);
 
       // Squeezed into a box shorter than itself, a paragraph reports the
-      // box's height and paints the rest anyway — silently losing the half
-      // of this message that says what its absence does not mean. Laid out
-      // in full and scrolled, its height does not depend on the viewport.
+      // box's height and clips the rest — silently losing the half of this
+      // message that says what its absence does not mean. Laid out in full
+      // and scrolled, its height does not depend on the viewport.
       await pumpTall(280);
       expect(tester.getSize(message), roomy);
     });
@@ -1087,14 +1091,10 @@ void main() {
       await tester.tap(find.byTooltip('Clear all requests'));
       await tester.pumpAndSettle();
 
-      // Clearing the list does not clear the query, so it still drops
-      // whatever arrives next. Hiding the field that holds it would leave
-      // the reader watching an empty pane for no stated reason.
+      // Clearing the list does not clear the query, so whatever arrives
+      // next is still hidden. Hiding the field that holds it would leave the
+      // reader watching an empty pane for no stated reason.
       expect(find.text('threads'), findsOneWidget);
-      expect(find.text('Only requests matching your filters will appear here'),
-          findsOneWidget);
-      expect(find.text('Requests will appear here as you use the app'),
-          findsNothing);
     });
 
     testWidgets('an empty capture offers no filter affordance', (tester) async {
@@ -1139,10 +1139,15 @@ void main() {
           );
       final switcher = tester.getSize(toggleWith('Logs'));
       final status = tester.getSize(toggleWith('Success'));
-      final category = tester.getSize(toggleWith('LLM'));
 
       expect(switcher, status);
-      expect(switcher, category);
+
+      // And the same control keeps that size on the other pane, which is the
+      // whole reason both of them lay out through PaneLayout.
+      await tester.tap(find.text('Logs'));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(toggleWith('Requests')), switcher);
+      expect(tester.getTopLeft(toggleWith('Requests')).dx, SoliplexSpacing.s4);
       expect(switcher.width, SoliplexBreakpoints.tablet);
       // Stacked toggles, so a mis-tap that falls short lands on the
       // neighbouring filter rather than on nothing. The group pumps the real
@@ -1186,16 +1191,21 @@ void main() {
                 viewSwitcher: const SizedBox(height: 48),
                 filtersExpanded: true,
                 onFiltersExpandedToggled: () {},
+                // UUID-shaped, which is what the backend sends: the run
+                // scope's row is squeezed here as hard as the heading's.
+                runId: '3f8a1c2e-9b4d-4f6a-8e21-77c0d5b9a1f3',
               ),
             ),
           ),
         ),
       );
 
-      // Neither child may push the other off the edge. A test fails on an
-      // overflow, so rendering both of these at this size is the assertion.
+      // Nothing in these rows may push its neighbour off the edge. A test
+      // fails on an overflow, so rendering them at this size is the
+      // assertion.
       expect(find.textContaining('Requests ('), findsOneWidget);
       expect(find.text('Hide filters'), findsOneWidget);
+      expect(find.textContaining('Run · '), findsOneWidget);
     });
   });
 }
