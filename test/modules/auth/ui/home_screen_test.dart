@@ -1063,8 +1063,7 @@ void main() {
       expect(find.byType(ServerStatusDot), findsOneWidget);
     });
 
-    testWidgets('orders signed-in, then signed-out, then no-auth servers',
-        (tester) async {
+    testWidgets('renders servers in the shared display order', (tester) async {
       final manager = _createServerManager();
       // Added in reverse of the expected order, so insertion order alone
       // cannot produce the assertion below.
@@ -1174,15 +1173,18 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
 
-      // Exactly one icon, on the signed-out row. Asserting absence alone would
-      // also pass if the rows stopped rendering icons altogether; the count
-      // pins the gate instead. Removing the signed-in server would have to end
-      // the IdP session first — async and fallible, and this screen has no
-      // retry surface.
+      // The icon belongs to the signed-out row. Asserting absence alone would
+      // also pass if the rows stopped rendering icons altogether, so pin which
+      // row owns it. Removing the signed-in server would have to end the IdP
+      // session first — async and fallible, and this screen has no retry
+      // surface.
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
       expect(
-        tester.getTopLeft(find.byIcon(Icons.delete_outline)).dy,
-        tester.getTopLeft(find.text('signedout.example.com')).dy,
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'signedout.example.com'),
+          matching: find.byIcon(Icons.delete_outline),
+        ),
+        findsOneWidget,
       );
     });
 

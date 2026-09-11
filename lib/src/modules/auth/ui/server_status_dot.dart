@@ -11,18 +11,24 @@ import '../server_entry.dart';
 /// - **red** (`danger`) — not signed in (or expired).
 ///
 /// Only meaningful for servers where `requiresAuth` is true: a no-auth server
-/// is always ready, so callers omit the dot for those — but they keep a [size]
-/// -wide slot for it, so titles line up whether or not a row has a dot. Reads
-/// the per-entry session signal, so the dot lives in a [Watch] and updates on
-/// sign-in / expiry without a server-map mutation. The tooltip carries the same
-/// status as text for accessibility.
+/// is always ready, so [leadingSlot] renders an empty slot for those instead.
+/// Reads the per-entry session signal, so the dot lives in a [Watch] and
+/// updates on sign-in / expiry without a server-map mutation. The tooltip
+/// carries the same status as text for accessibility.
 class ServerStatusDot extends StatelessWidget {
   const ServerStatusDot({super.key, required this.entry});
 
-  /// Width the dot occupies. Public so a dotless row can reserve the same
-  /// slot — `ListTile` drops `minLeadingWidth` and `horizontalTitleGap`
-  /// entirely when `leading` is null, which would pull that title left.
-  static const double size = 8;
+  static const double _size = 8;
+
+  /// A server row's leading slot: the dot when [entry] needs a sign-in, an
+  /// empty slot of the same width otherwise. Both server lists use this so the
+  /// slot can never drift from the dot — `ListTile` drops `minLeadingWidth`
+  /// and `horizontalTitleGap` entirely when `leading` is null, which would
+  /// pull a dotless title left of its dotted neighbours.
+  static Widget leadingSlot(ServerEntry entry) => SizedBox(
+        width: _size,
+        child: entry.requiresAuth ? ServerStatusDot(entry: entry) : null,
+      );
 
   final ServerEntry entry;
 
@@ -35,8 +41,8 @@ class ServerStatusDot extends StatelessWidget {
       return Tooltip(
         message: label,
         child: Container(
-          width: size,
-          height: size,
+          width: _size,
+          height: _size,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       );

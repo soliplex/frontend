@@ -628,13 +628,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       for (final entry in visibleServers)
         ListTile(
-          // A sign-in status dot marks auth servers (green signed-in / red
-          // logged-out); no-auth servers are always ready, so they carry
-          // none — but the slot stays, so every title shares one indent.
-          leading: SizedBox(
-            width: ServerStatusDot.size,
-            child: entry.requiresAuth ? ServerStatusDot(entry: entry) : null,
-          ),
+          leading: ServerStatusDot.leadingSlot(entry),
           minLeadingWidth: 0,
           horizontalTitleGap: SoliplexSpacing.s3,
           // Friendly name when known; bare address otherwise. The address
