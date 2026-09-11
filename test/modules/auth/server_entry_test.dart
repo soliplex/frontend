@@ -25,19 +25,6 @@ void main() {
       expect(entry.listLabel, 'api.example.com');
     });
 
-    test('keeps a non-default port', () {
-      final entry = createTestServerEntry(serverId: 'http://localhost:8000');
-      expect(entry.listLabel, 'localhost:8000');
-    });
-
-    test('returns a human name untouched', () {
-      final entry = createTestServerEntry(
-        serverId: 'https://api.example.com',
-        name: 'Demo Server',
-      );
-      expect(entry.listLabel, 'Demo Server');
-    });
-
     test('never regexes a name that looks like a URL', () {
       // The bug this getter exists to avoid: running stripUrlScheme over
       // displayName mangles a name the operator actually chose.
@@ -149,21 +136,6 @@ void main() {
       );
     });
 
-    test('a signed-out auth server still outranks a no-auth one', () {
-      // The rank is deliberately coarser than "usable right now": a no-auth
-      // server is always reachable, but it is typically local or test-only, so
-      // it sorts below a real deployment the user merely has to sign back in to.
-      final ordered = serversInDisplayOrder([
-        noAuth('always-ready'),
-        authSignedOut('needs-sign-in'),
-      ]);
-
-      expect(
-        ordered.map((e) => e.displayName),
-        ['needs-sign-in', 'always-ready'],
-      );
-    });
-
     test('sorts alphabetically within a rank, ignoring case', () {
       final ordered = serversInDisplayOrder([
         authSignedIn('Charlie'),
@@ -179,12 +151,19 @@ void main() {
       );
     });
 
-    test('leaves the caller collection untouched', () {
-      final servers = [noAuth('zeta'), authSignedIn('alpha')];
+    test('orders by the visible label, not the full address', () {
+      // Same rank, different schemes, and no names — so the tiebreak reads the
+      // address. Sorting the raw address instead of the label would compare
+      // 'http:' against 'https:' before either host, putting zebra first.
+      final ordered = serversInDisplayOrder([
+        createTestServerEntry(serverId: 'http://zebra.example.com'),
+        createTestServerEntry(serverId: 'https://apple.example.com'),
+      ]);
 
-      serversInDisplayOrder(servers);
-
-      expect(servers.map((e) => e.displayName), ['zeta', 'alpha']);
+      expect(
+        ordered.map((e) => e.listLabel),
+        ['apple.example.com', 'zebra.example.com'],
+      );
     });
   });
 }

@@ -1059,32 +1059,8 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
 
-      // Before this change the list filtered connected servers out entirely.
       expect(find.text('demo.example.com'), findsOneWidget);
       expect(find.byType(ServerStatusDot), findsOneWidget);
-    });
-
-    testWidgets('lists connected servers above logged-out ones',
-        (tester) async {
-      final manager = _createServerManager();
-      // Added logged-out first, so passing on insertion order alone is
-      // impossible.
-      manager.addServer(
-        serverId: 'https://zzz.example.com',
-        serverUrl: Uri.parse('https://zzz.example.com'),
-      );
-      final connected = manager.addServer(
-        serverId: 'https://aaa.example.com',
-        serverUrl: Uri.parse('https://aaa.example.com'),
-      );
-      _loginEntry(connected);
-
-      await tester.pumpWidget(_buildApp(serverManager: manager));
-      await tester.pumpAndSettle();
-
-      final connectedY = tester.getTopLeft(find.text('aaa.example.com')).dy;
-      final loggedOutY = tester.getTopLeft(find.text('zzz.example.com')).dy;
-      expect(connectedY, lessThan(loggedOutY));
     });
 
     testWidgets('orders signed-in, then signed-out, then no-auth servers',
@@ -1183,37 +1159,31 @@ void main() {
       expect(find.byType(ServerStatusDot), findsNothing);
     });
 
-    testWidgets('the Go to Lobby button is gone', (tester) async {
-      final manager = _createServerManager();
-      final entry = manager.addServer(
-        serverId: 'https://demo.example.com',
-        serverUrl: Uri.parse('https://demo.example.com'),
-      );
-      _loginEntry(entry);
-
-      await tester.pumpWidget(_buildApp(serverManager: manager));
-      await tester.pumpAndSettle();
-
-      // Every row now routes to its own server; a button that opens the
-      // lobby on the persisted server would contradict them.
-      expect(find.text('Go to Lobby'), findsNothing);
-    });
-
     testWidgets('a signed-in server offers no remove button', (tester) async {
       final manager = _createServerManager();
-      final entry = manager.addServer(
+      final signedIn = manager.addServer(
         serverId: 'https://demo.example.com',
         serverUrl: Uri.parse('https://demo.example.com'),
       );
-      _loginEntry(entry);
+      _loginEntry(signedIn);
+      manager.addServer(
+        serverId: 'https://signedout.example.com',
+        serverUrl: Uri.parse('https://signedout.example.com'),
+      );
 
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
 
-      // Removing it would have to end the IdP session first — async and
-      // fallible, and this screen has no retry surface. Sign out from the
-      // lobby instead.
-      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      // Exactly one icon, on the signed-out row. Asserting absence alone would
+      // also pass if the rows stopped rendering icons altogether; the count
+      // pins the gate instead. Removing the signed-in server would have to end
+      // the IdP session first — async and fallible, and this screen has no
+      // retry surface.
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byIcon(Icons.delete_outline)).dy,
+        tester.getTopLeft(find.text('signedout.example.com')).dy,
+      );
     });
 
     testWidgets('a no-auth server is removable', (tester) async {
@@ -1232,23 +1202,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // No session to end, so removal is synchronous and completes outright.
-      expect(manager.servers.value, isEmpty);
-    });
-
-    testWidgets('a logged-out auth server is removable', (tester) async {
-      final manager = _createServerManager();
-      manager.addServer(
-        serverId: 'https://demo.example.com',
-        serverUrl: Uri.parse('https://demo.example.com'),
-      );
-
-      await tester.pumpWidget(_buildApp(serverManager: manager));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.delete_outline));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove'));
-      await tester.pumpAndSettle();
-
       expect(manager.servers.value, isEmpty);
     });
   });

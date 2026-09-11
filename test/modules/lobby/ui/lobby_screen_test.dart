@@ -897,7 +897,7 @@ void main() {
       expect(freshY, lessThan(quietY));
     });
 
-    testWidgets('the server query parameter selects that server on arrival',
+    testWidgets('forwards initialServerId to the selected server',
         (tester) async {
       tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;

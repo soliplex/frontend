@@ -76,30 +76,25 @@ class ServerEntry {
   /// What the server lists show: the human [name] when set, otherwise
   /// [bareAddress].
   ///
-  /// Distinct from [displayName] because a caller must never run
-  /// [stripUrlScheme] over a name — a server called `https://prod (legacy)`
-  /// would come out mangled. Composing from [name] and [serverUrl] instead
-  /// keeps the regex on the only string that is guaranteed to be a URL.
+  /// Composed from [name] and [serverUrl] rather than stripping [displayName],
+  /// so the regex only ever sees a URL: a server named `https://prod (legacy)`
+  /// keeps its name intact.
   String get listLabel => name ?? bareAddress;
 
   bool get isConnected => !requiresAuth || auth.isAuthenticated;
 }
 
-/// Servers in the order both server lists render them: auth-required servers
-/// first — signed in, then signed out — and no-auth servers last, with each
-/// rank sorted alphabetically by [ServerEntry.listLabel], ignoring case.
+/// Auth servers first (signed in, then signed out), no-auth last; alphabetical
+/// by [ServerEntry.listLabel] within a rank, ignoring case.
 ///
-/// Sorting on the label rather than the full address means the order matches
-/// what the reader sees; sorting on the address would rank by scheme first, so
-/// `http://zebra` would precede `https://apple`.
+/// Sorting the label rather than the address keeps the order matching what the
+/// reader sees: an address sort compares `http:` against `https:` before either
+/// host, so `http://zebra` would precede `https://apple`.
 ///
-/// Auth-required servers lead because they are the deployments people work in;
-/// a no-auth server is typically local or for testing. That is why a signed-out
-/// auth server outranks a no-auth one despite being the less immediately usable
-/// of the two — the rank asks which server matters, not which needs fewer taps.
-///
-/// Rank moves only when a server's sign-in state actually changes, so rows do
-/// not reshuffle under the pointer for any other reason.
+/// Auth servers lead because they are the deployments people work in; a no-auth
+/// server is typically local or for testing. That is why a signed-out auth
+/// server outranks a no-auth one despite needing more taps to use — the rank
+/// asks which server matters, not which is closest to hand.
 List<ServerEntry> serversInDisplayOrder(Iterable<ServerEntry> servers) {
   int rank(ServerEntry entry) {
     if (!entry.requiresAuth) return 2;
