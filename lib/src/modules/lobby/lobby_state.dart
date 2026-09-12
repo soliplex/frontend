@@ -104,11 +104,20 @@ class LobbyState {
     // user off the server they chose. Seeding before the subscribe also keeps
     // _reconcileSelection's immediate fire a no-op (selection is already
     // initialized and valid).
-    if (initialServerId != null &&
-        _serverManager.servers.value.containsKey(initialServerId)) {
-      _selectedServerId.value = initialServerId;
-      _selectionInitialized = true;
-      _persistSelection(initialServerId);
+    if (initialServerId != null) {
+      if (_serverManager.servers.value.containsKey(initialServerId)) {
+        _selectedServerId.value = initialServerId;
+        _selectionInitialized = true;
+        _persistSelection(initialServerId);
+      } else {
+        // A stale link. Falling back to the persisted selection is right, but
+        // it opens a different server than the one asked for, so leave a record
+        // — otherwise the mismatch is undiagnosable afterwards.
+        _logger.info(
+          'Ignoring an unknown server in the incoming selection',
+          attributes: {'serverId': initialServerId},
+        );
+      }
     }
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());

@@ -1066,15 +1066,12 @@ void main() {
     testWidgets('renders servers in the shared display order', (tester) async {
       final manager = _createServerManager();
       // Added in reverse of the expected order, so insertion order alone
-      // cannot produce the assertion below.
+      // cannot produce the assertion below. Two ranks is all this needs — the
+      // full ladder is the comparator's own test, in server_entry_test.
       manager.addServer(
         serverId: 'http://localhost:8000',
         serverUrl: Uri.parse('http://localhost:8000'),
         requiresAuth: false,
-      );
-      manager.addServer(
-        serverId: 'https://stale.example.com',
-        serverUrl: Uri.parse('https://stale.example.com'),
       );
       final signedIn = manager.addServer(
         serverId: 'https://live.example.com',
@@ -1085,15 +1082,10 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: manager));
       await tester.pumpAndSettle();
 
-      final liveY = tester.getTopLeft(find.text('live.example.com')).dy;
-      final staleY = tester.getTopLeft(find.text('stale.example.com')).dy;
-      final localY = tester.getTopLeft(find.text('localhost:8000')).dy;
-
-      // A signed-out auth server outranks a no-auth one even though the no-auth
-      // server needs no sign-in: rank asks which server matters, not which is
-      // fewer taps away.
-      expect(liveY, lessThan(staleY));
-      expect(staleY, lessThan(localY));
+      expect(
+        tester.getTopLeft(find.text('live.example.com')).dy,
+        lessThan(tester.getTopLeft(find.text('localhost:8000')).dy),
+      );
     });
 
     testWidgets('a no-auth row indents its title like a dotted row',

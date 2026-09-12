@@ -265,8 +265,10 @@ class _ServerTileState extends State<_ServerTile> {
     // vs Log out).
     //
     // The ⋮ reveals on hover (desktop); the selected tile keeps it shown so the
-    // actions stay reachable without a mouse (touch, or the active server). The
-    // slot is always reserved (maintainSize) so the title doesn't shift.
+    // actions stay reachable without a mouse (touch, or the active server). A
+    // hidden ⋮ still holds its space, so revealing one does not shift the
+    // title — see [_ServerTileMenuState.build], which also decides that a
+    // spinner or an error ignores this flag entirely.
     final showMenu = _hovered || widget.selected;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -445,6 +447,10 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
   }
 
   Future<void> _runLogout(_AfterLogout then) async {
+    // Captured before the round-trip: if this tile is disposed while the IdP
+    // call runs, its context is gone but the messenger is still usable. Same
+    // reason _copyAddress captures one.
+    final messenger = ScaffoldMessenger.maybeOf(context);
     setState(() {
       _busy = true;
       _failure = null;
@@ -492,6 +498,14 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
                   message: friendlyLogoutError(e),
                   removalWasIntended: removalWasIntended,
                 ));
+          } else {
+            // The tile is gone — on a narrow layout, dismissing the drawer
+            // disposes it mid-round-trip — so the error affordance it would
+            // have shown has nowhere to render. Without this the failure
+            // reaches the log and nobody else.
+            messenger?.showSnackBar(
+              SnackBar(content: Text(friendlyLogoutError(e))),
+            );
           }
       }
     } finally {
