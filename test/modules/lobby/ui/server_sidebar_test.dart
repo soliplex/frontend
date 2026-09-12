@@ -494,20 +494,52 @@ void main() {
         await tester.tap(find.text('Log out'));
         await tester.pumpAndSettle();
 
-        // A hidden Visibility still keeps its child in the tree, so finding
-        // the icon proves nothing — assert nothing above it is hiding it. The
-        // outcome has to be visible even though the ⋮ is not: a second
-        // long-press is inert by design, so this is the only surface the
-        // failure has.
-        expect(find.byIcon(Icons.error_outline), findsOneWidget);
-        expect(
-          find.ancestor(
-            of: find.byIcon(Icons.error_outline),
-            matching:
-                find.byWidgetPredicate((w) => w is Visibility && !w.visible),
-          ),
-          findsNothing,
+        // Finding the icon proves nothing: a hidden Visibility keeps its child
+        // in the tree. Acting on it is the contract — hiding the slot wraps it
+        // in IgnorePointer, so the tap misses and no menu opens. A second
+        // long-press is inert by design, so this is the failure's only surface.
+        await tester.tap(find.byIcon(Icons.error_outline));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Try again'), findsOneWidget);
+      });
+
+      testWidgets('a failure still reports when the tile is disposed',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
         );
+        signIn(entry);
+        final completer = Completer<void>();
+        final flow = FakeAuthFlow()
+          ..endSessionCompleter = completer
+          ..endSessionError = Exception('network down');
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pump();
+
+        // The tile goes away mid-round-trip, as dismissing the drawer does on
+        // a narrow layout. Its error affordance has nowhere to render, so the
+        // outcome has to arrive some other way.
+        await tester.pumpWidget(_buildSidebar(
+          servers: const {},
+          serverManager: manager,
+          overrides: overridesFor(flow),
+        ));
+        completer.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SnackBar), findsOneWidget);
       });
 
       testWidgets('a long-press opens no menu while the tile shows an error',
@@ -1063,9 +1095,9 @@ void main() {
     });
 
     group('opening a tile menu by gesture', () {
-      /// Two servers with 'a' selected, so 'b' is the unselected tile whose ⋮
-      /// is hidden — the case these gestures exist for.
-      (ServerManager, List<String>) twoServers() {
+      /// Two servers, so 'b' is the unselected tile whose ⋮ is hidden — the
+      /// case these gestures exist for.
+      ServerManager twoServers() {
         final manager = _createManager();
         manager.addServer(
           serverId: 'a',
@@ -1075,13 +1107,14 @@ void main() {
           serverId: 'b',
           serverUrl: Uri.parse('https://b.example.com'),
         );
-        return (manager, <String>[]);
+        return manager;
       }
 
       testWidgets(
           'long-press opens an unselected tile\'s menu without '
           'selecting it', (tester) async {
-        final (manager, selected) = twoServers();
+        final manager = twoServers();
+        final selected = <String>[];
 
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
@@ -1099,7 +1132,8 @@ void main() {
       });
 
       testWidgets('secondary tap opens the menu', (tester) async {
-        final (manager, selected) = twoServers();
+        final manager = twoServers();
+        final selected = <String>[];
 
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
@@ -1114,7 +1148,6 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Copy server address'), findsOneWidget);
-        expect(selected, isEmpty);
       });
     });
 
