@@ -81,7 +81,7 @@ jobs:
           echo "::endgroup::"
           # Full suite incl. goldens. Goldens render per-platform; the
           # committed baseline is rendered on Linux at the Flutter version
-          # pinned in setup-dart-env, so it's authoritative here. Refresh it
+          # in .fvmrc, so it's authoritative here. Refresh it
           # with the update-goldens workflow.
           echo "::group::Testing packages/soliplex_design"
           (cd packages/soliplex_design && flutter test)

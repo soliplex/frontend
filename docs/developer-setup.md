@@ -4,10 +4,40 @@ Platform-specific setup instructions for building and running Soliplex.
 
 ## Prerequisites
 
-- Flutter SDK (stable channel, >=3.38.4; CI builds with 3.38.7)
+- Flutter SDK, stable channel — exact version in `.fvmrc` (see below)
 - Xcode (for iOS/macOS)
 - CocoaPods (`gem install cocoapods`)
 - Android Studio (for Android)
+
+### Flutter SDK version
+
+`.fvmrc` at the repository root names the exact SDK that CI builds and tests
+with, and it is the only place that version is written:
+
+```json
+{
+  "flutter": "3.41.9"
+}
+```
+
+Match it locally. Two ways:
+
+```bash
+# With fvm (reads .fvmrc for you; run project commands as `fvm flutter ...`)
+fvm use
+
+# Without fvm — install that exact version by whatever means you prefer,
+# then confirm it is what your shell resolves
+flutter --version
+```
+
+fvm is the path of least resistance, not a requirement. `.fvmrc` is a two-line
+JSON file that CI parses directly, so any tool or a human can read it.
+
+Do not confuse this with the `environment:` floor in `pubspec.yaml`
+(`flutter: ">=3.38.4"`). The floor is the oldest SDK this library promises
+consumers; `.fvmrc` is what we develop on today. They are allowed to differ,
+and the floor moves only when a dependency forces it.
 
 ## Quick Start
 
@@ -102,13 +132,13 @@ microphone, location, etc.), add the corresponding `NS*UsageDescription` keys.
 
 #### Building for TestFlight/App Store
 
-Use Flutter **stable** channel for production builds. Beta/dev channels can
-produce binaries that fail App Store validation.
+Build releases with the exact version in `.fvmrc`. It is a stable-channel
+release, so this also keeps beta/dev binaries — which fail App Store
+validation — out of a release build.
 
 ```bash
-# Verify you're on stable channel
-flutter channel stable
-flutter upgrade
+# Verify your SDK matches .fvmrc
+flutter --version
 
 # Build release IPA
 flutter build ipa --release
@@ -187,3 +217,4 @@ cd macos && pod deintegrate && pod install && cd ..
 | `ios/Runner/Configs/Local.xcconfig` | Your iOS signing config (gitignored) |
 | `ios/Runner/Info.plist` | iOS privacy descriptions and app config |
 | `.gitignore` | Excludes `**/Local.xcconfig` |
+| `.fvmrc` | The Flutter SDK version CI builds with |
