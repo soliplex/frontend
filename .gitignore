@@ -24,8 +24,8 @@
 
 # Flutter/Dart/Pub related
 .dart_tool/
-# fvm's SDK cache and symlinks. The version itself lives in .fvmrc, which is
-# committed and read by CI.
+# fvm's per-project symlinks into its SDK cache. The version lives in the
+# committed .fvmrc, which CI reads.
 .fvm/
 .flutter-plugins
 .flutter-plugins-dependencies

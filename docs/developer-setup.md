@@ -11,33 +11,38 @@ Platform-specific setup instructions for building and running Soliplex.
 
 ### Flutter SDK version
 
-`.fvmrc` at the repository root names the exact SDK that CI builds and tests
-with, and it is the only place that version is written:
-
-```json
-{
-  "flutter": "3.41.9"
-}
-```
-
-Match it locally. Two ways:
+`.fvmrc` at the repository root names the exact SDK CI builds and tests with,
+and is the only place that version is written. Match it locally:
 
 ```bash
-# With fvm (reads .fvmrc for you; run project commands as `fvm flutter ...`)
-fvm use
-
-# Without fvm — install that exact version by whatever means you prefer,
-# then confirm it is what your shell resolves
-flutter --version
+fvm use            # with fvm: reads .fvmrc; run commands as `fvm flutter ...`
+flutter --version  # without fvm: install that version, check what your shell resolves
 ```
 
-fvm is the path of least resistance, not a requirement. `.fvmrc` is a two-line
-JSON file that CI parses directly, so any tool or a human can read it.
+fvm is convenient, not required. `.fvmrc` is plain JSON, read with `jq` rather
+than by invoking fvm, so any tool or a human can read it too.
 
-Do not confuse this with the `environment:` floor in `pubspec.yaml`
-(`flutter: ">=3.38.4"`). The floor is the oldest SDK this library promises
-consumers; `.fvmrc` is what we develop on today. They are allowed to differ,
-and the floor moves only when a dependency forces it.
+The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.38.4"`) is a
+different number: the oldest SDK this library promises consumers. It may lag
+`.fvmrc`, and moves only when a dependency forces it.
+
+#### VS Code
+
+The Dart extension analyses and debugs with whatever SDK is on `PATH` unless
+told otherwise, and a mismatch surfaces as phantom analyzer errors that never
+name a version. `fvm use` points it at the pin, writing a version-specific
+`dart.flutterSdkPath` into `.vscode/settings.json` and rewriting it on every
+switch — which is what keeps it correct. Leave it alone; `.vscode/*` is
+gitignored, so the churn never reaches a commit.
+
+`"updateVscodeSettings": false` stops fvm writing that file at all, leaving you
+to point at the version-agnostic `.fvm/flutter_sdk` by hand. **Don't** — the
+flag lives only in the tracked `.fvmrc`, so it leaves yours permanently dirty
+in `git status` and one `git add` from landing on everyone.
+
+No `dart.flutterSdkPath` is committed: every path fvm can offer lives under
+`.fvm/`, which a developer without fvm does not have, so a committed setting
+would point at nothing on their machine.
 
 ## Quick Start
 
@@ -132,13 +137,12 @@ microphone, location, etc.), add the corresponding `NS*UsageDescription` keys.
 
 #### Building for TestFlight/App Store
 
-Build releases with the exact version in `.fvmrc`. It is a stable-channel
-release, so this also keeps beta/dev binaries — which fail App Store
-validation — out of a release build.
+Build releases with the version in `.fvmrc` — a stable-channel release.
+Beta/dev-channel binaries can fail App Store validation.
 
 ```bash
-# Verify your SDK matches .fvmrc
-flutter --version
+# Confirm the SDK you build with is the one in .fvmrc
+fvm flutter --version   # or: flutter --version, without fvm
 
 # Build release IPA
 flutter build ipa --release
