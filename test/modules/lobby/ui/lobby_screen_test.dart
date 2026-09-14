@@ -311,6 +311,36 @@ void main() {
       expect(find.text('http://localhost:8000'), findsNothing);
     });
 
+    testWidgets('the app bar keeps a server name that looks like a URL',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+        name: 'https://prod (legacy)',
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // The scheme is dropped from an address, never from a name the operator
+      // chose — running the regex over displayName would mangle this one.
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('https://prod (legacy)'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets(
         'wide layout names the server only in the sidebar (no AppBar, '
         'no pane band)', (tester) async {

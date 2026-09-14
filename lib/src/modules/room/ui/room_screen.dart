@@ -1994,11 +1994,12 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  /// The server's display label with any `http(s)://` scheme stripped — the
-  /// scheme is visual noise in the header and the leading link glyph already
-  /// signals "server address" (issue #485). A human-readable server name (which
-  /// carries no scheme) passes through unchanged.
-  String get _serverLabel => stripUrlScheme(widget.serverEntry.displayName);
+  /// The server's display label: a name when the server publishes one, else
+  /// its address with the `http(s)://` scheme stripped — the scheme is visual
+  /// noise in the header and the leading link glyph already signals "server
+  /// address" (issue #485). [ServerEntry.listLabel] composes from the name and
+  /// the URL, so the scheme regex never sees a name.
+  String get _serverLabel => widget.serverEntry.listLabel;
 
   /// Toolbar height that fits the two lines of [_roomTitle] at the current text
   /// scale. A toolbar is a fixed [kToolbarHeight] box that clips an oversized
