@@ -391,9 +391,10 @@ class _NarrowLayout extends StatelessWidget {
         title: selectedEntry == null
             ? null
             : Text(
-                // Drop the `http(s)://` scheme, matching the room header's
-                // server line (issue #485).
-                stripUrlScheme(selectedEntry.displayName),
+                // A name when the server publishes one, else its address with
+                // the scheme dropped — matching the room header's server line
+                // (issue #485).
+                selectedEntry.listLabel,
                 style: Theme.of(context).textTheme.titleMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

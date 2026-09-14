@@ -451,6 +451,33 @@ void main() {
     expect(find.text('Test thread'), findsOneWidget);
   });
 
+  testWidgets('the header keeps a server name that looks like a URL',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    // The scheme is stripped from an address, never from a name the operator
+    // chose — running the regex over displayName would mangle this one.
+    final named = createTestServerEntry(name: 'https://prod (legacy)');
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: named,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('https://prod (legacy)'), findsOneWidget);
+  });
+
   testWidgets('narrow layout shows AppBar', (tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
