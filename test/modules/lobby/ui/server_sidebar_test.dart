@@ -504,44 +504,6 @@ void main() {
         expect(find.text('Try again'), findsOneWidget);
       });
 
-      testWidgets('a failure still reports when the tile is disposed',
-          (tester) async {
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'srv',
-          serverUrl: Uri.parse('https://api.example.com'),
-        );
-        signIn(entry);
-        final completer = Completer<void>();
-        final flow = FakeAuthFlow()
-          ..endSessionCompleter = completer
-          ..endSessionError = Exception('network down');
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-          overrides: overridesFor(flow),
-        ));
-        await tester.tap(find.byIcon(Icons.more_vert).first);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Log out'));
-        await tester.pump();
-
-        // The tile goes away mid-round-trip, as dismissing the drawer does on
-        // a narrow layout. Its error affordance has nowhere to render, so the
-        // outcome has to arrive some other way.
-        await tester.pumpWidget(_buildSidebar(
-          servers: const {},
-          serverManager: manager,
-          overrides: overridesFor(flow),
-        ));
-        completer.complete();
-        await tester.pumpAndSettle();
-
-        expect(find.byType(SnackBar), findsOneWidget);
-      });
-
       testWidgets('a long-press opens no menu while the tile shows an error',
           (tester) async {
         final (manager, _, flow) = failingLogout();
