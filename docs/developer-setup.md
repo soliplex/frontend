@@ -22,6 +22,11 @@ flutter --version  # without fvm: install that version, check what your shell re
 fvm is convenient, not required. `.fvmrc` is plain JSON, read with `jq` rather
 than by invoking fvm, so any tool or a human can read it too.
 
+`fvm use` pins the project but does not change what bare `flutter` resolves
+to — run `fvm global` as well, since the pre-commit hooks call `flutter`
+directly. Homebrew cannot pin a version: `brew install flutter` tracks the
+latest release.
+
 The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.38.4"`) is a
 different number: the oldest SDK this library promises consumers. It may lag
 `.fvmrc`, and moves only when a dependency forces it.
