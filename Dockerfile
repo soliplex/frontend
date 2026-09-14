@@ -43,7 +43,7 @@ COPY .fvmrc /tmp/.fvmrc
 RUN export FLUTTER=flutter_linux_$(jq -r '.flutter' /tmp/.fvmrc)-stable.tar.xz && \
     mkdir -p /opt &&  \
     cd /opt && \
-    curl -L -o $FLUTTER https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/$FLUTTER && \
+    curl -fL -o $FLUTTER https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/$FLUTTER && \
     tar xf $FLUTTER && \
     rm $FLUTTER
 

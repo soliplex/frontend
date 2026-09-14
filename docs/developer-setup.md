@@ -26,23 +26,7 @@ The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.38.4"`) is a
 different number: the oldest SDK this library promises consumers. It may lag
 `.fvmrc`, and moves only when a dependency forces it.
 
-#### VS Code
-
-The Dart extension analyses and debugs with whatever SDK is on `PATH` unless
-told otherwise, and a mismatch surfaces as phantom analyzer errors that never
-name a version. `fvm use` points it at the pin, writing a version-specific
-`dart.flutterSdkPath` into `.vscode/settings.json` and rewriting it on every
-switch — which is what keeps it correct. Leave it alone; `.vscode/*` is
-gitignored, so the churn never reaches a commit.
-
-`"updateVscodeSettings": false` stops fvm writing that file at all, leaving you
-to point at the version-agnostic `.fvm/flutter_sdk` by hand. **Don't** — the
-flag lives only in the tracked `.fvmrc`, so it leaves yours permanently dirty
-in `git status` and one `git add` from landing on everyone.
-
-No `dart.flutterSdkPath` is committed: every path fvm can offer lives under
-`.fvm/`, which a developer without fvm does not have, so a committed setting
-would point at nothing on their machine.
+Using VS Code, and the analyzer disagrees with the pin? See **Troubleshooting**.
 
 ## Quick Start
 
@@ -182,6 +166,27 @@ flutter run -d windows
 ```
 
 ## Troubleshooting
+
+### Analyzer errors that don't match the code
+
+**Cause:** The Dart extension analyses and debugs with whatever SDK is on
+`PATH` unless told otherwise, so it can disagree with the version in `.fvmrc`.
+The errors it reports never name a version, so the mismatch does not announce
+itself.
+
+**Fix:** Point the extension at the pin. `fvm use` does it for you, writing a
+version-specific `dart.flutterSdkPath` into `.vscode/settings.json` and
+rewriting it on every switch — which is what keeps it correct. Leave that file
+alone; `.vscode/*` is gitignored, so the churn never reaches a commit.
+
+`"updateVscodeSettings": false` stops fvm writing the file at all, leaving you
+to point at the version-agnostic `.fvm/flutter_sdk` by hand. **Don't** — the
+flag lives only in the tracked `.fvmrc`, so it leaves yours permanently dirty
+in `git status` and one `git add` from landing on everyone.
+
+No `dart.flutterSdkPath` is committed: every path fvm can offer lives under
+`.fvm/`, which a developer without fvm does not have, so a committed setting
+would point at nothing on their machine.
 
 ### Entitlements require signing
 
