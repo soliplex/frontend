@@ -276,18 +276,41 @@ void main() {
       expect(controller.usage.isExact, isTrue);
     });
 
-    test('a failed fetch releases it as well', () async {
+    test('a failed fetch keeps it, because the message did reach the model',
+        () async {
+      // The measurement is what went missing, not the message. Dropping
+      // the estimate here would move the reading *down* after a send —
+      // the one direction it must never move.
       when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
           .thenThrow(const NetworkException(message: 'down'));
       final controller = build()
         ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
+      final sent = controller.usage.tokens;
       controller.draftSent();
 
       await controller.runEnded('run-2');
 
-      expect(controller.usage.tokens, 1000);
+      expect(controller.usage.tokens, sent);
+      expect(controller.usage.isExact, isFalse);
+    });
+
+    test('a later measurement clears the estimate the failure kept', () async {
+      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
+          .thenThrow(const NetworkException(message: 'down'));
+      runAnswers('run-3', _usage('run-3', finalInputTokens: 4000));
+      final controller = build()
+        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
+        ..draftChanged('something being typed');
+      await Future<void>.delayed(Duration.zero);
+      controller.draftSent();
+      await controller.runEnded('run-2');
+
+      await controller.runEnded('run-3');
+
+      expect(controller.usage.tokens, 4000);
+      expect(controller.usage.isExact, isTrue);
     });
   });
 
