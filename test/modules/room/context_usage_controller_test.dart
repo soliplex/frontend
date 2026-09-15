@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_frontend/src/modules/room/context_usage_controller.dart';
 
@@ -44,12 +43,26 @@ void main() {
   });
 
   group('before anything is known', () {
-    test('reads as unknown', () {
-      expect(build().usage, const ContextUsage.unknown());
+    test('reads as nothing measured against nothing', () {
+      final usage = build().usage;
+
+      expect(usage.tokens, 0);
+      expect(usage.contextWindow, isNull);
+      expect(usage.isExact, isFalse);
     });
 
-    test('has no percentage without a measurement', () {
-      expect(build().usage.fractionUsed, isNull);
+    test('a draft alone yields no percentage, even against a known window',
+        () async {
+      // Nothing has counted the instructions, tool schemas or chat
+      // template, so the draft is not a fraction of the window — showing
+      // it as one reads catastrophically low on a full thread.
+      final controller = build(window: 8192)
+        ..draftChanged('something being typed');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.usage.tokens, greaterThan(0));
+      expect(controller.usage.fractionUsed, isNull);
+      expect(controller.usage.contextWindow, isNull);
     });
   });
 
@@ -116,10 +129,11 @@ void main() {
       expect(notifications, 0);
     });
 
-    test('with nothing measured leaves the reading unknown', () async {
+    test('with nothing measured leaves the reading unmeasured', () async {
       final controller = build()..historyLoaded(_history(null));
 
-      expect(controller.usage, const ContextUsage.unknown());
+      expect(controller.usage.tokens, 0);
+      expect(controller.usage.contextWindow, isNull);
     });
   });
 
@@ -288,6 +302,6 @@ void main() {
 
     // No notification is dispatched, which would throw on a disposed
     // ChangeNotifier; reaching here is the assertion.
-    expect(controller.usage, const ContextUsage.unknown());
+    expect(controller.usage.tokens, 0);
   });
 }
