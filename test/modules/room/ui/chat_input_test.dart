@@ -1482,6 +1482,5 @@ void main() {
 
       expect(find.byType(ContextGauge), findsOneWidget);
     });
-
   });
 }
