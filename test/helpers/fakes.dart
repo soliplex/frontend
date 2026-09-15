@@ -643,6 +643,26 @@ class ManualAgentSession implements AgentSession {
     ));
   }
 
+  /// Drives [runState] to completion and resolves [result] to match, in the
+  /// same order `AgentSession` does.
+  void completeAsCompleted({
+    required String runId,
+    Conversation? conversation,
+    String output = 'done',
+  }) {
+    _runState.value = CompletedState(
+      threadKey: threadKey,
+      runId: runId,
+      conversation:
+          conversation ?? Conversation.empty(threadId: threadKey.threadId),
+    );
+    _resultCompleter.complete(AgentSuccess(
+      threadKey: threadKey,
+      output: output,
+      runId: runId,
+    ));
+  }
+
   /// Resolves [result] without driving [runState] into a terminal
   /// subtype. Used to exercise the contract-violation branch of
   /// `RunRegistry._outcomeFrom`.
