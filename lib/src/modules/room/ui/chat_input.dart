@@ -109,8 +109,8 @@ class ChatInput extends StatefulWidget {
   final Object? composerScope;
 
   /// Current context-window reading, shown as a ring beside send.
-  /// Null hides the gauge entirely, which is what a room whose usage
-  /// cannot be measured should do rather than show a wrong number.
+  /// Null hides the gauge entirely, which is what a composer with no
+  /// thread behind it should do — there is nothing yet to measure.
   final ContextUsage? contextUsage;
 
   @override

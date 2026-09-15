@@ -20,9 +20,11 @@ import '../../core/util/debouncer.dart';
 ///   MCP schemas, the chat template, images, evidence compaction — so
 ///   reconstructing it here would necessarily read low.
 ///
-/// What this adds locally is the draft — the one part of a reading that
-/// nothing has measured, because it has not been sent. Its estimate is
-/// biased high on purpose; see [estimateDraftTokens].
+/// What this adds locally is the estimate: the draft in the composer, and
+/// a message already sent that no run has reported on yet. Both are biased
+/// high on purpose; see [estimateDraftTokens]. Until a run has measured
+/// something the reading carries no window at all — an estimate is not a
+/// fraction of a context nobody has counted.
 class ContextUsageController extends ChangeNotifier {
   /// Creates a controller for [threadId] in [roomId].
   ContextUsageController({
@@ -42,8 +44,8 @@ class ContextUsageController extends ChangeNotifier {
   final Debouncer _draftDebounce;
 
   /// The room's model's window, or null when nothing knows it — in which
-  /// case the gauge hides itself rather than render against an invented
-  /// denominator.
+  /// case the reading carries no percentage and the gauge shows a hollow
+  /// ring rather than render against an invented denominator.
   ///
   /// Settable because the room loads on its own schedule and may arrive
   /// after this controller exists. Setting it does not notify: it is
@@ -61,16 +63,20 @@ class ContextUsageController extends ChangeNotifier {
     final measured = _measured?.finalInputTokens;
     final unmeasured = _draftTokens + _inFlightTokens;
 
-    if (measured == null && unmeasured == 0) {
-      return const ContextUsage.unknown();
-    }
+    // Without a measurement there is no numerator to put over the window:
+    // the instructions, tool and MCP schemas and chat template are all in
+    // the request and only the backend has counted them. Showing the
+    // estimated terms as a fraction would read near-empty on a full
+    // thread, so the reading carries no window and the gauge shows no
+    // percentage.
+    if (measured == null) return ContextUsage(tokens: unmeasured);
 
     return ContextUsage(
-      tokens: (measured ?? 0) + unmeasured,
+      tokens: measured + unmeasured,
       contextWindow: contextWindow,
       // Exact only while nothing estimated is folded in: the thread's
       // own tokens are the provider's own count, but a draft is not.
-      isExact: measured != null && unmeasured == 0,
+      isExact: unmeasured == 0,
     );
   }
 

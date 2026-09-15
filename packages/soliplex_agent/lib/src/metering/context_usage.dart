@@ -18,12 +18,6 @@ class ContextUsage {
     this.isExact = false,
   });
 
-  /// A reading for a thread nothing is known about yet.
-  const ContextUsage.unknown()
-      : tokens = 0,
-        contextWindow = null,
-        isExact = false;
-
   /// Tokens the next request is expected to carry.
   final int tokens;
 
@@ -32,8 +26,9 @@ class ContextUsage {
 
   /// Whether every token in [tokens] was counted by the provider.
   ///
-  /// False while an unsent draft is included, since that term is
-  /// estimated locally and deliberately over-stated.
+  /// False while any locally estimated term is included — a draft in the
+  /// composer, or a message already sent that no run has reported on.
+  /// Those are estimated locally and deliberately over-stated.
   final bool isExact;
 
   /// Fraction of the window used, or null when no window is declared.
