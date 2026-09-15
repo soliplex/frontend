@@ -24,10 +24,9 @@
 
 # Flutter/Dart/Pub related
 .dart_tool/
-# fvm's local SDK selection. The version CI builds with is pinned in
-# .github/actions/setup-dart-env/action.yaml, not here.
+# fvm's per-project symlinks into its SDK cache. The version lives in the
+# committed .fvmrc, which CI reads.
 .fvm/
-.fvmrc
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages

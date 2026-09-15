@@ -4,10 +4,34 @@ Platform-specific setup instructions for building and running Soliplex.
 
 ## Prerequisites
 
-- Flutter SDK (stable channel, >=3.38.4; CI builds with 3.38.7)
+- Flutter SDK, stable channel — exact version in `.fvmrc` (see below)
 - Xcode (for iOS/macOS)
 - CocoaPods (`gem install cocoapods`)
 - Android Studio (for Android)
+
+### Flutter SDK version
+
+`.fvmrc` at the repository root names the exact SDK CI builds and tests with,
+and is the only place that version is written. Match it locally:
+
+```bash
+fvm use            # with fvm: reads .fvmrc; run commands as `fvm flutter ...`
+flutter --version  # without fvm: install that version, check what your shell resolves
+```
+
+fvm is convenient, not required. `.fvmrc` is plain JSON, read with `jq` rather
+than by invoking fvm, so any tool or a human can read it too.
+
+`fvm use` pins the project but does not change what bare `flutter` resolves
+to — run `fvm global` as well, since the pre-commit hooks call `flutter`
+directly. Homebrew cannot pin a version: `brew install flutter` tracks the
+latest release.
+
+The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.38.4"`) is a
+different number: the oldest SDK this library promises consumers. It may lag
+`.fvmrc`, and moves only when a dependency forces it.
+
+Using VS Code, and the analyzer disagrees with the pin? See **Troubleshooting**.
 
 ## Quick Start
 
@@ -102,13 +126,12 @@ microphone, location, etc.), add the corresponding `NS*UsageDescription` keys.
 
 #### Building for TestFlight/App Store
 
-Use Flutter **stable** channel for production builds. Beta/dev channels can
-produce binaries that fail App Store validation.
+Build releases with the version in `.fvmrc` — a stable-channel release.
+Beta/dev-channel binaries can fail App Store validation.
 
 ```bash
-# Verify you're on stable channel
-flutter channel stable
-flutter upgrade
+# Confirm the SDK you build with is the one in .fvmrc
+fvm flutter --version   # or: flutter --version, without fvm
 
 # Build release IPA
 flutter build ipa --release
@@ -149,6 +172,27 @@ flutter run -d windows
 
 ## Troubleshooting
 
+### Analyzer errors that don't match the code
+
+**Cause:** The Dart extension analyses and debugs with whatever SDK is on
+`PATH` unless told otherwise, so it can disagree with the version in `.fvmrc`.
+The errors it reports never name a version, so the mismatch does not announce
+itself.
+
+**Fix:** Point the extension at the pin. `fvm use` does it for you, writing a
+version-specific `dart.flutterSdkPath` into `.vscode/settings.json` and
+rewriting it on every switch — which is what keeps it correct. Leave that file
+alone; `.vscode/*` is gitignored, so the churn never reaches a commit.
+
+`"updateVscodeSettings": false` stops fvm writing the file at all, leaving you
+to point at the version-agnostic `.fvm/flutter_sdk` by hand. **Don't** — the
+flag lives only in the tracked `.fvmrc`, so it leaves yours permanently dirty
+in `git status` and one `git add` from landing on everyone.
+
+No `dart.flutterSdkPath` is committed: every path fvm can offer lives under
+`.fvm/`, which a developer without fvm does not have, so a committed setting
+would point at nothing on their machine.
+
 ### Entitlements require signing
 
 ```text
@@ -187,3 +231,4 @@ cd macos && pod deintegrate && pod install && cd ..
 | `ios/Runner/Configs/Local.xcconfig` | Your iOS signing config (gitignored) |
 | `ios/Runner/Info.plist` | iOS privacy descriptions and app config |
 | `.gitignore` | Excludes `**/Local.xcconfig` |
+| `.fvmrc` | The Flutter SDK version CI builds with |

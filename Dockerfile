@@ -29,16 +29,21 @@ RUN apt-get update && \
         curl \
         wget \
         unzip \
-        xz-utils && \
+        xz-utils \
+        jq && \
     rm -rf /var/lib/apt/lists/*
 
 #------------------------------------------------------------------------------
-# Download and install flutter.
+# Download and install flutter. The version comes from .fvmrc, which is also
+# what CI reads; copy it alone so a version bump invalidates this layer and
+# nothing earlier.
 #------------------------------------------------------------------------------
-RUN export FLUTTER=flutter_linux_3.38.4-stable.tar.xz && \
+COPY .fvmrc /tmp/.fvmrc
+
+RUN export FLUTTER=flutter_linux_$(jq -r '.flutter' /tmp/.fvmrc)-stable.tar.xz && \
     mkdir -p /opt &&  \
     cd /opt && \
-    curl -L -o $FLUTTER https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/$FLUTTER && \
+    curl -fL -o $FLUTTER https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/$FLUTTER && \
     tar xf $FLUTTER && \
     rm $FLUTTER
 
