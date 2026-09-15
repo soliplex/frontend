@@ -38,7 +38,7 @@ void main() {
 
       final semantics = tester.getSemantics(find.byType(ContextGauge));
       expect(semantics.label, contains('1234 tokens'));
-      expect(semantics.label, contains('No context window'));
+      expect(semantics.label, contains('No context reading yet'));
     });
 
     testWidgets('reserves a stable slot in the composer row', (tester) async {
