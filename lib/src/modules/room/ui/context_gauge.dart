@@ -20,9 +20,10 @@ const _alarmAt = 0.90;
 ///
 /// Two states, because the underlying reading has two:
 ///
-/// - **No window reported** — a hollow dot. The provider has not said how
-///   large the model's context is, and inventing a denominator would turn
-///   an honest count into a confidently wrong percentage.
+/// - **No percentage available** — a hollow dot. Either the provider has
+///   not said how large the model's context is, or nothing has counted
+///   what the thread already occupies. Inventing either half would turn
+///   an honest gap into a confidently wrong percentage.
 /// - **Measured** — a filled arc, tinted neutral, warning, or danger.
 ///
 /// It reports rather than acts: there is nothing behind it to open, so it
@@ -75,7 +76,7 @@ class ContextGauge extends StatelessWidget {
     final fraction = usage.fractionUsed;
     if (fraction == null) {
       return 'Context usage: ${usage.tokens} tokens. '
-          'No context window declared.';
+          'No context reading yet.';
     }
     return 'Context usage: ${(fraction * 100).round()} percent of the '
         'context window.';
