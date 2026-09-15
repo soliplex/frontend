@@ -2584,15 +2584,12 @@ class _RoomScreenState extends State<RoomScreen> {
       controller.addListener(_onContextUsageChanged);
       controller.draftChanged(_chatController.text);
 
-      // `subscribe` fires with the current value, which is the run that
-      // ended before this controller existed — already in the history
-      // it will be handed, so it is skipped rather than fetched twice.
-      var first = true;
+      // `subscribe` fires with the current value. On a thread restored
+      // from the registry that value is the run it finished earlier —
+      // and the restore skips the history fetch, so this is the only
+      // place the reading can come from. A thread that does load history
+      // has no ended run yet and falls through the null guard below.
       _contextRunUnsub = threadView.endedRun.subscribe((runId) {
-        if (first) {
-          first = false;
-          return;
-        }
         if (!mounted || runId == null) return;
         // A run that failed or was cancelled still consumed a request,
         // so its usage is recorded and worth reading.

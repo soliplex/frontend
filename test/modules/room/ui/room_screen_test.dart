@@ -575,6 +575,36 @@ void main() {
       expect(find.textContaining(banner), findsNothing);
     });
 
+    testWidgets('reads the run a restored thread already finished',
+        (tester) async {
+      // Re-entering a thread that ran this session restores it from the
+      // registry, which skips the history fetch the reading would
+      // otherwise arrive with. The ended run is the only source left.
+      measure(window: 32768, tokens: 1);
+      api.nextRunUsage = RunUsage(
+        runId: 'run-restored',
+        inputTokens: 27000,
+        outputTokens: 1,
+        requests: 1,
+        toolCalls: 0,
+        finalInputTokens: 27000,
+      );
+      final key = (
+        serverId: entry.serverId,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final session = ManualAgentSession(key);
+      registry.register(key, session);
+      session.completeAsCompleted(runId: 'run-restored');
+      await tester.pump();
+
+      await openThread(tester);
+
+      expect(api.requestedRunUsage, contains('run-restored'));
+      expect(find.textContaining(banner), findsOneWidget);
+    });
+
     testWidgets('can be dismissed', (tester) async {
       measure(window: 32768, tokens: 27000);
       await openThread(tester);
