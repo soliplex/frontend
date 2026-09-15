@@ -13,6 +13,8 @@ import 'document_label.dart';
 import 'inline_image_composer_controller.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'context_gauge.dart';
+
 final _logger = LogManager.instance.getLogger('soliplex_frontend.chat_input');
 
 /// Shown while the composer holds an image it cannot send, which is only ever
@@ -61,6 +63,7 @@ class ChatInput extends StatefulWidget {
     this.onAttachFolder,
     this.openImagePicker,
     this.composerScope,
+    this.contextUsage,
   });
 
   final void Function(List<MessagePart> parts) onSend;
@@ -104,6 +107,11 @@ class ChatInput extends StatefulWidget {
   /// reopens the connection. The caret stays on screen while the soft keyboard
   /// drops and typing goes nowhere until the field is tapped again.
   final Object? composerScope;
+
+  /// Current context-window reading, shown as a ring beside send.
+  /// Null hides the gauge entirely, which is what a room whose usage
+  /// cannot be measured should do rather than show a wrong number.
+  final ContextUsage? contextUsage;
 
   @override
   State<ChatInput> createState() => _ChatInputState();
@@ -665,7 +673,10 @@ class _ChatInputState extends State<ChatInput> {
                     ),
                   ),
                 ),
-                const SizedBox(width: SoliplexSpacing.s2),
+                if (widget.contextUsage case final usage?)
+                  ContextGauge(usage: usage)
+                else
+                  const SizedBox(width: SoliplexSpacing.s2),
                 if (active)
                   IconButton(
                     icon: const Icon(Icons.stop),

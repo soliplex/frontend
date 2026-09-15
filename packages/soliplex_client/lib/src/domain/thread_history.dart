@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
+import 'package:soliplex_client/src/domain/run_usage.dart';
 
 /// Result of loading thread history from the backend.
 ///
@@ -16,6 +17,7 @@ class ThreadHistory {
     Map<String, MessageState> messageStates = const {},
     List<RunEventBundle> runs = const [],
     this.documentFilter,
+    this.latestUsage,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -50,6 +52,14 @@ class ThreadHistory {
   /// when no run carries one. The backend keeps no merged filter state, so this
   /// (not any state event) is the only record of the thread's active filter.
   final String? documentFilter;
+
+  /// The newest run's usage that measured the context, or null when no run
+  /// in the thread has reached the model yet.
+  ///
+  /// Newest by creation, skipping runs that recorded no measurement — an
+  /// errored run says nothing about the window, and the one before it is
+  /// still the honest reading.
+  final RunUsage? latestUsage;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.
