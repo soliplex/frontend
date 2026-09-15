@@ -125,6 +125,13 @@ class ContextUsageController extends ChangeNotifier {
     _measure(found);
   }
 
+  /// Records that a send never reached a run.
+  ///
+  /// Nothing will ever report on it, and the composer restores the draft,
+  /// so the estimate holding its place has to come back out before that
+  /// same message is counted a second time.
+  void sendFailed() => _release();
+
   void _measure(RunUsage? found) {
     // A newer run has been measured, so the estimate standing in for the
     // sent message is no longer needed. A run that measured nothing
