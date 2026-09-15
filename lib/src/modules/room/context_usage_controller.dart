@@ -3,8 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/util/debouncer.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.context_usage_controller');
 
 /// Holds the context reading for one thread.
 ///
@@ -95,17 +99,24 @@ class ContextUsageController extends ChangeNotifier {
   /// Re-reads the measurement once [runId] has ended.
   ///
   /// The history is not re-read after a run, so the run's own usage is
-  /// fetched. Failure is silent by design: a context indicator that
-  /// cannot refresh should keep showing its last honest reading, not
-  /// interrupt the conversation. So is a run that recorded nothing — it
-  /// never reached the model, and the previous reading still stands.
+  /// fetched. Failure is quiet by design: a context indicator that cannot
+  /// refresh should keep showing its last honest reading, not interrupt
+  /// the conversation. It keeps the in-flight estimate too — the message
+  /// did reach the model, so dropping the term standing in for it would
+  /// move the reading down after a send. A later run's measurement
+  /// supersedes it. So does a run that recorded nothing — it never
+  /// reached the model, and the previous reading still stands.
   Future<void> runEnded(String runId) async {
     final RunUsage? found;
 
     try {
       found = await _api.getRunUsage(_roomId, _threadId, runId);
-    } on Exception {
-      _release();
+    } on Exception catch (e, stackTrace) {
+      _logger.warning(
+        'Run usage fetch failed; keeping the previous reading',
+        attributes: {'runId': runId, 'failure': describeFailure(e)},
+        stackTrace: stackTrace,
+      );
       return;
     }
 
