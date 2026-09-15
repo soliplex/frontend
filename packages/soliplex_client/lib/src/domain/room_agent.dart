@@ -34,11 +34,19 @@ class DefaultRoomAgent extends RoomAgent {
     this.retries,
     this.modelName,
     this.systemPrompt,
+    this.contextWindow,
     super.aguiFeatureNames,
   });
 
   /// LLM model name (e.g., 'gpt-4o', 'claude-3-opus').
   final String? modelName;
+
+  /// The model's context window in tokens, or null when nothing knows it.
+  ///
+  /// Fixed for the life of the backend process, so it is read once with
+  /// the room. Null must not be filled in with a guess: a gauge with an
+  /// invented denominator is worse than one showing a bare count.
+  final int? contextWindow;
 
   /// Number of retry attempts for LLM calls, or null when the backend sent
   /// none — the field is required on the wire, so its absence is drift.

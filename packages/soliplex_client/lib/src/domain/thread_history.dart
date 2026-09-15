@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
+import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/thread_state_warning.dart';
 import 'package:soliplex_client/src/domain/transcript.dart';
 
@@ -23,6 +24,7 @@ class ThreadHistory {
     List<String>? databaseSources,
     Set<ThreadStateWarning> storedStateWarnings = const {},
     this.transcript = const Transcript(),
+    this.latestUsage,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -104,6 +106,14 @@ class ThreadHistory {
   /// because the backend finishes it and stores the rest of it; captured from
   /// the session that stopped it, it was cut off.
   final Transcript transcript;
+
+  /// The newest run's usage that measured the context, or null when no run
+  /// in the thread has reached the model yet.
+  ///
+  /// Newest by creation, skipping runs that recorded no measurement — an
+  /// errored run says nothing about the window, and the one before it is
+  /// still the honest reading.
+  final RunUsage? latestUsage;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.
