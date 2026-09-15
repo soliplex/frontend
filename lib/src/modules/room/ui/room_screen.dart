@@ -13,6 +13,7 @@ import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
         CancelToken,
+        DefaultRoomAgent,
         FeedbackType,
         MalformedResponseException,
         PermissionDeniedException,
@@ -906,6 +907,14 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onThreadHistoryLoaded(String threadId, ThreadHistory history) {
     if (!mounted) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
+    // The history carries the newest measured run, so the reading is
+    // taken from it rather than fetched again. Keyed on the thread the
+    // controller was built for, not the one on screen: a controller is
+    // rebuilt on thread change, and this fetch may have been for the old
+    // one.
+    if (_contextUsageKey == (widget.roomId, threadId)) {
+      _contextUsage?.historyLoaded(history);
+    }
     if (!_filterEnabled) return;
     _filterHydrator.setFilter(threadId, history.documentFilter);
   }
@@ -2392,7 +2401,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final reconnectStatus = threadView.reconnectStatus.watch(context);
     _restoreUnsentText(sendError?.unsentText);
 
-    final usage = _contextUsageFor(threadView).usage;
+    final usage = _contextUsageFor(threadView, room).usage;
     final contextWarning =
         usage.isNearlyFull && !_contextWarningDismissed ? usage : null;
 
@@ -2540,11 +2549,21 @@ class _RoomScreenState extends State<RoomScreen> {
 
   /// The context controller for [threadView], rebuilt when it changes.
   ///
-  /// Refreshes on first use and whenever a run finishes, which are the
-  /// only moments the measurement can move: it is the provider's own
-  /// count for the last request of a completed run.
-  ContextUsageController _contextUsageFor(ThreadViewState threadView) {
+  /// The window is the room's and is given once; the measurement arrives
+  /// with the thread's history and after each run ends, which are the
+  /// only moments it can move: it is the provider's own count for the
+  /// last request of a completed run.
+  ContextUsageController _contextUsageFor(
+    ThreadViewState threadView,
+    Room? room,
+  ) {
     final key = (widget.roomId, threadView.threadId);
+    // Only a default agent has a model to have a window. A factory agent
+    // chooses one when the run starts, and reports none.
+    final contextWindow = switch (room?.agent) {
+      DefaultRoomAgent(:final contextWindow) => contextWindow,
+      _ => null,
+    };
 
     if (_contextUsageKey != key || _contextUsage == null) {
       _contextRunUnsub?.call();
@@ -2557,28 +2576,32 @@ class _RoomScreenState extends State<RoomScreen> {
         api: widget.serverEntry.connection.api,
         roomId: widget.roomId,
         threadId: threadView.threadId,
+        contextWindow: contextWindow,
       );
       _contextUsage = controller;
       // Never fires during a build: a reading only moves after a fetch
       // resolves or the draft debounce elapses.
       controller.addListener(_onContextUsageChanged);
       controller.draftChanged(_chatController.text);
-      unawaited(controller.refresh());
 
-      _contextRunUnsub = threadView.sessionState.subscribe((state) {
-        if (!mounted) return;
-        // A run that failed or was cancelled still consumed a request,
-        // so its usage is recorded and worth re-reading. Only an active
-        // run has nothing new to say yet.
-        if (state == AgentSessionState.spawning ||
-            state == AgentSessionState.running) {
+      // `subscribe` fires with the current value, which is the run that
+      // ended before this controller existed — already in the history
+      // it will be handed, so it is skipped rather than fetched twice.
+      var first = true;
+      _contextRunUnsub = threadView.endedRun.subscribe((runId) {
+        if (first) {
+          first = false;
           return;
         }
-        unawaited(controller.refresh());
+        if (!mounted || runId == null) return;
+        // A run that failed or was cancelled still consumed a request,
+        // so its usage is recorded and worth reading.
+        unawaited(controller.runEnded(runId));
       });
     }
 
-    return _contextUsage!;
+    // The room may have loaded since the controller was built.
+    return _contextUsage!..contextWindow = contextWindow;
   }
 
   Widget _buildChatInput(
@@ -2598,7 +2621,7 @@ class _RoomScreenState extends State<RoomScreen> {
     // composer has nothing to count, and the gauge stays hidden there
     // rather than showing a confident zero.
     final contextController =
-        threadView == null ? null : _contextUsageFor(threadView);
+        threadView == null ? null : _contextUsageFor(threadView, room);
     final contextUsage = contextController?.usage;
 
     return ChatInput(

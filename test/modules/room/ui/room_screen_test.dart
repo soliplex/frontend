@@ -501,11 +501,33 @@ void main() {
 
     const banner = 'context window is in use';
 
-    testWidgets('stays away while there is room', (tester) async {
-      api.nextThreadContext = const ThreadContext(
-        maxModelLen: 32768,
-        measuredTokens: 1000,
+    /// The window rides on the room; the measurement on the thread's
+    /// history. Neither is fetched on its own.
+    void measure({required int? window, required int tokens}) {
+      api.nextRoom = Room(
+        id: 'room-1',
+        name: 'General',
+        agent: DefaultRoomAgent(
+          id: 'room-room-1',
+          providerType: 'ollama',
+          contextWindow: window,
+        ),
       );
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        latestUsage: RunUsage(
+          runId: 'run-1',
+          inputTokens: tokens,
+          outputTokens: 1,
+          requests: 1,
+          toolCalls: 0,
+          finalInputTokens: tokens,
+        ),
+      );
+    }
+
+    testWidgets('stays away while there is room', (tester) async {
+      measure(window: 32768, tokens: 1000);
 
       await openThread(tester);
 
@@ -513,10 +535,7 @@ void main() {
     });
 
     testWidgets('appears once a small window passes 80%', (tester) async {
-      api.nextThreadContext = const ThreadContext(
-        maxModelLen: 32768,
-        measuredTokens: 27000,
-      );
+      measure(window: 32768, tokens: 27000);
 
       await openThread(tester);
 
@@ -531,10 +550,7 @@ void main() {
         (tester) async {
       // 82% would have warned on a 32k window; a 200k one still has
       // tens of thousands of tokens of room.
-      api.nextThreadContext = const ThreadContext(
-        maxModelLen: 200000,
-        measuredTokens: 164000,
-      );
+      measure(window: 200000, tokens: 164000);
 
       await openThread(tester);
 
@@ -542,10 +558,7 @@ void main() {
     });
 
     testWidgets('appears once a large window passes 85%', (tester) async {
-      api.nextThreadContext = const ThreadContext(
-        maxModelLen: 200000,
-        measuredTokens: 172000,
-      );
+      measure(window: 200000, tokens: 172000);
 
       await openThread(tester);
 
@@ -555,7 +568,7 @@ void main() {
     testWidgets('stays away when no window is reported', (tester) async {
       // Ollama and the OpenAI API report none. Without a denominator
       // there is no occupancy to warn about.
-      api.nextThreadContext = const ThreadContext(measuredTokens: 999999);
+      measure(window: null, tokens: 999999);
 
       await openThread(tester);
 
@@ -563,10 +576,7 @@ void main() {
     });
 
     testWidgets('can be dismissed', (tester) async {
-      api.nextThreadContext = const ThreadContext(
-        maxModelLen: 32768,
-        measuredTokens: 27000,
-      );
+      measure(window: 32768, tokens: 27000);
       await openThread(tester);
       expect(find.textContaining(banner), findsOneWidget);
 

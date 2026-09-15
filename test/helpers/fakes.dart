@@ -279,33 +279,26 @@ class FakeSoliplexApi extends SoliplexApi {
   String? nextMcpToken;
   Exception? nextMcpTokenError;
 
-  /// The reading [getThreadContext] answers with.
-  ///
-  /// Defaults to the unknown reading, which is what a provider that
-  /// reports no window and a thread with no measured run produce. That
-  /// keeps the context gauge hidden unless a test asks for it.
-  ThreadContext nextThreadContext = const ThreadContext.unknown();
+  /// The record [getRunUsage] answers with. Null means the run recorded
+  /// none, which is what a run that never reached the model produces.
+  RunUsage? nextRunUsage;
 
-  /// Thrown by [getThreadContext] when set.
-  Exception? nextThreadContextError;
+  /// Thrown by [getRunUsage] when set.
+  Exception? nextRunUsageError;
 
-  /// How many times [getThreadContext] was invoked.
-  int getThreadContextCallCount = 0;
-
-  /// How many of those asked for the attribution as well.
-  int getThreadContextDetailCallCount = 0;
+  /// Every run [getRunUsage] was asked about, in order.
+  final List<String> requestedRunUsage = [];
 
   @override
-  Future<ThreadContext> getThreadContext(
+  Future<RunUsage?> getRunUsage(
     String roomId,
-    String threadId, {
-    bool detail = false,
+    String threadId,
+    String runId, {
     CancelToken? cancelToken,
   }) async {
-    getThreadContextCallCount++;
-    if (detail) getThreadContextDetailCallCount++;
-    if (nextThreadContextError != null) throw nextThreadContextError!;
-    return nextThreadContext;
+    requestedRunUsage.add(runId);
+    if (nextRunUsageError != null) throw nextRunUsageError!;
+    return nextRunUsage;
   }
 
   List<ThreadInfo>? nextThreads;

@@ -10,7 +10,7 @@ import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
-import 'package:soliplex_client/src/domain/thread_context.dart';
+import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
@@ -147,6 +147,7 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
       retries: intOrNull(json['retries'], 'retries'),
       systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
       providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
+      contextWindow: intOrNull(json['context_window'], 'context_window'),
       aguiFeatureNames: aguiFeatureNames,
     );
   }
@@ -576,23 +577,33 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
 }
 
 // ============================================================
-// ThreadContext mappers
+// RunUsage mappers
 // ============================================================
 
-/// Creates a [ThreadContext] from the backend's context reading.
+/// Creates a [RunUsage] for [runId] from the backend's `usage` record.
 ///
-/// Tolerant of every field being absent. A backend that predates the
-/// endpoint never answers at all; one talking to a provider that does
-/// not report a window omits 'max_model_len'; a thread whose runs have
-/// never reached the model omits the measurement. All three mean "not
-/// known", which the reading already models as null.
-ThreadContext threadContextFromJson(Map<String, dynamic> json) {
-  return ThreadContext(
-    maxModelLen: json['max_model_len'] as int?,
-    modelName: json['model_name'] as String?,
-    measuredTokens: json['measured_tokens'] as int?,
-    measuredAtRunId: json['measured_at_run_id'] as String?,
+/// The run id is not on the wire: the record is nested under its run in
+/// the thread listing, and addressed by run in the usage endpoint, so the
+/// caller always knows it. `final_input_tokens` and `resolved_model_name`
+/// are nullable on the wire and absent from a backend that predates them.
+RunUsage runUsageFromJson(String runId, Map<String, dynamic> json) {
+  return RunUsage(
+    runId: runId,
+    inputTokens: _requireInt(json, 'input_tokens', 'usage'),
+    outputTokens: _requireInt(json, 'output_tokens', 'usage'),
+    requests: _requireInt(json, 'requests', 'usage'),
+    toolCalls: _requireInt(json, 'tool_calls', 'usage'),
+    finalInputTokens:
+        intOrNull(json['final_input_tokens'], 'final_input_tokens'),
+    resolvedModelName:
+        stringOrNull(json['resolved_model_name'], 'resolved_model_name'),
   );
+}
+
+int _requireInt(Map<String, dynamic> json, String key, String what) {
+  final value = json[key];
+  if (value is int) return value;
+  throw FormatException('$what missing required "$key"');
 }
 
 // ============================================================
