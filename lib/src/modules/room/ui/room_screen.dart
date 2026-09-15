@@ -1860,10 +1860,16 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _restoreUnsentText(String? unsentText) {
-    if (unsentText == null || _chatController.text.isNotEmpty) return;
+    if (unsentText == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _chatController.restoreDraft(unsentText);
+      // Only a send that never reached a run carries its text back here,
+      // so nothing will ever measure it. The estimate standing in for it
+      // has to come out before the restored draft is counted again.
+      _contextUsage?.sendFailed();
+      if (_chatController.text.isEmpty) {
+        _chatController.restoreDraft(unsentText);
+      }
     });
   }
 
