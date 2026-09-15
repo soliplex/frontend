@@ -314,6 +314,40 @@ void main() {
     });
   });
 
+  group('a send that never reached a run', () {
+    test('releases the estimate holding its place', () async {
+      final controller = build()
+        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
+        ..draftChanged('something being typed');
+      await Future<void>.delayed(Duration.zero);
+      controller.draftSent();
+      expect(controller.usage.tokens, greaterThan(1000));
+
+      controller.sendFailed();
+
+      expect(controller.usage.tokens, 1000);
+    });
+
+    test('does not double-count once the composer restores the draft',
+        () async {
+      // The estimate and the restored draft are the same message. Nothing
+      // will report on it, so the estimate has to come out before the
+      // draft is counted again.
+      final controller = build()
+        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
+        ..draftChanged('something being typed');
+      await Future<void>.delayed(Duration.zero);
+      final withDraft = controller.usage.tokens;
+      controller.draftSent();
+
+      controller.sendFailed();
+      controller.draftChanged('something being typed');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.usage.tokens, withDraft);
+    });
+  });
+
   test('a disposed controller stops answering', () async {
     final controller = build(debounce: const Duration(milliseconds: 20))
       ..dispose();
