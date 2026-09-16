@@ -204,11 +204,11 @@ class ContextUsageController extends ChangeNotifier {
   ///
   /// Debounced: the draft is the only term that moves while someone is
   /// typing, and it costs a rebuild rather than a request.
-  void draftChanged(String draft) {
+  void draftChanged(String draft, {int images = 0}) {
     _draftDebounce.run(() {
       if (_disposed) return;
 
-      final estimate = estimateDraftTokens(draft);
+      final estimate = estimateDraftTokens(draft, images: images);
 
       if (estimate == _draftTokens) return;
 
@@ -224,10 +224,13 @@ class ContextUsageController extends ChangeNotifier {
   /// *low* for as long as the run takes — the one direction it must
   /// never read. The estimate holds the sent message's place instead,
   /// and is released when the run's measurement arrives.
-  void draftSent() {
+  void draftSent(String text, {int images = 0}) {
+    // Estimated from what is being sent, not from what the debounce last
+    // stored: a paste and an immediate send both land inside the window,
+    // and the stored draft is still empty when the message goes.
     _draftDebounce.cancel();
 
-    _inFlightTokens += _draftTokens;
+    _inFlightTokens += estimateDraftTokens(text, images: images);
     _draftTokens = 0;
 
     notifyListeners();

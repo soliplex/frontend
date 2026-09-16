@@ -34,13 +34,30 @@ const double _safetyMargin = 1.2;
 /// enough against a window that being generous costs nothing.
 const int perMessageOverhead = 8;
 
-/// Estimates the tokens [text] will occupy, biased high.
+/// Tokens one image costs, as a flat stand-in for what a vision model
+/// will charge.
 ///
-/// Returns 0 for empty text — an empty composer adds nothing, and
+/// Providers price an image by its area and disagree several times over
+/// on the same picture: a 1024x1024 runs about 1,024 tokens on GPT-5.5,
+/// 1,398 on Claude Opus 4.7 and 1,032 on Gemini 3.1 Pro, while a phone
+/// photo reaches 2,451 on the first and 6,636 on the second. No single
+/// number covers that spread, so this clears the common case and falls
+/// short of the worst, on the same reasoning as everything else here:
+/// reading low is the failure to avoid, and a run's own count replaces
+/// the guess as soon as one arrives.
+const int perImageTokens = 2500;
+
+/// Estimates the tokens a draft of [text] carrying [images] pictures
+/// will occupy, biased high.
+///
+/// Returns 0 for an empty draft — an empty composer adds nothing, and
 /// showing the per-message overhead for a message nobody is writing
 /// would make the gauge twitch for no reason.
-int estimateDraftTokens(String text) {
-  if (text.isEmpty) return 0;
+int estimateDraftTokens(String text, {int images = 0}) {
+  final pictures = images * perImageTokens;
+  if (text.isEmpty) {
+    return pictures == 0 ? 0 : pictures + perMessageOverhead;
+  }
 
   var pieces = 0;
   var longRunPenalty = 0;
@@ -71,5 +88,5 @@ int estimateDraftTokens(String text) {
 
   final base = (pieces * _safetyMargin).ceil() + longRunPenalty;
 
-  return base + wideChars + perMessageOverhead;
+  return base + wideChars + pictures + perMessageOverhead;
 }

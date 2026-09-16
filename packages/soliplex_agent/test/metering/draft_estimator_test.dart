@@ -43,6 +43,21 @@ void main() {
       expect(estimateDraftTokens(json), greaterThan(json.length ~/ 4));
     });
 
+    test('charges an image what a model will, not what its marker costs', () {
+      // The composer names an image with a single code unit. Counted as
+      // text that is a couple of tokens, against a real cost in the
+      // thousands -- a picture read as a word.
+      const draft = 'what do you make of this?';
+
+      expect(estimateDraftTokens(draft), lessThan(30));
+      expect(estimateDraftTokens(draft, images: 1), greaterThan(1000));
+      expect(
+        estimateDraftTokens(draft, images: 2) -
+            estimateDraftTokens(draft, images: 1),
+        perImageTokens,
+      );
+    });
+
     test('charges long runs more than one token', () {
       // Real BPE splits a long word further; a piece count alone would
       // read it as a single token.

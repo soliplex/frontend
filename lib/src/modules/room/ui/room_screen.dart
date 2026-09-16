@@ -2544,7 +2544,10 @@ class _RoomScreenState extends State<RoomScreen> {
   /// is the only one that moves while someone types. The controller
   /// debounces it.
   void _onDraftChanged() {
-    _contextUsage?.draftChanged(_chatController.text);
+    _contextUsage?.draftChanged(
+      _chatController.text,
+      images: _chatController.draftImageCount,
+    );
   }
 
   /// The context controller for [threadView], rebuilt when it changes.
@@ -2584,7 +2587,10 @@ class _RoomScreenState extends State<RoomScreen> {
       // below, which does fire synchronously, can only release an
       // estimate — which a controller built here does not hold yet.
       controller.addListener(_onContextUsageChanged);
-      controller.draftChanged(_chatController.text);
+      controller.draftChanged(
+        _chatController.text,
+        images: _chatController.draftImageCount,
+      );
 
       // `subscribe` fires with the current value. On a thread restored
       // from the registry that value is the ending it already had, and
@@ -2644,7 +2650,10 @@ class _RoomScreenState extends State<RoomScreen> {
         // Before the composer clears: the estimate has to hold the sent
         // message's place until a run reports on it, or the gauge reads
         // low for the length of the run.
-        contextController?.draftSent();
+        contextController?.draftSent(
+          _chatController.text,
+          images: _chatController.draftImageCount,
+        );
         if (threadView != null) {
           threadView.sendMessage(
             parts,

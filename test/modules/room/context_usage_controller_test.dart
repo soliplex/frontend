@@ -235,6 +235,22 @@ void main() {
     });
   });
 
+  group('a draft sent before the debounce elapses', () {
+    test('is banked whole', () async {
+      // Paste and hit send: both land inside the 300ms window, so the
+      // stored draft is still empty when the message goes.
+      final controller = build(debounce: const Duration(milliseconds: 300))
+        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)));
+
+      final pasted = 'a long message pasted and sent in one motion. ' * 20;
+      controller
+        ..draftChanged(pasted)
+        ..draftSent(pasted);
+
+      expect(controller.usage.tokens, greaterThan(1100));
+    });
+  });
+
   group('an estimate a measurement cannot account for', () {
     test('survives an answer whose fetch predates the send', () async {
       // The fetch went out before this message was sent, so the count it
@@ -247,7 +263,7 @@ void main() {
       final pending = controller.runEnded('run-1');
       controller.draftChanged('a message sent while the fetch was open');
       await Future<void>.delayed(Duration.zero);
-      controller.draftSent();
+      controller.draftSent('a message sent while the fetch was open');
       final banked = controller.usage.estimatedTokens;
 
       answer.complete(_usage('run-1', finalInputTokens: 5000));
@@ -262,7 +278,7 @@ void main() {
       // since is not in it.
       final controller = build()..draftChanged('a message on its way');
       await Future<void>.delayed(Duration.zero);
-      controller.draftSent();
+      controller.draftSent('a message on its way');
       final banked = controller.usage.estimatedTokens;
 
       controller
@@ -318,7 +334,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       final withDraft = controller.usage.tokens;
 
-      controller.draftSent();
+      controller.draftSent('something being typed');
 
       expect(controller.usage.tokens, withDraft);
       expect(controller.usage.isExact, isFalse);
@@ -330,7 +346,7 @@ void main() {
         ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
-      controller.draftSent();
+      controller.draftSent('something being typed');
 
       await controller.runEnded('run-2');
 
@@ -347,7 +363,7 @@ void main() {
         ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
-      controller.draftSent();
+      controller.draftSent('something being typed');
 
       await controller.runEnded('run-2');
 
@@ -367,7 +383,7 @@ void main() {
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
       final sent = controller.usage.tokens;
-      controller.draftSent();
+      controller.draftSent('something being typed');
 
       await controller.runEnded('run-2');
 
@@ -383,7 +399,7 @@ void main() {
         ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
-      controller.draftSent();
+      controller.draftSent('something being typed');
       await controller.runEnded('run-2');
 
       await controller.runEnded('run-3');
@@ -399,7 +415,7 @@ void main() {
         ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
-      controller.draftSent();
+      controller.draftSent('something being typed');
       expect(controller.usage.tokens, greaterThan(1000));
 
       controller.sendFailed();
@@ -417,7 +433,7 @@ void main() {
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
       final withDraft = controller.usage.tokens;
-      controller.draftSent();
+      controller.draftSent('something being typed');
 
       controller.sendFailed();
       controller.draftChanged('something being typed');
