@@ -14,9 +14,8 @@ final Logger _logger =
 ///
 /// Two numbers, from two places, neither computed here:
 ///
-/// - The window is the room's. It is fixed for the life of the backend
-///   process and arrives with the room, so it is given once at
-///   construction rather than fetched.
+/// - The window is the room's, and arrives with the room, so it is
+///   handed in rather than fetched.
 /// - The measurement is the provider's own count for the last request of
 ///   the newest measured run. It arrives with the thread's history, and
 ///   after each run from that run's usage record. The backend is the only
@@ -27,8 +26,8 @@ final Logger _logger =
 /// What this adds locally is the estimate: the draft in the composer, and
 /// a message already sent that no run has reported on yet. Both are biased
 /// high on purpose; see [estimateDraftTokens]. Until a run has measured
-/// something the reading carries no window at all — an estimate is not a
-/// fraction of a context nobody has counted.
+/// something the reading offers no total at all — an estimate is a
+/// fragment of a conversation nobody has counted, not a reading of it.
 class ContextUsageController extends ChangeNotifier {
   /// Creates a controller for [threadId] in [roomId].
   ContextUsageController({

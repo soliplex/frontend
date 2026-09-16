@@ -8,9 +8,8 @@
 /// The bias is the point. A gauge that reads low invites someone to keep
 /// typing into a window that is already full, so the failure this must
 /// avoid is under-counting, not over-counting. Against a typical window
-/// the over-count is a rounding error: a 500-character English draft
-/// estimated 30% high costs about 40 tokens of a 32k window, roughly a
-/// tenth of a percent.
+/// the over-count is a rounding error: tens of tokens on a draft, out of
+/// tens of thousands in the window.
 library;
 
 /// Splits the way a BPE pre-tokenizer does: letter runs, digit runs,
@@ -50,18 +49,22 @@ int estimateDraftTokens(String text) {
   for (final match in _piece.allMatches(text)) {
     pieces++;
 
-    // A long alphabetic run splits further under real BPE, so it costs
-    // more than one token. Roughly one extra per six characters past
-    // the first six tracks observed behaviour without a vocabulary.
+    // A long run splits further under real BPE, so it costs more than
+    // one token. Roughly one extra per six characters past the first six
+    // tracks observed behaviour without a vocabulary. Every kind of run
+    // is charged it, digits and punctuation included.
     final length = match.end - match.start;
     if (length > 6) longRunPenalty += (length - 6) ~/ 6;
   }
 
   // A run of CJK matches '\p{L}+' as a single piece, which is where a
   // pre-tokenizer-shaped estimate reads catastrophically low: those
-  // scripts cost around a token per character. Counting every
-  // non-Latin-range code unit again puts that back, and over-counts
-  // accented Latin text slightly rather than under-counting Han.
+  // scripts cost around a token per character. Counting every code unit
+  // past Latin Extended-B again puts that back. Precomposed accented
+  // Latin sits below that cutoff and is untouched; Greek, Cyrillic and
+  // typographic punctuation are over-counted slightly, and anything
+  // outside the basic plane — an emoji, a rare ideograph — is charged
+  // twice, being two code units.
   for (final unit in text.codeUnits) {
     if (unit > 0x024F) wideChars++;
   }

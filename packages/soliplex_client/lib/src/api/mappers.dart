@@ -582,7 +582,7 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
 
 /// Creates a [RunUsage] for [runId] from the backend's `usage` record.
 ///
-/// The run id is not on the wire: the record is nested under its run in
+/// The run id is not on the usage record: it is nested under its run in
 /// the thread listing, and addressed by run in the usage endpoint, so the
 /// caller always knows it. `final_input_tokens` and `resolved_model_name`
 /// are nullable on the wire and absent from a backend that predates them.

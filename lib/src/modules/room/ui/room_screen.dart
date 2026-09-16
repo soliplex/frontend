@@ -2579,8 +2579,10 @@ class _RoomScreenState extends State<RoomScreen> {
         contextWindow: contextWindow,
       );
       _contextUsage = controller;
-      // Never fires during a build: a reading only moves after a fetch
-      // resolves or the draft debounce elapses.
+      // Never fires during a build. A reading moves when a fetch
+      // resolves or the draft debounce elapses, and the subscription
+      // below, which does fire synchronously, can only release an
+      // estimate — which a controller built here does not hold yet.
       controller.addListener(_onContextUsageChanged);
       controller.draftChanged(_chatController.text);
 

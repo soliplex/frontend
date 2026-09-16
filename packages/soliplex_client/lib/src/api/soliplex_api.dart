@@ -701,19 +701,23 @@ class SoliplexApi {
     );
   }
 
-  /// Returns what [runId] cost, or null when the run never reached the
-  /// model.
+  /// Returns what [runId] cost, or null when the backend holds no usage
+  /// record for it.
   ///
   /// The same record the thread listing carries per run, fetched alone for
   /// the run just driven — the listing is not re-read after a run, and the
   /// full run detail would bring every event with it. Null is an answer,
   /// not a failure: a run that errored before its first request recorded
-  /// nothing, and the previous run's reading still stands.
+  /// nothing, and the previous run's reading still stands. A run that did
+  /// reach the model answers with a record instead, whose
+  /// [RunUsage.finalInputTokens] is null when no request completed.
   ///
   /// Throws:
   /// - [ArgumentError] if any ID is empty
   /// - [NotFoundException] if the room, thread or run is not found (404)
-  /// - [AuthException] if not authenticated (401/403)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the room is not permitted (403)
+  /// - [MalformedResponseException] if the body is not a usage record
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
