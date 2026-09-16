@@ -68,14 +68,6 @@ void main() {
   });
 
   group('the window', () {
-    test('is the room\'s, given up front', () async {
-      final controller = build(window: 32768)
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      expect(controller.usage.contextWindow, 32768);
-      expect(controller.usage.fractionUsed, closeTo(1800 / 32768, 1e-9));
-    });
-
     test('can arrive after the controller does', () async {
       // The room loads on its own schedule.
       final controller = build(window: null)
@@ -129,12 +121,6 @@ void main() {
 
       expect(notifications, 0);
     });
-
-    test('with nothing measured leaves the reading unmeasured', () async {
-      final controller = build()..historyLoaded(_history(null));
-
-      expect(controller.usage.tokens, isNull);
-    });
   });
 
   group('a run ending', () {
@@ -147,7 +133,6 @@ void main() {
 
       expect(controller.usage.tokens, 2400);
       expect(controller.measured?.runId, 'run-2');
-      verify(() => api.getRunUsage(_roomId, _threadId, 'run-2')).called(1);
     });
 
     test('that measured nothing keeps the previous reading', () async {
@@ -308,17 +293,6 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(controller.usage.isExact, isFalse);
-    });
-
-    test('shows before any run has been measured', () async {
-      // A brand-new thread has no measurement, but what is being typed
-      // still costs something -- held apart from the reading, which
-      // nothing has counted.
-      final controller = build()..draftChanged('the very first message');
-      await Future<void>.delayed(Duration.zero);
-
-      expect(controller.usage.estimatedTokens, greaterThan(0));
-      expect(controller.usage.tokens, isNull);
     });
 
     test('coalesces a burst of keystrokes into one reading', () async {

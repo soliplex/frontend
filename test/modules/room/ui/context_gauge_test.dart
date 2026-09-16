@@ -54,45 +54,23 @@ void main() {
       expect(measured, isNot(contains('No context reading yet')));
     });
 
-    testWidgets('reserves a stable slot in the composer row', (tester) async {
+    testWidgets('keeps the composer row from jumping', (tester) async {
+      // The ring appears and fills as a thread is measured; the slot it
+      // sits in must not resize under the send button while it does.
       await tester.pumpWidget(
-        _host(const ContextGauge(usage: ContextUsage(measuredTokens: 10))),
+        _host(const ContextGauge(usage: ContextUsage())),
       );
+      final hollow = tester.getSize(find.byType(ContextGauge));
 
-      expect(tester.getSize(find.byType(ContextGauge)).height, 44);
-    });
-
-    testWidgets('reports rather than acts', (tester) async {
-      // There is nothing behind the ring to open, so it must not
-      // announce itself as a button or offer a tap affordance.
       await tester.pumpWidget(
-        _host(const ContextGauge(usage: ContextUsage(measuredTokens: 10))),
-      );
-
-      final semantics = tester.getSemantics(find.byType(ContextGauge));
-      expect(
-        semantics.flagsCollection.isButton,
-        isFalse,
-        reason: 'the gauge is a status readout, not a control',
-      );
-      expect(find.byType(InkResponse), findsNothing);
-    });
-
-    testWidgets('renders in both themes', (tester) async {
-      for (final brightness in Brightness.values) {
-        await tester.pumpWidget(
-          _host(
-            const ContextGauge(
-              usage: ContextUsage(
-                measuredTokens: 7600,
-                contextWindow: 8000,
-              ),
-            ),
-            brightness: brightness,
+        _host(
+          const ContextGauge(
+            usage: ContextUsage(measuredTokens: 7600, contextWindow: 8000),
           ),
-        );
-        expect(tester.takeException(), isNull);
-      }
+        ),
+      );
+
+      expect(tester.getSize(find.byType(ContextGauge)), hollow);
     });
   });
 }

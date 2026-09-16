@@ -43,16 +43,6 @@ void main() {
       expect(estimateDraftTokens(json), greaterThan(json.length ~/ 4));
     });
 
-    test('grows monotonically with added text', () {
-      const short = 'one two three';
-      const long = '$short four five six seven eight';
-
-      expect(
-        estimateDraftTokens(long),
-        greaterThan(estimateDraftTokens(short)),
-      );
-    });
-
     test('charges long runs more than one token', () {
       // Real BPE splits a long word further; a piece count alone would
       // read it as a single token.

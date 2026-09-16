@@ -5588,28 +5588,6 @@ void main() {
             'resolved_model_name': 'qwen',
           };
 
-      test('is the newest measured run', () async {
-        stubThread({
-          'run-1': run(
-            'run-1',
-            '2026-01-07T01:00:00.000Z',
-            usage: usage(finalInputTokens: 1000),
-          ),
-          'run-2': run(
-            'run-2',
-            '2026-01-07T02:00:00.000Z',
-            usage: usage(finalInputTokens: 2400),
-          ),
-        });
-        stubRun('run-1');
-        stubRun('run-2');
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(history.latestUsage?.runId, 'run-2');
-        expect(history.latestUsage?.finalInputTokens, 2400);
-      });
-
       test('falls back across a run that measured nothing', () async {
         // The newest run errored before reaching the model. What the
         // model last saw is the run before it.
@@ -5650,6 +5628,7 @@ void main() {
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
         expect(history.latestUsage?.runId, 'run-2');
+        expect(history.latestUsage?.finalInputTokens, 2400);
       });
 
       test('ignores a run that cannot be placed in time', () async {
@@ -5694,17 +5673,6 @@ void main() {
         });
         stubRun('run-1');
         stubRun('run-2');
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(history.latestUsage, isNull);
-      });
-
-      test('is null when no run has been measured', () async {
-        stubThread({
-          'run-1': run('run-1', '2026-01-07T01:00:00.000Z'),
-        });
-        stubRun('run-1');
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 

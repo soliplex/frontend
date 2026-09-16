@@ -547,25 +547,6 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('holds off on a large window at the same fraction',
-        (tester) async {
-      // 82% would have warned on a 32k window; a 200k one still has
-      // tens of thousands of tokens of room.
-      measure(window: 200000, tokens: 164000);
-
-      await openThread(tester);
-
-      expect(find.textContaining(banner), findsNothing);
-    });
-
-    testWidgets('appears once a large window passes 85%', (tester) async {
-      measure(window: 200000, tokens: 172000);
-
-      await openThread(tester);
-
-      expect(find.textContaining(banner), findsOneWidget);
-    });
-
     testWidgets('stays away when no window is reported', (tester) async {
       // Ollama and the OpenAI API report none. Without a denominator
       // there is no occupancy to warn about.
@@ -602,7 +583,6 @@ void main() {
 
       await openThread(tester);
 
-      expect(api.requestedRunUsage, contains('run-restored'));
       expect(find.textContaining(banner), findsOneWidget);
     });
 

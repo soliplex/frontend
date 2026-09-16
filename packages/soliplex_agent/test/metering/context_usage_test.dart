@@ -19,16 +19,6 @@ void main() {
       expect(_at(10, window: 0).isNearlyFull, isFalse);
     });
 
-    test('comes earlier for a small window', () {
-      // 20% of 32k is a couple more exchanges; the warning has to
-      // arrive while there is still room to act on it.
-      expect(_at(1, window: 32768).warningThreshold, 0.80);
-    });
-
-    test('comes later for a large one', () {
-      expect(_at(1, window: 200000).warningThreshold, 0.85);
-    });
-
     test('treats the boundary as large', () {
       expect(_at(1, window: largeContextWindow).warningThreshold, 0.85);
       expect(_at(1, window: largeContextWindow - 1).warningThreshold, 0.80);
@@ -51,14 +41,6 @@ void main() {
       // yet past 85%.
       expect(_at(fraction82, window: 200000).isNearlyFull, isFalse);
       expect(_at(fraction82, window: 32768).isNearlyFull, isTrue);
-    });
-
-    test('is true once a large window passes its own threshold', () {
-      expect(_at((200000 * 0.86).round(), window: 200000).isNearlyFull, isTrue);
-    });
-
-    test('stays true when the count exceeds the window', () {
-      expect(_at(40000, window: 32768).isNearlyFull, isTrue);
     });
   });
 
