@@ -473,6 +473,58 @@ void main() {
       await runtimeManager.dispose();
     });
 
+    test('a spawn that never produced a session reports an ending', () async {
+      // Nothing will ever report on the send, so a subscriber holding an
+      // estimate in its place has to hear that it is over.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      // Dispose the runtime so spawn throws.
+      await runtimeManager.dispose();
+      await state.sendMessage([TextPart('Hello')], runtime);
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(state.endedRun.value.$1, 1);
+      expect(state.endedRun.value.$2, isNull);
+
+      state.dispose();
+    });
+
+    test('a cancel before the backend names a run reports an ending', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final future = state.sendMessage([TextPart('Hello')], runtime);
+      state.cancelRun();
+      await future;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(state.endedRun.value.$1, 1);
+      expect(state.endedRun.value.$2, isNull);
+
+      state.dispose();
+    });
+
     test('run failure without conversation preserves existing messages',
         () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -1020,6 +1072,40 @@ void main() {
   });
 
   group('reconnect status', () {
+    test('a run that failed before it was named reports an ending', () async {
+      // The run never reached the backend, so no usage will ever be
+      // recorded for it and no id can be fetched by.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      session.emit(
+        FailedState.preRun(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          reason: FailureReason.internalError,
+          error: 'spawn refused',
+        ),
+      );
+
+      expect(state.endedRun.value.$1, 1);
+      expect(state.endedRun.value.$2, isNull);
+
+      state.dispose();
+    });
+
     test(
       'FailedState with streamResumeFailed reason maps to friendly '
       'SendError copy',

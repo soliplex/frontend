@@ -1852,16 +1852,10 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _restoreUnsentText(String? unsentText) {
-    if (unsentText == null) return;
+    if (unsentText == null || _chatController.text.isNotEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // Only a send that never reached a run carries its text back here,
-      // so nothing will ever measure it. The estimate standing in for it
-      // has to come out before the restored draft is counted again.
-      _contextUsage?.sendFailed();
-      if (_chatController.text.isEmpty) {
-        _chatController.restoreDraft(unsentText);
-      }
+      _chatController.restoreDraft(unsentText);
     });
   }
 
@@ -2591,14 +2585,20 @@ class _RoomScreenState extends State<RoomScreen> {
       controller.draftChanged(_chatController.text);
 
       // `subscribe` fires with the current value. On a thread restored
-      // from the registry that value is the run it finished earlier —
-      // and the restore skips the history fetch, so this is the only
-      // place the reading can come from. A thread that does load history
-      // has no ended run yet and falls through the null guard below.
-      _contextRunUnsub = threadView.endedRun.subscribe((runId) {
-        if (!mounted || runId == null) return;
-        // A run that failed or was cancelled still consumed a request,
-        // so its usage is recorded and worth reading.
+      // from the registry that value is the ending it already had, and
+      // the restore skips the history fetch — so a run named there is
+      // the only place the reading can come from. A thread that does
+      // load history has had no ending yet and stops at the count.
+      _contextRunUnsub = threadView.endedRun.subscribe((ending) {
+        if (!mounted) return;
+        final (endings, runId) = ending;
+        if (endings == 0) return;
+        // No run was ever named, so nothing will report on the send and
+        // the estimate standing in for it has to come back out.
+        if (runId == null) {
+          controller.sendFailed();
+          return;
+        }
         unawaited(controller.runEnded(runId));
       });
     }
