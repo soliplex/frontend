@@ -12,10 +12,6 @@ const _ringDiameter = 18.0;
 /// Footprint the ring reserves in the composer row.
 const _slotSize = 44.0;
 
-/// Fraction above which the ring warns, then alarms.
-const _warnAt = 0.75;
-const _alarmAt = 0.90;
-
 /// A small ring in the composer showing how full the context window is.
 ///
 /// Two states, because the underlying reading has two:
@@ -43,10 +39,13 @@ class ContextGauge extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final fraction = usage.fractionUsed;
 
+    // The reading says how much attention it deserves; this only picks
+    // the colour for it. Deciding here as well is how the ring came to
+    // warn at a fraction the banner did not.
     final color = switch (fraction) {
       null => scheme.onSurfaceVariant,
-      final f when f >= _alarmAt => context.danger,
-      final f when f >= _warnAt => context.warning,
+      _ when usage.isCritical => context.danger,
+      _ when usage.isNearlyFull => context.warning,
       _ => scheme.primary,
     };
 

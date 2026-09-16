@@ -68,6 +68,22 @@ class ContextUsage {
     return fraction >= threshold;
   }
 
+  /// The occupancy at which the window is about to stop holding the
+  /// conversation, whatever its size.
+  ///
+  /// Flat where [warningThreshold] scales, because the two answer
+  /// different questions. A warning arrives while there is still room to
+  /// act, and how much room a fraction leaves depends on the window. This
+  /// one says almost none is left, which is the same fraction either way.
+  static const criticalThreshold = 0.90;
+
+  /// Whether the thread is close enough to full that the next exchange
+  /// may not fit.
+  bool get isCritical {
+    final fraction = fractionUsed;
+    return fraction != null && fraction >= criticalThreshold;
+  }
+
   @override
   String toString() =>
       'ContextUsage($tokens / ${contextWindow ?? "?"}, exact: $isExact)';

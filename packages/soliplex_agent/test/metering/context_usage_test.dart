@@ -62,4 +62,29 @@ void main() {
       expect(_at(40000, window: 32768).isNearlyFull, isTrue);
     });
   });
+
+  group('isCritical', () {
+    test('is false while the thread is merely worth warning about', () {
+      // Past the warning threshold of a small window, so the reading is
+      // already worth saying something about, but there is room yet.
+      final reading = _at(27000, window: 32768);
+
+      expect(reading.isNearlyFull, isTrue);
+      expect(reading.isCritical, isFalse);
+    });
+
+    test('is true once almost nothing is left', () {
+      expect(_at((32768 * 0.91).round(), window: 32768).isCritical, isTrue);
+    });
+
+    test('does not hold off on a large window, as the warning does', () {
+      // The warning scales with the window because the same fraction is
+      // more room; running out does not.
+      expect(_at((200000 * 0.91).round(), window: 200000).isCritical, isTrue);
+    });
+
+    test('is false with no window to run out of', () {
+      expect(const ContextUsage(tokens: 999999).isCritical, isFalse);
+    });
+  });
 }
