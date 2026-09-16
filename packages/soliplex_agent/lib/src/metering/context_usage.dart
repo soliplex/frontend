@@ -41,16 +41,6 @@ class ContextUsage {
     return (tokens / window).clamp(0.0, 1.0);
   }
 
-  /// Whether a percentage can be shown at all.
-  bool get hasWindow => fractionUsed != null;
-
-  /// How much of the window remains, or null without one.
-  int? get tokensRemaining {
-    final window = contextWindow;
-    if (window == null) return null;
-    return window - tokens < 0 ? 0 : window - tokens;
-  }
-
   /// Whether the reading should be presented with a caveat.
   bool get isApproximate => !isExact;
 
