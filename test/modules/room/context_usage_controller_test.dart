@@ -252,6 +252,44 @@ void main() {
     });
   });
 
+  group('an estimate a measurement cannot account for', () {
+    test('survives an answer whose fetch predates the send', () async {
+      // The fetch went out before this message was sent, so the count it
+      // brings back cannot include it.
+      final answer = Completer<RunUsage?>();
+      when(() => api.getRunUsage(_roomId, _threadId, 'run-1'))
+          .thenAnswer((_) => answer.future);
+      final controller = build();
+
+      final pending = controller.runEnded('run-1');
+      controller.draftChanged('a message sent while the fetch was open');
+      await Future<void>.delayed(Duration.zero);
+      controller.draftSent();
+      final banked = controller.usage.tokens;
+
+      answer.complete(_usage('run-1', finalInputTokens: 5000));
+      await pending;
+
+      expect(banked, greaterThan(0));
+      expect(controller.usage.tokens, 5000 + banked);
+    });
+
+    test('survives a history seed, which measured none of it', () async {
+      // The history was fetched when the thread opened; a message sent
+      // since is not in it.
+      final controller = build()..draftChanged('a message on its way');
+      await Future<void>.delayed(Duration.zero);
+      controller.draftSent();
+      final banked = controller.usage.tokens;
+
+      controller
+          .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+
+      expect(banked, greaterThan(0));
+      expect(controller.usage.tokens, 1800 + banked);
+    });
+  });
+
   group('the draft', () {
     test('adds to the measurement', () async {
       final controller = build()

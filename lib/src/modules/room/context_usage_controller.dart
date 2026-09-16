@@ -104,7 +104,9 @@ class ContextUsageController extends ChangeNotifier {
   /// record could not be read — and the seed still stands.
   void historyLoaded(ThreadHistory history) {
     if (_disposed || _measured != null) return;
-    _measure(history.latestUsage);
+    // Releases nothing: the history was fetched when the thread opened,
+    // so a message sent since is not in it.
+    _measure(history.latestUsage, releasing: 0);
   }
 
   /// Re-reads the measurement once [runId] has ended.
@@ -119,6 +121,10 @@ class ContextUsageController extends ChangeNotifier {
   /// reached the model, and the previous reading still stands.
   Future<void> runEnded(String runId) async {
     final fetch = ++_fetches;
+    // What this answer can speak for: the run had started, so the model
+    // saw everything held now. Anything banked while the request is open
+    // is a later message it never saw.
+    final heldAtRequest = _inFlightTokens;
     final RunUsage? found;
 
     try {
@@ -139,23 +145,25 @@ class ContextUsageController extends ChangeNotifier {
     // a request the model has since moved past.
     if (_disposed || fetch != _fetches) return;
 
-    _measure(found);
+    _measure(found, releasing: heldAtRequest);
   }
 
-  /// Records that a send never reached a run.
+  /// Records that a send ended with no run to report on it.
   ///
-  /// Nothing will ever report on it, and the composer restores the draft,
-  /// so the estimate holding its place has to come back out before that
-  /// same message is counted a second time.
-  void sendFailed() => _release();
+  /// Nothing will ever measure the message, so the estimate standing in
+  /// for it has to come back out — and where the composer puts the text
+  /// back, before the same message is counted again as a draft.
+  void sendFailed() => _releaseEstimate(_inFlightTokens);
 
-  void _measure(RunUsage? found) {
+  /// Adopts [found], dropping the [releasing] tokens of estimate it
+  /// accounts for and leaving any banked since it was asked for.
+  void _measure(RunUsage? found, {required int releasing}) {
     // A run that measured nothing releases the estimate standing in for
     // the sent message: it either never reached the model or is already
     // inside the previous reading, and holding an estimate against a run
     // that has ended would read high for good.
     if (found == null || !found.isMeasured) {
-      _release();
+      _releaseEstimate(releasing);
       return;
     }
 
@@ -163,15 +171,22 @@ class ContextUsageController extends ChangeNotifier {
     if (found.runId == _measured?.runId) return;
 
     _measured = found;
-    _inFlightTokens = 0;
+    _inFlightTokens = _afterReleasing(releasing);
     notifyListeners();
   }
 
-  /// Drops the in-flight estimate without a new measurement.
-  void _release() {
-    if (_disposed || _inFlightTokens == 0) return;
+  int _afterReleasing(int tokens) {
+    final remaining = _inFlightTokens - tokens;
+    return remaining < 0 ? 0 : remaining;
+  }
 
-    _inFlightTokens = 0;
+  /// Drops [tokens] of the in-flight estimate without a new measurement.
+  void _releaseEstimate(int tokens) {
+    if (_disposed) return;
+    final remaining = _afterReleasing(tokens);
+    if (remaining == _inFlightTokens) return;
+
+    _inFlightTokens = remaining;
     notifyListeners();
   }
 
