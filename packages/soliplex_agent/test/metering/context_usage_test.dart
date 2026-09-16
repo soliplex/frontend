@@ -25,13 +25,24 @@ void main() {
     });
   });
 
+  group('fractionUsed', () {
+    test('does not run past a full window', () {
+      // A thread can exceed its window -- the backend counts what it
+      // sent, not what fits. The arc has nowhere further to go, and a
+      // banner reading over 100% is not a number anyone can act on.
+      expect(_at(40000, window: 32768).fractionUsed, 1.0);
+    });
+  });
+
   group('isNearlyFull', () {
     test('is false below the threshold of a small window', () {
       expect(_at(26000, window: 32768).isNearlyFull, isFalse);
     });
 
     test('is true at the threshold of a small window', () {
-      expect(_at(26215, window: 32768).isNearlyFull, isTrue);
+      // Exactly 80% of the window, so this is the case that says the
+      // comparison is inclusive; anything above it passes either way.
+      expect(_at(8000, window: 10000).isNearlyFull, isTrue);
     });
 
     test('holds off longer on a large window', () {
