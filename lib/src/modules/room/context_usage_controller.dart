@@ -62,6 +62,11 @@ class ContextUsageController extends ChangeNotifier {
   int _inFlightTokens = 0;
   bool _disposed = false;
 
+  /// How many measurements have been asked for, which is the only order
+  /// available: a usage record carries no time of its own, and runs end
+  /// in the order this is called.
+  int _fetches = 0;
+
   /// The current reading.
   ContextUsage get usage {
     final measured = _measured?.finalInputTokens;
@@ -91,8 +96,12 @@ class ContextUsageController extends ChangeNotifier {
   ///
   /// Called when the thread's history loads. The history already carries
   /// the newest measured run, so this costs no request.
+  ///
+  /// A seed, not a correction: the fetch behind it was issued before any
+  /// run this controller watched, so anything measured since is at least
+  /// as new and the history has nothing to add.
   void historyLoaded(ThreadHistory history) {
-    if (_disposed) return;
+    if (_disposed || _fetches > 0) return;
     _measure(history.latestUsage);
   }
 
@@ -107,6 +116,7 @@ class ContextUsageController extends ChangeNotifier {
   /// supersedes it. So does a run that recorded nothing — it never
   /// reached the model, and the previous reading still stands.
   Future<void> runEnded(String runId) async {
+    final fetch = ++_fetches;
     final RunUsage? found;
 
     try {
@@ -120,7 +130,9 @@ class ContextUsageController extends ChangeNotifier {
       return;
     }
 
-    if (_disposed) return;
+    // A later run ended while this was in flight, so this answer is about
+    // a request the model has since moved past.
+    if (_disposed || fetch != _fetches) return;
 
     _measure(found);
   }
@@ -133,22 +145,21 @@ class ContextUsageController extends ChangeNotifier {
   void sendFailed() => _release();
 
   void _measure(RunUsage? found) {
-    // A newer run has been measured, so the estimate standing in for the
-    // sent message is no longer needed. A run that measured nothing
-    // releases it too: the message either never reached the model or is
-    // already inside the previous reading, and holding an estimate
-    // against a run that has ended would read high for good.
-    final settled =
-        found != null && found.isMeasured && found.runId != _measured?.runId;
-
-    if (settled) {
-      _measured = found;
-      _inFlightTokens = 0;
-      notifyListeners();
+    // A run that measured nothing releases the estimate standing in for
+    // the sent message: it either never reached the model or is already
+    // inside the previous reading, and holding an estimate against a run
+    // that has ended would read high for good.
+    if (found == null || !found.isMeasured) {
+      _release();
       return;
     }
 
-    _release();
+    // Already the reading; nothing has moved.
+    if (found.runId == _measured?.runId) return;
+
+    _measured = found;
+    _inFlightTokens = 0;
+    notifyListeners();
   }
 
   /// Drops the in-flight estimate without a new measurement.
