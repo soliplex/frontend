@@ -45,12 +45,11 @@ void main() {
   });
 
   group('before anything is known', () {
-    test('reads as nothing measured against nothing', () {
+    test('reads as nothing measured', () {
       final usage = build().usage;
 
-      expect(usage.tokens, 0);
-      expect(usage.contextWindow, isNull);
-      expect(usage.isExact, isFalse);
+      expect(usage.tokens, isNull);
+      expect(usage.fractionUsed, isNull);
     });
 
     test('a draft alone yields no percentage, even against a known window',
@@ -62,9 +61,9 @@ void main() {
         ..draftChanged('something being typed');
       await Future<void>.delayed(Duration.zero);
 
-      expect(controller.usage.tokens, greaterThan(0));
+      expect(controller.usage.estimatedTokens, greaterThan(0));
+      expect(controller.usage.tokens, isNull);
       expect(controller.usage.fractionUsed, isNull);
-      expect(controller.usage.contextWindow, isNull);
     });
   });
 
@@ -134,8 +133,7 @@ void main() {
     test('with nothing measured leaves the reading unmeasured', () async {
       final controller = build()..historyLoaded(_history(null));
 
-      expect(controller.usage.tokens, 0);
-      expect(controller.usage.contextWindow, isNull);
+      expect(controller.usage.tokens, isNull);
     });
   });
 
@@ -265,7 +263,7 @@ void main() {
       controller.draftChanged('a message sent while the fetch was open');
       await Future<void>.delayed(Duration.zero);
       controller.draftSent();
-      final banked = controller.usage.tokens;
+      final banked = controller.usage.estimatedTokens;
 
       answer.complete(_usage('run-1', finalInputTokens: 5000));
       await pending;
@@ -280,7 +278,7 @@ void main() {
       final controller = build()..draftChanged('a message on its way');
       await Future<void>.delayed(Duration.zero);
       controller.draftSent();
-      final banked = controller.usage.tokens;
+      final banked = controller.usage.estimatedTokens;
 
       controller
           .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
@@ -314,11 +312,13 @@ void main() {
 
     test('shows before any run has been measured', () async {
       // A brand-new thread has no measurement, but what is being typed
-      // still costs something.
+      // still costs something -- held apart from the reading, which
+      // nothing has counted.
       final controller = build()..draftChanged('the very first message');
       await Future<void>.delayed(Duration.zero);
 
-      expect(controller.usage.tokens, greaterThan(0));
+      expect(controller.usage.estimatedTokens, greaterThan(0));
+      expect(controller.usage.tokens, isNull);
     });
 
     test('coalesces a burst of keystrokes into one reading', () async {
@@ -464,6 +464,7 @@ void main() {
 
     // No notification is dispatched, which would throw on a disposed
     // ChangeNotifier; reaching here is the assertion.
-    expect(controller.usage.tokens, 0);
+    expect(controller.usage.tokens, isNull);
+    expect(controller.usage.estimatedTokens, 0);
   });
 }

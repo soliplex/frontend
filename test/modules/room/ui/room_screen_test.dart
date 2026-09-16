@@ -615,7 +615,7 @@ void main() {
 
       await openThread(tester);
 
-      int reading() =>
+      int? reading() =>
           tester.widget<ContextGauge>(find.byType(ContextGauge)).usage.tokens;
 
       expect(reading(), 20000);

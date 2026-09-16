@@ -13,32 +13,52 @@ const largeContextWindow = 128000;
 class ContextUsage {
   /// Creates a reading.
   const ContextUsage({
-    required this.tokens,
+    this.measuredTokens,
+    this.estimatedTokens = 0,
     this.contextWindow,
-    this.isExact = false,
   });
 
-  /// Tokens the next request is expected to carry.
-  final int tokens;
+  /// What the provider counted for the last request it served, or null
+  /// when no run has reported on this thread yet.
+  ///
+  /// Only the backend sees the whole request — instructions, tool and MCP
+  /// schemas, the chat template, images — so this is the one term nothing
+  /// here can reconstruct.
+  final int? measuredTokens;
+
+  /// Tokens guessed locally — a draft in the composer, and a message
+  /// already sent that no run has reported on — and deliberately
+  /// over-stated by the draft estimator.
+  final int estimatedTokens;
 
   /// The model's window, when the provider reports one.
   final int? contextWindow;
 
-  /// Whether every token in [tokens] was counted by the provider.
+  /// Tokens the next request is expected to carry, or null when nothing
+  /// has counted this thread.
   ///
-  /// False while any locally estimated term is included — a draft in the
-  /// composer, or a message already sent that no run has reported on.
-  /// Those are estimated locally and deliberately over-stated.
-  final bool isExact;
+  /// Null rather than the estimate alone: a draft is a fragment of a
+  /// conversation nobody has measured, and showing it as the whole would
+  /// read near-empty on a full thread.
+  int? get tokens {
+    final measured = measuredTokens;
+    return measured == null ? null : measured + estimatedTokens;
+  }
 
-  /// Fraction of the window used, or null when no window is declared.
+  /// Whether every token in [tokens] was counted by the provider.
+  bool get isExact => measuredTokens != null && estimatedTokens == 0;
+
+  /// Fraction of the window used, or null without both a count and a
+  /// window to put it over.
   ///
   /// Null is deliberate and must not be filled in with a guess: a gauge
-  /// with an invented denominator is worse than one showing a bare count.
+  /// with an invented denominator, or an invented numerator, is worse
+  /// than one showing nothing.
   double? get fractionUsed {
+    final total = tokens;
     final window = contextWindow;
-    if (window == null || window <= 0) return null;
-    return (tokens / window).clamp(0.0, 1.0);
+    if (total == null || window == null || window <= 0) return null;
+    return (total / window).clamp(0.0, 1.0);
   }
 
   /// Whether the reading should be presented with a caveat.
@@ -85,6 +105,6 @@ class ContextUsage {
   }
 
   @override
-  String toString() =>
-      'ContextUsage($tokens / ${contextWindow ?? "?"}, exact: $isExact)';
+  String toString() => 'ContextUsage(${tokens ?? "?"} / '
+      '${contextWindow ?? "?"}, exact: $isExact)';
 }

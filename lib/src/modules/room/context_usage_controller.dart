@@ -68,26 +68,15 @@ class ContextUsageController extends ChangeNotifier {
   int _fetches = 0;
 
   /// The current reading.
-  ContextUsage get usage {
-    final measured = _measured?.finalInputTokens;
-    final unmeasured = _draftTokens + _inFlightTokens;
-
-    // Without a measurement there is no numerator to put over the window:
-    // the instructions, tool and MCP schemas and chat template are all in
-    // the request and only the backend has counted them. Showing the
-    // estimated terms as a fraction would read near-empty on a full
-    // thread, so the reading carries no window and the gauge shows no
-    // percentage.
-    if (measured == null) return ContextUsage(tokens: unmeasured);
-
-    return ContextUsage(
-      tokens: measured + unmeasured,
-      contextWindow: contextWindow,
-      // Exact only while nothing estimated is folded in: the thread's
-      // own tokens are the provider's own count, but a draft is not.
-      isExact: unmeasured == 0,
-    );
-  }
+  ///
+  /// The terms go in apart: what the backend counted, and what is
+  /// guessed here. What may be shown of them, and whether a percentage
+  /// exists at all, is the reading's own to work out.
+  ContextUsage get usage => ContextUsage(
+        measuredTokens: _measured?.finalInputTokens,
+        estimatedTokens: _draftTokens + _inFlightTokens,
+        contextWindow: contextWindow,
+      );
 
   /// The newest measured run's usage, or null before any run has been.
   RunUsage? get measured => _measured;
@@ -104,6 +93,7 @@ class ContextUsageController extends ChangeNotifier {
   /// record could not be read — and the seed still stands.
   void historyLoaded(ThreadHistory history) {
     if (_disposed || _measured != null) return;
+
     // Releases nothing: the history was fetched when the thread opened,
     // so a message sent since is not in it.
     _measure(history.latestUsage, releasing: 0);

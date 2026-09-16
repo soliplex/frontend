@@ -2,9 +2,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:test/test.dart';
 
 ContextUsage _at(int tokens, {int? window}) => ContextUsage(
-      tokens: tokens,
+      measuredTokens: tokens,
       contextWindow: window,
-      isExact: true,
     );
 
 void main() {
@@ -84,7 +83,7 @@ void main() {
     });
 
     test('is false with no window to run out of', () {
-      expect(const ContextUsage(tokens: 999999).isCritical, isFalse);
+      expect(const ContextUsage(measuredTokens: 999999).isCritical, isFalse);
     });
   });
 }

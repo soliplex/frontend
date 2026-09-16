@@ -14,7 +14,7 @@ const _slotSize = 44.0;
 
 /// A small ring in the composer showing how full the context window is.
 ///
-/// Two states, because the underlying reading has two:
+/// Two states, because the ring has two:
 ///
 /// - **No percentage available** — a hollow dot. Either the provider has
 ///   not said how large the model's context is, or nothing has counted
@@ -77,19 +77,24 @@ class ContextGauge extends StatelessWidget {
       return 'Context usage: ${(fraction * 100).round()} percent of the '
           'context window.';
     }
-    // Reports the missing percentage without naming a cause. A thread no
-    // run has counted and a model that declares no window both arrive
-    // here, and the ring cannot tell them apart either.
-    return 'Context usage: ${usage.tokens} tokens; no percentage available.';
+    final counted = usage.tokens;
+    // Nothing has counted the thread, so the estimate on its own is a
+    // fragment of a conversation of unknown size, not a reading of it.
+    if (counted == null) return 'Context usage has not been measured yet.';
+    // Reports the missing percentage without naming a cause: a model
+    // that declares no window lands here with a real count.
+    return 'Context usage: $counted tokens; no percentage available.';
   }
 
   String get _tooltip {
     final fraction = usage.fractionUsed;
     final approx = usage.isApproximate ? '~' : '';
-    if (fraction == null) {
-      return '$approx${usage.tokens} tokens used';
+    if (fraction != null) {
+      return '$approx${(fraction * 100).round()}% of context used';
     }
-    return '$approx${(fraction * 100).round()}% of context used';
+    final counted = usage.tokens;
+    if (counted == null) return 'Context usage not measured yet';
+    return '$approx$counted tokens used';
   }
 }
 
