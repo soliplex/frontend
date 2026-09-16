@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -182,6 +184,41 @@ void main() {
       await controller.runEnded('run-2');
 
       expect(controller.usage.tokens, 1800);
+    });
+  });
+
+  group('the newest measurement', () {
+    test('is not displaced by a slower answer about an older run', () async {
+      // Two runs end in quick succession and their fetches race. The
+      // reading is about the last request the model saw, so the older
+      // run's answer is not news however late it arrives.
+      final slowAnswer = Completer<RunUsage?>();
+      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
+          .thenAnswer((_) => slowAnswer.future);
+      runAnswers('run-3', _usage('run-3', finalInputTokens: 4000));
+      final controller = build();
+
+      final pending = controller.runEnded('run-2');
+      await controller.runEnded('run-3');
+      slowAnswer.complete(_usage('run-2', finalInputTokens: 1000));
+      await pending;
+
+      expect(controller.usage.tokens, 4000);
+      expect(controller.measured?.runId, 'run-3');
+    });
+
+    test('is not displaced by a history load that resolves later', () async {
+      // The history is a seed, not a correction: it was fetched before
+      // this run ended, so it cannot be newer than it.
+      runAnswers('run-2', _usage('run-2', finalInputTokens: 2400));
+      final controller = build();
+      await controller.runEnded('run-2');
+
+      controller
+          .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+
+      expect(controller.usage.tokens, 2400);
+      expect(controller.measured?.runId, 'run-2');
     });
   });
 
