@@ -1254,13 +1254,24 @@ class SoliplexApi {
   /// Walks runs newest-first and stops at the first with a
   /// `final_input_tokens`, so a run that errored before reaching the model
   /// — which records no usage, or one with no measurement — is skipped in
-  /// favour of the one before it. Malformed usage is skipped the same way:
-  /// a reading that cannot be parsed is not a reading, and the thread's
-  /// messages should not fail to load over an indicator.
+  /// favour of the one before it.
+  ///
+  /// A run with no `created` is passed over rather than read. The sort
+  /// puts it at the end, so this walk would otherwise meet it first —
+  /// and without a time there is nothing to call it the newest by. An
+  /// unfinished run is read: its usage is written once, when the stream
+  /// completes, so a row that exists is a whole measurement.
+  ///
+  /// A record that cannot be parsed ends the walk instead of continuing
+  /// it. The thread's messages must not fail to load over an indicator,
+  /// but the run before it is a different exchange — reporting its count
+  /// here would present a stale number as the current one, and as an
+  /// exact one.
   RunUsage? _extractLatestUsage(Map<String, dynamic> runs) {
     for (final entry in _sortRunsByCreationTime(runs).reversed) {
       final value = entry.value;
       if (value is! Map<String, dynamic>) continue;
+      if (value['created'] is! String) continue;
       final usage = value['usage'];
       if (usage is! Map<String, dynamic>) continue;
       if (usage['final_input_tokens'] is! int) continue;
@@ -1269,7 +1280,7 @@ class SoliplexApi {
       try {
         return runUsageFromJson(runId, usage);
       } on FormatException {
-        continue;
+        return null;
       }
     }
     return null;

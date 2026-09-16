@@ -5706,19 +5706,34 @@ void main() {
         expect(history.latestUsage?.runId, 'run-2');
       });
 
-      test('is null when no run has been measured', () async {
+      test('ignores a run that cannot be placed in time', () async {
+        // Without a creation time there is no way to call it the newest,
+        // and guessing puts an arbitrary run's count on screen.
         stubThread({
-          'run-1': run('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+          'run-2': {
+            'run_id': 'run-2',
+            'finished': '2026-01-07T02:00:00.000Z',
+            'usage': usage(finalInputTokens: 9),
+          },
         });
         stubRun('run-1');
+        stubRun('run-2');
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestUsage, isNull);
+        expect(history.latestUsage?.runId, 'run-1');
       });
 
-      test('skips a malformed record rather than failing the thread', () async {
-        // An indicator must never cost the messages.
+      test(
+          'reports nothing rather than an older run when the newest '
+          'record is malformed', () async {
+        // Substituting the previous exchange's count would present a
+        // stale number as the current one, and as an exact one.
         stubThread({
           'run-1': run(
             'run-1',
@@ -5736,7 +5751,18 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestUsage?.runId, 'run-1');
+        expect(history.latestUsage, isNull);
+      });
+
+      test('is null when no run has been measured', () async {
+        stubThread({
+          'run-1': run('run-1', '2026-01-07T01:00:00.000Z'),
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestUsage, isNull);
       });
 
       test('survives on a thread with no completed runs', () async {
