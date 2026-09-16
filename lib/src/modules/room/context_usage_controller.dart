@@ -94,9 +94,19 @@ class ContextUsageController extends ChangeNotifier {
   void historyLoaded(ThreadHistory history) {
     if (_disposed || _measured != null) return;
 
+    final latest = history.latestUsage;
+    if (latest == null || !latest.isMeasured) {
+      // Without this the gauge is hollow and says nothing about why: no
+      // run in the thread has reported what its request cost.
+      _logger.info(
+        'Thread history carried no measurement',
+        attributes: {'threadId': _threadId, 'contextWindow': contextWindow},
+      );
+    }
+
     // Releases nothing: the history was fetched when the thread opened,
     // so a message sent since is not in it.
-    _measure(history.latestUsage, releasing: 0);
+    _measure(latest, releasing: 0);
   }
 
   /// Re-reads the measurement once [runId] has ended.
@@ -162,6 +172,17 @@ class ContextUsageController extends ChangeNotifier {
 
     _measured = found;
     _inFlightTokens = _afterReleasing(releasing);
+    // A window of null is why an otherwise measured thread shows no
+    // percentage: the provider reports none for the room's model.
+    _logger.info(
+      'Context reading measured',
+      attributes: {
+        'threadId': _threadId,
+        'runId': found.runId,
+        'finalInputTokens': found.finalInputTokens,
+        'contextWindow': contextWindow,
+      },
+    );
     notifyListeners();
   }
 
