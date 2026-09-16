@@ -36,9 +36,25 @@ void main() {
         _host(const ContextGauge(usage: ContextUsage(tokens: 1234))),
       );
 
-      final semantics = tester.getSemantics(find.byType(ContextGauge));
-      expect(semantics.label, contains('1234 tokens'));
-      expect(semantics.label, contains('No context reading yet'));
+      expect(
+        tester.getSemantics(find.byType(ContextGauge)).label,
+        contains('1234 tokens'),
+      );
+
+      // A thread a run has measured, on a model that declares no window,
+      // has a count and no percentage. Saying it has no reading denies
+      // the very number in the same sentence.
+      await tester.pumpWidget(
+        _host(
+          const ContextGauge(
+            usage: ContextUsage(tokens: 4321, isExact: true),
+          ),
+        ),
+      );
+
+      final measured = tester.getSemantics(find.byType(ContextGauge)).label;
+      expect(measured, contains('4321 tokens'));
+      expect(measured, isNot(contains('No context reading yet')));
     });
 
     testWidgets('reserves a stable slot in the composer row', (tester) async {

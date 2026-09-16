@@ -74,12 +74,14 @@ class ContextGauge extends StatelessWidget {
 
   String get _semanticsLabel {
     final fraction = usage.fractionUsed;
-    if (fraction == null) {
-      return 'Context usage: ${usage.tokens} tokens. '
-          'No context reading yet.';
+    if (fraction != null) {
+      return 'Context usage: ${(fraction * 100).round()} percent of the '
+          'context window.';
     }
-    return 'Context usage: ${(fraction * 100).round()} percent of the '
-        'context window.';
+    // Reports the missing percentage without naming a cause. A thread no
+    // run has counted and a model that declares no window both arrive
+    // here, and the ring cannot tell them apart either.
+    return 'Context usage: ${usage.tokens} tokens; no percentage available.';
   }
 
   String get _tooltip {
