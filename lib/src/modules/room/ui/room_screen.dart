@@ -302,7 +302,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// thread's, and carrying it across would show the previous
   /// conversation's fullness against the new one.
   ContextUsageController? _contextUsage;
-  (String, String)? _contextUsageKey;
+  (String, String, String)? _contextUsageKey;
   void Function()? _contextRunUnsub;
 
   /// Whether the context warning has been dismissed for the thread on
@@ -912,7 +912,7 @@ class _RoomScreenState extends State<RoomScreen> {
     // controller was built for, not the one on screen: a controller is
     // rebuilt on thread change, and this fetch may have been for the old
     // one.
-    if (_contextUsageKey == (widget.roomId, threadId)) {
+    if (_contextUsageKey == (_serverId, widget.roomId, threadId)) {
       _contextUsage?.historyLoaded(history);
     }
     if (!_filterEnabled) return;
@@ -2557,7 +2557,7 @@ class _RoomScreenState extends State<RoomScreen> {
     ThreadViewState threadView,
     Room? room,
   ) {
-    final key = (widget.roomId, threadView.threadId);
+    final key = (_serverId, widget.roomId, threadView.threadId);
     // Only a default agent has a model to have a window. A factory agent
     // chooses one when the run starts, and reports none.
     final contextWindow = switch (room?.agent) {
