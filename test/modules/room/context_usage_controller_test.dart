@@ -185,6 +185,20 @@ void main() {
 
       expect(controller.usage.tokens, 1800);
     });
+
+    test('keeps it when the fetch fails with an Error', () async {
+      // The call is started with `unawaited`, so anything this throws
+      // has nowhere to go. An empty run id reaches `ArgumentError`,
+      // which is not an `Exception`.
+      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
+          .thenThrow(ArgumentError.value('', 'runId', 'must not be empty'));
+      final controller = build()
+        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+
+      await expectLater(controller.runEnded('run-2'), completes);
+
+      expect(controller.usage.tokens, 1800);
+    });
   });
 
   group('the newest measurement', () {

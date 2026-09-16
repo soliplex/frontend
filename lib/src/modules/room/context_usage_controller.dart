@@ -123,7 +123,10 @@ class ContextUsageController extends ChangeNotifier {
 
     try {
       found = await _api.getRunUsage(_roomId, _threadId, runId);
-    } on Exception catch (e, stackTrace) {
+    } on Object catch (e, stackTrace) {
+      // Catches an Error as well as an Exception: this is started with
+      // `unawaited`, so whatever escapes has no caller to reach, only
+      // the zone's handler.
       _logger.warning(
         'Run usage fetch failed; keeping the previous reading',
         attributes: {'runId': runId, 'failure': describeFailure(e)},
