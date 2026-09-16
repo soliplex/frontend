@@ -220,6 +220,22 @@ void main() {
       expect(controller.usage.tokens, 2400);
       expect(controller.measured?.runId, 'run-2');
     });
+
+    test('is taken from the history when a fetch produced none', () async {
+      // A fetch that failed measured nothing, so it displaces nothing:
+      // the history's record is the only reading there is, and an
+      // indicator that asked once must not go blank for good.
+      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
+          .thenThrow(const NetworkException(message: 'down'));
+      final controller = build();
+      await controller.runEnded('run-2');
+
+      controller
+          .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+
+      expect(controller.usage.tokens, 1800);
+      expect(controller.measured?.runId, 'run-1');
+    });
   });
 
   group('the draft', () {

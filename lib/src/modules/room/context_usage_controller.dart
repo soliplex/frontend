@@ -98,10 +98,12 @@ class ContextUsageController extends ChangeNotifier {
   /// the newest measured run, so this costs no request.
   ///
   /// A seed, not a correction: the fetch behind it was issued before any
-  /// run this controller watched, so anything measured since is at least
-  /// as new and the history has nothing to add.
+  /// run this controller watched, so a measurement already in hand is at
+  /// least as new and the history has nothing to add. A run that ended
+  /// without one displaces nothing — it never reached the model, or its
+  /// record could not be read — and the seed still stands.
   void historyLoaded(ThreadHistory history) {
-    if (_disposed || _fetches > 0) return;
+    if (_disposed || _measured != null) return;
     _measure(history.latestUsage);
   }
 
