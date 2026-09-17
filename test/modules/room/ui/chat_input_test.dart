@@ -1372,11 +1372,7 @@ void main() {
     testWidgets('sits beside send once there is one', (tester) async {
       await pumpWith(
         tester,
-        const ContextUsage(
-          tokens: 1800,
-          contextWindow: 8192,
-          isExact: true,
-        ),
+        const ContextUsage(measuredTokens: 1800, contextWindow: 8192),
       );
 
       expect(find.byType(ContextGauge), findsOneWidget);
