@@ -75,6 +75,18 @@ void main() {
       expect(_at((200000 * 0.91).round(), window: 200000).isCritical, isTrue);
     });
 
+    test('never fires before the warning does', () {
+      // The gauge asks this first, so a critical fraction below the
+      // warning would paint the ring red while the banner stayed silent
+      // -- the ring and the banner disagreeing, the other way round.
+      for (final window in [32768, 200000]) {
+        expect(
+          ContextUsage.criticalThreshold,
+          greaterThanOrEqualTo(_at(1, window: window).warningThreshold!),
+        );
+      }
+    });
+
     test('is false with no window to run out of', () {
       expect(const ContextUsage(measuredTokens: 999999).isCritical, isFalse);
     });

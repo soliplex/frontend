@@ -58,9 +58,17 @@ class ContextUsage {
   /// than one showing nothing.
   double? get fractionUsed {
     final total = tokens;
-    final window = contextWindow;
-    if (total == null || window == null || window <= 0) return null;
+    final window = _usableWindow;
+    if (total == null || window == null) return null;
     return (total / window).clamp(0.0, 1.0);
+  }
+
+  /// The window when the backend reported a size worth reading: zero or
+  /// less is no window at all. Here rather than in each accessor, so
+  /// that adding one cannot leave the rule out.
+  int? get _usableWindow {
+    final window = contextWindow;
+    return window == null || window <= 0 ? null : window;
   }
 
   /// Whether the reading should be presented with a caveat.
@@ -77,8 +85,8 @@ class ContextUsage {
   /// Null when no window is declared, because there is then no
   /// occupancy to compare against.
   double? get warningThreshold {
-    final window = contextWindow;
-    if (window == null || window <= 0) return null;
+    final window = _usableWindow;
+    if (window == null) return null;
     return window < largeContextWindow ? 0.80 : 0.85;
   }
 
