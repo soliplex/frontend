@@ -133,10 +133,18 @@ class ContextUsageController extends ChangeNotifier {
       // Catches an Error as well as an Exception: this is started with
       // `unawaited`, so whatever escapes has no caller to reach, only
       // the zone's handler.
+      //
+      // A network failure travels whole, because it renders as the host
+      // and the OS error and that is the diagnosis. Anything else can
+      // carry the value it failed on, so it is described instead.
       _logger.warning(
         'Run usage fetch failed; keeping the previous reading',
-        attributes: {'runId': runId, 'failure': describeFailure(e)},
+        error: e is NetworkException ? e : null,
         stackTrace: stackTrace,
+        attributes: {
+          'runId': runId,
+          if (e is! NetworkException) 'failure': describeFailure(e),
+        },
       );
       return;
     }

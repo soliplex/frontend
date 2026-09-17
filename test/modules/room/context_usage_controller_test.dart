@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/room/context_usage_controller.dart';
 
 class MockSoliplexApi extends Mock implements SoliplexApi {}
@@ -167,6 +168,26 @@ void main() {
       await controller.runEnded('run-2');
 
       expect(controller.usage.tokens, 1800);
+    });
+
+    test('keeps the host when the fetch fails on the network', () async {
+      // A network failure renders as the host and the OS error, which is
+      // the whole diagnosis. Reduced to a type name it says only that
+      // something somewhere went wrong.
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
+          .thenThrow(const NetworkException(message: 'Connection refused'));
+
+      await build().runEnded('run-2');
+
+      final record = sink.records.singleWhere(
+        (r) => r.message.contains('Run usage fetch failed'),
+      );
+      expect(record.error, isA<NetworkException>());
+      expect(record.attributes['failure'], isNull);
     });
 
     test('keeps it when the fetch fails with an Error', () async {
