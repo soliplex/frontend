@@ -251,6 +251,32 @@ void main() {
     });
   });
 
+  group('an estimate a measurement does account for', () {
+    test('is released by the run its seed already named', () async {
+      // The history walk is slow, so it can answer after the run it names
+      // has finished -- seeding the reading with the very run whose usage
+      // is still in flight. That answer covers the message sent, so the
+      // estimate standing in for it still has to come out.
+      final answer = Completer<RunUsage?>();
+      when(() => api.getRunUsage(_roomId, _threadId, 'run-1'))
+          .thenAnswer((_) => answer.future);
+      final controller = build();
+
+      controller.draftSent('a message already on its way');
+      final banked = controller.usage.estimatedTokens;
+      final pending = controller.runEnded('run-1');
+
+      controller
+          .historyLoaded(_history(_usage('run-1', finalInputTokens: 5000)));
+
+      answer.complete(_usage('run-1', finalInputTokens: 5000));
+      await pending;
+
+      expect(banked, greaterThan(0));
+      expect(controller.usage.tokens, 5000);
+    });
+  });
+
   group('an estimate a measurement cannot account for', () {
     test('survives an answer whose fetch predates the send', () async {
       // The fetch went out before this message was sent, so the count it

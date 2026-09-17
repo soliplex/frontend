@@ -103,8 +103,9 @@ class ContextUsageController extends ChangeNotifier {
       );
     }
 
-    // Releases nothing: the history was fetched when the thread opened,
-    // so a message sent since is not in it.
+    // Releases nothing: a seed says which run was measured, not which
+    // messages an estimate here stands for. The run's own answer is what
+    // releases it -- including when the seed named that same run.
     _measure(latest, releasing: 0);
   }
 
@@ -166,8 +167,13 @@ class ContextUsageController extends ChangeNotifier {
       return;
     }
 
-    // Already the reading; nothing has moved.
-    if (found.runId == _measured?.runId) return;
+    // Already the reading, so the number does not move -- but the answer
+    // still covers the message this run carried, and that estimate comes
+    // out whether or not the reading changes.
+    if (found.runId == _measured?.runId) {
+      _releaseEstimate(releasing);
+      return;
+    }
 
     _measured = found;
     _inFlightTokens = _afterReleasing(releasing);
