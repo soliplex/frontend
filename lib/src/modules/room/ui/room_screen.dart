@@ -2516,14 +2516,6 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  /// Renders the single ChatInput at the bottom of the room layout. Dispatches
-  /// callbacks based on whether a [threadView] is active. Using one widget for
-  /// both states keeps the [EditableText] element stable across the
-  /// welcome → thread transition; see issue #212.
-  ///
-  /// Nothing here may carry a per-thread [Key]: that stability is the point,
-  /// and a key that changes with the thread throws it away. State that has to
-  /// be dropped on a thread change travels as a value instead.
   void _onContextUsageChanged() {
     if (!mounted) return;
 
@@ -2552,9 +2544,10 @@ class _RoomScreenState extends State<RoomScreen> {
 
   /// The context controller for [threadView], rebuilt when it changes.
   ///
-  /// The window is the room's and is given once; the measurement arrives
-  /// with the thread's history and after each run ends, which are the
-  /// only moments it can move: it is the provider's own count for the
+  /// The window is the room's and is re-supplied on each build, since
+  /// the room may load after this does. The measurement arrives with
+  /// the thread's history and after each run ends, which are the only
+  /// moments it can move: it is the provider's own count for the
   /// last request of a completed run.
   ContextUsageController _contextUsageFor(
     ThreadViewState threadView,
@@ -2582,21 +2575,23 @@ class _RoomScreenState extends State<RoomScreen> {
         contextWindow: contextWindow,
       );
       _contextUsage = controller;
-      // Never fires during a build. A reading moves when a fetch
-      // resolves or the draft debounce elapses, and the subscription
-      // below, which does fire synchronously, can only release an
-      // estimate — which a controller built here does not hold yet.
+      // Never fires during a build. `draftSent` notifies synchronously
+      // but only a send calls it; everything else notifies from a timer
+      // or after an await. The subscription below does run inside this
+      // build: its release no-ops on a controller holding no estimate,
+      // and its fetch notifies nothing before the first await.
       controller.addListener(_onContextUsageChanged);
       controller.draftChanged(
         _chatController.text,
         images: _chatController.draftImageCount,
       );
 
-      // `subscribe` fires with the current value. On a thread restored
-      // from the registry that value is the ending it already had, and
-      // the restore skips the history fetch — so a run named there is
-      // the only place the reading can come from. A thread that does
-      // load history has had no ending yet and stops at the count.
+      // `subscribe` fires with the current value. A thread restored
+      // from a completed outcome already carries that ending, and its
+      // restore skipped the history fetch, so the run named there is
+      // where its reading comes from. A thread restored while still
+      // running, or one that loads history, has had no ending yet and
+      // stops at the count.
       _contextRunUnsub = threadView.endedRun.subscribe((ending) {
         if (!mounted) return;
         final (endings, runId) = ending;
@@ -2615,6 +2610,14 @@ class _RoomScreenState extends State<RoomScreen> {
     return _contextUsage!..contextWindow = contextWindow;
   }
 
+  /// Renders the single ChatInput at the bottom of the room layout. Dispatches
+  /// callbacks based on whether a [threadView] is active. Using one widget for
+  /// both states keeps the [EditableText] element stable across the
+  /// welcome → thread transition; see issue #212.
+  ///
+  /// Nothing here may carry a per-thread [Key]: that stability is the point,
+  /// and a key that changes with the thread throws it away. State that has to
+  /// be dropped on a thread change travels as a value instead.
   Widget _buildChatInput(
     ThreadViewState? threadView,
     Room? room,

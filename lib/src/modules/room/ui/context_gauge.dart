@@ -40,8 +40,8 @@ class ContextGauge extends StatelessWidget {
     final fraction = usage.fractionUsed;
 
     // The reading says how much attention it deserves; this only picks
-    // the colour for it. Deciding here as well is how the ring came to
-    // warn at a fraction the banner did not.
+    // the colour. Both thresholds live on [ContextUsage], which is what
+    // keeps the ring and the banner from disagreeing.
     final color = switch (fraction) {
       null => scheme.onSurfaceVariant,
       _ when usage.isCritical => context.danger,

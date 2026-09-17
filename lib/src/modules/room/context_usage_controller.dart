@@ -87,9 +87,8 @@ class ContextUsageController extends ChangeNotifier {
   ///
   /// A seed, not a correction: the fetch behind it was issued before any
   /// run this controller watched, so a measurement already in hand is at
-  /// least as new and the history has nothing to add. A run that ended
-  /// without one displaces nothing — it never reached the model, or its
-  /// record could not be read — and the seed still stands.
+  /// least as new and the history has nothing to add. A history carrying
+  /// no measurement leaves the reading where it was.
   void historyLoaded(ThreadHistory history) {
     if (_disposed || _measured != null) return;
 
@@ -117,8 +116,10 @@ class ContextUsageController extends ChangeNotifier {
   /// the conversation. It keeps the in-flight estimate too — the message
   /// did reach the model, so dropping the term standing in for it would
   /// move the reading down after a send. A later run's measurement
-  /// supersedes it. So does a run that recorded nothing — it never
-  /// reached the model, and the previous reading still stands.
+  /// supersedes it. So does a run the backend has no count for, which
+  /// can mean it never reached the model or that its provider reported
+  /// no prompt tokens for the request it made. The previous reading
+  /// stands either way.
   Future<void> runEnded(String runId) async {
     final fetch = ++_fetches;
     // What this answer can speak for: the run had started, so the model
@@ -202,8 +203,9 @@ class ContextUsageController extends ChangeNotifier {
 
     _measured = found;
     _inFlightTokens = _afterReleasing(releasing);
-    // A window of null is why an otherwise measured thread shows no
-    // percentage: the provider reports none for the room's model.
+    // The window is here because a null one is why an otherwise measured
+    // thread shows no percentage — whether the model declares none or
+    // the room has not loaded yet, which this cannot tell apart.
     _logger.info(
       'Context reading measured',
       attributes: {

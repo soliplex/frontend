@@ -1,15 +1,16 @@
 /// Estimates what a draft will cost, before it is ever sent.
 ///
-/// Everything already in a thread has been counted by the model's own
-/// provider and reported back exactly. The draft is the one part of a
-/// reading that nothing has measured yet, so it is the one part that has
-/// to be guessed — and the guess is deliberately biased high.
+/// Everything a run has reported on was counted by the model's own
+/// provider. What no run has reported on — a draft in the composer, or a
+/// message just sent — is what has to be guessed, and the guess is
+/// deliberately biased high.
 ///
 /// The bias is the point. A gauge that reads low invites someone to keep
 /// typing into a window that is already full, so the failure this must
-/// avoid is under-counting, not over-counting. Against a typical window
-/// the over-count is a rounding error: tens of tokens on a draft, out of
-/// tens of thousands in the window.
+/// avoid is under-counting, not over-counting. On text the over-count is
+/// a rounding error: tens of tokens against a window of tens of
+/// thousands. An image is guessed far more coarsely; see
+/// [perImageTokens].
 library;
 
 /// Splits the way a BPE pre-tokenizer does: letter runs, digit runs,
@@ -50,9 +51,10 @@ const int perImageTokens = 2500;
 /// Estimates the tokens a draft of [text] carrying [images] pictures
 /// will occupy, biased high.
 ///
-/// Returns 0 for an empty draft — an empty composer adds nothing, and
+/// Returns 0 for a wholly empty draft — no text and no images — because
 /// showing the per-message overhead for a message nobody is writing
-/// would make the gauge twitch for no reason.
+/// would make the gauge twitch for no reason. An image with no caption
+/// is a message someone is writing, so it carries that overhead.
 int estimateDraftTokens(String text, {int images = 0}) {
   final pictures = images * perImageTokens;
   if (text.isEmpty) {

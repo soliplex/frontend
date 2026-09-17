@@ -6,9 +6,11 @@ const largeContextWindow = 128000;
 /// A reading of how much context a thread currently occupies.
 ///
 /// Carries its own confidence rather than leaving the UI to infer it. A
-/// number with no denominator has to be presented differently from a
-/// settled exact one — and the difference is the whole distinction
-/// between a useful gauge and a confidently wrong one.
+/// count with no denominator has to be presented differently from a
+/// settled exact one, and a thread nothing has counted differently
+/// again — it has no number to present at all. Those differences are
+/// the whole distinction between a useful gauge and a confidently wrong
+/// one.
 @immutable
 class ContextUsage {
   /// Creates a reading.

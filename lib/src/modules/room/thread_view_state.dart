@@ -323,8 +323,9 @@ class ThreadViewState {
       onStateTransition: (state) {
         if (_isDisposed) return;
         _sessionState.value = state;
-        // Only a spawn that produced no session comes back to null here;
-        // one that did hands off to the session's own terminal state.
+        // The spawner comes back to null when a spawn did not succeed --
+        // no session, or one that threw on the way to being attached. A
+        // session that attached hands off to its own terminal state.
         if (state == null) _endRun(null);
       },
     );
@@ -338,8 +339,9 @@ class ThreadViewState {
     if (_isDisposed) return;
     if (_spawner.cancel()) {
       _sessionState.value = null;
-      // Cancelled before the spawn returned, so no run was ever named
-      // and nothing will report on the send.
+      // Cancelled before the spawn returned, so its id never reaches us
+      // even if the backend went on to name one. Nothing here will
+      // report on the send.
       _endRun(null);
       return;
     }
