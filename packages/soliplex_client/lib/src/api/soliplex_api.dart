@@ -712,6 +712,8 @@ class SoliplexApi {
   /// nothing, and the previous run's reading still stands. A run that did
   /// reach the model answers with a record instead, whose
   /// [RunUsage.finalInputTokens] is null when no request completed.
+  /// [RunUsage.measuredAt] is what orders two records; a backend that
+  /// predates it leaves the field null.
   ///
   /// Throws:
   /// - [ArgumentError] if any ID is empty
