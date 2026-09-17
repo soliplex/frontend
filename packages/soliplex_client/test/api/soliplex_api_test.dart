@@ -1435,6 +1435,8 @@ void main() {
             'tool_calls': 2,
             'final_input_tokens': 1800,
             'resolved_model_name': 'gpt-oss:latest',
+            'final_output_tokens': 120,
+            'measured_at': '2026-09-17T10:02:00.000000',
           }),
         );
 
@@ -1447,7 +1449,7 @@ void main() {
         );
         expect(
           found,
-          const RunUsage(
+          RunUsage(
             runId: 'run-789',
             inputTokens: 5400,
             outputTokens: 300,
@@ -1455,8 +1457,51 @@ void main() {
             toolCalls: 2,
             finalInputTokens: 1800,
             resolvedModelName: 'gpt-oss:latest',
+            finalOutputTokens: 120,
+            measuredAt: DateTime.utc(2026, 9, 17, 10, 2),
           ),
         );
+        expect(found?.contextTokens, 1920);
+      });
+
+      test('reads an aware timestamp as the same instant', () async {
+        // Postgres hands back an offset; sqlite hands back a naive UTC.
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+            'final_input_tokens': 10,
+            'measured_at': '2026-09-17T12:02:00+02:00',
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found?.measuredAt, DateTime.utc(2026, 9, 17, 10, 2));
+      });
+
+      test('keeps the measurement when the timestamp is malformed', () async {
+        // The count is the reading; the time only orders it. Losing the
+        // order must not cost the number.
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+            'final_input_tokens': 10,
+            'measured_at': 'not a time',
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found?.finalInputTokens, 10);
+        expect(found?.measuredAt, isNull);
       });
 
       test('reads a run that never reached the model as null', () async {
@@ -1486,6 +1531,27 @@ void main() {
 
         expect(found?.finalInputTokens, isNull);
         expect(found?.isMeasured, isFalse);
+        expect(found?.contextTokens, isNull);
+      });
+
+      test('reads one reply short of a backend without the reply count',
+          () async {
+        // Measured, but by a backend that predates 'final_output_tokens':
+        // the reading stands on the input alone rather than going blank.
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+            'final_input_tokens': 1800,
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found?.contextTokens, 1800);
       });
 
       test('rejects an empty run id', () {
