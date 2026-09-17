@@ -6,49 +6,69 @@ const largeContextWindow = 128000;
 /// A reading of how much context a thread currently occupies.
 ///
 /// Carries its own confidence rather than leaving the UI to infer it. A
-/// number with no denominator has to be presented differently from a
-/// settled exact one — and the difference is the whole distinction
-/// between a useful gauge and a confidently wrong one.
+/// count with no denominator has to be presented differently from a
+/// settled exact one, and a thread nothing has counted differently
+/// again — it has no number to present at all. Those differences are
+/// the whole distinction between a useful gauge and a confidently wrong
+/// one.
 @immutable
 class ContextUsage {
   /// Creates a reading.
   const ContextUsage({
-    required this.tokens,
+    this.measuredTokens,
+    this.estimatedTokens = 0,
     this.contextWindow,
-    this.isExact = false,
   });
 
-  /// Tokens the next request is expected to carry.
-  final int tokens;
+  /// What the provider counted for the last request it served, or null
+  /// when no run has reported on this thread yet.
+  ///
+  /// Only the backend sees the whole request — instructions, tool and MCP
+  /// schemas, the chat template, images — so this is the one term nothing
+  /// here can reconstruct.
+  final int? measuredTokens;
+
+  /// Tokens guessed locally — a draft in the composer, and a message
+  /// already sent that no run has reported on — and deliberately
+  /// over-stated by the draft estimator.
+  final int estimatedTokens;
 
   /// The model's window, when the provider reports one.
   final int? contextWindow;
 
-  /// Whether every token in [tokens] was counted by the provider.
+  /// Tokens the next request is expected to carry, or null when nothing
+  /// has counted this thread.
   ///
-  /// False while any locally estimated term is included — a draft in the
-  /// composer, or a message already sent that no run has reported on.
-  /// Those are estimated locally and deliberately over-stated.
-  final bool isExact;
-
-  /// Fraction of the window used, or null when no window is declared.
-  ///
-  /// Null is deliberate and must not be filled in with a guess: a gauge
-  /// with an invented denominator is worse than one showing a bare count.
-  double? get fractionUsed {
-    final window = contextWindow;
-    if (window == null || window <= 0) return null;
-    return (tokens / window).clamp(0.0, 1.0);
+  /// Null rather than the estimate alone: a draft is a fragment of a
+  /// conversation nobody has measured, and showing it as the whole would
+  /// read near-empty on a full thread.
+  int? get tokens {
+    final measured = measuredTokens;
+    return measured == null ? null : measured + estimatedTokens;
   }
 
-  /// Whether a percentage can be shown at all.
-  bool get hasWindow => fractionUsed != null;
+  /// Whether every token in [tokens] was counted by the provider.
+  bool get isExact => measuredTokens != null && estimatedTokens == 0;
 
-  /// How much of the window remains, or null without one.
-  int? get tokensRemaining {
+  /// Fraction of the window used, or null without both a count and a
+  /// window to put it over.
+  ///
+  /// Null is deliberate and must not be filled in with a guess: a gauge
+  /// with an invented denominator, or an invented numerator, is worse
+  /// than one showing nothing.
+  double? get fractionUsed {
+    final total = tokens;
+    final window = _usableWindow;
+    if (total == null || window == null) return null;
+    return (total / window).clamp(0.0, 1.0);
+  }
+
+  /// The window when the backend reported a size worth reading: zero or
+  /// less is no window at all. Here rather than in each accessor, so
+  /// that adding one cannot leave the rule out.
+  int? get _usableWindow {
     final window = contextWindow;
-    if (window == null) return null;
-    return window - tokens < 0 ? 0 : window - tokens;
+    return window == null || window <= 0 ? null : window;
   }
 
   /// Whether the reading should be presented with a caveat.
@@ -65,8 +85,8 @@ class ContextUsage {
   /// Null when no window is declared, because there is then no
   /// occupancy to compare against.
   double? get warningThreshold {
-    final window = contextWindow;
-    if (window == null || window <= 0) return null;
+    final window = _usableWindow;
+    if (window == null) return null;
     return window < largeContextWindow ? 0.80 : 0.85;
   }
 
@@ -78,7 +98,23 @@ class ContextUsage {
     return fraction >= threshold;
   }
 
+  /// The occupancy at which the window is about to stop holding the
+  /// conversation, whatever its size.
+  ///
+  /// Flat where [warningThreshold] scales, because the two answer
+  /// different questions. A warning arrives while there is still room to
+  /// act, and how much room a fraction leaves depends on the window. This
+  /// one says almost none is left, which is the same fraction either way.
+  static const criticalThreshold = 0.90;
+
+  /// Whether the thread is close enough to full that the next exchange
+  /// may not fit.
+  bool get isCritical {
+    final fraction = fractionUsed;
+    return fraction != null && fraction >= criticalThreshold;
+  }
+
   @override
-  String toString() =>
-      'ContextUsage($tokens / ${contextWindow ?? "?"}, exact: $isExact)';
+  String toString() => 'ContextUsage(${tokens ?? "?"} / '
+      '${contextWindow ?? "?"}, exact: $isExact)';
 }

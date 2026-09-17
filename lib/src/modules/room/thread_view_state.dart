@@ -144,16 +144,24 @@ class ThreadViewState {
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
 
-  /// The id of the run that most recently ended in this thread, however it
-  /// ended, or null before any has.
+  /// How a send in this thread last ended: a count of endings so far, and
+  /// the id of the run behind the latest one when the backend named one.
   ///
-  /// A run's usage is only recorded once it is over, so this is the moment
-  /// a subscriber can go and read it. Carried as the id rather than the
-  /// outcome because the outcome does not say what the run cost — that is
-  /// the backend's record, fetched by id. Null stays null for an ending
-  /// whose id is not known: a failure before the run was ever named.
-  final Signal<String?> _endedRun = Signal<String?>(null);
-  ReadonlySignal<String?> get endedRun => _endedRun;
+  /// A run's usage is only recorded once it is over, so an ending that
+  /// carries an id is the moment a subscriber can go and read it. Carried
+  /// as the id rather than the outcome because the outcome does not say
+  /// what the run cost — that is the backend's record, fetched by id.
+  ///
+  /// An ending with no id says only that nothing will ever report on the
+  /// send. The count is what separates two of those in a row, which a
+  /// bare null could not: it starts at zero, meaning nothing has ended.
+  final Signal<(int, String?)> _endedRun = Signal<(int, String?)>((0, null));
+  ReadonlySignal<(int, String?)> get endedRun => _endedRun;
+
+  int _endings = 0;
+
+  /// Publishes an ending, whether or not a run was ever named for it.
+  void _endRun(String? runId) => _endedRun.value = (++_endings, runId);
 
   /// Mirror of the active session's reconnect lifecycle. `null` means
   /// no reconnect activity. UI surfaces this for [Reconnecting] and
@@ -341,6 +349,10 @@ class ThreadViewState {
       onStateTransition: (state) {
         if (_isDisposed) return;
         _sessionState.value = state;
+        // The spawner comes back to null when a spawn did not succeed --
+        // no session, or one that threw on the way to being attached. A
+        // session that attached hands off to its own terminal state.
+        if (state == null) _endRun(null);
       },
     );
   }
@@ -353,6 +365,10 @@ class ThreadViewState {
     if (_isDisposed) return;
     if (_spawner.cancel()) {
       _sessionState.value = null;
+      // Cancelled before the spawn returned, so its id never reaches us
+      // even if the backend went on to name one. Nothing here will
+      // report on the send.
+      _endRun(null);
       return;
     }
     _activeSession.value?.cancel();
@@ -393,7 +409,7 @@ class ThreadViewState {
       case CompletedState(:final conversation, :final runId):
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
-        _endedRun.value = runId;
+        _endRun(runId);
       case FailedState(
           :final conversation,
           :final reason,
@@ -401,7 +417,7 @@ class ThreadViewState {
           :final runId,
         ):
         _detachSession();
-        if (runId != null) _endedRun.value = runId;
+        _endRun(runId);
         if (reason == FailureReason.authExpired) {
           // Funnel to the per-server auth funnel so the route guard
           // (and any lobby UX) can react. The screen also surfaces a
@@ -427,7 +443,7 @@ class ThreadViewState {
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
-        if (runId != null) _endedRun.value = runId;
+        _endRun(runId);
       case IdleState():
       case ToolYieldingState():
         break;
@@ -502,7 +518,7 @@ class ThreadViewState {
     switch (outcome) {
       case CompletedRun(:final conversation, :final runId):
         _messages.value = _messagesLoaded(conversation);
-        _endedRun.value = runId;
+        _endRun(runId);
       case FailedRun(:final conversation, :final error, :final reason):
         // Apply friendly copy on re-attach, same as the live FailedState arm.
         _lastSendError.value =
@@ -510,10 +526,14 @@ class ThreadViewState {
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
+        // Neither outcome carries a run id, so neither can be read by
+        // one; both still say the send is over.
+        _endRun(null);
       case CancelledRun(:final conversation):
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
+        _endRun(null);
     }
   }
 

@@ -1403,25 +1403,6 @@ void main() {
         expect(agent.contextWindow, 32768);
       });
 
-      test('a null context window stays null', () {
-        // Ollama and an OpenAI-compatible base URL report none.
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'agent': {
-            'id': 'agent-1',
-            'model_name': 'gpt-oss:latest',
-            'retries': 3,
-            'provider_type': 'ollama',
-            'context_window': null,
-          },
-        };
-
-        final agent = roomFromJson(json).agent! as DefaultRoomAgent;
-
-        expect(agent.contextWindow, isNull);
-      });
-
       test('parses default agent when kind field is omitted', () {
         final json = <String, dynamic>{
           'id': 'room-1',

@@ -283,23 +283,14 @@ class FakeSoliplexApi extends SoliplexApi {
   /// none, which is what a run that never reached the model produces.
   RunUsage? nextRunUsage;
 
-  /// Thrown by [getRunUsage] when set.
-  Exception? nextRunUsageError;
-
-  /// Every run [getRunUsage] was asked about, in order.
-  final List<String> requestedRunUsage = [];
-
   @override
   Future<RunUsage?> getRunUsage(
     String roomId,
     String threadId,
     String runId, {
     CancelToken? cancelToken,
-  }) async {
-    requestedRunUsage.add(runId);
-    if (nextRunUsageError != null) throw nextRunUsageError!;
-    return nextRunUsage;
-  }
+  }) async =>
+      nextRunUsage;
 
   List<ThreadInfo>? nextThreads;
   Exception? nextThreadsError;

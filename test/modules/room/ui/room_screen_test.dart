@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/context_gauge.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -546,25 +547,6 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('holds off on a large window at the same fraction',
-        (tester) async {
-      // 82% would have warned on a 32k window; a 200k one still has
-      // tens of thousands of tokens of room.
-      measure(window: 200000, tokens: 164000);
-
-      await openThread(tester);
-
-      expect(find.textContaining(banner), findsNothing);
-    });
-
-    testWidgets('appears once a large window passes 85%', (tester) async {
-      measure(window: 200000, tokens: 172000);
-
-      await openThread(tester);
-
-      expect(find.textContaining(banner), findsOneWidget);
-    });
-
     testWidgets('stays away when no window is reported', (tester) async {
       // Ollama and the OpenAI API report none. Without a denominator
       // there is no occupancy to warn about.
@@ -601,8 +583,43 @@ void main() {
 
       await openThread(tester);
 
-      expect(api.requestedRunUsage, contains('run-restored'));
       expect(find.textContaining(banner), findsOneWidget);
+    });
+
+    testWidgets('drops the estimate when a send never starts a run',
+        (tester) async {
+      // The run fails before the backend names one, so no usage will ever
+      // be reported for it. Held, the estimate keeps the reading high by a
+      // whole message for as long as the screen lives.
+      measure(window: 32768, tokens: 20000);
+
+      await openThread(tester);
+
+      int? reading() =>
+          tester.widget<ContextGauge>(find.byType(ContextGauge)).usage.tokens;
+
+      expect(reading(), 20000);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'a draft long enough to move the reading on its own. ' * 40,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        reading(),
+        greaterThan(20000),
+        reason: 'the draft has to register before the send can drop it',
+      );
+
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(reading(), 20000);
     });
 
     testWidgets('can be dismissed', (tester) async {

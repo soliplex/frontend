@@ -479,6 +479,58 @@ void main() {
       await runtimeManager.dispose();
     });
 
+    test('a spawn that never produced a session reports an ending', () async {
+      // Nothing will ever report on the send, so a subscriber holding an
+      // estimate in its place has to hear that it is over.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      // Dispose the runtime so spawn throws.
+      await runtimeManager.dispose();
+      await state.sendMessage([TextPart('Hello')], runtime);
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(state.endedRun.value.$1, 1);
+      expect(state.endedRun.value.$2, isNull);
+
+      state.dispose();
+    });
+
+    test('a cancel before the backend names a run reports an ending', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final future = state.sendMessage([TextPart('Hello')], runtime);
+      state.cancelRun();
+      await future;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(state.endedRun.value.$1, 1);
+      expect(state.endedRun.value.$2, isNull);
+
+      state.dispose();
+    });
+
     test('run failure without conversation preserves existing messages',
         () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -779,7 +831,7 @@ void main() {
       state.dispose();
     });
 
-    test('session completing clears activeSession without crash', () async {
+    test('session completing clears activeSession and names its run', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -810,6 +862,10 @@ void main() {
 
       // CompletedState triggers _detachSession, which clears sessionState.
       expect(state.sessionState.value, isNull);
+      // The id is the whole point of the ending: it is what a subscriber
+      // fetches the run's cost by. Without one it reads as a send nothing
+      // will ever report on.
+      expect(state.endedRun.value, (1, 'run-1'));
 
       state.dispose();
     });
@@ -1028,6 +1084,74 @@ void main() {
   });
 
   group('reconnect status', () {
+    test('a run cancelled after it was named reports it under that id',
+        () async {
+      // The model saw the request and the backend recorded what it cost,
+      // so the reading is there to be fetched -- unlike a cancel taken
+      // before the run was named.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      session.emit(
+        CancelledState.duringRun(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          runId: 'run-7',
+        ),
+      );
+
+      expect(state.endedRun.value, (1, 'run-7'));
+
+      state.dispose();
+    });
+
+    test('a run that failed before it was named reports an ending', () async {
+      // The run never reached the backend, so no usage will ever be
+      // recorded for it and no id can be fetched by.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      session.emit(
+        FailedState.preRun(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          reason: FailureReason.internalError,
+          error: 'spawn refused',
+        ),
+      );
+
+      expect(state.endedRun.value.$1, 1);
+      expect(state.endedRun.value.$2, isNull);
+
+      state.dispose();
+    });
+
     test(
       'FailedState with streamResumeFailed reason maps to friendly '
       'SendError copy',
