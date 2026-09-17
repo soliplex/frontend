@@ -436,6 +436,19 @@ void main() {
   });
 
   group('a send that never reached a run', () {
+    test('notifies nothing when there is no estimate to drop', () async {
+      // The ending subscription calls this from inside a build, where a
+      // notification is a rebuild begun inside one. It is safe only
+      // because a controller holding no estimate has none to release.
+      final controller = build();
+      var notifications = 0;
+      controller.addListener(() => notifications++);
+
+      controller.sendFailed();
+
+      expect(notifications, 0);
+    });
+
     test('releases the estimate holding its place', () async {
       final controller = build()
         ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))

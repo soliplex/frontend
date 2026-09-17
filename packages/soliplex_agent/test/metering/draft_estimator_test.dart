@@ -43,6 +43,13 @@ void main() {
       expect(estimateDraftTokens(json), greaterThan(json.length ~/ 4));
     });
 
+    test('charges an image sent with no caption', () {
+      // An image on its own is a message someone is writing. Read as an
+      // empty draft it costs nothing, and a picture reaches the model
+      // with the gauge saying the thread gained no tokens.
+      expect(estimateDraftTokens('', images: 1), greaterThan(1000));
+    });
+
     test('charges an image what a model will, not what its marker costs', () {
       // The composer names an image with a single code unit. Counted as
       // text that is a couple of tokens, against a real cost in the
