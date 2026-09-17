@@ -223,6 +223,22 @@ void main() {
       expect(controller.canSend, isTrue);
     });
 
+    test('counts only the images a send would carry', () {
+      // The estimate charges thousands of tokens per image, so counting a
+      // placeholder puts a picture on the gauge that is not there, and
+      // missing a real one reads the send low.
+      final controller = _controller()..insertImagesAtCaret([_image(1)]);
+
+      expect(controller.draftImageCount, 1);
+
+      controller.restoreDraft(
+        draftOf([const TextPart(draftText), _image(1)]),
+      );
+
+      expect(controller.draftImageCount, 0);
+      expect(controller.canSend, isFalse);
+    });
+
     test('restoring puts an unavailable placeholder where each image was', () {
       final controller = _controller();
 

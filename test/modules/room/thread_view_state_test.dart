@@ -825,7 +825,7 @@ void main() {
       state.dispose();
     });
 
-    test('session completing clears activeSession without crash', () async {
+    test('session completing clears activeSession and names its run', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -856,6 +856,10 @@ void main() {
 
       // CompletedState triggers _detachSession, which clears sessionState.
       expect(state.sessionState.value, isNull);
+      // The id is the whole point of the ending: it is what a subscriber
+      // fetches the run's cost by. Without one it reads as a send nothing
+      // will ever report on.
+      expect(state.endedRun.value, (1, 'run-1'));
 
       state.dispose();
     });
@@ -1072,6 +1076,40 @@ void main() {
   });
 
   group('reconnect status', () {
+    test('a run cancelled after it was named reports it under that id',
+        () async {
+      // The model saw the request and the backend recorded what it cost,
+      // so the reading is there to be fetched -- unlike a cancel taken
+      // before the run was named.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      session.emit(
+        CancelledState.duringRun(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          runId: 'run-7',
+        ),
+      );
+
+      expect(state.endedRun.value, (1, 'run-7'));
+
+      state.dispose();
+    });
+
     test('a run that failed before it was named reports an ending', () async {
       // The run never reached the backend, so no usage will ever be
       // recorded for it and no id can be fetched by.
