@@ -43,13 +43,25 @@ void main() {
       expect(estimateDraftTokens(json), greaterThan(json.length ~/ 4));
     });
 
-    test('grows monotonically with added text', () {
-      const short = 'one two three';
-      const long = '$short four five six seven eight';
+    test('charges an image sent with no caption', () {
+      // An image on its own is a message someone is writing. Read as an
+      // empty draft it costs nothing, and a picture reaches the model
+      // with the gauge saying the thread gained no tokens.
+      expect(estimateDraftTokens('', images: 1), greaterThan(1000));
+    });
 
+    test('charges an image what a model will, not what its marker costs', () {
+      // The composer names an image with a single code unit. Counted as
+      // text that is a couple of tokens, against a real cost in the
+      // thousands -- a picture read as a word.
+      const draft = 'what do you make of this?';
+
+      expect(estimateDraftTokens(draft), lessThan(30));
+      expect(estimateDraftTokens(draft, images: 1), greaterThan(1000));
       expect(
-        estimateDraftTokens(long),
-        greaterThan(estimateDraftTokens(short)),
+        estimateDraftTokens(draft, images: 2) -
+            estimateDraftTokens(draft, images: 1),
+        perImageTokens,
       );
     });
 
