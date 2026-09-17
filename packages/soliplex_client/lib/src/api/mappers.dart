@@ -584,8 +584,9 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
 ///
 /// The run id is not on the usage record: it is nested under its run in
 /// the thread listing, and addressed by run in the usage endpoint, so the
-/// caller always knows it. `final_input_tokens` and `resolved_model_name`
-/// are nullable on the wire and absent from a backend that predates them.
+/// caller always knows it. `final_input_tokens`, `resolved_model_name`,
+/// `final_output_tokens` and `measured_at` are nullable on the wire and
+/// absent from a backend that predates them.
 RunUsage runUsageFromJson(String runId, Map<String, dynamic> json) {
   return RunUsage(
     runId: runId,
@@ -597,6 +598,12 @@ RunUsage runUsageFromJson(String runId, Map<String, dynamic> json) {
         intOrNull(json['final_input_tokens'], 'final_input_tokens'),
     resolvedModelName:
         stringOrNull(json['resolved_model_name'], 'resolved_model_name'),
+    finalOutputTokens:
+        intOrNull(json['final_output_tokens'], 'final_output_tokens'),
+    measuredAt: _tryParseTimestamp(
+      stringOrNull(json['measured_at'], 'measured_at'),
+      subsystem: 'soliplex_client.run_usage',
+    ),
   );
 }
 
