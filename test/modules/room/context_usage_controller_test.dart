@@ -11,14 +11,25 @@ const _roomId = 'room-1';
 const _threadId = 'thread-1';
 const _noDebounce = Duration.zero;
 
-RunUsage _usage(String runId, {int? finalInputTokens}) => RunUsage(
+RunUsage _usage(
+  String runId, {
+  int? finalInputTokens,
+  int? finalOutputTokens,
+  DateTime? measuredAt,
+}) =>
+    RunUsage(
       runId: runId,
       inputTokens: 9999,
       outputTokens: 1,
       requests: 1,
       toolCalls: 0,
       finalInputTokens: finalInputTokens,
+      finalOutputTokens: finalOutputTokens,
+      measuredAt: measuredAt,
     );
+
+/// The backend's clock, [minutes] into the session.
+DateTime _at(int minutes) => DateTime.utc(2026, 9, 17, 10, minutes);
 
 ThreadHistory _history(RunUsage? latest) =>
     ThreadHistory(messages: const [], latestUsage: latest);
@@ -99,6 +110,18 @@ void main() {
       expect(controller.usage.tokens, 1800);
       expect(controller.usage.isExact, isTrue);
       expect(controller.measured?.runId, 'run-1');
+    });
+
+    test('counts the reply the next request will carry', () async {
+      // The last request's input is what the model saw; its reply is
+      // what the thread now ends with, and rides in the next request.
+      final controller = build()
+        ..historyLoaded(_history(
+          _usage('run-1', finalInputTokens: 1800, finalOutputTokens: 200),
+        ));
+
+      expect(controller.usage.tokens, 2000);
+      expect(controller.usage.isExact, isTrue);
     });
 
     test('notifies once when the reading moves', () async {
@@ -185,19 +208,26 @@ void main() {
   });
 
   group('the newest measurement', () {
+    // Which of two measurements is newer is the backend's clock to say:
+    // a usage record carries the time it was recorded, and the reading
+    // is about the last request the model saw, wherever it was asked.
     test('is not displaced by a slower answer about an older run', () async {
       // Two runs end in quick succession and their fetches race. The
-      // reading is about the last request the model saw, so the older
-      // run's answer is not news however late it arrives.
+      // older run's answer is not news however late it arrives.
       final slowAnswer = Completer<RunUsage?>();
       when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
           .thenAnswer((_) => slowAnswer.future);
-      runAnswers('run-3', _usage('run-3', finalInputTokens: 4000));
+      runAnswers(
+        'run-3',
+        _usage('run-3', finalInputTokens: 4000, measuredAt: _at(2)),
+      );
       final controller = build();
 
       final pending = controller.runEnded('run-2');
       await controller.runEnded('run-3');
-      slowAnswer.complete(_usage('run-2', finalInputTokens: 1000));
+      slowAnswer.complete(
+        _usage('run-2', finalInputTokens: 1000, measuredAt: _at(1)),
+      );
       await pending;
 
       expect(controller.usage.tokens, 4000);
@@ -205,17 +235,65 @@ void main() {
     });
 
     test('is not displaced by a history load that resolves later', () async {
-      // The history is a seed, not a correction: it was fetched before
-      // this run ended, so it cannot be newer than it.
-      runAnswers('run-2', _usage('run-2', finalInputTokens: 2400));
+      // The history was fetched before this run ended, and the clock
+      // says so.
+      runAnswers(
+        'run-2',
+        _usage('run-2', finalInputTokens: 2400, measuredAt: _at(2)),
+      );
       final controller = build();
       await controller.runEnded('run-2');
 
-      controller
-          .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+      controller.historyLoaded(_history(
+        _usage('run-1', finalInputTokens: 1800, measuredAt: _at(1)),
+      ));
 
       expect(controller.usage.tokens, 2400);
       expect(controller.measured?.runId, 'run-2');
+    });
+
+    test('is corrected by a history that is newer than it', () async {
+      // The thread was run from another client after this one's run
+      // ended. The history is the only way that measurement arrives
+      // here, and the clock is what says it is the newer.
+      runAnswers(
+        'run-2',
+        _usage('run-2', finalInputTokens: 2400, measuredAt: _at(2)),
+      );
+      final controller = build();
+      await controller.runEnded('run-2');
+
+      controller.historyLoaded(_history(
+        _usage('run-9', finalInputTokens: 6000, measuredAt: _at(3)),
+      ));
+
+      expect(controller.usage.tokens, 6000);
+      expect(controller.measured?.runId, 'run-9');
+    });
+
+    group('from a backend that records no time', () {
+      // Only the order things arrive in is left. A run's answer is newer
+      // than whatever it displaces, since runs end in order; a history
+      // seed was fetched before any run this controller watched.
+      test("a run's answer displaces what is in hand", () async {
+        runAnswers('run-2', _usage('run-2', finalInputTokens: 2400));
+        final controller = build()
+          ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+        await controller.runEnded('run-2');
+
+        expect(controller.measured?.runId, 'run-2');
+      });
+
+      test('a history seed does not', () async {
+        runAnswers('run-2', _usage('run-2', finalInputTokens: 2400));
+        final controller = build();
+        await controller.runEnded('run-2');
+
+        controller
+            .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+
+        expect(controller.measured?.runId, 'run-2');
+      });
     });
 
     test('is taken from the history when a fetch produced none', () async {

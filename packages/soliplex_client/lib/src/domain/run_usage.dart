@@ -6,6 +6,9 @@ import 'package:meta/meta.dart';
 /// loop reports several times the context actually sent. [finalInputTokens]
 /// is the last request alone, which is what says how full the context
 /// window was — and it is null for a run that never reached the model.
+/// The reply to that request is the thread's newest message, and the next
+/// request carries it as input, so [contextTokens] adds
+/// [finalOutputTokens] to it.
 ///
 /// Nothing here is an estimate: the provider counted the request as sent,
 /// instructions, tool and MCP schemas, chat template and images included.
@@ -20,6 +23,8 @@ class RunUsage {
     required this.toolCalls,
     this.finalInputTokens,
     this.resolvedModelName,
+    this.finalOutputTokens,
+    this.measuredAt,
   });
 
   /// The run this usage belongs to.
@@ -45,8 +50,31 @@ class RunUsage {
   /// configured name.
   final String? resolvedModelName;
 
+  /// Output tokens of the run's last model request — the reply the thread
+  /// now ends with — or null when the run never reached the model, or the
+  /// backend predates the field.
+  final int? finalOutputTokens;
+
+  /// When the backend recorded this usage, or null from a backend that
+  /// predates the field.
+  ///
+  /// What says which of two measurements is the newer: a client can learn
+  /// of them out of order, and a thread can be run from more than one.
+  final DateTime? measuredAt;
+
   /// Whether this run says anything about the context window.
   bool get isMeasured => finalInputTokens != null;
+
+  /// Tokens the thread occupies after this run, or null when unmeasured.
+  ///
+  /// The last request's input plus its reply, which the next request will
+  /// carry. A backend that reports no reply count leaves the reading one
+  /// reply short rather than unmeasured.
+  int? get contextTokens {
+    final input = finalInputTokens;
+    if (input == null) return null;
+    return input + (finalOutputTokens ?? 0);
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -58,7 +86,9 @@ class RunUsage {
           other.requests == requests &&
           other.toolCalls == toolCalls &&
           other.finalInputTokens == finalInputTokens &&
-          other.resolvedModelName == resolvedModelName;
+          other.resolvedModelName == resolvedModelName &&
+          other.finalOutputTokens == finalOutputTokens &&
+          other.measuredAt == measuredAt;
 
   @override
   int get hashCode => Object.hash(
@@ -69,9 +99,12 @@ class RunUsage {
         toolCalls,
         finalInputTokens,
         resolvedModelName,
+        finalOutputTokens,
+        measuredAt,
       );
 
   @override
-  String toString() => 'RunUsage($runId, final: ${finalInputTokens ?? "?"}, '
-      'model: $resolvedModelName)';
+  String toString() => 'RunUsage($runId, final: ${finalInputTokens ?? "?"}'
+      '+${finalOutputTokens ?? "?"}, model: $resolvedModelName, '
+      'at: $measuredAt)';
 }
