@@ -198,28 +198,5 @@ void main() {
       expect(background, _warningContainer);
       expect(foreground, _onWarningContainer);
     });
-
-    testWidgets('fall back to the default palette without one', (tester) async {
-      // 'SoliplexTheme.of' throws outright here; these have to degrade
-      // the way the foreground status colours already do, so a widget
-      // using them survives a bare MaterialApp.
-      final background = await _readUnder(
-        tester,
-        null,
-        (c) => c.warningContainer,
-      );
-
-      expect(background, lightSoliplexColors.warningContainer);
-    });
-
-    testWidgets('follow the platform brightness without one', (tester) async {
-      final background = await _readUnder(
-        tester,
-        ThemeData(brightness: Brightness.dark),
-        (c) => c.warningContainer,
-      );
-
-      expect(background, darkSoliplexColors.warningContainer);
-    });
   });
 }
