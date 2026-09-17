@@ -1915,7 +1915,16 @@ class _RoomScreenState extends State<RoomScreen> {
           const ChatClassificationBand(),
           if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
           Expanded(child: _capWidth(body)),
-          _capWidth(_buildChatInput(threadView, room, messagesStatus)),
+          // The ring follows the draft, which moves on every typing
+          // pause. Rebuilding it here rather than through `setState`
+          // keeps the timeline out of it. `body` above is built first,
+          // so a thread change has already swapped the controller by
+          // the time this reads which one to listen to.
+          ListenableBuilder(
+            listenable: Listenable.merge([_contextUsage]),
+            builder: (_, __) =>
+                _capWidth(_buildChatInput(threadView, room, messagesStatus)),
+          ),
           // Last in the column so the caveat is the last thing read before
           // sending.
           _capWidth(ChatAiDisclaimer(appName: widget.appName)),
@@ -2524,14 +2533,19 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onContextUsageChanged() {
     if (!mounted) return;
 
+    final nearlyFull = _contextUsage?.usage.isNearlyFull ?? false;
+
+    // The banner is the only thing this build takes from the reading,
+    // and neither it nor the flag re-arming it has moved. The ring
+    // rebuilds through its own listener.
+    if (!nearlyFull && !_contextWarningDismissed) return;
+
     setState(() {
       // Re-arm the warning once the thread drops back under the
       // threshold, so a banner dismissed at 81% returns if the
       // conversation climbs again. Done here rather than in 'build',
       // which must not mutate state.
-      if (!(_contextUsage?.usage.isNearlyFull ?? false)) {
-        _contextWarningDismissed = false;
-      }
+      if (!nearlyFull) _contextWarningDismissed = false;
     });
   }
 
