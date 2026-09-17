@@ -153,6 +153,23 @@ class ContextUsageController extends ChangeNotifier {
     // a request the model has since moved past.
     if (_disposed || fetch != _fetches) return;
 
+    if (found == null || !found.isMeasured) {
+      // The reading goes stale here without changing, which looks from
+      // the outside exactly like a reading that was already current.
+      // `hasRecord` separates the causes: no record is the backend
+      // saying the run produced no usage, while a record without a count
+      // can be a run the model did see whose provider reported no prompt
+      // tokens.
+      _logger.info(
+        'Run reported no measurement; the previous reading stands',
+        attributes: {
+          'threadId': _threadId,
+          'runId': runId,
+          'hasRecord': found != null,
+        },
+      );
+    }
+
     _measure(found, releasing: heldAtRequest);
   }
 

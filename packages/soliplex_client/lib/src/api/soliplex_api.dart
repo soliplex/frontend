@@ -1279,7 +1279,14 @@ class SoliplexApi {
       if (runId is! String || runId.isEmpty) continue;
       try {
         return runUsageFromJson(runId, usage);
-      } on FormatException {
+      } on FormatException catch (e) {
+        // The thread reports no measurement from here, which on its own
+        // reads as a thread nobody has counted. This says the record was
+        // there and could not be read, and names which one.
+        _logger.warning(
+          'Usage record could not be read; the thread reports none',
+          attributes: {'runId': runId, 'failure': describeFailure(e)},
+        );
         return null;
       }
     }
