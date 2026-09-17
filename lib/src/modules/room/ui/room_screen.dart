@@ -2446,6 +2446,11 @@ class _RoomScreenState extends State<RoomScreen> {
                   computeDisplayMessages(messages, streaming).isEmpty
                       ? RoomWelcome(
                           room: room,
+                          // Deliberately unbanked, unlike the
+                          // composer's own send: banking clears the
+                          // draft term, and the composer below keeps
+                          // its text through this. One suggestion goes
+                          // uncounted until the run reports.
                           onSuggestionTapped: (suggestion) =>
                               threadView.sendMessage(
                             [TextPart(suggestion)],
