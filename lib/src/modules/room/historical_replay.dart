@@ -74,16 +74,38 @@ Map<String, ExecutionTracker> replayToTrackers(
   }
 
   for (final bundle in runs) {
-    final hasAssistantStart = bundle.events.any(
-      (e) => e is TextMessageStartEvent && e.role == TextMessageRole.assistant,
+    // Ids that carried text, and ids a tool call named. A message with neither
+    // was opened only to make that call's `parentMessageId` real
+    // (`existsOnlyForToolCall`), so the timeline leaves it out and a bucket
+    // hung on it would render nowhere; its stretch flows to the reply that
+    // follows. A delta of nothing, or of whitespace, leaves nothing to read
+    // and so does not count as text.
+    //
+    // An empty message no call named is a reply that genuinely said nothing.
+    // The timeline shows that one, so it keeps its bucket.
+    final spokenIds = {
+      for (final e in bundle.events)
+        if (e is TextMessageContentEvent && e.delta.trim().isNotEmpty)
+          e.messageId,
+    };
+    final namedIds = {
+      for (final e in bundle.events)
+        if (e is ToolCallStartEvent && e.parentMessageId != null)
+          e.parentMessageId!,
+    };
+    bool opensABucket(TextMessageStartEvent e) =>
+        e.role == TextMessageRole.assistant &&
+        !(namedIds.contains(e.messageId) && !spokenIds.contains(e.messageId));
+
+    final hasSpokenAssistant = bundle.events.any(
+      (e) => e is TextMessageStartEvent && opensABucket(e),
     );
     final hasToolCall = bundle.events.any((e) => e is ToolCallStartEvent);
 
-    if (hasAssistantStart) {
+    if (hasSpokenAssistant) {
       String? currentMessageId;
       for (final raw in bundle.events) {
-        if (raw is TextMessageStartEvent &&
-            raw.role == TextMessageRole.assistant) {
+        if (raw is TextMessageStartEvent && opensABucket(raw)) {
           final messageId = raw.messageId;
           currentMessageId = messageId;
           buckets.putIfAbsent(messageId, () => []);

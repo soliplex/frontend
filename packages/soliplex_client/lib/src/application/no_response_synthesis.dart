@@ -125,6 +125,9 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
 /// yield never reaches the cancel path: `cancelRun` handles
 /// `ToolYieldingState` in its own branch, so an unresolved tool call seen here
 /// after a cancel is a backend call mid-flight, which shows the user nothing.
+///
+/// Both policies also accept a run that left nothing to read
+/// ([_leftNothingToRead]), whatever it was thinking at the time.
 NoResponseSynthesisResult _synthesize({
   required Conversation conversation,
   required StreamingState streaming,
@@ -136,8 +139,9 @@ NoResponseSynthesisResult _synthesize({
     return (conversation: conversation, synthesized: false);
   }
   final synthesize = preserveWhateverWasShown
-      ? streaming.hasThinkingContent
-      : streaming.bufferedThinkingText.isNotEmpty &&
+      ? streaming.hasThinkingContent || _leftNothingToRead(conversation)
+      : (streaming.bufferedThinkingText.isNotEmpty ||
+              _leftNothingToRead(conversation)) &&
           !_hasUnresolvedToolCalls(conversation);
   if (!synthesize) {
     return (conversation: conversation, synthesized: false);
@@ -219,6 +223,17 @@ Conversation commitPartialTextOnTerminal({
     ),
   );
 }
+
+/// Whether the run ends on a message the timeline does not show.
+///
+/// A response that begins with a tool call leaves only the message opened to
+/// name that call, and `existsOnlyForToolCall` keeps it off the timeline. With
+/// no tile for the run, the execution steps the user watched have nothing to
+/// attach to and the assistant side of the turn disappears — so the run is owed
+/// a tile even though it buffered no thinking to report.
+bool _leftNothingToRead(Conversation conversation) =>
+    conversation.messages.isNotEmpty &&
+    existsOnlyForToolCall(conversation.messages.last);
 
 bool _hasUnresolvedToolCalls(Conversation conversation) {
   for (final tc in conversation.toolCalls) {

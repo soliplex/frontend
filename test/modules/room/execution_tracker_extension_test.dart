@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
@@ -158,4 +159,112 @@ void main() {
       returnsNormally,
     );
   });
+
+  test('a run cut off while reasoning keeps its band on the tile that commits',
+      () {
+    // The reply opened but never spoke, so it holds no band; a terminal
+    // arriving here commits it anyway, for the reasoning the user watched
+    // stream. That tile is the only thing standing for the run, so the band
+    // has to reach it.
+    session.emitRunState(
+      const RunningState(
+        threadKey: _key,
+        runId: _runId,
+        conversation: Conversation(threadId: _threadId),
+        streaming: AwaitingText(bufferedThinkingText: 'reasoning'),
+      ),
+    );
+    session.emitRunState(
+      RunningState(
+        threadKey: _key,
+        runId: _runId,
+        conversation: const Conversation(threadId: _threadId),
+        streaming: const TextStreaming(
+          messageId: 'asst-1',
+          user: ChatUser.assistant,
+          text: '',
+          thinkingText: 'reasoning',
+        ),
+      ),
+    );
+
+    // cancelRun commits the partial reply under its own id.
+    session.emitRunState(
+      CancelledState.duringRun(
+        threadKey: _key,
+        runId: _runId,
+        conversation: _conversationWith([
+          TextMessage.create(
+            id: 'asst-1',
+            user: ChatUser.assistant,
+            text: '',
+            thinkingText: 'reasoning',
+          ),
+        ]),
+      ),
+    );
+
+    expect(
+      ext.trackers['asst-1'],
+      isNotNull,
+      reason: 'the committed tile renders the reasoning; its execution steps '
+          'must not be left under a key nothing reads',
+    );
+  });
+
+  test('a run whose reply spoke reports no handover', () {
+    // The reply took the band by speaking, so there is nothing to hand over.
+    // Asking anyway makes the registry report a tile losing its timeline on
+    // every ordinary run, which is how a diagnostics buffer becomes unreadable.
+    final sink = _RecordingSink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+
+    session.emitRunState(
+      const RunningState(
+        threadKey: _key,
+        runId: _runId,
+        conversation: Conversation(threadId: _threadId),
+        streaming: TextStreaming(
+          messageId: 'asst-1',
+          user: ChatUser.assistant,
+          text: 'The answer.',
+        ),
+      ),
+    );
+    session.emitRunState(
+      CompletedState(
+        threadKey: _key,
+        runId: _runId,
+        conversation: _conversationWith([
+          TextMessage.create(
+            id: 'asst-1',
+            user: ChatUser.assistant,
+            text: 'The answer.',
+          ),
+        ]),
+      ),
+    );
+
+    expect(ext.trackers['asst-1'], isNotNull);
+    expect(sink.warnings, isEmpty);
+  });
+}
+
+/// Captures warnings the registry emits, so a report that fires on an ordinary
+/// run is a test failure rather than noise nobody reads.
+class _RecordingSink implements LogSink {
+  final List<LogRecord> records = [];
+
+  List<LogRecord> get warnings =>
+      records.where((r) => r.level == LogLevel.warning).toList();
+
+  @override
+  void write(LogRecord record) => records.add(record);
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }
