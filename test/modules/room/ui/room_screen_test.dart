@@ -1773,6 +1773,113 @@ void main() {
     });
   });
 
+  group('database selector', () {
+    Room roomWith(List<String> names) => Room(
+          id: 'room-1',
+          name: 'Test Room',
+          skills: {
+            'rag': RoomSkill(
+              name: 'rag',
+              description: '',
+              stateNamespace: 'rag',
+              extraParameters: {'database_names': names},
+            ),
+          },
+        );
+
+    Future<void> pumpRoom(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: soliplexLightTheme(),
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('offers the databases the room manifest names', (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+
+      await pumpRoom(tester);
+
+      expect(find.text('papers'), findsOneWidget);
+      expect(find.text('wiki'), findsOneWidget);
+      expect(find.text('Searching all 2 databases'), findsOneWidget);
+    });
+
+    testWidgets('offers nothing for a single database', (tester) async {
+      api.nextRoom = roomWith(['only']);
+
+      await pumpRoom(tester);
+
+      expect(find.text('only'), findsNothing);
+      expect(find.textContaining('Searching'), findsNothing);
+    });
+
+    testWidgets('a tap narrows the selection; the last one stays',
+        (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+
+      await pumpRoom(tester);
+      await tester.tap(find.text('wiki'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+
+      // The remaining one cannot be deselected.
+      await tester.tap(find.text('papers'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+
+      // Re-selecting the other returns to the default.
+      await tester.tap(find.text('wiki'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Searching all 2 databases'), findsOneWidget);
+    });
+
+    testWidgets('a thread\'s history seeds its selection', (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        databaseSources: const ['wiki'],
+      );
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: soliplexLightTheme(),
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+    });
+  });
+
   group('rail account menu', () {
     FakeHttpClient profileClient(
       Map<String, dynamic> profile, {

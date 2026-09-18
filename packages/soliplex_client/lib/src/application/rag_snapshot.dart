@@ -16,6 +16,11 @@ const ragStateKey = 'rag';
 
 const String _ragDocumentFilterKey = 'document_filter';
 
+/// The key under a haiku.rag capability's state that names the databases a
+/// search covers. Lives on `EvidenceState`, so every capability namespace
+/// (`rag`, `analysis`) carries one.
+const String ragSourcesKey = 'sources';
+
 /// Builds a partial `aguiState` overlay that sets the rag namespace's
 /// `document_filter`. Other rag fields are left untouched by the
 /// backend's state-merge semantics.
@@ -27,6 +32,31 @@ Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
     ragStateKey: <String, dynamic>{
       _ragDocumentFilterKey: filter,
     },
+  };
+}
+
+/// Builds a partial `aguiState` overlay that sets `sources` — the databases a
+/// search covers — in each of [namespaces].
+///
+/// `null` is the backend default and means every database the capability is
+/// configured over. A list narrows the search to those names, which must be
+/// among the ones the room's manifest lists (an unknown name fails the run).
+/// An empty list is never sent: the backend reads it as "search nothing",
+/// which no selector should be able to express, so it is normalised to
+/// `null` here.
+///
+/// Every haiku.rag capability keeps its own copy of the field, so a room with
+/// both the `rag` and `analysis` skills needs the selection written to both.
+Map<String, dynamic> buildRagSourcesOverlay(
+  List<String>? sources, {
+  Iterable<String> namespaces = const [ragStateKey],
+}) {
+  final value = sources == null || sources.isEmpty
+      ? null
+      : List<String>.unmodifiable(sources);
+  return {
+    for (final namespace in namespaces)
+      namespace: <String, dynamic>{ragSourcesKey: value},
   };
 }
 

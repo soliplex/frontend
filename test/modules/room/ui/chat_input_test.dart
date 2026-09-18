@@ -340,6 +340,90 @@ void main() {
     expect(find.byIcon(Icons.filter_alt), findsNothing);
   });
 
+  group('database chips', () {
+    Widget host({
+      List<String> names = const ['papers', 'wiki', 'notes'],
+      Set<String> selected = const {},
+      void Function(String name, {required bool selected})? onToggled,
+      ReadonlySignal<AgentSessionState?>? sessionState,
+    }) =>
+        MaterialApp(
+          theme: soliplexLightTheme(),
+          home: Scaffold(
+            body: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+              sessionState: sessionState,
+              databaseNames: names,
+              selectedDatabases: selected,
+              onDatabaseToggled: onToggled,
+            ),
+          ),
+        );
+
+    testWidgets('shows one chip per database and an all-databases summary',
+        (tester) async {
+      await tester.pumpWidget(host());
+
+      expect(find.text('papers'), findsOneWidget);
+      expect(find.text('wiki'), findsOneWidget);
+      expect(find.text('notes'), findsOneWidget);
+      expect(find.text('Searching all 3 databases'), findsOneWidget);
+      // Every chip reads selected while the selection is the default.
+      expect(
+        tester.widgetList<SoliplexChip>(find.byType(SoliplexChip)).length,
+        3,
+      );
+    });
+
+    testWidgets('hidden for a single database', (tester) async {
+      await tester.pumpWidget(host(names: const ['only']));
+
+      expect(find.text('only'), findsNothing);
+      expect(find.byType(SoliplexChip), findsNothing);
+    });
+
+    testWidgets('summarises a narrowed selection', (tester) async {
+      await tester.pumpWidget(host(selected: const {'papers'}));
+
+      expect(find.text('Searching 1 of 3 databases'), findsOneWidget);
+    });
+
+    testWidgets('reports a tap with the chip\'s new state', (tester) async {
+      final toggles = <(String, bool)>[];
+      await tester.pumpWidget(
+        host(
+          selected: const {'papers', 'wiki'},
+          onToggled: (name, {required selected}) =>
+              toggles.add((name, selected)),
+        ),
+      );
+
+      await tester.tap(find.text('papers'));
+      await tester.tap(find.text('notes'));
+      await tester.pump();
+
+      expect(toggles, [('papers', false), ('notes', true)]);
+    });
+
+    testWidgets('does not report taps during an active run', (tester) async {
+      final toggles = <(String, bool)>[];
+      final state = signal<AgentSessionState?>(AgentSessionState.running);
+      await tester.pumpWidget(
+        host(
+          sessionState: state,
+          onToggled: (name, {required selected}) =>
+              toggles.add((name, selected)),
+        ),
+      );
+
+      await tester.tap(find.text('papers'));
+      await tester.pump();
+
+      expect(toggles, isEmpty);
+    });
+  });
+
   group('document chips', () {
     testWidgets('displays selected document chips', (tester) async {
       final docs = {
