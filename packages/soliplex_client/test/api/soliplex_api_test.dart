@@ -1384,6 +1384,184 @@ void main() {
     // Runs
     // ============================================================
 
+    group('getRunUsage', () {
+      late MockSoliplexHttpClient mockClient;
+      late SoliplexApi liveApi;
+      Uri? capturedUri;
+
+      setUp(() {
+        mockClient = MockSoliplexHttpClient();
+        liveApi = SoliplexApi(
+          transport: HttpTransport(client: mockClient),
+          urlBuilder: urlBuilder,
+        );
+        when(() => mockClient.close()).thenReturn(null);
+        capturedUri = null;
+      });
+
+      tearDown(() {
+        liveApi.close();
+        reset(mockClient);
+      });
+
+      /// The transport is real here: decoding a `null` body is the
+      /// behaviour under test, and a mocked transport would never run it.
+      void answerWithJson(String body) {
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(body)),
+            headers: const {'content-type': 'application/json'},
+          );
+        });
+      }
+
+      test('GETs the usage path and decodes the record', () async {
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 5400,
+            'output_tokens': 300,
+            'requests': 3,
+            'tool_calls': 2,
+            'final_input_tokens': 1800,
+            'resolved_model_name': 'gpt-oss:latest',
+            'final_output_tokens': 120,
+            'measured_at': '2026-09-17T10:02:00.000000',
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(
+          capturedUri?.path,
+          endsWith('/rooms/room-123/agui/thread-456/run-789/usage'),
+        );
+        expect(
+          found,
+          RunUsage(
+            runId: 'run-789',
+            inputTokens: 5400,
+            outputTokens: 300,
+            requests: 3,
+            toolCalls: 2,
+            finalInputTokens: 1800,
+            resolvedModelName: 'gpt-oss:latest',
+            finalOutputTokens: 120,
+            measuredAt: DateTime.utc(2026, 9, 17, 10, 2),
+          ),
+        );
+        expect(found?.contextTokens, 1920);
+      });
+
+      test('reads an aware timestamp as the same instant', () async {
+        // Postgres hands back an offset; sqlite hands back a naive UTC.
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+            'final_input_tokens': 10,
+            'measured_at': '2026-09-17T12:02:00+02:00',
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found?.measuredAt, DateTime.utc(2026, 9, 17, 10, 2));
+      });
+
+      test('keeps the measurement when the timestamp is malformed', () async {
+        // The count is the reading; the time only orders it. Losing the
+        // order must not cost the number.
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+            'final_input_tokens': 10,
+            'measured_at': 'not a time',
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found?.finalInputTokens, 10);
+        expect(found?.measuredAt, isNull);
+      });
+
+      test('reads a run that never reached the model as null', () async {
+        // Null is the backend's answer, not a failure: the run recorded
+        // nothing, and the previous run's reading still stands.
+        answerWithJson('null');
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found, isNull);
+      });
+
+      test('tolerates a record with no measurement', () async {
+        // A backend that predates the columns sends neither.
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found?.finalInputTokens, isNull);
+        expect(found?.isMeasured, isFalse);
+        expect(found?.contextTokens, isNull);
+      });
+
+      test('reads one reply short of a backend without the reply count',
+          () async {
+        // Measured, but by a backend that predates 'final_output_tokens':
+        // the reading stands on the input alone rather than going blank.
+        answerWithJson(
+          jsonEncode({
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+            'final_input_tokens': 1800,
+          }),
+        );
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found?.contextTokens, 1800);
+      });
+
+      test('rejects an empty run id', () {
+        expect(
+          () => liveApi.getRunUsage('room-123', 'thread-456', ''),
+          throwsArgumentError,
+        );
+      });
+    });
+
     group('createRun', () {
       test('returns RunInfo', () async {
         when(
@@ -5418,6 +5596,170 @@ void main() {
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
         expect(history.documentFilter, isNull);
+      });
+    });
+
+    group('getThreadHistory latest usage', () {
+      void stubRun(String runId) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/$runId',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => {'run_id': runId, 'events': <dynamic>[]});
+      }
+
+      void stubThread(Map<String, dynamic> runs) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => {'runs': runs});
+      }
+
+      Map<String, dynamic> run(
+        String id,
+        String created, {
+        Map<String, dynamic>? usage,
+        bool finished = true,
+      }) =>
+          {
+            'run_id': id,
+            'created': created,
+            if (finished) 'finished': created,
+            if (usage != null) 'usage': usage,
+          };
+
+      Map<String, dynamic> usage({int? finalInputTokens}) => {
+            'input_tokens': 9999,
+            'output_tokens': 1,
+            'requests': 1,
+            'tool_calls': 0,
+            'final_input_tokens': finalInputTokens,
+            'resolved_model_name': 'qwen',
+          };
+
+      test('falls back across a run that measured nothing', () async {
+        // The newest run errored before reaching the model. What the
+        // model last saw is the run before it.
+        stubThread({
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+          'run-2': run('run-2', '2026-01-07T02:00:00.000Z'),
+          'run-3': run('run-3', '2026-01-07T03:00:00.000Z', usage: usage()),
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+        stubRun('run-3');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestUsage?.runId, 'run-1');
+      });
+
+      test('orders by creation, not by map position', () async {
+        stubThread({
+          'run-2': run(
+            'run-2',
+            '2026-01-07T02:00:00.000Z',
+            usage: usage(finalInputTokens: 2400),
+          ),
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestUsage?.runId, 'run-2');
+        expect(history.latestUsage?.finalInputTokens, 2400);
+      });
+
+      test('ignores a run that cannot be placed in time', () async {
+        // Without a creation time there is no way to call it the newest,
+        // and guessing puts an arbitrary run's count on screen.
+        stubThread({
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+          'run-2': {
+            'run_id': 'run-2',
+            'finished': '2026-01-07T02:00:00.000Z',
+            'usage': usage(finalInputTokens: 9),
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestUsage?.runId, 'run-1');
+      });
+
+      test(
+          'reports nothing rather than an older run when the newest '
+          'record is malformed', () async {
+        // Substituting the previous exchange's count would present a
+        // stale number as the current one, and as an exact one.
+        stubThread({
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+          'run-2': run(
+            'run-2',
+            '2026-01-07T02:00:00.000Z',
+            usage: {'final_input_tokens': 5, 'input_tokens': 'not a number'},
+          ),
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestUsage, isNull);
+      });
+
+      test('survives on a thread with no completed runs', () async {
+        // The early return before any run fetch still carries it.
+        stubThread({
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+            finished: false,
+          ),
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.messages, isEmpty);
+        expect(history.latestUsage?.finalInputTokens, 1000);
       });
     });
 

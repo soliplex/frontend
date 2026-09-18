@@ -234,6 +234,24 @@ class InlineImageComposerController extends TextEditingController {
             content is ComposerImageSlot && content.image is! InlineImage,
       );
 
+  /// How many images the draft would send: image tokens in [text] whose
+  /// bytes are still held. A slot restored without its bytes, or left
+  /// naming an image that has been released, blocks the send instead, so
+  /// neither is one of them.
+  ///
+  /// Counted from the text rather than through [contents], which a
+  /// composer listener reaches on every keystroke and every caret move:
+  /// building the content list to count it rebuilds the whole draft
+  /// through a buffer and allocates a list, for a number that only
+  /// changes when an image does.
+  int get draftImageCount {
+    var count = 0;
+    for (final unit in text.codeUnits) {
+      if (_isImageToken(unit) && _images[unit] is InlineImage) count++;
+    }
+    return count;
+  }
+
   /// How many images the composer holds bytes for. Between edits this exceeds
   /// the number of image tokens in [text] by design — a deleted image is kept
   /// so undoing the deletion brings it back — but it must reach zero once the

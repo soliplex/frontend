@@ -180,4 +180,23 @@ void main() {
       expect(colors.foreground, isNull);
     });
   });
+
+  group('status container accessors', () {
+    testWidgets('read the brand tokens when a theme is installed',
+        (tester) async {
+      final background = await _readUnder(
+        tester,
+        _themeWithContainers(),
+        (c) => c.warningContainer,
+      );
+      final foreground = await _readUnder(
+        tester,
+        _themeWithContainers(),
+        (c) => c.onWarningContainer,
+      );
+
+      expect(background, _warningContainer);
+      expect(foreground, _onWarningContainer);
+    });
+  });
 }

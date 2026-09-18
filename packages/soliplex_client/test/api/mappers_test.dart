@@ -1381,6 +1381,26 @@ void main() {
         expect(agent.systemPrompt, equals('You are helpful.'));
         expect(agent.providerType, equals('openai'));
         expect(agent.aguiFeatureNames, equals(['feature1']));
+        // Absent from an older backend; null, not a guess.
+        expect(agent.contextWindow, isNull);
+      });
+
+      test('reads the default agent context window', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'agent': {
+            'id': 'agent-1',
+            'model_name': 'gpt-oss:latest',
+            'retries': 3,
+            'provider_type': 'ollama',
+            'context_window': 32768,
+          },
+        };
+
+        final agent = roomFromJson(json).agent! as DefaultRoomAgent;
+
+        expect(agent.contextWindow, 32768);
       });
 
       test('parses default agent when kind field is omitted', () {
