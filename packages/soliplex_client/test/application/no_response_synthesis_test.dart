@@ -358,4 +358,120 @@ void main() {
       expect((result.messages.first as TextMessage).text, equals('finalized'));
     });
   });
+
+  group('a run that left nothing to read', () {
+    Conversation endingOn(
+      ChatMessage message, {
+      List<ToolCallInfo> calls = const [],
+    }) {
+      var c =
+          Conversation.empty(threadId: 'thread-1').withAppendedMessage(message);
+      for (final call in calls) {
+        c = c.withToolCall(call);
+      }
+      return c;
+    }
+
+    ChatMessage declaration() => const TextMessage(
+          id: 'decl-1',
+          user: ChatUser.assistant,
+          createdAt: null,
+          text: '',
+          namedByToolCall: true,
+        );
+
+    test('a finished run ending on one gets a tile, with no thinking', () {
+      final result = synthesizeFinishedNoResponse(
+        conversation: endingOn(
+          declaration(),
+          calls: const [
+            ToolCallInfo(
+              id: 'c1',
+              name: 'search',
+              status: ToolCallStatus.completed,
+            ),
+          ],
+        ),
+        streaming: const AwaitingText(),
+        runId: 'run-1',
+      );
+
+      expect(
+        result.synthesized,
+        isTrue,
+        reason: 'the timeline shows no tile for the run otherwise, and the '
+            'band the user watched has nowhere to attach',
+      );
+      expect(
+        result.conversation.messages.last.id,
+        equals(noResponseMessageId('run-1')),
+      );
+    });
+
+    test('a failed run ending on one gets a tile', () {
+      final result = synthesizeFailedNoResponse(
+        conversation: endingOn(declaration()),
+        streaming: const AwaitingText(),
+        runId: 'run-1',
+        errorDetail: 'boom',
+      );
+
+      expect(result.synthesized, isTrue);
+    });
+
+    test('a run ending on a reply that spoke does not', () {
+      final result = synthesizeFinishedNoResponse(
+        conversation: endingOn(
+          TextMessage.create(
+            id: 'asst-1',
+            user: ChatUser.assistant,
+            text: 'The answer.',
+          ),
+        ),
+        streaming: const AwaitingText(),
+        runId: 'run-1',
+      );
+
+      expect(result.synthesized, isFalse);
+    });
+
+    test('a run ending on an empty reply no call named does not', () {
+      final result = synthesizeFinishedNoResponse(
+        conversation: endingOn(
+          TextMessage.create(
+            id: 'asst-1',
+            user: ChatUser.assistant,
+            text: '',
+          ),
+        ),
+        streaming: const AwaitingText(),
+        runId: 'run-1',
+      );
+
+      expect(
+        result.synthesized,
+        isFalse,
+        reason: 'the timeline shows that one, so it carries the band itself',
+      );
+    });
+
+    test('a finished run yielding a tool still declines', () {
+      final result = synthesizeFinishedNoResponse(
+        conversation: endingOn(
+          declaration(),
+          calls: const [
+            ToolCallInfo(id: 'c1', name: 'search'),
+          ],
+        ),
+        streaming: const AwaitingText(),
+        runId: 'run-1',
+      );
+
+      expect(
+        result.synthesized,
+        isFalse,
+        reason: 'the turn continues in the run that resolves the call',
+      );
+    });
+  });
 }

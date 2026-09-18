@@ -858,7 +858,7 @@ void main() {
         streaming: const TextStreaming(
           messageId: 'asst-1',
           user: ChatUser.assistant,
-          text: '',
+          text: 'live',
         ),
       ));
 

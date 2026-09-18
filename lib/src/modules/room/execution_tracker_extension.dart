@@ -79,6 +79,9 @@ class ExecutionTrackerExtension extends SessionExtension
     }
     switch (runState) {
       case RunningState(:final streaming):
+        if (streaming case TextStreaming(:final messageId)) {
+          _openedMessageId = messageId;
+        }
         _registry.onStreaming(
           streaming,
           session.lastExecutionEvent,
@@ -107,24 +110,43 @@ class ExecutionTrackerExtension extends SessionExtension
     }
   }
 
-  /// If the terminal conversation contains a synthesized "no response"
-  /// assistant message for this run, rekey the awaiting tracker under
-  /// that message's id so its captured thinking attaches to the rendered
-  /// tile.
+  /// Hands the band still collecting to the tile this run left behind, so the
+  /// steps the user watched attach to something the timeline renders.
   ///
-  /// Safe to call unconditionally on every terminal transition — the
-  /// registry call is a no-op when the awaiting tracker doesn't exist or
-  /// when the synthesized id isn't present in the conversation.
+  /// Two tiles can be that: the synthesized "no response" message for this
+  /// run, and a reply that opened and streamed reasoning but was cut off
+  /// before saying anything — a band goes to a message once it has spoken, so
+  /// that one holds none of its own, and a terminal commits it anyway for the
+  /// reasoning the user watched stream.
+  ///
+  /// Does nothing unless a band is actually open and the tile has none: a run
+  /// whose reply spoke already handed its band over by speaking, and calling
+  /// the registry there would report a handover that never needed to happen.
   void _rekeyAwaitingForNoResponseIfPresent(
     String? runId,
     Conversation? conversation,
   ) {
-    if (runId == null || conversation == null) return;
-    final synthesizedId = noResponseMessageId(runId);
-    if (conversation.messages.any((m) => m.id == synthesizedId)) {
-      _registry.renameAwaitingTo(synthesizedId);
+    final openedId = _openedMessageId;
+    _openedMessageId = null;
+    if (conversation == null) return;
+    final trackers = _registry.trackers;
+    if (!trackers.containsKey(awaitingTrackerKey)) return;
+    for (final candidate in <String>[
+      if (runId != null) noResponseMessageId(runId),
+      if (openedId != null) openedId,
+    ]) {
+      if (trackers.containsKey(candidate)) continue;
+      if (conversation.messages.any((m) => m.id == candidate)) {
+        _registry.renameAwaitingTo(candidate);
+        return;
+      }
     }
   }
+
+  /// The message the run last opened a text stream for, so a terminal can hand
+  /// the band to it when that message turns out to be what the run left
+  /// behind. Cleared at every terminal.
+  String? _openedMessageId;
 
   void _sync() => state = _registry.trackers;
 }

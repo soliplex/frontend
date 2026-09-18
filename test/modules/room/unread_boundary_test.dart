@@ -106,4 +106,32 @@ void main() {
       );
     });
   });
+
+  test('lastRealMessageId skips a message that only names a tool call', () {
+    final messages = [
+      TextMessage.create(id: 'm1', user: ChatUser.assistant, text: 'Hi.'),
+      const TextMessage(
+        id: 'm2',
+        user: ChatUser.assistant,
+        createdAt: null,
+        text: '',
+        namedByToolCall: true,
+      ),
+    ];
+
+    expect(lastRealMessageId(messages), equals('m1'));
+  });
+
+  test('lastRealMessageId keeps a reply that said nothing', () {
+    final messages = [
+      TextMessage.create(id: 'm1', user: ChatUser.assistant, text: 'Hi.'),
+      TextMessage.create(id: 'm2', user: ChatUser.assistant, text: ''),
+    ];
+
+    expect(
+      lastRealMessageId(messages),
+      equals('m2'),
+      reason: 'the timeline shows it, so the boundary may anchor to it',
+    );
+  });
 }

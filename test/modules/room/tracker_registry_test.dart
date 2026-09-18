@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
@@ -45,7 +46,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'First.',
       ),
       events,
       activities,
@@ -62,7 +63,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'First.',
       ),
       events,
       activities,
@@ -80,7 +81,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'First.',
       ),
       events1,
       activities,
@@ -90,7 +91,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-2',
         user: ChatUser.assistant,
-        text: '',
+        text: 'Second.',
       ),
       events2,
       activities,
@@ -106,7 +107,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'First.',
       ),
       events,
       activities,
@@ -134,7 +135,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'First.',
       ),
       events,
       activities,
@@ -155,7 +156,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'First.',
       ),
       events,
       activities,
@@ -167,7 +168,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-2',
         user: ChatUser.assistant,
-        text: '',
+        text: 'Second.',
       ),
       events,
       activities,
@@ -205,7 +206,7 @@ void main() {
         const TextStreaming(
           messageId: 'asst-1',
           user: ChatUser.assistant,
-          text: '',
+          text: 'A live reply.',
         ),
         events,
         activities,
@@ -322,7 +323,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'First.',
       ),
       events,
       activities,
@@ -339,4 +340,108 @@ void main() {
     expect(registry.trackers.containsKey('msg-1'), isTrue);
     expect(registry.trackers.containsKey(awaitingTrackerKey), isFalse);
   });
+
+  group('a message that only names a tool call takes no band', () {
+    const loggerName = 'tracker_registry_bands';
+    late _RecordingSink sink;
+    late TrackerRegistry subject;
+
+    setUp(() {
+      sink = _RecordingSink(loggerName);
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      subject = TrackerRegistry(logger: testLogger(loggerName));
+      addTearDown(subject.dispose);
+    });
+
+    void awaiting() => subject.onStreaming(
+          const AwaitingText(currentPhase: ThinkingPhase()),
+          events,
+          activities,
+        );
+
+    void streaming(String id, String text) => subject.onStreaming(
+          TextStreaming(
+            messageId: id,
+            user: ChatUser.assistant,
+            text: text,
+          ),
+          events,
+          activities,
+        );
+
+    void emit(String toolCallId) => events.value = ServerToolCallStarted(
+          toolName: 'search',
+          toolCallId: toolCallId,
+        );
+
+    test('two silent messages then an answer leave one band on the answer', () {
+      awaiting();
+      emit('c1');
+      streaming('m1', '');
+      emit('c2');
+      streaming('m2', '');
+      emit('c3');
+      streaming('m3', 'The answer');
+
+      expect(subject.trackers.keys, equals(['m3']));
+      expect(subject.trackers['m3']!.timeline.value, hasLength(3));
+    });
+
+    test('a run that never speaks keeps its band under the awaiting key', () {
+      awaiting();
+      emit('c1');
+      streaming('m1', '');
+
+      expect(subject.trackers.keys, equals([awaitingTrackerKey]));
+      expect(
+        subject.trackers[awaitingTrackerKey]!.timeline.value,
+        hasLength(1),
+      );
+    });
+
+    test('a whitespace-only reply takes no band', () {
+      awaiting();
+      emit('c1');
+      streaming('m1', '  ');
+
+      expect(subject.trackers.keys, equals([awaitingTrackerKey]));
+    });
+
+    test('renameAwaitingTo hands the open band to a synthesized tile', () {
+      awaiting();
+      emit('c1');
+      subject.renameAwaitingTo('no-response-run-1');
+      subject.onRunTerminated();
+
+      expect(
+        subject.trackers['no-response-run-1']!.timeline.value,
+        hasLength(1),
+      );
+      expect(sink.warnings, isEmpty);
+    });
+  });
+}
+
+/// Captures records from one registry's logger, ignoring the other traffic the
+/// shared `LogManager` sees so assertions stay strict.
+class _RecordingSink implements LogSink {
+  _RecordingSink(this.loggerName);
+
+  final String loggerName;
+  final List<LogRecord> records = [];
+
+  List<LogRecord> get warnings =>
+      records.where((r) => r.level == LogLevel.warning).toList();
+
+  @override
+  void write(LogRecord record) {
+    if (record.loggerName == loggerName) records.add(record);
+  }
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }

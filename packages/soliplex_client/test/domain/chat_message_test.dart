@@ -590,4 +590,68 @@ void _attachmentNumbering() {
       expect(textOnly.highestAttachmentNumber, isNull);
     });
   });
+
+  group('existsOnlyForToolCall', () {
+    TextMessage assistant(String text, {bool named = false}) => TextMessage(
+          id: 'm1',
+          user: ChatUser.assistant,
+          createdAt: null,
+          text: text,
+          namedByToolCall: named,
+        );
+
+    test('an empty message a tool call named exists only to name it', () {
+      expect(existsOnlyForToolCall(assistant('', named: true)), isTrue);
+    });
+
+    test('an empty message no tool call named is a reply that said nothing',
+        () {
+      expect(existsOnlyForToolCall(assistant('')), isFalse);
+    });
+
+    test('a message that spoke exists for itself, named or not', () {
+      expect(existsOnlyForToolCall(assistant('Here.', named: true)), isFalse);
+    });
+
+    test('whitespace is not text', () {
+      expect(existsOnlyForToolCall(assistant('   \n', named: true)), isTrue);
+    });
+
+    test('reasoning is not text - it is carried, not said', () {
+      const message = TextMessage(
+        id: 'm1',
+        user: ChatUser.assistant,
+        createdAt: null,
+        text: '',
+        thinkingText: 'Let me look.',
+        namedByToolCall: true,
+      );
+
+      expect(existsOnlyForToolCall(message), isTrue);
+    });
+
+    test('an empty user message is not ours to hide', () {
+      expect(
+        existsOnlyForToolCall(
+          const TextMessage(
+            id: 'u1',
+            user: ChatUser.user,
+            createdAt: null,
+            text: '',
+            namedByToolCall: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('a non-text tile is not a message that failed to speak', () {
+      expect(
+        existsOnlyForToolCall(
+          NoResponseTile.finished(id: 'n1', thinkingText: ''),
+        ),
+        isFalse,
+      );
+    });
+  });
 }

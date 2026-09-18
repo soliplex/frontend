@@ -69,10 +69,15 @@ double unreadScrollOffset({
 /// The id of the last non-ephemeral message, used to advance the read anchor.
 /// Skips the loading sentinel so a transient [LoadingMessage] is never
 /// persisted — it would not resolve on reload and would silently lose the line.
+/// Skips a message opened only to name a tool call for the same reason: the
+/// timeline does not show it, so anchoring the boundary to it would point at
+/// nothing. A reply that genuinely said nothing is shown, so it may anchor.
 String? lastRealMessageId(List<ChatMessage> messages) {
   for (var i = messages.length - 1; i >= 0; i--) {
-    final id = messages[i].id;
-    if (id != loadingMessageId) return id;
+    final message = messages[i];
+    if (message.id == loadingMessageId) continue;
+    if (existsOnlyForToolCall(message)) continue;
+    return message.id;
   }
   return null;
 }

@@ -32,7 +32,12 @@ class TrackerRegistry {
     ReadonlySignal<List<ActivityRecord>> activities,
   ) {
     switch (streaming) {
-      case TextStreaming(:final messageId):
+      case TextStreaming(:final messageId, :final text):
+        // A band goes to a message once it has said something. A response that
+        // begins with a tool call opens a message with nothing in it, purely
+        // to give that call's `parentMessageId` something to refer to, and its
+        // work belongs to the reply that eventually speaks.
+        if (text.trim().isEmpty) return;
         if (_activeId == messageId) return;
         if (_activeId == awaitingTrackerKey) {
           final tracker = _trackers.remove(awaitingTrackerKey);
