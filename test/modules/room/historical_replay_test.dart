@@ -565,4 +565,70 @@ void main() {
       },
     );
   });
+
+  group('a message that only names a tool call opens no bucket', () {
+    test("its stretch reaches the reply that follows, not a bucket of its own",
+        () {
+      final trackers = replayToTrackers([
+        RunEventBundle(runId: 'r1', events: [
+          RunStartedEvent(threadId: 't', runId: 'r1'),
+          const TextMessageStartEvent(messageId: 'm1'),
+          const TextMessageEndEvent(messageId: 'm1'),
+          ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'search',
+            parentMessageId: 'm1',
+          ),
+          const ToolCallEndEvent(toolCallId: 'c1'),
+          ToolCallResultEvent(
+            messageId: 'tr1',
+            toolCallId: 'c1',
+            content: 'ok',
+          ),
+          const TextMessageStartEvent(messageId: 'm2'),
+          const TextMessageContentEvent(messageId: 'm2', delta: 'The answer'),
+          const TextMessageEndEvent(messageId: 'm2'),
+          RunFinishedEvent(threadId: 't', runId: 'r1'),
+        ]),
+      ]);
+
+      expect(
+        trackers.keys,
+        isNot(contains('m1')),
+        reason: 'the timeline does not show it, so a band hung on it would '
+            'render nowhere',
+      );
+      expect(trackers['m2']!.steps.value.map((s) => s.label), ['search']);
+    });
+
+    test('a delta of only whitespace leaves nothing to read, so opens none',
+        () {
+      final trackers = replayToTrackers([
+        RunEventBundle(runId: 'r1', events: [
+          RunStartedEvent(threadId: 't', runId: 'r1'),
+          const TextMessageStartEvent(messageId: 'm1'),
+          const TextMessageContentEvent(messageId: 'm1', delta: '  '),
+          const TextMessageEndEvent(messageId: 'm1'),
+          ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'search',
+            parentMessageId: 'm1',
+          ),
+          const ToolCallEndEvent(toolCallId: 'c1'),
+          ToolCallResultEvent(
+            messageId: 'tr1',
+            toolCallId: 'c1',
+            content: 'ok',
+          ),
+          const TextMessageStartEvent(messageId: 'm2'),
+          const TextMessageContentEvent(messageId: 'm2', delta: 'The answer'),
+          const TextMessageEndEvent(messageId: 'm2'),
+          RunFinishedEvent(threadId: 't', runId: 'r1'),
+        ]),
+      ]);
+
+      expect(trackers.keys, isNot(contains('m1')));
+      expect(trackers['m2']!.steps.value.map((s) => s.label), ['search']);
+    });
+  });
 }
