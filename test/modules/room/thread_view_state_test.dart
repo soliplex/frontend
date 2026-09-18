@@ -310,6 +310,136 @@ void main() {
     state.dispose();
   });
 
+  test('carries the tool-call parent ids the history supplied', () async {
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      toolCallParentIds: const {'decl-1'},
+    );
+
+    final state = ThreadViewState(
+      connection: connection,
+      auth: auth,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+      registry: registry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    final loaded = state.messages.value as MessagesLoaded;
+    expect(loaded.toolCallParentIds, equals({'decl-1'}));
+
+    state.dispose();
+  });
+
+  test('a run adds to the parent ids rather than replacing them', () async {
+    // A run's conversation holds only the tool calls that run saw. Replacing
+    // would unclaim every declaration the loaded history named, bringing its
+    // empty bubbles back the moment the user sends another message.
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      toolCallParentIds: const {'decl-1'},
+    );
+
+    final state = ThreadViewState(
+      connection: connection,
+      auth: auth,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+      registry: registry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    final session = _FakeAgentSession();
+    state.attachSession(session);
+
+    session.emit(RunningState(
+      threadKey: (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1'
+      ),
+      runId: 'run-2',
+      conversation: Conversation(
+        threadId: 'thread-1',
+        messages: [
+          TextMessage(
+            id: 'msg-1',
+            user: ChatUser.user,
+            createdAt: DateTime(2026),
+            text: 'Hello',
+          ),
+        ],
+        toolCalls: const [
+          ToolCallInfo(
+            id: 'tc-2',
+            name: 'search',
+            parentMessageId: 'decl-2',
+          ),
+        ],
+      ),
+      streaming: const AwaitingText(),
+    ));
+
+    final loaded = state.messages.value as MessagesLoaded;
+    expect(loaded.toolCallParentIds, equals({'decl-1', 'decl-2'}));
+
+    state.dispose();
+  });
+
+  test('a refresh keeps the parent ids a live run named', () async {
+    // The history a refresh returns lags the run in flight, so replacing the
+    // set with it unclaims that run's declarations and puts its empty bubbles
+    // back on screen until the next streaming update. A parent id never stops
+    // being one, so the reload can only add.
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      toolCallParentIds: const {'decl-1'},
+    );
+
+    final state = ThreadViewState(
+      connection: connection,
+      auth: auth,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+      registry: registry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    final session = _FakeAgentSession();
+    state.attachSession(session);
+    session.emit(RunningState(
+      threadKey: (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1'
+      ),
+      runId: 'run-2',
+      conversation: const Conversation(
+        threadId: 'thread-1',
+        toolCalls: [
+          ToolCallInfo(id: 'tc-2', name: 'search', parentMessageId: 'decl-2'),
+        ],
+      ),
+      streaming: AwaitingText(),
+    ));
+
+    // The server has not persisted the in-flight run yet.
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      toolCallParentIds: const {'decl-1'},
+    );
+    await state.refresh();
+    await Future<void>.delayed(Duration.zero);
+
+    final loaded = state.messages.value as MessagesLoaded;
+    expect(loaded.toolCallParentIds, equals({'decl-1', 'decl-2'}));
+
+    state.dispose();
+  });
+
   test('updates messages when list content changes but length stays the same',
       () async {
     api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -858,7 +988,7 @@ void main() {
         streaming: const TextStreaming(
           messageId: 'asst-1',
           user: ChatUser.assistant,
-          text: '',
+          text: 'live',
         ),
       ));
 

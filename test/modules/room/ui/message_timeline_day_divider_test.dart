@@ -25,6 +25,7 @@ Widget _harness(List<ChatMessage> messages) => MaterialApp(
           roomId: 'room-1',
           messages: messages,
           messageStates: const {},
+          toolCallParentIds: const {},
           unreadBoundary: const BoundaryResolved(null),
         ),
       ),

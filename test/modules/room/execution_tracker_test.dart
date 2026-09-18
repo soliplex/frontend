@@ -38,6 +38,38 @@ void main() {
     expect(tracker.isThinkingStreaming.value, isFalse);
   });
 
+  test('records what happens after it opens, not what already had', () {
+    // A band is a stretch of time, so a tracker opened partway through a run
+    // must not take the event the signal is still holding — that one belongs
+    // to the band before it, and would be counted twice.
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+
+    final opened = ExecutionTracker(
+      executionEvents: events,
+      activities: activities,
+      logger: testLogger(),
+    );
+    addTearDown(opened.dispose);
+
+    expect(opened.steps.value, isEmpty);
+
+    // And the next one does land: skipping what was already in flight must
+    // not cost the event that opens this band, which is the one that arrives
+    // straight after the run state that created the tracker.
+    events.value = const ServerToolCallStarted(
+      toolName: 'fetch_document',
+      toolCallId: 'tc-2',
+    );
+
+    expect(
+      opened.steps.value.map((step) => step.label),
+      ['fetch_document'],
+    );
+  });
+
   test('ThinkingStarted adds an active thinking step', () {
     events.value = const ThinkingStarted();
 
@@ -419,6 +451,20 @@ void main() {
       final record = sink.warnings.single;
       expect(record.attributes['tools'], 'rag_search');
       expect(record.attributes['count'], 1);
+    });
+
+    test('a band closing reports a call whose result never arrived', () {
+      // A band now closes when its message speaks, well before the run ends,
+      // so the run-completed scan never reaches it. Closing it is the last
+      // moment anything can say the row will render without a result.
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+
+      subject.freeze();
+
+      expect(sink.warnings.map((r) => r.attributes['tools']), ['rag_search']);
     });
 
     test('a later run does not re-report an earlier run\'s gap', () {

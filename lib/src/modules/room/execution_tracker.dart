@@ -16,7 +16,19 @@ class ExecutionTracker {
         _activities = Signal<List<ActivityRecord>>(activities.value),
         _historical = false {
     _stopwatch.start();
-    _unsub = executionEvents.subscribe(_onEvent);
+    // `subscribe` delivers the value the signal is already holding, which is
+    // the last event of the band before this one — counted here it would
+    // appear in both. A band is what happens after it opens; the event that
+    // opened it arrives next, since the run state that creates a tracker is
+    // published before the event itself.
+    var openedOn = true;
+    _unsub = executionEvents.subscribe((event) {
+      if (openedOn) {
+        openedOn = false;
+        return;
+      }
+      _onEvent(event);
+    });
     // Mirror the session-owned activities into our local signal so the
     // tracker stays self-contained when ThreadViewState absorbs it on
     // detach: freeze() drops the subscription, and the captured list
@@ -130,11 +142,19 @@ class ExecutionTracker {
   ReadonlySignal<List<TimelineEntry>> get timeline => _timeline;
 
   /// Marks the tracker terminal: clears the spinner, completes any
-  /// still-active steps, and releases the subscription. Idempotent.
+  /// still-active steps, reports any call left without a result, and releases
+  /// the subscription. Idempotent.
+  ///
+  /// A band closes when its message speaks, which is usually well before the
+  /// run ends, so the run-terminal scan never reaches it — closing is the last
+  /// moment anything can report a row that will render without its result.
+  /// Reporting is per call id, so a band that is also scanned at the terminal
+  /// says it once.
   void freeze() {
     if (_isFrozen) return;
     _isThinkingStreaming.value = false;
     _completeAllSteps(StepStatus.completed);
+    _reportCallsMissingResult();
     _unsub?.call();
     _unsub = null;
     _activitiesUnsub?.call();

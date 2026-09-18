@@ -180,6 +180,13 @@ class Conversation {
   /// Whether a run is currently active.
   bool get isRunning => status is Running;
 
+  /// Ids of the messages [toolCalls] name as their parent — what
+  /// `isToolCallDeclaration` reads to tell an artifact from a reply.
+  Set<String> get toolCallParentIds => {
+        for (final toolCall in toolCalls)
+          if (toolCall.parentMessageId case final parentId?) parentId,
+      };
+
   /// Returns a new conversation with the message appended.
   Conversation withAppendedMessage(ChatMessage message) {
     return copyWith(messages: [...messages, message]);

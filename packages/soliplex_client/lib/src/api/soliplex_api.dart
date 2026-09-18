@@ -1527,6 +1527,7 @@ class SoliplexApi {
       aguiState: conversation.aguiState,
       messageStates: messageStates,
       runs: runs,
+      toolCallParentIds: conversation.toolCallParentIds,
       documentFilter: documentFilter,
     );
   }

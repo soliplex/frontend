@@ -6,7 +6,6 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../compute_display_messages.dart' show loadingMessageId;
 import '../../execution_step.dart';
 import '../../execution_tracker.dart';
 import '../../message_expansions.dart';
@@ -82,63 +81,39 @@ class ExecutionTimeline extends ConsumerStatefulWidget {
 }
 
 class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
-  // Expansion state while messageId == loadingMessageId. Kept local
-  // (not in the store) because the sentinel is reused across runs —
-  // persisting under it would leak open/closed state into the next
-  // response.
-  bool _loadingPhaseTimeline = false;
-  final Set<String> _loadingPhaseSources = <String>{};
-
   // Throttle: log each dangling-id at most once per widget lifetime so a
   // sustained mismatch doesn't flood the logging backend on every frame.
   final Set<String> _loggedDanglingIds = <String>{};
 
-  // Persistence handle — null during the AwaitingText phase, because
-  // loadingMessageId is reused across runs and persisting under it would
-  // leak state into the next response. Captured once in initState; the
-  // AwaitingText → TextStreaming transition remounts this widget under
-  // a real messageId (see MessageTimeline's per-id ValueKey), at which
-  // point [_expansion] becomes non-null for the rest of its life.
-  MessageExpansion? _expansion;
+  // Persistence handle, captured once in initState. While the run has no
+  // message id to key on it addresses the pending slot, which the reply
+  // adopts when it names itself — the first delta remounts this widget under
+  // a real messageId (see MessageTimeline's per-id ValueKey), and an open
+  // block has to survive that.
+  late final MessageExpansion _expansion;
 
   @override
   void initState() {
     super.initState();
-    if (widget.messageId == loadingMessageId) return;
-    _expansion = ref
-        .read(messageExpansionsProvider)
-        .forMessage(widget.roomId, widget.messageId);
+    _expansion = ref.read(messageExpansionsProvider).forTile(
+          widget.tracker,
+          widget.roomId,
+          widget.messageId,
+        );
   }
 
-  bool get _expanded => _expansion?.timelineExpanded ?? _loadingPhaseTimeline;
+  bool get _expanded => _expansion.timelineExpanded;
 
   void _toggleExpanded() {
-    setState(() {
-      final next = !_expanded;
-      if (_expansion != null) {
-        _expansion!.timelineExpanded = next;
-      } else {
-        _loadingPhaseTimeline = next;
-      }
-    });
+    setState(() => _expansion.timelineExpanded = !_expanded);
   }
 
   void _toggleSource(String sourceKey) {
-    setState(() {
-      final expansion = _expansion;
-      if (expansion != null) {
-        expansion.toggleSource(sourceKey);
-        return;
-      }
-      if (!_loadingPhaseSources.remove(sourceKey)) {
-        _loadingPhaseSources.add(sourceKey);
-      }
-    });
+    setState(() => _expansion.toggleSource(sourceKey));
   }
 
   bool _isSourceExpanded(String sourceKey) =>
-      _expansion?.isSourceExpanded(sourceKey) ??
-      _loadingPhaseSources.contains(sourceKey);
+      _expansion.isSourceExpanded(sourceKey);
 
   @override
   Widget build(BuildContext context) {

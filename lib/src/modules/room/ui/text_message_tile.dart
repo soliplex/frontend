@@ -186,12 +186,13 @@ class _MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final isUser = message.user == ChatUser.user;
 
-    // A non-user bubble with no text that no run is streaming into has
-    // nothing further coming, so it reports that instead of animating a
-    // placeholder that says otherwise. What emptied it — a turn that produced
-    // no text, or content lost in transit — is not knowable here, so the
-    // notice claims neither.
-    if (!isUser && message.text.isEmpty && !isStreaming) {
+    // A non-user bubble with nothing to read that no run is streaming into
+    // has nothing further coming, so it reports that instead of animating a
+    // placeholder that says otherwise. Whitespace counts as nothing to read:
+    // a bubble holding a single space says less than the notice does. What
+    // emptied it — a turn that produced no text, or content lost in transit —
+    // is not knowable here, so the notice claims neither.
+    if (!isUser && message.text.trim().isEmpty && !isStreaming) {
       return const NoticeBubble(
         icon: Icons.info_outline,
         label: 'This message has no text',

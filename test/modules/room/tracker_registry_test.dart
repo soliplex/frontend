@@ -4,6 +4,9 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
+import 'package:soliplex_logging/soliplex_logging.dart'
+    show LogLevel, LogRecord, LogSink;
+
 import '../../helpers/test_logger.dart';
 
 void main() {
@@ -45,7 +48,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events,
       activities,
@@ -62,7 +65,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events,
       activities,
@@ -80,7 +83,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events1,
       activities,
@@ -90,7 +93,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-2',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events2,
       activities,
@@ -106,7 +109,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events,
       activities,
@@ -134,7 +137,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events,
       activities,
@@ -155,7 +158,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events,
       activities,
@@ -167,7 +170,7 @@ void main() {
       const TextStreaming(
         messageId: 'msg-2',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events,
       activities,
@@ -175,6 +178,117 @@ void main() {
 
     registry.dispose();
     expect(registry.trackers, isEmpty);
+  });
+
+  test('warns when a run ends with events no tile will render', () {
+    // Everything that happens is meant to reach a band: a reply's, or the
+    // tile synthesized for a run that said nothing. A gap left over is work
+    // the user watched happen and will not find again.
+    final sink = _RecordingSink('test');
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+
+    registry.onStreaming(const AwaitingText(), events, activities);
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+
+    registry.onRunTerminated();
+
+    expect(sink.bandWarnings.single.attributes['events'], 1);
+  });
+
+  test('drops the band a run ends without anything claiming', () {
+    // claimOpenBand has already moved it onto a tile if one exists, and
+    // nothing renders what is left, so keeping it only leaves the next run's
+    // first band to overwrite it without saying so.
+    registry.onStreaming(const AwaitingText(), events, activities);
+
+    registry.onRunTerminated();
+
+    expect(registry.trackers.keys, isEmpty);
+  });
+
+  test('does not warn when the run ends with nothing left over', () {
+    // A band that reached a message, and an empty one opened after it, are
+    // the ordinary end of a run: a warning here would bury the one above.
+    final sink = _RecordingSink('test');
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+
+    registry.onStreaming(const AwaitingText(), events, activities);
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+    registry.onStreaming(
+      const TextStreaming(
+        messageId: 'msg-1',
+        user: ChatUser.assistant,
+        text: 'the answer',
+      ),
+      events,
+      activities,
+    );
+    registry.onStreaming(const AwaitingText(), events, activities);
+
+    registry.onRunTerminated();
+
+    expect(sink.bandWarnings, isEmpty);
+  });
+
+  group('a message that never speaks', () {
+    /// Opens and closes a message that carries no text — what a response
+    /// beginning with a tool call leaves in the stream.
+    void declare(String messageId) {
+      registry.onStreaming(
+        TextStreaming(
+          messageId: messageId,
+          user: ChatUser.assistant,
+          text: '',
+        ),
+        events,
+        activities,
+      );
+      registry.onStreaming(const AwaitingText(), events, activities);
+    }
+
+    test('a message carrying only whitespace takes none either', () {
+      registry.onStreaming(const AwaitingText(), events, activities);
+
+      registry.onStreaming(
+        const TextStreaming(
+          messageId: 'decl-1',
+          user: ChatUser.assistant,
+          text: '  ',
+        ),
+        events,
+        activities,
+      );
+
+      expect(registry.trackers.keys, equals([awaitingTrackerKey]));
+    });
+
+    test('hands the answer the tracker that watched the whole run', () {
+      registry.onStreaming(const AwaitingText(), events, activities);
+      final opened = registry.trackers[awaitingTrackerKey];
+
+      declare('decl-1');
+      registry.onStreaming(
+        const TextStreaming(
+          messageId: 'msg-2',
+          user: ChatUser.assistant,
+          text: 'The C-band transmitter',
+        ),
+        events,
+        activities,
+      );
+
+      expect(registry.trackers.keys, ['msg-2']);
+      expect(registry.trackers['msg-2'], same(opened));
+      expect(opened!.isFrozen, isFalse);
+    });
   });
 
   group('seedHistorical', () {
@@ -205,7 +319,7 @@ void main() {
         const TextStreaming(
           messageId: 'asst-1',
           user: ChatUser.assistant,
-          text: '',
+          text: 'reply',
         ),
         events,
         activities,
@@ -226,7 +340,7 @@ void main() {
     });
   });
 
-  group('renameAwaitingTo', () {
+  group('claimOpenBand', () {
     test('moves the awaiting tracker to the new key', () {
       registry.onStreaming(
         const AwaitingText(currentPhase: ThinkingPhase()),
@@ -235,7 +349,7 @@ void main() {
       );
       final awaitingTracker = registry.trackers[awaitingTrackerKey];
 
-      registry.renameAwaitingTo('no-response-run-1');
+      registry.claimOpenBand('no-response-run-1');
 
       expect(registry.trackers.containsKey(awaitingTrackerKey), isFalse);
       expect(registry.trackers['no-response-run-1'], same(awaitingTracker));
@@ -250,7 +364,7 @@ void main() {
         events,
         activities,
       );
-      registry.renameAwaitingTo('no-response-run-1');
+      registry.claimOpenBand('no-response-run-1');
 
       registry.onRunTerminated();
 
@@ -265,7 +379,7 @@ void main() {
       );
       final before = registry.trackers[awaitingTrackerKey];
 
-      registry.renameAwaitingTo(awaitingTrackerKey);
+      registry.claimOpenBand(awaitingTrackerKey);
 
       expect(registry.trackers[awaitingTrackerKey], same(before));
     });
@@ -274,7 +388,7 @@ void main() {
       // Synthesized message exists in the conversation but the awaiting
       // tracker was never created (or already disposed). Must not throw
       // and must not corrupt registry state.
-      registry.renameAwaitingTo('no-response-run-1');
+      registry.claimOpenBand('no-response-run-1');
 
       expect(registry.trackers, isEmpty);
     });
@@ -300,7 +414,7 @@ void main() {
       );
       final awaitingTracker = registry.trackers[awaitingTrackerKey];
 
-      registry.renameAwaitingTo('no-response-run-1');
+      registry.claimOpenBand('no-response-run-1');
 
       expect(
         registry.trackers['no-response-run-1'],
@@ -317,26 +431,88 @@ void main() {
     });
   });
 
-  test('ignores AwaitingText when tracker already active', () {
+  test('AwaitingText after a message speaks opens the next band', () {
+    // A band is the stretch of work between one thing the assistant said and
+    // the next, so the message that just spoke closes its own.
+    registry.onStreaming(const AwaitingText(), events, activities);
     registry.onStreaming(
       const TextStreaming(
         messageId: 'msg-1',
         user: ChatUser.assistant,
-        text: '',
+        text: 'reply',
       ),
       events,
       activities,
     );
 
+    registry.onStreaming(const AwaitingText(), events, activities);
+
+    expect(registry.trackers['msg-1']!.isFrozen, isTrue);
+    expect(registry.trackers[awaitingTrackerKey]!.isFrozen, isFalse);
+  });
+
+  test('work after a reply lands on the message that follows it', () {
+    registry.onStreaming(const AwaitingText(), events, activities);
     registry.onStreaming(
-      const AwaitingText(currentPhase: ThinkingPhase()),
+      const TextStreaming(
+        messageId: 'msg-1',
+        user: ChatUser.assistant,
+        text: 'Let me look that up.',
+      ),
+      events,
+      activities,
+    );
+    registry.onStreaming(const AwaitingText(), events, activities);
+
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+
+    registry.onStreaming(
+      const TextStreaming(
+        messageId: 'msg-2',
+        user: ChatUser.assistant,
+        text: 'The answer.',
+      ),
       events,
       activities,
     );
 
-    // Should not create an awaiting tracker — msg-1 is still active
-    expect(registry.trackers, hasLength(1));
-    expect(registry.trackers.containsKey('msg-1'), isTrue);
-    expect(registry.trackers.containsKey(awaitingTrackerKey), isFalse);
+    expect(registry.trackers['msg-1']!.steps.value, isEmpty);
+    expect(
+      registry.trackers['msg-2']!.steps.value.map((s) => s.label),
+      ['search'],
+    );
   });
+}
+
+/// Captures this registry's log records, ignoring the other traffic the
+/// shared `LogManager` sees.
+class _RecordingSink implements LogSink {
+  _RecordingSink(this.loggerName);
+
+  final String loggerName;
+  final List<LogRecord> records = [];
+
+  /// The unclaimed-band reports specifically. The trackers this registry
+  /// builds log through the same logger, so filtering by name alone would let
+  /// one of their warnings answer for one of these.
+  List<LogRecord> get bandWarnings => records
+      .where(
+        (r) =>
+            r.level == LogLevel.warning && r.message.contains('no tile claims'),
+      )
+      .toList();
+
+  @override
+  void write(LogRecord record) {
+    if (record.loggerName == loggerName) records.add(record);
+  }
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }

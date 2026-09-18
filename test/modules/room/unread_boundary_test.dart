@@ -6,6 +6,10 @@ import 'package:soliplex_frontend/src/modules/room/unread_boundary.dart';
 TextMessage _msg(String id) =>
     TextMessage.create(id: id, user: ChatUser.assistant, text: id);
 
+/// A message opened only to name a tool call's parent: no text, and claimed.
+TextMessage _declaration(String id) =>
+    TextMessage.create(id: id, user: ChatUser.assistant, text: '');
+
 void main() {
   group('firstUnreadMessageId', () {
     final messages = [_msg('a'), _msg('b'), _msg('c')];
@@ -90,18 +94,30 @@ void main() {
 
   group('lastRealMessageId', () {
     test('returns the last id', () {
-      expect(lastRealMessageId([_msg('a'), _msg('b')]), 'b');
+      expect(lastRealMessageId([_msg('a'), _msg('b')], const {}), 'b');
     });
 
     test('skips the loading sentinel', () {
       final messages = [_msg('a'), LoadingMessage.create(id: loadingMessageId)];
-      expect(lastRealMessageId(messages), 'a');
+      expect(lastRealMessageId(messages, const {}), 'a');
+    });
+
+    test('skips a message a tool call declared as its parent', () {
+      // The timeline does not show it, so persisting its id would leave an
+      // anchor that resolves to nothing on reload — and the unread line is
+      // lost for that thread for good.
+      final messages = [_msg('a'), _declaration('decl-1')];
+
+      expect(lastRealMessageId(messages, const {'decl-1'}), 'a');
     });
 
     test('null when empty or only ephemeral', () {
-      expect(lastRealMessageId(const []), isNull);
+      expect(lastRealMessageId(const [], const {}), isNull);
       expect(
-        lastRealMessageId([LoadingMessage.create(id: loadingMessageId)]),
+        lastRealMessageId(
+          [LoadingMessage.create(id: loadingMessageId)],
+          const {},
+        ),
         isNull,
       );
     });

@@ -600,8 +600,9 @@ void main() {
       expect(find.text('Thinking'), findsNothing);
     });
 
-    testWidgets('header toggle in loading phase uses local state only',
-        (tester) async {
+    testWidgets(
+        'header toggle before the reply is named keys nothing to the '
+        'sentinel', (tester) async {
       events.value = const ThinkingStarted();
 
       await tester.pumpWidget(wrap(build(messageId: loadingMessageId)));
@@ -616,7 +617,7 @@ void main() {
       expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
     });
 
-    testWidgets('source toggle in loading phase uses local state only',
+    testWidgets('source toggle before the reply is named survives a collapse',
         (tester) async {
       events.value = const ClientToolExecuting(
         toolName: 'execute_skill',
@@ -640,9 +641,8 @@ void main() {
       await tester.pump();
       expect(find.textContaining('print(42)'), findsOneWidget);
 
-      // Collapse pins the "remove from local set" branch. A regression
-      // that only adds and never removes would silently break the
-      // loading-phase collapse path.
+      // Collapse pins the removal branch: a regression that only ever adds
+      // would leave a source stuck open for the rest of the run.
       await tester.tap(find.text('execute_script'));
       await tester.pump();
       expect(find.textContaining('print(42)'), findsNothing);

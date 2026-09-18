@@ -2,22 +2,37 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
 
-/// Sentinel key for the execution tracker created before a message ID is known.
+/// Key the band nothing has claimed is published under, so the tile standing
+/// in for a reply that has not arrived can find it.
 const awaitingTrackerKey = '_awaiting';
 
-/// Manages execution trackers keyed by message ID.
+/// Manages execution bands: the stretch of work between one thing the
+/// assistant said and the next.
 ///
-/// Handles the tracker lifecycle: creation on first streaming event,
-/// re-keying when a message ID becomes available, and freezing when
-/// a run terminates.
+/// A band opens with no name, because the message it belongs to has not spoken
+/// yet. It is held apart from the named ones rather than stored under
+/// [awaitingTrackerKey]: a sentinel key let the next run overwrite it in
+/// silence, left one behind after every run, and made claiming it a rename
+/// after the fact. Naming it is the same act whoever does it — a reply that
+/// speaks, or a tile synthesized for a run that never did.
 class TrackerRegistry {
   TrackerRegistry({required Logger logger}) : _logger = logger;
 
-  final Map<String, ExecutionTracker> _trackers = {};
-  String? _activeId;
+  /// Bands that belong to a message, by its id.
+  final Map<String, ExecutionTracker> _named = {};
+
+  /// The band nothing has claimed yet. At most one exists.
+  ExecutionTracker? _unclaimed;
+
+  /// The named band still collecting, if any. Never set while [_unclaimed] is.
+  String? _openId;
+
   final Logger _logger;
 
-  Map<String, ExecutionTracker> get trackers => Map.unmodifiable(_trackers);
+  Map<String, ExecutionTracker> get trackers => Map.unmodifiable({
+        ..._named,
+        if (_unclaimed != null) awaitingTrackerKey: _unclaimed!,
+      });
 
   /// Update tracker state based on the current streaming state.
   ///
@@ -32,26 +47,36 @@ class TrackerRegistry {
     ReadonlySignal<List<ActivityRecord>> activities,
   ) {
     switch (streaming) {
-      case TextStreaming(:final messageId):
-        if (_activeId == messageId) return;
-        if (_activeId == awaitingTrackerKey) {
-          final tracker = _trackers.remove(awaitingTrackerKey);
-          if (tracker != null) {
-            _trackers[messageId] = tracker;
-          }
-        } else {
-          _freezeActive();
-          _trackers[messageId] = ExecutionTracker(
-            executionEvents: events,
-            activities: activities,
-            logger: _logger,
-          );
+      case TextStreaming(:final messageId, :final text):
+        // A band goes to a message once it has said something. A response
+        // that begins with a tool call opens a message with nothing in it,
+        // purely to give that call's `parentMessageId` something to refer to,
+        // and its work belongs to the reply that eventually speaks.
+        if (text.trim().isEmpty) return;
+        if (_openId == messageId) return;
+        final band = _unclaimed;
+        if (band == null) {
+          // Text with no band open: a message opening while another is still
+          // streaming, which the protocol forbids and the event processor
+          // warns about. Keep it under its own id rather than losing it.
+          _closeOpen();
         }
-        _activeId = messageId;
+        _claim(
+          messageId,
+          band ??
+              ExecutionTracker(
+                executionEvents: events,
+                activities: activities,
+                logger: _logger,
+              ),
+        );
       case AwaitingText():
-        if (_activeId != null) return;
-        _activeId = awaitingTrackerKey;
-        _trackers[awaitingTrackerKey] = ExecutionTracker(
+        // A message that has spoken closes its band when its text ends; what
+        // happens next belongs to whatever is said after it, so a new one
+        // opens here.
+        if (_unclaimed != null) return;
+        _closeOpen();
+        _unclaimed = ExecutionTracker(
           executionEvents: events,
           activities: activities,
           logger: _logger,
@@ -59,50 +84,80 @@ class TrackerRegistry {
     }
   }
 
-  /// Freeze the active tracker when a run reaches a terminal state.
-  void onRunTerminated() {
-    _freezeActive();
+  /// Freeze the band still collecting, and report one the run leaves with
+  /// nothing to render it.
+  ///
+  /// Every band is meant to reach a tile: a reply's own, or the one
+  /// synthesized for a run that never spoke, which [claimOpenBand] hands it to
+  /// before this runs. What is left is work the user watched happen and will
+  /// not find again, so it is reported rather than dropped in silence — and
+  /// then dropped, because nothing will ever render it.
+  void onRunTerminated({String? runId}) {
+    final band = _unclaimed;
+    if (band != null) {
+      final events = band.timeline.value;
+      if (events.isNotEmpty) {
+        _logger.warning(
+          'Run ended with execution events no tile claims; they will not '
+          'render.',
+          attributes: {
+            'events': events.length,
+            if (runId != null) 'runId': runId,
+          },
+        );
+      }
+      band.freeze();
+      _unclaimed = null;
+    }
+    _closeOpen();
   }
 
-  /// Renames the awaiting tracker to [key] so that the tile rendered for
-  /// a synthesized "no response" message attaches to the same tracker
-  /// that captured the run's thinking.
+  /// Hands the band nothing has claimed to [messageId] — what a reply does by
+  /// speaking, done here for the tile synthesized for a run that did not.
   ///
-  /// No-op when the awaiting tracker doesn't exist or [key] is the same
-  /// as the awaiting key. Called by `ExecutionTrackerExtension` on
-  /// terminal `RunState` transitions for runs that ended with buffered
-  /// thinking but no assistant text.
-  ///
-  /// When no awaiting tracker is present the synthesized [NoResponseTile]
-  /// still renders its `thinkingText` field, but no execution-step
-  /// timeline attaches; the warning makes that divergence observable.
-  void renameAwaitingTo(String key) {
-    if (key == awaitingTrackerKey) return;
-    final tracker = _trackers.remove(awaitingTrackerKey);
-    if (tracker == null) {
+  /// Called by `ExecutionTrackerExtension` on the terminal transitions of a
+  /// run whose conversation holds such a tile. With no band open the tile
+  /// still renders its own `thinkingText`, but no execution steps attach; the
+  /// warning makes that divergence observable.
+  void claimOpenBand(String messageId) {
+    final band = _unclaimed;
+    if (band == null) {
       _logger.warning(
-        'No awaiting tracker for renameAwaitingTo; NoResponseTile will '
-        'render thinking but lack the execution-step timeline.',
-        attributes: {'targetKey': key},
+        'No open band to hand over; the tile will render thinking but no '
+        'execution steps.',
+        attributes: {'messageId': messageId},
       );
       return;
     }
-    final clobbered = _trackers[key];
-    if (clobbered != null) {
-      // `seedHistorical` declared "live always wins over historical", but
-      // an unguarded overwrite here loses any tracker (live or historical)
-      // already bound to the same key. Freeze the loser so its
-      // subscription is released and warn so the divergence is observable.
-      clobbered.freeze();
+    _claim(messageId, band);
+  }
+
+  /// Puts [band] under [messageId] and leaves it collecting.
+  ///
+  /// A band already under that key loses. That happens when a message speaks
+  /// twice with another in between — the protocol forbids it and the event
+  /// processor warns — so the replaced band holds work that will not render.
+  /// Freezing rather than dropping it releases its subscription to the event
+  /// signal.
+  void _claim(String messageId, ExecutionTracker band) {
+    _unclaimed = null;
+    final displaced = _named[messageId];
+    if (displaced != null) {
+      displaced.freeze();
       _logger.warning(
-        'renameAwaitingTo overwrote an existing tracker at the target key.',
-        attributes: {'targetKey': key},
+        'A band already under this message id was replaced; its events will '
+        'not render.',
+        attributes: {'messageId': messageId},
       );
     }
-    _trackers[key] = tracker;
-    if (_activeId == awaitingTrackerKey) {
-      _activeId = key;
-    }
+    _named[messageId] = band;
+    _openId = messageId;
+  }
+
+  void _closeOpen() {
+    if (_openId == null) return;
+    _named[_openId!]?.freeze();
+    _openId = null;
   }
 
   /// Bulk-inserts already-frozen trackers produced from a loaded thread's
@@ -110,21 +165,17 @@ class TrackerRegistry {
   /// a live tracker always wins over a historical one.
   void seedHistorical(Map<String, ExecutionTracker> historical) {
     for (final entry in historical.entries) {
-      _trackers.putIfAbsent(entry.key, () => entry.value);
-    }
-  }
-
-  void _freezeActive() {
-    if (_activeId != null) {
-      _trackers[_activeId!]?.freeze();
-      _activeId = null;
+      _named.putIfAbsent(entry.key, () => entry.value);
     }
   }
 
   void dispose() {
-    for (final tracker in _trackers.values) {
+    for (final tracker in _named.values) {
       tracker.dispose();
     }
-    _trackers.clear();
+    _named.clear();
+    _unclaimed?.dispose();
+    _unclaimed = null;
+    _openId = null;
   }
 }

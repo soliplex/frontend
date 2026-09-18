@@ -26,19 +26,28 @@ sealed class ThreadViewStatus {}
 class MessagesLoading extends ThreadViewStatus {}
 
 class MessagesLoaded extends ThreadViewStatus {
-  MessagesLoaded({required this.messages, required this.messageStates});
+  MessagesLoaded({
+    required this.messages,
+    required this.messageStates,
+    required this.toolCallParentIds,
+  });
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
+
+  /// Ids the thread's tool calls named as their parent — see
+  /// `isToolCallDeclaration` for what the timeline does with them.
+  final Set<String> toolCallParentIds;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MessagesLoaded &&
           identical(messages, other.messages) &&
-          identical(messageStates, other.messageStates);
+          identical(messageStates, other.messageStates) &&
+          identical(toolCallParentIds, other.toolCallParentIds);
 
   @override
-  int get hashCode => Object.hash(messages, messageStates);
+  int get hashCode => Object.hash(messages, messageStates, toolCallParentIds);
 }
 
 class MessagesFailed extends ThreadViewStatus {
@@ -389,14 +398,19 @@ class ThreadViewState {
   }
 
   MessagesLoaded _messagesLoaded(Conversation conversation) {
-    final existing = switch (_messages.value) {
-      MessagesLoaded(:final messageStates) => messageStates,
-      _ => const <String, MessageState>{},
-    };
-    final merged = {...existing, ...conversation.messageStates};
+    final current = _messages.value;
+    final loaded = current is MessagesLoaded ? current : null;
+    final merged = {...?loaded?.messageStates, ...conversation.messageStates};
     return MessagesLoaded(
       messages: conversation.messages,
       messageStates: merged,
+      // Union rather than replace: a run's conversation holds only the tool
+      // calls that run saw, so replacing would unclaim every declaration the
+      // loaded history named and bring its empty bubbles back mid-session.
+      toolCallParentIds: {
+        ...?loaded?.toolCallParentIds,
+        ...conversation.toolCallParentIds,
+      },
     );
   }
 
@@ -481,15 +495,46 @@ class ThreadViewState {
           .getThreadHistory(_roomId, threadId, cancelToken: token);
       if (token.isCancelled) return;
       _cancelToken = null;
+      final replayed = replayToTrackers(history.runs);
+      // Bucketing routes a stretch nothing spoke for to the run's no-response
+      // key, trusting a tile to be there. This is the only place holding both
+      // the bands and the messages, so it is where that can be checked — the
+      // rule `TrackerRegistry.onRunTerminated` reports for a live run.
+      final unclaimed = unclaimedBands(
+        replayed,
+        {
+          for (final message in history.messages)
+            if (!isToolCallDeclaration(message, history.toolCallParentIds))
+              message.id,
+        },
+      );
+      if (unclaimed.isNotEmpty) {
+        _logger.warning(
+          'Replayed execution events no tile claims; they will not render.',
+          attributes: {'bands': unclaimed, 'threadId': threadId},
+        );
+      }
       // putIfAbsent (not []=) on refresh: server replay must not overwrite a
       // tracker already absorbed from a live session (`_detachSession`), which
       // captured the full client-side event stream.
-      for (final entry in replayToTrackers(history.runs).entries) {
+      for (final entry in replayed.entries) {
         _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
       }
       _messages.value = MessagesLoaded(
         messages: history.messages,
         messageStates: history.messageStates,
+        // Union for the same reason `_messagesLoaded` unions: a thread
+        // refreshed while a run is in flight would otherwise drop the ids
+        // that run named and bring its empty bubbles back until the next
+        // streaming update. A parent id never stops being one, so adding to
+        // the set can only be right.
+        toolCallParentIds: {
+          ...?switch (_messages.value) {
+            MessagesLoaded(:final toolCallParentIds) => toolCallParentIds,
+            _ => null,
+          },
+          ...history.toolCallParentIds,
+        },
       );
       onHistoryLoaded?.call(threadId, history);
     } on PermissionDeniedException catch (error) {

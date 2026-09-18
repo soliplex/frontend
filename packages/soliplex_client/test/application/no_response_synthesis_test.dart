@@ -12,6 +12,29 @@ void main() {
       conversation = Conversation.empty(threadId: 'thread-1');
     });
 
+    /// A conversation holding a message opened only to name [toolStatus]'s
+    /// parent — the shape a response that begins with a tool call leaves
+    /// behind.
+    Conversation withDeclaration({
+      ToolCallStatus toolStatus = ToolCallStatus.completed,
+    }) =>
+        conversation
+            .withAppendedMessage(
+              TextMessage.create(
+                id: 'msg-1',
+                user: ChatUser.assistant,
+                text: '',
+              ),
+            )
+            .withToolCall(
+              ToolCallInfo(
+                id: 'tc-1',
+                name: 'search',
+                status: toolStatus,
+                parentMessageId: 'msg-1',
+              ),
+            );
+
     group('decline conditions', () {
       test('declines when streaming is TextStreaming', () {
         const streaming = TextStreaming(
@@ -125,9 +148,122 @@ void main() {
 
         expect(result.synthesized, isTrue);
       });
+
+      test('declines when an empty reply is claimed by no tool call', () {
+        // A run that replied with nothing is an anomaly the empty-message
+        // notice reports; it is not a declaration and must not become a tile.
+        final convo = conversation.withAppendedMessage(
+          TextMessage.create(id: 'msg-1', user: ChatUser.assistant, text: ''),
+        );
+
+        final result = synthesizeFinishedNoResponse(
+          conversation: convo,
+          streaming: const AwaitingText(),
+          runId: 'run-1',
+        );
+
+        expect(result.synthesized, isFalse);
+      });
+
+      test('declines when the run declared and then replied', () {
+        // The declaration is an artifact of a response that began with a tool
+        // call; the run went on to answer, so there is no missing reply to
+        // report and no orphaned band to hold.
+        final convo = withDeclaration().withAppendedMessage(
+          TextMessage.create(
+            id: 'msg-2',
+            user: ChatUser.assistant,
+            text: 'The transmitter must be off below 2,000 ft AGL.',
+          ),
+        );
+
+        final result = synthesizeFinishedNoResponse(
+          conversation: convo,
+          streaming: const AwaitingText(),
+          runId: 'run-1',
+        );
+
+        expect(result.synthesized, isFalse);
+      });
+
+      test('declines a declaration while a tool call is unresolved', () {
+        // A client-side yield: the next run continues the turn, and its
+        // events hoist forward onto whatever finally speaks.
+        final result = synthesizeFinishedNoResponse(
+          conversation: withDeclaration(toolStatus: ToolCallStatus.pending),
+          streaming: const AwaitingText(),
+          runId: 'run-1',
+        );
+
+        expect(result.synthesized, isFalse);
+      });
     });
 
     group('synthesis', () {
+      test(
+          'synthesizeFinishedNoResponse reports a run that stopped after '
+          'working', () {
+        // It said it would look something up, looked it up, and then said
+        // nothing. The user never got an answer, and the tile is what says so
+        // — and what the search attaches to.
+        final convo = conversation
+            .withAppendedMessage(
+              TextMessage.create(
+                id: 'msg-1',
+                user: ChatUser.assistant,
+                text: 'Let me look that up.',
+              ),
+            )
+            .withToolCall(
+              const ToolCallInfo(
+                id: 'tc-1',
+                name: 'search',
+                status: ToolCallStatus.completed,
+                parentMessageId: 'msg-1',
+              ),
+            );
+
+        final result = synthesizeFinishedNoResponse(
+          conversation: convo,
+          streaming: const AwaitingText(),
+          runId: 'run-42',
+        );
+
+        expect(result.synthesized, isTrue);
+      });
+
+      test(
+          'synthesizeFinishedNoResponse appends a tile for a run that declared '
+          'but never spoke', () {
+        // The declaration is hidden from the timeline, so without a tile the
+        // run's events and thinking have nothing to attach to and the whole
+        // assistant side of the turn disappears.
+        final result = synthesizeFinishedNoResponse(
+          conversation: withDeclaration(),
+          streaming: const AwaitingText(),
+          runId: 'run-42',
+        );
+
+        expect(result.synthesized, isTrue);
+        final tile = result.conversation.messages.last as NoResponseTile;
+        expect(tile.id, equals(noResponseMessageId('run-42')));
+        expect(tile.reason, equals(TerminalReason.finished));
+      });
+
+      test(
+          'synthesizeCancelledNoResponse appends a tile for a declaration with '
+          'no thinking', () {
+        final result = synthesizeCancelledNoResponse(
+          conversation: withDeclaration(),
+          streaming: const AwaitingText(),
+          runId: 'run-42',
+        );
+
+        expect(result.synthesized, isTrue);
+        final tile = result.conversation.messages.last as NoResponseTile;
+        expect(tile.reason, equals(TerminalReason.cancelled));
+      });
+
       test(
           'synthesizeFinishedNoResponse appends a finished tile with thinking '
           'and stable id', () {
@@ -224,6 +360,47 @@ void main() {
       });
 
       test(
+          'synthesizeFailedNoResponse appends a tile with a tool call left '
+          'unresolved', () {
+        // The unresolved guard defers to a run that continues the turn, and a
+        // failed run has none. The ErrorMessage it would fall back to carries
+        // no execution band, so declining loses the work the user watched.
+        final result = synthesizeFailedNoResponse(
+          conversation: withDeclaration(toolStatus: ToolCallStatus.pending),
+          streaming: const AwaitingText(),
+          runId: 'run-42',
+          errorDetail: 'boom',
+        );
+
+        expect(result.synthesized, isTrue);
+        final tile = result.conversation.messages.last as NoResponseTile;
+        expect(tile.reason, equals(TerminalReason.failed));
+        expect(tile.errorDetail, equals('boom'));
+      });
+
+      test(
+          'synthesizeCancelledNoResponse appends a tile when a tool call is in '
+          'flight with no thinking', () {
+        // The band the user was watching fill belongs to the stretch since
+        // the last thing said, and only a tile keeps it on screen.
+        final convo = conversation.withToolCall(
+          const ToolCallInfo(
+            id: 'tc1',
+            name: 'search',
+            status: ToolCallStatus.executing,
+          ),
+        );
+
+        final result = synthesizeCancelledNoResponse(
+          conversation: convo,
+          streaming: const AwaitingText(),
+          runId: 'run-42',
+        );
+
+        expect(result.synthesized, isTrue);
+      });
+
+      test(
           'synthesizeCancelledNoResponse still declines before thinking '
           'starts', () {
         // Nothing has been shown yet, so there is nothing to preserve and the
@@ -250,26 +427,30 @@ void main() {
       conversation = Conversation.empty(threadId: 'thread-1');
     });
 
-    test('commits nothing when the reply holds neither text nor thinking', () {
-      // A terminal that landed between TEXT_MESSAGE_START and the first
-      // delta. There is nothing on screen to keep, and an empty reply would
-      // state that the assistant answered with nothing where the truth is
-      // that it was stopped or cut off.
-      const streaming = TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: '',
-      );
+    // A terminal that landed between TEXT_MESSAGE_START and the first delta,
+    // or on a delta carrying only whitespace, which the backend's truthiness
+    // guard lets through. There is nothing on screen to keep, and committing
+    // either one states that the assistant answered with nothing where the
+    // truth is that it was stopped or cut off — and puts a bubble reporting
+    // "no text" where the tile for a run that never answered belongs.
+    for (final (name, text) in [('no text', ''), ('only whitespace', ' ')]) {
+      test('commits nothing when the reply holds $name and no thinking', () {
+        final streaming = TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: text,
+        );
 
-      final result = commitPartialTextOnTerminal(
-        conversation: conversation,
-        streaming: streaming,
-        runId: 'run-1',
-        terminalEvent: 'cancelRun',
-      );
+        final result = commitPartialTextOnTerminal(
+          conversation: conversation,
+          streaming: streaming,
+          runId: 'run-1',
+          terminalEvent: 'cancelRun',
+        );
 
-      expect(result.messages, isEmpty);
-    });
+        expect(result.messages, isEmpty);
+      });
+    }
 
     test('commits a reply that holds thinking but no text', () {
       // The thinking the user watched stream is on screen, and this commit is

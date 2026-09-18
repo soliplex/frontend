@@ -15,11 +15,13 @@ class ThreadHistory {
     Map<String, dynamic> aguiState = const {},
     Map<String, MessageState> messageStates = const {},
     List<RunEventBundle> runs = const [],
+    Set<String> toolCallParentIds = const {},
     this.documentFilter,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
-        runs = List.unmodifiable(runs);
+        runs = List.unmodifiable(runs),
+        toolCallParentIds = Set.unmodifiable(toolCallParentIds);
 
   /// Messages in the thread, ordered chronologically.
   final List<ChatMessage> messages;
@@ -44,6 +46,14 @@ class ThreadHistory {
   /// and citations are still derived from [messages] / [messageStates];
   /// [runs] is an additive surface for execution-tracker replay.
   final List<RunEventBundle> runs;
+
+  /// Ids the replayed tool calls named as their parent.
+  ///
+  /// A message in [messages] that appears here and carries no text was opened
+  /// only to make that id refer to something — see `isToolCallDeclaration`.
+  /// Replay mints such a message exactly as the live path does, so without
+  /// this a reopened thread cannot tell it from a reply that said nothing.
+  final Set<String> toolCallParentIds;
 
   /// The document-filter WHERE clause the client last asserted for this thread,
   /// read from the newest run's `run_input.state.rag.document_filter`. `null`

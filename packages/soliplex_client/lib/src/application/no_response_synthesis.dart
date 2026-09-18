@@ -48,7 +48,7 @@ NoResponseSynthesisResult synthesizeFinishedNoResponse({
       conversation: conversation,
       streaming: streaming,
       runId: runId,
-      preserveWhateverWasShown: false,
+      reason: TerminalReason.finished,
       buildTile: (id, thinking) => NoResponseTile.finished(
         id: id,
         thinkingText: thinking,
@@ -71,7 +71,7 @@ NoResponseSynthesisResult synthesizeFailedNoResponse({
       conversation: conversation,
       streaming: streaming,
       runId: runId,
-      preserveWhateverWasShown: false,
+      reason: TerminalReason.failed,
       buildTile: (id, thinking) => NoResponseTile.failed(
         id: id,
         thinkingText: thinking,
@@ -93,10 +93,7 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
       conversation: conversation,
       streaming: streaming,
       runId: runId,
-      // Whatever the user was already looking at has to outlive the Stop —
-      // a Thinking indicator with no content yet, or thinking beside a tool
-      // call still in flight. Declining either blanks the exchange.
-      preserveWhateverWasShown: true,
+      reason: TerminalReason.cancelled,
       buildTile: (id, thinking) => NoResponseTile.cancelled(
         id: id,
         thinkingText: thinking,
@@ -109,36 +106,54 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
 /// Always declines when [streaming] is not [AwaitingText]: a reply was in
 /// progress, and the caller commits that partial text instead.
 ///
-/// [preserveWhateverWasShown] then chooses between two policies.
+/// Each [reason] then asks the same question — is there something the user
+/// was shown that only a tile can keep? — and differs in what counts:
 ///
-/// A cancel sets it. The user stopped a run they were watching, so anything
-/// already on screen has to survive, and only the streaming state holds it —
-/// the tile is what carries it afterwards. That includes the window after the
-/// reasoning-start event but before its first content, which
-/// [AwaitingText.hasThinkingContent] covers and an empty buffer does not, and
-/// it includes a tool call still in flight.
+/// A cancel counts the most. The user stopped a run they were watching, so
+/// anything already on screen has to survive, and only the streaming state
+/// holds it. That includes the window after the reasoning-start event but
+/// before its first content, which [AwaitingText.hasThinkingContent] covers
+/// and an empty buffer does not, and a tool call still in flight, whose band
+/// belongs to the stretch since the last thing said and so has no reply to
+/// attach to.
 ///
-/// The two backend outcomes clear it. They require real thinking text, since a
-/// run that emitted nothing has no missing reply to report, and they decline
-/// while any tool call is `pending`, `streaming` or `executing`, because there
-/// the run is yielding to client tools and the tool call IS the response. That
-/// yield never reaches the cancel path: `cancelRun` handles
-/// `ToolYieldingState` in its own branch, so an unresolved tool call seen here
-/// after a cancel is a backend call mid-flight, which shows the user nothing.
+/// The two backend outcomes want real thinking text, since a run that emitted
+/// nothing has no missing reply to report. A finished run additionally
+/// declines while a tool call is `pending`, `streaming` or `executing`,
+/// because there it is yielding to client tools and the tool call IS the
+/// response — the turn goes on in another run, which reaches its own
+/// terminal. A failed run has no continuation to defer to, and the
+/// `ErrorMessage` it falls back to carries no execution band, so it keeps
+/// the tile.
+///
+/// Every reason also counts a run that stopped after working: its last
+/// message is named as a tool call's parent, so something happened after the
+/// last thing the assistant said and then the run ended. That covers a
+/// response that only declared the call — an artifact of the protocol, which
+/// the timeline does not show — and one that spoke first and then went quiet.
+/// Either way the user is owed the account, and the band has nothing else to
+/// attach to.
 NoResponseSynthesisResult _synthesize({
   required Conversation conversation,
   required StreamingState streaming,
   required String runId,
-  required bool preserveWhateverWasShown,
+  required TerminalReason reason,
   required NoResponseTile Function(String id, String thinkingText) buildTile,
 }) {
   if (streaming is! AwaitingText) {
     return (conversation: conversation, synthesized: false);
   }
-  final synthesize = preserveWhateverWasShown
-      ? streaming.hasThinkingContent
-      : streaming.bufferedThinkingText.isNotEmpty &&
-          !_hasUnresolvedToolCalls(conversation);
+  final stoppedAfterWorking = _stoppedAfterWorking(conversation);
+  final synthesize = switch (reason) {
+    TerminalReason.cancelled => streaming.hasThinkingContent ||
+        _hasUnresolvedToolCalls(conversation) ||
+        stoppedAfterWorking,
+    TerminalReason.finished =>
+      (streaming.bufferedThinkingText.isNotEmpty || stoppedAfterWorking) &&
+          !_hasUnresolvedToolCalls(conversation),
+    TerminalReason.failed =>
+      streaming.bufferedThinkingText.isNotEmpty || stoppedAfterWorking,
+  };
   if (!synthesize) {
     return (conversation: conversation, synthesized: false);
   }
@@ -159,12 +174,13 @@ NoResponseSynthesisResult _synthesize({
 /// [AwaitingText].
 ///
 /// No-op for [AwaitingText], when the message id is already in the
-/// conversation, or when the reply holds neither text nor thinking. The
+/// conversation, or when the reply says nothing and holds no thinking. The
 /// second guards against a normal `TextMessageEnd` having already finalized
 /// the same message. The third is a terminal that landed between
-/// `TEXT_MESSAGE_START` and the first delta: there is nothing on screen to
-/// keep, and committing an empty reply would state that the assistant
-/// answered with nothing where the truth is that it was stopped or cut off.
+/// `TEXT_MESSAGE_START` and the first delta, or on one carrying only
+/// whitespace: there is nothing on screen to keep, and committing it would
+/// state that the assistant answered with nothing where the truth is that it
+/// was stopped or cut off.
 ///
 /// [terminalEvent] is included in the log line for diagnostics — the
 /// caller's name (e.g. `'RunFinishedEvent'`, `'cancelRun'`).
@@ -177,9 +193,9 @@ Conversation commitPartialTextOnTerminal({
 }) {
   if (streaming is! TextStreaming) return conversation;
   final messageId = streaming.messageId;
-  if (streaming.text.isEmpty && streaming.thinkingText.isEmpty) {
+  if (streaming.text.trim().isEmpty && streaming.thinkingText.isEmpty) {
     _logger.info(
-      'Nothing to commit on terminal: reply opened but never received text',
+      'Nothing to commit on terminal: reply opened but never said anything',
       attributes: {
         'runId': runId,
         'messageId': messageId,
@@ -218,6 +234,23 @@ Conversation commitPartialTextOnTerminal({
       createdAt: createdAt,
     ),
   );
+}
+
+/// Whether the run did something after the last thing it said, and then
+/// ended.
+///
+/// Asked of the *last* message, not of any: a turn that called tools and then
+/// answered ends on the answer, which no call names, and has nothing missing
+/// to report. A message that is named leaves work behind it — the response
+/// that only declared the call, or one that spoke and then went quiet — and
+/// nothing after it to carry that work or to answer the user.
+///
+/// Run-scoped without needing a run id: a run's conversation starts with no
+/// tool calls of its own (`RunOrchestrator._buildConversation`), so only this
+/// run's calls are ever in the set.
+bool _stoppedAfterWorking(Conversation conversation) {
+  if (conversation.messages.isEmpty) return false;
+  return conversation.toolCallParentIds.contains(conversation.messages.last.id);
 }
 
 bool _hasUnresolvedToolCalls(Conversation conversation) {

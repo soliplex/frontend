@@ -24,6 +24,7 @@ class MessageTimeline extends StatefulWidget {
     required this.roomId,
     required this.messages,
     required this.messageStates,
+    required this.toolCallParentIds,
     this.unreadBoundary = const BoundaryPending(),
     this.streamingState,
     this.executionTrackers = const {},
@@ -39,6 +40,10 @@ class MessageTimeline extends StatefulWidget {
   final String roomId;
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
+
+  /// Ids the thread's tool calls named as their parent — see
+  /// `isToolCallDeclaration`.
+  final Set<String> toolCallParentIds;
 
   /// The read boundary for the open thread. The divider/scroll wait until it
   /// resolves so a not-yet-loaded null is not mistaken for "caught up".
@@ -119,7 +124,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
     _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
 
     _evaluateUnread(
-      computeDisplayMessages(widget.messages, widget.streamingState),
+      computeDisplayMessages(
+        widget.messages,
+        widget.streamingState,
+        toolCallParentIds: widget.toolCallParentIds,
+      ),
     );
   }
 
@@ -363,6 +372,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
     final displayMessages = computeDisplayMessages(
       widget.messages,
       widget.streamingState,
+      toolCallParentIds: widget.toolCallParentIds,
     );
 
     _evaluateUnread(displayMessages);
@@ -391,10 +401,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
       }
     }
 
-    // The one message the run is streaming into, if any. An empty bubble
-    // means "text still arriving" only for this id. AwaitingText contributes
-    // no id because `computeDisplayMessages` renders that phase as a
-    // LoadingMessage rather than an empty TextMessage.
+    // The one message the run is streaming into, if any — which is what tells
+    // a bubble still filling from one that will stay empty. A message with no
+    // text yet is not displayed at all (`computeDisplayMessages` renders that
+    // phase, and AwaitingText, as a LoadingMessage), so this matches no tile
+    // until the first delta lands.
     final streamingMessageId = switch (widget.streamingState) {
       TextStreaming(:final messageId) => messageId,
       AwaitingText() => null,
@@ -428,11 +439,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
                         final message = displayMessages[index];
                         final isLastItem = index == displayMessages.length - 1;
                         // A distinct key for the loading sentinel forces a
-                        // remount at the AwaitingText → TextStreaming transition.
-                        // Children capture their MessageExpansion handle once in
-                        // initState; without the remount they would stay bound to
-                        // loadingMessageId (which forMessage rejects) and never
-                        // acquire a handle under the real messageId.
+                        // remount when the reply's first delta lands. Children
+                        // capture their MessageExpansion handle once in
+                        // initState; the remount is what moves them off the
+                        // pending slot and onto the real messageId, carrying
+                        // an open block with them.
                         final tile = MessageTile(
                           roomId: widget.roomId,
                           message: message,

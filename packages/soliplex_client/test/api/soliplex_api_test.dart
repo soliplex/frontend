@@ -1638,6 +1638,86 @@ void main() {
         );
       });
 
+      test('carries the ids tool calls declare as their parent', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'events': [
+              // A response that begins with a tool call: the message is opened
+              // and closed with no content, purely to name the call's parent.
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'decl-1',
+                'role': 'assistant',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'decl-1'},
+              {
+                'type': 'TOOL_CALL_START',
+                'toolCallId': 'tc-1',
+                'toolCallName': 'search',
+                'parentMessageId': 'decl-1',
+              },
+              {'type': 'TOOL_CALL_END', 'toolCallId': 'tc-1'},
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'msg-2',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'msg-2',
+                'delta': 'the answer',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-2'},
+            ],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        // Without this the reopened thread cannot tell the declaration from a
+        // reply that said nothing, and shows it as an empty bubble again.
+        expect(history.toolCallParentIds, equals({'decl-1'}));
+      });
+
       test(
           'replayed message createdAt resolves event.timestamp ?? run.created '
           '?? null', () async {

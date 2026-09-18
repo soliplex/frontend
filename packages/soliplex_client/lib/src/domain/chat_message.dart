@@ -674,6 +674,7 @@ class ToolCallInfo {
     this.arguments = '',
     this.status = ToolCallStatus.pending,
     this.result = '',
+    this.parentMessageId,
   });
 
   /// Unique identifier for this tool call.
@@ -690,6 +691,11 @@ class ToolCallInfo {
 
   /// Result from the tool execution.
   final String result;
+
+  /// Id of the assistant message this call names as its parent.
+  ///
+  /// Null when the call named none — the field is optional in AG-UI.
+  final String? parentMessageId;
 
   /// Whether this tool call has arguments.
   bool get hasArguments => arguments.isNotEmpty;
@@ -711,6 +717,8 @@ class ToolCallInfo {
       arguments: arguments ?? this.arguments,
       status: status ?? this.status,
       result: result ?? this.result,
+      // Carried, not a parameter: a call is parented once, when it starts.
+      parentMessageId: parentMessageId,
     );
   }
 
@@ -724,3 +732,33 @@ class ToolCallInfo {
   @override
   String toString() => 'ToolCallInfo(id: $id, name: $name, status: $status)';
 }
+
+/// Whether [message] was opened only to give a tool call's parent id something
+/// to refer to, rather than to say anything.
+///
+/// A model response that begins with a tool call has no text message of its
+/// own, so the stream opens and immediately closes an empty one to make the id
+/// the call names real. [toolCallParentIds] — from
+/// `Conversation.toolCallParentIds` — is what separates that from a reply that
+/// genuinely carried no text, which is an anomaly worth surfacing rather than
+/// hiding.
+///
+/// Whitespace does not count as text. The producer drops an empty text part
+/// on a plain truthiness check, which a space or a newline passes, so a model
+/// that opens with one before calling a tool declares a parent exactly as a
+/// silent one does — and rendering that is a bubble with nothing in it.
+///
+/// Thinking does count. A terminal arriving before `TEXT_MESSAGE_END` commits
+/// the reply for its reasoning alone (`commitPartialTextOnTerminal`), which
+/// makes an otherwise empty message the only carrier of what the user watched
+/// stream. Such a message has something to read, so it is a cut-off reply
+/// rather than an artifact.
+bool isToolCallDeclaration(
+  ChatMessage message,
+  Set<String> toolCallParentIds,
+) =>
+    message is TextMessage &&
+    message.user == ChatUser.assistant &&
+    message.text.trim().isEmpty &&
+    message.thinkingText.isEmpty &&
+    toolCallParentIds.contains(message.id);

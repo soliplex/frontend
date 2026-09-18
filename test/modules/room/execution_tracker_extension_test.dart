@@ -78,7 +78,7 @@ void main() {
     expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
   });
 
-  test('skips rekey when runId is null (e.g., pre-run failure)', () {
+  test('drops the open band when runId is null (e.g., pre-run failure)', () {
     session.emitRunState(
       const RunningState(
         threadKey: _key,
@@ -90,7 +90,7 @@ void main() {
     expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
 
     // Pre-run failure: runId is null and no synthesized message exists in
-    // the conversation. The rekey is skipped instead of crashing.
+    // the conversation. Nothing can be handed the band instead of crashing.
     session.emitRunState(
       FailedState.preRun(
         threadKey: _key,
@@ -99,15 +99,16 @@ void main() {
       ),
     );
 
-    // The awaiting tracker is frozen on terminal but not renamed.
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
+    // Nothing will ever render it, and leaving it would let the next run
+    // inherit a band belonging to this one.
+    expect(ext.trackers.containsKey(awaitingTrackerKey), isFalse);
     expect(
       ext.trackers.containsKey(noResponseMessageId(_runId)),
       isFalse,
     );
   });
 
-  test('skips rekey when synthesized message is not in the conversation', () {
+  test('drops the open band when the run answered for itself', () {
     session.emitRunState(
       const RunningState(
         threadKey: _key,
@@ -118,7 +119,8 @@ void main() {
     );
 
     // Conversation has no synthesized "no response" message — the run
-    // produced an actual reply that's already attached. No rekey needed.
+    // produced an actual reply that's already attached. Nothing claims the
+    // band that opened after it.
     session.emitRunState(
       CompletedState(
         threadKey: _key,
@@ -133,7 +135,7 @@ void main() {
       ),
     );
 
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
+    expect(ext.trackers.containsKey(awaitingTrackerKey), isFalse);
     expect(
       ext.trackers.containsKey(noResponseMessageId(_runId)),
       isFalse,

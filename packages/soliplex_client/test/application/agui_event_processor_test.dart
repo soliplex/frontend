@@ -339,9 +339,11 @@ void main() {
 
       test(
           'RunErrorEvent with unresolved tool call surfaces the '
-          'failure as an ErrorMessage', () {
-        // Tool-call synthesis declines (the tool call IS the response);
-        // a real failure still needs to be visible to the user.
+          'failure on a tile that keeps its band', () {
+        // The unresolved guard defers to a run that continues the turn, and a
+        // failed run has none — so the tile stands, carrying both the failure
+        // and the execution events the user watched. The ErrorMessage it
+        // would otherwise fall back to renders neither a band nor thinking.
         final runningConversation =
             conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
                   const ToolCallInfo(id: 'tc1', name: 'search'),
@@ -357,12 +359,14 @@ void main() {
           event,
         );
 
-        final surfaced = result.conversation.messages.last as ErrorMessage;
-        expect(surfaced.errorText, equals('tool failure'));
+        final surfaced = result.conversation.messages.last as NoResponseTile;
+        expect(surfaced.reason, equals(TerminalReason.failed));
+        expect(surfaced.errorDetail, equals('tool failure'));
+        expect(surfaced.thinkingText, equals('planning the call'));
       });
 
       test(
-          'RunErrorEvent stamps surfaced ErrorMessage createdAt from '
+          'RunErrorEvent stamps the surfaced tile createdAt from '
           'event.timestamp', () {
         final runningConversation =
             conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
@@ -381,7 +385,7 @@ void main() {
             processEvent(runningConversation, streamingWithThinking, event);
 
         final surfaced =
-            result.conversation.messages.whereType<ErrorMessage>().single;
+            result.conversation.messages.whereType<NoResponseTile>().single;
         expect(surfaced.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
 
@@ -665,6 +669,63 @@ void main() {
           expect(tc.id, equals('tc-1'));
           expect(tc.name, equals('search'));
           expect(tc.status, equals(ToolCallStatus.streaming));
+        });
+
+        test('carries the declaring parentMessageId onto the tool call', () {
+          const event = ToolCallStartEvent(
+            toolCallId: 'tc-1',
+            toolCallName: 'search',
+            parentMessageId: 'msg-1',
+          );
+
+          final result = processEvent(conversation, streaming, event);
+
+          expect(
+            result.conversation.toolCalls.first.parentMessageId,
+            equals('msg-1'),
+          );
+        });
+
+        test('parentMessageId outlives args, end and result', () {
+          const startEvent = ToolCallStartEvent(
+            toolCallId: 'tc-1',
+            toolCallName: 'search',
+            parentMessageId: 'msg-1',
+          );
+          var result = processEvent(conversation, streaming, startEvent);
+
+          const argsEvent = ToolCallArgsEvent(
+            toolCallId: 'tc-1',
+            delta: '{"q":"hi"}',
+          );
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            argsEvent,
+          );
+
+          const endEvent = ToolCallEndEvent(toolCallId: 'tc-1');
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            endEvent,
+          );
+
+          const resultEvent = ToolCallResultEvent(
+            messageId: 'tr-1',
+            toolCallId: 'tc-1',
+            content: 'ok',
+          );
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            resultEvent,
+          );
+
+          expect(
+            result.conversation.toolCalls.first.parentMessageId,
+            equals('msg-1'),
+          );
         });
 
         test('accumulates tool names in phase across multiple starts', () {

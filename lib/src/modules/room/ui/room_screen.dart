@@ -773,7 +773,9 @@ class _RoomScreenState extends State<RoomScreen> {
     _anchorAdvanceUnsub = view.messages.subscribe((status) {
       if (!mounted) return;
       if (status is! MessagesLoaded) return;
-      _anchorTracker.advance(lastRealMessageId(status.messages));
+      _anchorTracker.advance(
+        lastRealMessageId(status.messages, status.toolCallParentIds),
+      );
     });
   }
 
@@ -2403,8 +2405,16 @@ class _RoomScreenState extends State<RoomScreen> {
                         : threadView.refresh,
                     onReauthenticate: _onReauthenticate,
                   ),
-                MessagesLoaded(:final messages, :final messageStates) =>
-                  computeDisplayMessages(messages, streaming).isEmpty
+                MessagesLoaded(
+                  :final messages,
+                  :final messageStates,
+                  :final toolCallParentIds
+                ) =>
+                  computeDisplayMessages(
+                    messages,
+                    streaming,
+                    toolCallParentIds: toolCallParentIds,
+                  ).isEmpty
                       ? RoomWelcome(
                           room: room,
                           onSuggestionTapped: (suggestion) =>
@@ -2421,6 +2431,7 @@ class _RoomScreenState extends State<RoomScreen> {
                           roomId: widget.roomId,
                           messages: messages,
                           messageStates: messageStates,
+                          toolCallParentIds: toolCallParentIds,
                           streamingState: streaming,
                           unreadBoundary: _anchorTracker.boundary,
                           executionTrackers: threadView.executionTrackers,

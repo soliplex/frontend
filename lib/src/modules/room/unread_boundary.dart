@@ -66,13 +66,22 @@ double unreadScrollOffset({
   return anchorTop > pinnedDivider ? anchorTop : pinnedDivider;
 }
 
-/// The id of the last non-ephemeral message, used to advance the read anchor.
-/// Skips the loading sentinel so a transient [LoadingMessage] is never
-/// persisted — it would not resolve on reload and would silently lose the line.
-String? lastRealMessageId(List<ChatMessage> messages) {
+/// The id of the last message the timeline shows, used to advance the read
+/// anchor.
+///
+/// Skips what is never rendered: the loading sentinel, and a message opened
+/// only to name a tool call's parent ([toolCallParentIds], as
+/// `computeDisplayMessages` drops it). Either would not resolve on reload and
+/// would silently lose the line.
+String? lastRealMessageId(
+  List<ChatMessage> messages,
+  Set<String> toolCallParentIds,
+) {
   for (var i = messages.length - 1; i >= 0; i--) {
-    final id = messages[i].id;
-    if (id != loadingMessageId) return id;
+    final message = messages[i];
+    if (message.id == loadingMessageId) continue;
+    if (isToolCallDeclaration(message, toolCallParentIds)) continue;
+    return message.id;
   }
   return null;
 }

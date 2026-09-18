@@ -1,5 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
+
+import '../../helpers/test_logger.dart';
+
+/// Stands for the run that holds a pending slot — production passes the run's
+/// execution tracker, which outlives its message being named.
+ExecutionTracker aRun() => ExecutionTracker.historical(
+      events: const [],
+      origin: null,
+      activities: const [],
+      logger: testLogger(),
+    );
 
 void main() {
   group('MessageExpansions', () {
@@ -89,6 +101,79 @@ void main() {
       expect(expansions.debugHasStateFor('r', 'm0'), isFalse);
       expect(expansions.debugHasStateFor('r', 'new'), isTrue);
       expect(expansions.debugHasStateFor('r', 'm1'), isTrue);
+    });
+
+    group('the pending slot', () {
+      final run = aRun();
+
+      test('all three state kinds move together', () {
+        final pending = expansions.pendingFor(run, 'r')
+          ..timelineExpanded = true
+          ..thinkingExpanded = true;
+        pending.setSourceExpanded('src', true);
+
+        expansions.adoptPending(run, 'r', 'm');
+
+        final adopted = expansions.forMessage('r', 'm');
+        expect(adopted.timelineExpanded, isTrue);
+        expect(adopted.thinkingExpanded, isTrue);
+        expect(adopted.isSourceExpanded('src'), isTrue);
+      });
+
+      test('another run cannot take it', () {
+        // A tile for some older message mounting mid-run must not adopt the
+        // state the live run wrote, or the reply loses it.
+        expansions.pendingFor(run, 'r').timelineExpanded = true;
+
+        expansions.adoptPending(aRun(), 'r', 'other');
+
+        expect(expansions.debugHasStateFor('r', 'other'), isFalse);
+        expansions.adoptPending(run, 'r', 'm');
+        expect(expansions.forMessage('r', 'm').timelineExpanded, isTrue);
+      });
+
+      test('a second adoption finds nothing left to take', () {
+        // Both the timeline and the thinking block adopt on mount; whichever
+        // runs second reads the entry the first one wrote.
+        expansions.pendingFor(run, 'r').thinkingExpanded = true;
+
+        expansions.adoptPending(run, 'r', 'm');
+        expansions.adoptPending(run, 'r', 'other');
+
+        expect(expansions.debugHasStateFor('r', 'other'), isFalse);
+        expect(expansions.forMessage('r', 'm').thinkingExpanded, isTrue);
+      });
+
+      test('a new run starts from closed', () {
+        expansions.pendingFor(run, 'r').timelineExpanded = true;
+
+        final next = aRun();
+        expect(expansions.pendingFor(next, 'r').timelineExpanded, isFalse);
+      });
+
+      test('adopting adds to what the message already has', () {
+        // Both are the user's: one opened before the run, one during it.
+        expansions.forMessage('r', 'm').thinkingExpanded = true;
+        expansions.pendingFor(run, 'r').timelineExpanded = true;
+
+        expansions.adoptPending(run, 'r', 'm');
+
+        final adopted = expansions.forMessage('r', 'm');
+        expect(adopted.thinkingExpanded, isTrue);
+        expect(adopted.timelineExpanded, isTrue);
+      });
+
+      test("a run in another room does not take this one's pending", () {
+        // Rooms can stream at once, and the slot is keyed per room — so the
+        // claim on it has to be too, or whichever run started last takes the
+        // other's open block.
+        expansions.pendingFor(run, 'room-a').timelineExpanded = true;
+        expansions.pendingFor(aRun(), 'room-b').thinkingExpanded = true;
+
+        expansions.adoptPending(run, 'room-a', 'm');
+
+        expect(expansions.forMessage('room-a', 'm').timelineExpanded, isTrue);
+      });
     });
   });
 }

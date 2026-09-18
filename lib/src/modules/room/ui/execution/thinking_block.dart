@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
-import '../../compute_display_messages.dart' show loadingMessageId;
 import '../../execution_tracker.dart';
 import '../../message_expansions.dart' show MessageExpansion;
 import '../../room_providers.dart';
@@ -28,40 +27,27 @@ class ExecutionThinkingBlock extends ConsumerStatefulWidget {
 
 class _ExecutionThinkingBlockState
     extends ConsumerState<ExecutionThinkingBlock> {
-  // Thinking-block expansion while messageId == loadingMessageId. Kept
-  // local (not in the store) because the sentinel is reused across runs —
-  // persisting under it would leak open/closed state into the next
-  // response.
-  bool _loadingPhaseThinking = false;
-
-  // Null during the AwaitingText sentinel phase, because loadingMessageId
-  // is reused across runs and persisting under it would leak state into
-  // the next response. Captured once in initState; the AwaitingText →
-  // TextStreaming transition remounts this widget under a real messageId
-  // (see MessageTimeline's per-id ValueKey), at which point [_expansion]
-  // becomes non-null for the rest of its life.
-  MessageExpansion? _expansion;
+  // Persistence handle, captured once in initState. While the run has no
+  // message id to key on it addresses the pending slot, which the reply
+  // adopts when it names itself — the first delta remounts this widget under
+  // a real messageId (see MessageTimeline's per-id ValueKey), and an open
+  // block has to survive that.
+  late final MessageExpansion _expansion;
 
   @override
   void initState() {
     super.initState();
-    if (widget.messageId == loadingMessageId) return;
-    _expansion = ref
-        .read(messageExpansionsProvider)
-        .forMessage(widget.roomId, widget.messageId);
+    _expansion = ref.read(messageExpansionsProvider).forTile(
+          widget.tracker,
+          widget.roomId,
+          widget.messageId,
+        );
   }
 
-  bool get _expanded => _expansion?.thinkingExpanded ?? _loadingPhaseThinking;
+  bool get _expanded => _expansion.thinkingExpanded;
 
   void _toggle() {
-    setState(() {
-      final next = !_expanded;
-      if (_expansion != null) {
-        _expansion!.thinkingExpanded = next;
-      } else {
-        _loadingPhaseThinking = next;
-      }
-    });
+    setState(() => _expansion.thinkingExpanded = !_expanded);
   }
 
   @override

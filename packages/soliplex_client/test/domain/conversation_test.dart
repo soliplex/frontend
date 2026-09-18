@@ -113,6 +113,36 @@ void main() {
       });
     });
 
+    group('toolCallParentIds', () {
+      test('collects the ids tool calls declare as their parent', () {
+        final updated = conversation
+            .withToolCall(
+              const ToolCallInfo(
+                id: 'tc-1',
+                name: 'search',
+                parentMessageId: 'msg-1',
+              ),
+            )
+            .withToolCall(
+              const ToolCallInfo(
+                id: 'tc-2',
+                name: 'fetch',
+                parentMessageId: 'msg-2',
+              ),
+            );
+
+        expect(updated.toolCallParentIds, equals({'msg-1', 'msg-2'}));
+      });
+
+      test('skips a tool call that declared no parent', () {
+        final updated = conversation.withToolCall(
+          const ToolCallInfo(id: 'tc-1', name: 'search'),
+        );
+
+        expect(updated.toolCallParentIds, isEmpty);
+      });
+    });
+
     group('withStatus', () {
       test('changes status to Running', () {
         final updated = conversation.withStatus(const Running(runId: 'run-1'));

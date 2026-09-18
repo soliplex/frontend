@@ -31,6 +31,7 @@ Widget _harness(List<ChatMessage> messages, double bottomInset) {
                   roomId: 'r',
                   messages: messages,
                   messageStates: const {},
+                  toolCallParentIds: const {},
                   unreadBoundary: const BoundaryResolved(null),
                 ),
               ),

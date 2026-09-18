@@ -132,6 +132,7 @@ EventProcessingResult processEvent(
     ToolCallStartEvent(
       :final toolCallId,
       :final toolCallName,
+      :final parentMessageId,
       :final timestamp,
     ) =>
       EventProcessingResult(
@@ -140,6 +141,7 @@ EventProcessingResult processEvent(
             id: toolCallId,
             name: toolCallName,
             status: ToolCallStatus.streaming,
+            parentMessageId: parentMessageId,
           ),
         ),
         streaming: _withToolCallPhase(
@@ -318,6 +320,17 @@ EventProcessingResult _processTextStart(
   String messageId,
   TextMessageRole role,
 ) {
+  if (streaming is TextStreaming) {
+    _logger.warning(
+      'TextMessageStart replaced a text stream that never ended',
+      attributes: {
+        'messageId': messageId,
+        'abandonedMessageId': streaming.messageId,
+        'abandonedTextChars': streaming.text.length,
+      },
+    );
+  }
+
   // Transfer any buffered thinking from AwaitingText to TextStreaming
   final thinkingText =
       streaming is AwaitingText ? streaming.bufferedThinkingText : '';
@@ -341,11 +354,20 @@ EventProcessingResult _onActiveTextStream(
   Conversation conversation,
   StreamingState streaming,
   String messageId,
+  String eventName,
   EventProcessingResult Function(TextStreaming active) onMatch,
 ) {
   if (streaming is TextStreaming && streaming.messageId == messageId) {
     return onMatch(streaming);
   }
+  _logger.warning(
+    '$eventName arrived with no text stream open for its message; dropped',
+    attributes: {
+      'messageId': messageId,
+      'streamingState': streaming.runtimeType.toString(),
+      if (streaming is TextStreaming) 'openMessageId': streaming.messageId,
+    },
+  );
   return EventProcessingResult(
     conversation: conversation,
     streaming: streaming,
@@ -362,10 +384,19 @@ EventProcessingResult _processTextContent(
       conversation,
       streaming,
       messageId,
-      (active) => EventProcessingResult(
-        conversation: conversation,
-        streaming: active.appendDelta(delta),
-      ),
+      'TextMessageContent',
+      (active) {
+        if (delta.isEmpty) {
+          _logger.warning(
+            'TextMessageContent carried an empty delta',
+            attributes: {'messageId': messageId},
+          );
+        }
+        return EventProcessingResult(
+          conversation: conversation,
+          streaming: active.appendDelta(delta),
+        );
+      },
     );
 
 /// Converts an AG-UI event's epoch-millisecond [timestamp] to a UTC [DateTime],
@@ -384,6 +415,7 @@ EventProcessingResult _processTextEnd(
       conversation,
       streaming,
       messageId,
+      'TextMessageEnd',
       (active) {
         // Skip if a message with this ID already exists — idempotency guard
         // against duplicate events (e.g. from history replay).

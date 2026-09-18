@@ -590,4 +590,79 @@ void _attachmentNumbering() {
       expect(textOnly.highestAttachmentNumber, isNull);
     });
   });
+
+  group('isToolCallDeclaration', () {
+    const parents = {'msg-1'};
+
+    test('is true for a claimed assistant message with no text', () {
+      final message = TextMessage.create(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        text: '',
+      );
+
+      expect(isToolCallDeclaration(message, parents), isTrue);
+    });
+
+    test('is true for a claimed message carrying only whitespace', () {
+      // The backend guards an empty text part with a plain truthiness check,
+      // which a space or a newline passes — so a model that opens with one
+      // before calling a tool declares a parent exactly as a silent one does.
+      final message = TextMessage.create(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        text: ' ',
+      );
+
+      expect(isToolCallDeclaration(message, parents), isTrue);
+    });
+
+    test('is false for a claimed message carrying thinking', () {
+      // A terminal between `TEXT_MESSAGE_START` and `TEXT_MESSAGE_END` commits
+      // the reply for its thinking alone (`commitPartialTextOnTerminal`), so
+      // an empty message here can be the only carrier of reasoning the user
+      // watched stream. Hiding it as an artifact would throw that away one
+      // layer after the decision to keep it.
+      final message = TextMessage.create(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        text: '',
+        thinkingText: 'reasoning the user watched',
+      );
+
+      expect(isToolCallDeclaration(message, parents), isFalse);
+    });
+
+    test('is false for a claimed message that carries text', () {
+      final message = TextMessage.create(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        text: 'here is the answer',
+      );
+
+      expect(isToolCallDeclaration(message, parents), isFalse);
+    });
+
+    test('is false for an empty message no tool call claims', () {
+      final message = TextMessage.create(
+        id: 'msg-2',
+        user: ChatUser.assistant,
+        text: '',
+      );
+
+      expect(isToolCallDeclaration(message, parents), isFalse);
+    });
+
+    test('is false for a system message, which declares no tool call', () {
+      // Only an assistant response opens one. Hiding any other empty message
+      // a tool call happened to name would swallow an anomaly.
+      final message = TextMessage.create(
+        id: 'msg-1',
+        user: ChatUser.system,
+        text: '',
+      );
+
+      expect(isToolCallDeclaration(message, parents), isFalse);
+    });
+  });
 }

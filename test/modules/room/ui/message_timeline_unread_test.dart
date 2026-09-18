@@ -21,6 +21,7 @@ void main() {
             roomId: 'room-1',
             messages: messages,
             messageStates: const {},
+            toolCallParentIds: const {},
             unreadBoundary:
                 resolved ? BoundaryResolved(boundary) : const BoundaryPending(),
           ),

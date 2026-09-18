@@ -214,7 +214,11 @@ void main() {
       expect(find.text('A deep thought'), findsNothing);
     });
 
-    testWidgets('does not write to store during loading phase', (tester) async {
+    testWidgets('never keys state to the sentinel the loading phase uses',
+        (tester) async {
+      // The sentinel id is reused by every run, so state written under it
+      // would open the next run's block. What the user opens while the reply
+      // is unnamed is held in the room's pending slot instead.
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'transient');
 
@@ -224,8 +228,35 @@ void main() {
       await tester.pump();
       expect(find.text('transient'), findsOneWidget);
 
-      // Local state flipped, but nothing written to the store.
       expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
+    });
+
+    testWidgets('an open block survives the reply naming itself',
+        (tester) async {
+      // Opened while the run works, the block belongs to the pending slot;
+      // the first delta remounts this widget under a real id (MessageTimeline
+      // keys tiles per id, as the KeyedSubtree does here). Closing it there
+      // would discard the one thing the user asked to see.
+      events.value = const ThinkingStarted();
+      events.value = const ThinkingContent(delta: 'A deep thought');
+
+      Widget tile(String messageId) => wrap(
+            KeyedSubtree(
+              key: ValueKey(messageId),
+              child: build(messageId: messageId),
+            ),
+          );
+
+      await tester.pumpWidget(tile(loadingMessageId));
+      await tester.pump();
+      await tester.tap(find.textContaining('Thinking'));
+      await tester.pump();
+      expect(find.text('A deep thought'), findsOneWidget);
+
+      await tester.pumpWidget(tile(_messageId));
+      await tester.pump();
+
+      expect(find.text('A deep thought'), findsOneWidget);
     });
   });
 }
