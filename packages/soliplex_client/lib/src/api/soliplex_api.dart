@@ -8,6 +8,8 @@ import 'package:soliplex_client/src/api/mappers.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
+import 'package:soliplex_client/src/application/rag_snapshot.dart'
+    show ragSourcesKey, ragStateKey;
 import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
@@ -859,6 +861,7 @@ class SoliplexApi {
         rawRuns is Map<String, dynamic> ? rawRuns : const <String, dynamic>{};
     if (runs.isEmpty) return ThreadHistory(messages: const []);
     final documentFilter = _extractLatestDocumentFilter(runs);
+    final databaseSources = _extractLatestDatabaseSources(runs);
 
     // 2. Walk runs in creation order, collecting:
     //    - completed run ids → fetched in parallel below
@@ -905,7 +908,11 @@ class SoliplexApi {
     }
 
     if (completedRunIds.isEmpty && preFetchDrops.isEmpty) {
-      return ThreadHistory(messages: const [], documentFilter: documentFilter);
+      return ThreadHistory(
+        messages: const [],
+        documentFilter: documentFilter,
+        databaseSources: databaseSources,
+      );
     }
 
     // 3. Fetch all run events in parallel (cache handles duplicates)
@@ -993,7 +1000,12 @@ class SoliplexApi {
     }
 
     // 5. Replay events to reconstruct history (messages + AG-UI state)
-    return _replayEventsToHistory(runsToReplay, threadId, documentFilter);
+    return _replayEventsToHistory(
+      runsToReplay,
+      threadId,
+      documentFilter,
+      databaseSources,
+    );
   }
 
   /// Fetches events for a single run, using cache for completed runs.
@@ -1186,6 +1198,30 @@ class SoliplexApi {
   /// on the newest carrying run means "cleared" and wins over older runs.
   /// Resilient: malformed entries are skipped. See U3.
   String? _extractLatestDocumentFilter(Map<String, dynamic> runs) {
+    final filter = _latestRagStateValue(runs, 'document_filter');
+    return filter is String ? filter : null;
+  }
+
+  /// The `sources` from the newest run that carries one in its
+  /// `run_input.state.rag`, or null.
+  ///
+  /// A list with a non-string entry reads as null: the selector cannot have
+  /// sent it, and "every database" is the reading that loses nothing.
+  List<String>? _extractLatestDatabaseSources(Map<String, dynamic> runs) {
+    final sources = _latestRagStateValue(runs, ragSourcesKey);
+    if (sources is! List || sources.isEmpty) return null;
+    final names = <String>[];
+    for (final entry in sources) {
+      if (entry is! String) return null;
+      names.add(entry);
+    }
+    return names;
+  }
+
+  /// The value under [key] in the newest run's `run_input.state.rag` that
+  /// carries the key at all — a run carrying it as `null` is an answer, not a
+  /// run to skip past.
+  Object? _latestRagStateValue(Map<String, dynamic> runs, String key) {
     for (final entry in runs.entries.toList().reversed) {
       final value = entry.value;
       if (value is! Map<String, dynamic>) continue;
@@ -1193,11 +1229,10 @@ class SoliplexApi {
       if (runInput is! Map<String, dynamic>) continue;
       final state = runInput['state'];
       if (state is! Map<String, dynamic>) continue;
-      final rag = state['rag'];
+      final rag = state[ragStateKey];
       if (rag is! Map<String, dynamic>) continue;
-      if (!rag.containsKey('document_filter')) continue;
-      final filter = rag['document_filter'];
-      return filter is String ? filter : null;
+      if (!rag.containsKey(key)) continue;
+      return rag[key];
     }
     return null;
   }
@@ -1211,9 +1246,14 @@ class SoliplexApi {
     List<_ReplayRun> runsToReplay,
     String threadId,
     String? documentFilter,
+    List<String>? databaseSources,
   ) {
     if (runsToReplay.isEmpty) {
-      return ThreadHistory(messages: const [], documentFilter: documentFilter);
+      return ThreadHistory(
+        messages: const [],
+        documentFilter: documentFilter,
+        databaseSources: databaseSources,
+      );
     }
 
     var conversation = Conversation.empty(threadId: threadId);
@@ -1574,6 +1614,7 @@ class SoliplexApi {
       runs: runs,
       runOutcomes: conversation.runOutcomes,
       documentFilter: documentFilter,
+      databaseSources: databaseSources,
     );
   }
 
@@ -1790,6 +1831,7 @@ class SoliplexApi {
     String chunkId, {
     List<String>? refs,
     bool expand = false,
+    String? database,
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
@@ -1798,6 +1840,13 @@ class SoliplexApi {
     final queryParameters = <String, String>{'expand': '$expand'};
     if (refs != null && refs.isNotEmpty) {
       queryParameters['refs'] = jsonEncode(refs);
+    }
+    // Names the database the chunk came from, as its citation reports it.
+    // Without it the backend asks every covered database in turn and the
+    // first holding the id answers — which, since chunk ids repeat between
+    // copies of a database, may not be the cited one.
+    if (database != null && database.isNotEmpty) {
+      queryParameters['database'] = database;
     }
 
     return _transport.request<ChunkVisualization>(

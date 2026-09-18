@@ -16,6 +16,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         FeedbackType,
         MalformedResponseException,
         PermissionDeniedException,
+        RagDatabaseScope,
         RagDocument,
         ReconnectFailed,
         ReconnectStatus,
@@ -24,7 +25,9 @@ import 'package:soliplex_client/soliplex_client.dart'
         Room,
         TextPart,
         ThreadHistory,
-        buildDocumentFilter;
+        buildDocumentFilter,
+        buildRagDocumentFilterOverlay,
+        buildRagSourcesOverlay;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/activity_read.dart' show currentUserRoomMarkers;
@@ -42,6 +45,7 @@ import '../thread_anchor_storage.dart';
 import '../thread_read_markers.dart';
 import '../thread_read_tracker.dart';
 import '../unread_boundary.dart';
+import '../database_selections.dart';
 import '../document_filter_hydration.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
@@ -205,6 +209,7 @@ class RoomScreen extends StatefulWidget {
     required this.uploadRegistry,
     this.enableDocumentFilter = false,
     required this.documentSelections,
+    this.databaseSelections,
     this.roomReadMarkers,
     this.serverReadMarkers,
   });
@@ -221,6 +226,10 @@ class RoomScreen extends StatefulWidget {
   final UploadTrackerRegistry uploadRegistry;
   final bool enableDocumentFilter;
   final DocumentSelections documentSelections;
+
+  /// Shared per-thread RAG database selections. Null in tests, where each
+  /// screen gets its own isolated store.
+  final DatabaseSelections? databaseSelections;
 
   /// Shared in-memory room read markers, also watched by the lobby. Stamping a
   /// room read here is visible to the lobby immediately, with no storage race.
@@ -364,6 +373,58 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
         threadId: widget.threadId,
         docs: selection,
+      );
+    });
+  }
+
+  late final DatabaseSelections _databaseSelections =
+      widget.databaseSelections ?? DatabaseSelections();
+
+  /// The databases the room's RAG skills search, read from the loaded room.
+  /// [RagDatabaseScope.none] until the room manifest lands, so nothing is
+  /// offered or sent for a room not yet known to have a choice.
+  RagDatabaseScope get _databaseScope {
+    final status = _state.room.peek();
+    return status is RoomLoaded
+        ? RagDatabaseScope.of(status.room)
+        : RagDatabaseScope.none;
+  }
+
+  /// The names selected for the current thread, restricted to the ones the
+  /// room actually has: a name hydrated from an older run, for a database
+  /// since dropped from the room, would fail the run if sent. Empty means
+  /// every database — the backend's default.
+  Set<String> _selectedDatabasesIn(RagDatabaseScope scope) {
+    final stored = _databaseSelections.get(
+      serverId: _serverId,
+      roomId: widget.roomId,
+      threadId: widget.threadId,
+    );
+    return stored.where(scope.names.contains).toSet();
+  }
+
+  /// Toggles [name] for the current thread. The last selected database
+  /// cannot be deselected: an empty selection would read as "every database",
+  /// lighting all of them back up under the tap that cleared the last one.
+  /// A selection that covers every database is stored as the default.
+  void _toggleDatabase(String name, {required bool selected}) {
+    final scope = _databaseScope;
+    final all = scope.names.toSet();
+    final current = _selectedDatabasesIn(scope);
+    final effective = current.isEmpty ? all : current;
+    final next = Set<String>.of(effective);
+    if (selected) {
+      next.add(name);
+    } else {
+      if (effective.length <= 1) return;
+      next.remove(name);
+    }
+    setState(() {
+      _databaseSelections.set(
+        serverId: _serverId,
+        roomId: widget.roomId,
+        threadId: widget.threadId,
+        names: next.length == all.length ? const {} : next,
       );
     });
   }
@@ -613,6 +674,8 @@ class _RoomScreenState extends State<RoomScreen> {
       _threadReadTracker.clearThread(threadId);
       _anchorTracker.clearThread(threadId);
       _documentSelections.clearThread(
+          serverId: serverId, roomId: roomId, threadId: threadId);
+      _databaseSelections.clearThread(
           serverId: serverId, roomId: roomId, threadId: threadId);
       unawaited(
         ThreadReadMarkerStorage.clearThread(serverId, roomId, threadId)
@@ -898,8 +961,32 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onThreadHistoryLoaded(String threadId, ThreadHistory history) {
     if (!mounted) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
+    _applyHydratedDatabases(threadId, history.databaseSources);
     if (!_filterEnabled) return;
     _filterHydrator.setFilter(threadId, history.documentFilter);
+  }
+
+  /// Seeds the thread's database selection from its newest run — but only if
+  /// the user hasn't already made one for it during the async load (local
+  /// edit wins). A history asserting every database seeds nothing: that is
+  /// the default, and a local selection is left as it is.
+  void _applyHydratedDatabases(String threadId, List<String>? sources) {
+    if (sources == null) return;
+    if (_databaseSelections.has(
+      serverId: _serverId,
+      roomId: widget.roomId,
+      threadId: threadId,
+    )) {
+      return;
+    }
+    setState(() {
+      _databaseSelections.set(
+        serverId: _serverId,
+        roomId: widget.roomId,
+        threadId: threadId,
+        names: sources.toSet(),
+      );
+    });
   }
 
   /// Seeds the resolved selection — but only if the thread is still active and
@@ -931,14 +1018,33 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Map<String, dynamic>? _buildStateOverlay() {
-    if (!_filterEnabled) return null;
-    final selected = _selectedDocuments;
-    return {
-      'rag': <String, dynamic>{
-        'document_filter':
-            selected.isEmpty ? null : buildDocumentFilter(selected.toList()),
-      },
-    };
+    final overlay = <String, dynamic>{};
+    if (_filterEnabled) {
+      final selected = _selectedDocuments;
+      overlay.addAll(
+        buildRagDocumentFilterOverlay(
+          selected.isEmpty ? null : buildDocumentFilter(selected.toList()),
+        ),
+      );
+    }
+    // Sent whenever there is a choice, selection or not: a `null` is what
+    // clears a narrower `sources` the thread's cached state may still carry.
+    final scope = _databaseScope;
+    if (scope.isSelectable) {
+      final selected = _selectedDatabasesIn(scope);
+      final sources = buildRagSourcesOverlay(
+        selected.isEmpty ? null : scope.names.where(selected.contains).toList(),
+        namespaces: scope.namespaces,
+      );
+      for (final entry in sources.entries) {
+        final existing = overlay[entry.key];
+        overlay[entry.key] = {
+          if (existing is Map<String, dynamic>) ...existing,
+          ...entry.value as Map<String, dynamic>,
+        };
+      }
+    }
+    return overlay.isEmpty ? null : overlay;
   }
 
   @override
@@ -1092,8 +1198,14 @@ class _RoomScreenState extends State<RoomScreen> {
         _chatController.clear();
         _workdirs.clearCache();
         _markThreadRead(widget.threadId);
-        if (_filterEnabled && oldWidget.threadId == null) {
-          _documentSelections.migrateToThread(
+        if (oldWidget.threadId == null) {
+          if (_filterEnabled) {
+            _documentSelections.migrateToThread(
+                serverId: _serverId,
+                roomId: widget.roomId,
+                threadId: widget.threadId!);
+          }
+          _databaseSelections.migrateToThread(
               serverId: _serverId,
               roomId: widget.roomId,
               threadId: widget.threadId!);
@@ -2462,6 +2574,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             documentTitle: ref.displayTitle,
                             pageNumbers: ref.pageNumbers,
                             docItemRefs: ref.docItemRefs,
+                            database: ref.database,
                           ),
                           onFetchWorkdirFiles: (runId) =>
                               _workdirs.fetchFiles(threadView.threadId, runId),
@@ -2522,6 +2635,12 @@ class _RoomScreenState extends State<RoomScreen> {
           : () => _pickAndUploadToNewThread(pick);
     }
 
+    // From the room this build has, not [_databaseScope]: that peeks the
+    // signal, and the composer should follow the manifest reactively.
+    final databaseScope =
+        room == null ? RagDatabaseScope.none : RagDatabaseScope.of(room);
+    final selectedDatabases = _selectedDatabasesIn(databaseScope);
+
     return ChatInput(
       // The composer's transient state belongs to the thread it is composing
       // for, and what the composer is saying about that state is held in widget
@@ -2551,6 +2670,10 @@ class _RoomScreenState extends State<RoomScreen> {
       enabled: _composerEnabled(status),
       selectedDocuments: _selectedDocuments,
       onFilterTap: _showDocumentFilter ? _openDocumentPicker : null,
+      databaseNames:
+          databaseScope.isSelectable ? databaseScope.names : const [],
+      selectedDatabases: selectedDatabases,
+      onDatabaseToggled: _toggleDatabase,
       onDocumentRemoved: _filterEnabled
           ? (doc) => _updateSelection(Set.of(_selectedDocuments)..remove(doc))
           : null,

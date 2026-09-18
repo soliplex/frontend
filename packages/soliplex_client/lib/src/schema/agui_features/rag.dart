@@ -30,6 +30,7 @@ class Citation {
   final int? index;
   final List<int>? pageNumbers;
   final List<String>? pictureRefs;
+  final String? source;
 
   Citation({
     required this.chunkId,
@@ -44,6 +45,7 @@ class Citation {
     this.index,
     this.pageNumbers,
     this.pictureRefs,
+    this.source,
   });
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
@@ -59,6 +61,7 @@ class Citation {
         index: intOrNull(json["index"], "index"),
         pageNumbers: intList(json["page_numbers"], "page_numbers"),
         pictureRefs: stringList(json["picture_refs"], "picture_refs"),
+        source: stringOrNull(json["source"], "source"),
       );
 
   Map<String, dynamic> toJson() => {
@@ -82,6 +85,7 @@ class Citation {
         "picture_refs": pictureRefs == null
             ? []
             : List<dynamic>.from(pictureRefs!.map((x) => x)),
+        "source": source,
       };
 }
 
