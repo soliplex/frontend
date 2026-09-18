@@ -17,6 +17,7 @@ class ThreadHistory {
     List<RunEventBundle> runs = const [],
     Map<String, NoResponseTile> runOutcomes = const {},
     this.documentFilter,
+    this.databaseSources,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -62,6 +63,13 @@ class ThreadHistory {
   /// when no run carries one. The backend keeps no merged filter state, so this
   /// (not any state event) is the only record of the thread's active filter.
   final String? documentFilter;
+
+  /// The RAG database names the client last asserted for this thread, read
+  /// from the newest run's `run_input.state.rag.sources`. `null` when no run
+  /// carries one, or the newest carrying one asserted every database (the
+  /// backend's `null`). Like [documentFilter], the run input is the only
+  /// record of it.
+  final List<String>? databaseSources;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.

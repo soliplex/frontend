@@ -6,6 +6,7 @@ import '../modules/auth/return_to_storage.dart';
 import '../modules/auth/server_manager.dart';
 import '../modules/lobby/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
+import '../modules/room/database_selections.dart';
 import '../modules/room/document_selections.dart';
 import '../modules/room/thread_anchor_storage.dart';
 import '../modules/room/thread_read_markers.dart';
@@ -36,15 +37,18 @@ class RemovedServerCleanup {
     required RoomReadMarkers roomReadMarkers,
     required ServerReadMarkers serverReadMarkers,
     required DocumentSelections documentSelections,
+    DatabaseSelections? databaseSelections,
   })  : _roomReadMarkers = roomReadMarkers,
         _serverReadMarkers = serverReadMarkers,
-        _documentSelections = documentSelections {
+        _documentSelections = documentSelections,
+        _databaseSelections = databaseSelections {
     _unsubscribe = serverManager.onServerRemoved(_clearServer);
   }
 
   final RoomReadMarkers _roomReadMarkers;
   final ServerReadMarkers _serverReadMarkers;
   final DocumentSelections _documentSelections;
+  final DatabaseSelections? _databaseSelections;
   late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
@@ -63,6 +67,11 @@ class RemovedServerCleanup {
         () => _roomReadMarkers.clearServer(id), 'room read markers', id);
     _clearInMemory(
         () => _documentSelections.clearServer(id), 'document selections', id);
+    final databaseSelections = _databaseSelections;
+    if (databaseSelections != null) {
+      _clearInMemory(
+          () => databaseSelections.clearServer(id), 'database selections', id);
+    }
     unawaited(
       ThreadReadMarkerStorage.clearServer(id)
           .catchError((Object error, StackTrace st) {

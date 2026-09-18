@@ -38,9 +38,11 @@ void main() {
         List<String>? chunkIds,
         int? index,
         Map<String, dynamic>? documentMeta,
+        String? source,
       }) {
         return {
           'chunk_id': chunkId,
+          if (source != null) 'source': source,
           'content': content,
           'document_id': documentId,
           'document_uri': documentUri,
@@ -106,6 +108,21 @@ void main() {
         expect(refs[0].figures, isEmpty);
         expect(refs[0].chunkIds, ['chunk-1', 'chunk-2']);
         expect(refs[0].index, 1);
+      });
+
+      test('carries the citation database name as `database`', () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(chunkId: 'c1', source: 'papers'),
+            'c2': createCitation(chunkId: 'c2'),
+          },
+          citations: ['c1', 'c2'],
+        );
+
+        final refs = extract(state);
+
+        expect(refs[0].database, 'papers');
+        expect(refs[1].database, isNull);
       });
 
       test('reads sourceUrl from the citation document_meta', () {

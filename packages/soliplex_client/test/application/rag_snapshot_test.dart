@@ -237,6 +237,53 @@ void main() {
       expect(rag.keys, equals(['document_filter']));
     });
   });
+
+  group('buildRagSourcesOverlay', () {
+    test('writes the names under rag.sources by default', () {
+      expect(
+        buildRagSourcesOverlay(['papers', 'wiki']),
+        equals({
+          'rag': {
+            'sources': ['papers', 'wiki'],
+          },
+        }),
+      );
+    });
+
+    test('writes to every namespace given', () {
+      final overlay = buildRagSourcesOverlay(
+        ['papers'],
+        namespaces: ['rag', 'analysis'],
+      );
+      expect(overlay.keys, equals(['rag', 'analysis']));
+      expect(
+        overlay['analysis'],
+        equals({
+          'sources': ['papers'],
+        }),
+      );
+    });
+
+    test('carries null through (every database)', () {
+      expect(
+        buildRagSourcesOverlay(null),
+        equals({
+          'rag': {'sources': null},
+        }),
+      );
+    });
+
+    test('normalises an empty list to null', () {
+      final rag = buildRagSourcesOverlay([])['rag'] as Map<String, dynamic>;
+      expect(rag.containsKey('sources'), isTrue);
+      expect(rag['sources'], isNull);
+    });
+
+    test('only touches sources, no other fields', () {
+      final rag = buildRagSourcesOverlay(['a'])['rag'] as Map<String, dynamic>;
+      expect(rag.keys, equals(['sources']));
+    });
+  });
 }
 
 /// Captures records from the rag snapshot's logger, ignoring all other log

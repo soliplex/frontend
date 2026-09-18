@@ -49,6 +49,7 @@ class ChunkVisualizationPage extends StatefulWidget {
     required this.useDialogLayout,
     this.documentTitle,
     this.docItemRefs = const [],
+    this.database,
   });
 
   final SoliplexApi api;
@@ -66,6 +67,11 @@ class ChunkVisualizationPage extends StatefulWidget {
   /// matches the cited content instead of re-expanding.
   final List<String> docItemRefs;
 
+  /// The RAG database the chunk came from, as its citation reports it, so
+  /// the backend asks that one rather than the first holding the id. Null
+  /// for a bare chunk-id lookup, or a citation that names none.
+  final String? database;
+
   static Future<void> show({
     required BuildContext context,
     required SoliplexApi api,
@@ -74,6 +80,7 @@ class ChunkVisualizationPage extends StatefulWidget {
     required List<int> pageNumbers,
     String? documentTitle,
     List<String> docItemRefs = const [],
+    String? database,
   }) {
     final useDialog =
         MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
@@ -85,6 +92,7 @@ class ChunkVisualizationPage extends StatefulWidget {
       pageNumbers: pageNumbers,
       useDialogLayout: useDialog,
       docItemRefs: docItemRefs,
+      database: database,
     );
 
     if (useDialog) {
@@ -146,6 +154,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         widget.roomId,
         widget.chunkId,
         refs: widget.docItemRefs,
+        database: widget.database,
       );
       _logger.debug(
         'chunk visualization fetched',

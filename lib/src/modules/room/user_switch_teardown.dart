@@ -3,6 +3,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
+import 'database_selections.dart';
 import 'document_selections.dart';
 import 'run_registry.dart';
 import 'upload_tracker_registry.dart';
@@ -55,10 +56,12 @@ class UserSwitchTeardown {
     required RunRegistry registry,
     required UploadTrackerRegistry uploadRegistry,
     required DocumentSelections documentSelections,
+    DatabaseSelections? databaseSelections,
   })  : _runtimeManager = runtimeManager,
         _registry = registry,
         _uploadRegistry = uploadRegistry,
-        _documentSelections = documentSelections {
+        _documentSelections = documentSelections,
+        _databaseSelections = databaseSelections {
     _dispose = effect(() {
       for (final MapEntry(key: serverId, value: entry)
           in servers.value.entries) {
@@ -79,6 +82,7 @@ class UserSwitchTeardown {
   final RunRegistry _registry;
   final UploadTrackerRegistry _uploadRegistry;
   final DocumentSelections _documentSelections;
+  final DatabaseSelections? _databaseSelections;
   // Baseline identity per server. An entry for a removed server is left in
   // place: the map is bounded by servers seen this process, and a stale
   // baseline only ever fires a harmless no-op eviction if that id is re-added,
@@ -98,6 +102,14 @@ class UserSwitchTeardown {
     _step(() => _registry.evictServer(serverId), 'runs', serverId);
     _step(() => _uploadRegistry.evictServer(serverId), 'uploads', serverId);
     _step(() => _documentSelections.clearServer(serverId), 'filters', serverId);
+    final databaseSelections = _databaseSelections;
+    if (databaseSelections != null) {
+      _step(
+        () => databaseSelections.clearServer(serverId),
+        'database selections',
+        serverId,
+      );
+    }
     _step(() => entry.adminStatus.clear(), 'admin status', serverId);
   }
 

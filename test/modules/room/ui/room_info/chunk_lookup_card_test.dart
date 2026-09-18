@@ -14,6 +14,7 @@ class _ChunkVizApi extends FakeSoliplexApi {
     String chunkId, {
     List<String>? refs,
     bool expand = true,
+    String? database,
     CancelToken? cancelToken,
   }) async =>
       ChunkVisualization(

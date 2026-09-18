@@ -206,6 +206,7 @@ class CitationExtractor {
       figures: figures,
       chunkIds: c.chunkIds ?? [],
       index: c.index,
+      database: c.source,
     );
   }
 }

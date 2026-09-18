@@ -5336,6 +5336,119 @@ void main() {
         expect(history.documentFilter, equals("id IN ('a', 'b')"));
       });
 
+      test('surfaces the database sources from a run input state', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {
+                  'sources': ['papers', 'wiki'],
+                },
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.databaseSources, equals(['papers', 'wiki']));
+      });
+
+      test(
+          'a newer run asserting every database (null) wins over an older '
+          'list', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {
+                  'sources': ['papers'],
+                },
+              },
+            },
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'finished': '2026-01-07T02:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'sources': null},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.databaseSources, isNull);
+      });
+
+      test('a run without the key is skipped past for the sources', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {
+                  'sources': ['papers'],
+                },
+              },
+            },
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'finished': '2026-01-07T02:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': null},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.databaseSources, equals(['papers']));
+        expect(history.documentFilter, isNull);
+      });
+
+      test('a sources list with a non-string entry reads as null', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {
+                  'sources': ['papers', 3],
+                },
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.databaseSources, isNull);
+      });
+
       test('picks the last run in the map (newest)', () async {
         stubThread({
           'run-1': {
@@ -6631,6 +6744,37 @@ void main() {
           capturedUri?.path,
           equals('/api/v1/rooms/room-123/chunk/chunk-456'),
         );
+        expect(capturedUri?.queryParameters.containsKey('database'), isFalse);
+      });
+
+      test('names the database the chunk came from', () async {
+        Uri? capturedUri;
+        when(
+          () => mockTransport.request<ChunkVisualization>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return ChunkVisualization(
+            chunkId: 'chunk-123',
+            documentUri: null,
+            imagesBase64: const [],
+          );
+        });
+
+        await api.getChunkVisualization(
+          'room-123',
+          'chunk-456',
+          database: 'papers',
+        );
+
+        expect(capturedUri?.queryParameters['database'], equals('papers'));
       });
 
       test('supports cancellation', () async {

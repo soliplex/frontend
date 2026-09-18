@@ -8,6 +8,7 @@ import '../auth/server_manager.dart';
 import '../lobby/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
 import 'agent_runtime_manager.dart';
+import 'database_selections.dart';
 import 'document_selections.dart';
 import 'message_expansions.dart';
 import 'room_providers.dart';
@@ -28,6 +29,7 @@ class RoomAppModule extends AppModule {
     this.logo,
     this.enableDocumentFilter = false,
   })  : _documentSelections = DocumentSelections(),
+        _databaseSelections = DatabaseSelections(),
         _messageExpansions = MessageExpansions(),
         _uploadRegistry =
             UploadTrackerRegistry(servers: serverManager.servers) {
@@ -36,6 +38,7 @@ class RoomAppModule extends AppModule {
       roomReadMarkers: roomReadMarkers,
       serverReadMarkers: serverReadMarkers,
       documentSelections: _documentSelections,
+      databaseSelections: _databaseSelections,
     );
     _userSwitchTeardown = UserSwitchTeardown(
       servers: serverManager.servers,
@@ -43,6 +46,7 @@ class RoomAppModule extends AppModule {
       registry: registry,
       uploadRegistry: _uploadRegistry,
       documentSelections: _documentSelections,
+      databaseSelections: _databaseSelections,
     );
   }
 
@@ -65,6 +69,7 @@ class RoomAppModule extends AppModule {
   final bool enableDocumentFilter;
 
   final DocumentSelections _documentSelections;
+  final DatabaseSelections _databaseSelections;
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
   late final RemovedServerCleanup _removedServerCleanup;
@@ -126,6 +131,7 @@ class RoomAppModule extends AppModule {
             uploadRegistry: _uploadRegistry,
             enableDocumentFilter: enableDocumentFilter,
             documentSelections: _documentSelections,
+            databaseSelections: _databaseSelections,
             roomReadMarkers: roomReadMarkers,
             serverReadMarkers: serverReadMarkers,
           ),

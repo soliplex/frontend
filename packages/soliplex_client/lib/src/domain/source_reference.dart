@@ -56,6 +56,7 @@ class SourceReference {
     this.figures = const [],
     this.chunkIds = const [],
     this.index,
+    this.database,
   });
 
   /// Unique identifier for the document.
@@ -106,6 +107,13 @@ class SourceReference {
 
   /// Display index for numbered citations.
   final int? index;
+
+  /// The name of the RAG database the cited chunk came from, as the backend
+  /// reports it (`source` on the citation). Chunk ids repeat between copies
+  /// of a database, so the visualization endpoint is told which one to ask.
+  /// Null for a citation from before databases were named, or from a
+  /// capability that reports none.
+  final String? database;
 
   /// Formats page numbers for display.
   ///
@@ -206,7 +214,8 @@ class SourceReference {
         listEquals.equals(docItemRefs, other.docItemRefs) &&
         const ListEquality<Figure>().equals(figures, other.figures) &&
         listEquals.equals(chunkIds, other.chunkIds) &&
-        index == other.index;
+        index == other.index &&
+        database == other.database;
   }
 
   @override
@@ -223,6 +232,7 @@ class SourceReference {
         const ListEquality<Figure>().hash(figures),
         const ListEquality<String>().hash(chunkIds),
         index,
+        database,
       );
 
   @override

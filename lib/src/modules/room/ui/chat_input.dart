@@ -57,6 +57,9 @@ class ChatInput extends StatefulWidget {
     this.selectedDocuments = const {},
     this.onFilterTap,
     this.onDocumentRemoved,
+    this.databaseNames = const [],
+    this.selectedDatabases = const {},
+    this.onDatabaseToggled,
     this.onAttachFile,
     this.onAttachFolder,
     this.openImagePicker,
@@ -77,6 +80,18 @@ class ChatInput extends StatefulWidget {
   final Set<RagDocument> selectedDocuments;
   final VoidCallback? onFilterTap;
   final void Function(RagDocument doc)? onDocumentRemoved;
+
+  /// The RAG databases the room searches, offered as filter chips above the
+  /// field when there is more than one. Empty hides the row.
+  final List<String> databaseNames;
+
+  /// The databases the thread's searches are narrowed to. Empty means every
+  /// database — the backend's default — and paints every chip selected.
+  final Set<String> selectedDatabases;
+
+  /// Called with the database's name and its new state when a chip is tapped.
+  final void Function(String name, {required bool selected})? onDatabaseToggled;
+
   final VoidCallback? onAttachFile;
 
   /// Optional folder-pick callback. When both [onAttachFile] and
@@ -522,6 +537,12 @@ class _ChatInputState extends State<ChatInput> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.databaseNames.length > 1)
+              _DatabaseChips(
+                names: widget.databaseNames,
+                selected: widget.selectedDatabases,
+                onToggled: disabled ? null : widget.onDatabaseToggled,
+              ),
             if (widget.selectedDocuments.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
@@ -684,6 +705,67 @@ class _ChatInputState extends State<ChatInput> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The room's RAG databases as filter chips: a tap narrows the thread's
+/// searches to the selected ones.
+///
+/// An empty [selected] is the backend's "every database", so every chip is
+/// painted selected; the last selected chip stays put when tapped, which
+/// [onToggled] enforces — the chip merely reports the tap.
+class _DatabaseChips extends StatelessWidget {
+  const _DatabaseChips({
+    required this.names,
+    required this.selected,
+    required this.onToggled,
+  });
+
+  final List<String> names;
+  final Set<String> selected;
+  final void Function(String name, {required bool selected})? onToggled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final all = selected.isEmpty;
+    final summary = all
+        ? 'Searching all ${names.length} databases'
+        : 'Searching ${selected.length} of ${names.length} databases';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: SoliplexSpacing.s1,
+              bottom: SoliplexSpacing.s1,
+            ),
+            child: Text(
+              summary,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: SoliplexSpacing.s1,
+            runSpacing: SoliplexSpacing.s1,
+            children: [
+              for (final name in names)
+                SoliplexChip.filter(
+                  icon: const Icon(Icons.storage_outlined),
+                  label: Text(name),
+                  selected: all || selected.contains(name),
+                  onSelected: (value) => onToggled?.call(name, selected: value),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
