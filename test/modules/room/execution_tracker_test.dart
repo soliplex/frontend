@@ -32,6 +32,82 @@ void main() {
 
   tearDown(() => tracker.dispose());
 
+  group('the event a signal is already holding', () {
+    // `subscribe` delivers the signal's current value at once. That value is
+    // the last event of the band that just closed, so without a guard the next
+    // band opens holding work the previous run did — an abandoned run's last
+    // execution row appearing at the top of the next answer.
+
+    test('a band does not open holding the previous one\'s last event', () {
+      events.value = const ServerToolCallStarted(
+        toolCallId: 'c-abandoned',
+        toolName: 'search',
+      );
+      expect(tracker.steps.value, hasLength(1));
+
+      final next = ExecutionTracker(
+        executionEvents: events,
+        activities: activities,
+        logger: testLogger(),
+      );
+      addTearDown(next.dispose);
+
+      expect(
+        next.steps.value,
+        isEmpty,
+        reason: "the previous band's work must not appear in this one",
+      );
+    });
+
+    test('the first event delivered after opening is kept, exactly once', () {
+      // The guard skips the synchronous replay only. A band that drops the
+      // first real event instead would lose the step that opens every run.
+      events.value = const ServerToolCallStarted(
+        toolCallId: 'c-abandoned',
+        toolName: 'search',
+      );
+      final next = ExecutionTracker(
+        executionEvents: events,
+        activities: activities,
+        logger: testLogger(),
+      );
+      addTearDown(next.dispose);
+
+      events.value = const ThinkingStarted();
+
+      expect(next.steps.value, hasLength(1));
+      expect(next.steps.value.single.label, equals('Thinking'));
+    });
+
+    test('a band opened on a signal holding nothing keeps its first event', () {
+      // Nothing to skip here: the replay delivers null. The guard must not
+      // spend itself on that and swallow the event that follows.
+      final fresh = ExecutionTracker(
+        executionEvents: events,
+        activities: activities,
+        logger: testLogger(),
+      );
+      addTearDown(fresh.dispose);
+
+      events.value = const ThinkingStarted();
+
+      expect(fresh.steps.value, hasLength(1));
+    });
+
+    test('a replayed band is unaffected — it opens no subscription', () {
+      events.value = const ThinkingStarted();
+
+      final replayed = ExecutionTracker.historical(
+        events: _untimed(const [ThinkingStarted()]),
+        origin: null,
+        activities: const [],
+        logger: testLogger(),
+      );
+
+      expect(replayed.steps.value, hasLength(1));
+    });
+  });
+
   test('starts with empty steps and no thinking', () {
     expect(tracker.steps.value, isEmpty);
     expect(tracker.thinkingBlocks.value, isEmpty);
