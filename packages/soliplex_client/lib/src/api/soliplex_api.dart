@@ -1131,7 +1131,8 @@ class SoliplexApi {
     return (messageId: id, parts: content.parts, text: content.text);
   }
 
-  /// The domain message for [userMessage], stamped with [createdAt].
+  /// The domain message for [userMessage], stamped with [createdAt] and the
+  /// run it opened.
   ///
   /// A non-null `parts` already satisfies [TextMessage.fromParts], but that
   /// holds only by the postcondition [readUserMessageContent] documents rather
@@ -1155,6 +1156,7 @@ class SoliplexApi {
           id: userMessage.messageId,
           parts: parts,
           createdAt: createdAt,
+          runId: runId,
         );
       }
       _logger.error(
@@ -1168,6 +1170,7 @@ class SoliplexApi {
       user: ChatUser.user,
       text: userMessage.text,
       createdAt: createdAt,
+      runId: runId,
     );
   }
 

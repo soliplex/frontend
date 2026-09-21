@@ -368,6 +368,16 @@ EventProcessingResult _processTextContent(
       ),
     );
 
+/// The run [conversation] is in, or null when it is in none.
+///
+/// What a message minted now belongs to. `Running` is the only status that
+/// names a run, and an event arriving under any other has none to claim.
+String? _runInFlight(Conversation conversation) =>
+    switch (conversation.status) {
+      Running(:final runId) => runId,
+      Idle() || Completed() || Failed() || Cancelled() => null,
+    };
+
 /// Converts an AG-UI event's epoch-millisecond [timestamp] to a UTC [DateTime],
 /// or null when the event carries no timestamp.
 DateTime? _eventTime(int? timestamp) => timestamp == null
@@ -404,6 +414,7 @@ EventProcessingResult _processTextEnd(
           text: active.text,
           thinkingText: active.thinkingText,
           createdAt: createdAt,
+          runId: _runInFlight(conversation),
         );
 
         return EventProcessingResult(
@@ -732,6 +743,7 @@ EventProcessingResult _processRunError(
               id: runErrorMessageId(runId),
               message: message,
               createdAt: createdAt,
+              runId: runId,
             ),
           );
     return EventProcessingResult(

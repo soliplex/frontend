@@ -5873,6 +5873,93 @@ void main() {
       });
     });
 
+    group('getThreadHistory run attribution', () {
+      /// Stubs a thread of [runs] keyed by run id, in the order given, each
+      /// already finished, then hydrates it.
+      Future<ThreadHistory> hydrate(
+        Map<String, Map<String, dynamic>> runs,
+      ) async {
+        var minute = 0;
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'runs': {
+              for (final runId in runs.keys)
+                runId: {
+                  'run_id': runId,
+                  'created': '2026-01-07T01:0$minute:00.000Z',
+                  'finished': '2026-01-07T01:0${minute++}:30.000Z',
+                },
+            },
+          },
+        );
+        for (final entry in runs.entries) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/${entry.key}',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => {'run_id': entry.key, ...entry.value});
+        }
+        return api.getThreadHistory('room-123', 'thread-456');
+      }
+
+      Map<String, dynamic> reply(String runId, String messageId, String text) =>
+          {
+            'run_input': {
+              'messages': [
+                {'id': 'user-$runId', 'role': 'user', 'content': 'ask'},
+              ],
+            },
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': runId},
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': messageId,
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': messageId,
+                'delta': text,
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': messageId},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': runId},
+            ],
+          };
+
+      test('every replayed message names the run it came from', () async {
+        final history = await hydrate({
+          'run-1': reply('run-1', 'msg-1', 'first answer'),
+          'run-2': reply('run-2', 'msg-2', 'second answer'),
+        });
+
+        final byId = {for (final m in history.messages) m.id: m.runId};
+        expect(byId['msg-1'], equals('run-1'));
+        expect(byId['msg-2'], equals('run-2'));
+        expect(byId['user-run-1'], equals('run-1'));
+        expect(byId['user-run-2'], equals('run-2'));
+      });
+    });
+
     group('getRun', () {
       test('returns run by ID', () async {
         when(

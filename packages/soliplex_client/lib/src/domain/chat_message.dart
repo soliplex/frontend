@@ -186,6 +186,7 @@ sealed class ChatMessage {
     required this.id,
     required this.user,
     required this.createdAt,
+    this.runId,
   });
 
   /// Unique identifier for this message.
@@ -205,6 +206,14 @@ sealed class ChatMessage {
   /// optimistic user echo before the run is persisted, which fills in from the
   /// run's `created` on replay.
   final DateTime? createdAt;
+
+  /// The run this message belongs to, or null when no run does.
+  ///
+  /// Null for a message minted outside a run — the optimistic user echo, which
+  /// exists before the run it starts, and a dropped event caught before any run
+  /// is in flight — and for one restored from a thread stored before this field
+  /// existed.
+  final String? runId;
 
   @override
   bool operator ==(Object other) =>
@@ -241,6 +250,7 @@ class TextMessage extends ChatMessage {
     required super.user,
     required super.createdAt,
     required this.text,
+    super.runId,
     this.thinkingText = '',
     this.parts,
   });
@@ -254,6 +264,7 @@ class TextMessage extends ChatMessage {
     required String text,
     DateTime? createdAt,
     String thinkingText = '',
+    String? runId,
   }) {
     return TextMessage(
       id: id,
@@ -261,6 +272,7 @@ class TextMessage extends ChatMessage {
       text: text,
       thinkingText: thinkingText,
       createdAt: createdAt,
+      runId: runId,
     );
   }
 
@@ -285,6 +297,7 @@ class TextMessage extends ChatMessage {
     required String id,
     required List<MessagePart> parts,
     DateTime? createdAt,
+    String? runId,
   }) {
     if (parts.plainText.isEmpty && !parts.hasAttachment) {
       throw ArgumentError.value(
@@ -298,6 +311,7 @@ class TextMessage extends ChatMessage {
       user: ChatUser.user,
       text: parts.plainText,
       createdAt: createdAt,
+      runId: runId,
       parts: List.unmodifiable(parts),
     );
   }
@@ -332,6 +346,7 @@ class TextMessage extends ChatMessage {
     DateTime? createdAt,
     String? text,
     String? thinkingText,
+    String? runId,
   }) {
     return TextMessage(
       id: id ?? this.id,
@@ -339,6 +354,7 @@ class TextMessage extends ChatMessage {
       createdAt: createdAt ?? this.createdAt,
       text: text ?? this.text,
       thinkingText: thinkingText ?? this.thinkingText,
+      runId: runId ?? this.runId,
       parts: parts,
     );
   }
@@ -367,10 +383,12 @@ class NoResponseTile extends ChatMessage {
     required String thinkingText,
     required String errorDetail,
     DateTime? createdAt,
+    String? runId,
   }) =>
       NoResponseTile._(
         id: id,
         createdAt: createdAt,
+        runId: runId,
         thinkingText: thinkingText,
         reason: TerminalReason.failed,
         errorDetail: errorDetail,
@@ -381,10 +399,12 @@ class NoResponseTile extends ChatMessage {
     required String id,
     required String thinkingText,
     DateTime? createdAt,
+    String? runId,
   }) =>
       NoResponseTile._(
         id: id,
         createdAt: createdAt,
+        runId: runId,
         thinkingText: thinkingText,
         reason: TerminalReason.cancelled,
         errorDetail: null,
@@ -395,10 +415,12 @@ class NoResponseTile extends ChatMessage {
     required String id,
     required String thinkingText,
     DateTime? createdAt,
+    String? runId,
   }) =>
       NoResponseTile._(
         id: id,
         createdAt: createdAt,
+        runId: runId,
         thinkingText: thinkingText,
         reason: TerminalReason.finished,
         errorDetail: null,
@@ -407,6 +429,7 @@ class NoResponseTile extends ChatMessage {
   const NoResponseTile._({
     required super.id,
     required super.createdAt,
+    required super.runId,
     required this.thinkingText,
     required this.reason,
     required this.errorDetail,
@@ -437,6 +460,7 @@ class ErrorMessage extends ChatMessage {
     required super.id,
     required super.createdAt,
     required this.errorText,
+    super.runId,
   }) : super(user: ChatUser.system);
 
   /// Creates an error message with the given ID. [createdAt] is the
@@ -446,11 +470,13 @@ class ErrorMessage extends ChatMessage {
     required String id,
     required String message,
     DateTime? createdAt,
+    String? runId,
   }) {
     return ErrorMessage(
       id: id,
       errorText: message,
       createdAt: createdAt,
+      runId: runId,
     );
   }
 
@@ -469,6 +495,7 @@ class ToolCallMessage extends ChatMessage {
     required super.id,
     required super.createdAt,
     required this.toolCalls,
+    super.runId,
   }) : super(user: ChatUser.assistant);
 
   /// Creates a tool call message with the given ID, stamped with the client
@@ -476,11 +503,13 @@ class ToolCallMessage extends ChatMessage {
   factory ToolCallMessage.create({
     required String id,
     required List<ToolCallInfo> toolCalls,
+    String? runId,
   }) {
     return ToolCallMessage(
       id: id,
       toolCalls: toolCalls,
       createdAt: DateTime.timestamp(),
+      runId: runId,
     );
   }
 
@@ -494,6 +523,7 @@ class ToolCallMessage extends ChatMessage {
   factory ToolCallMessage.fromExecuted({
     required String id,
     required List<ToolCallInfo> toolCalls,
+    String? runId,
   }) {
     assert(
       toolCalls.every(
@@ -507,6 +537,7 @@ class ToolCallMessage extends ChatMessage {
       id: id,
       toolCalls: toolCalls,
       createdAt: DateTime.timestamp(),
+      runId: runId,
     );
   }
 
@@ -526,6 +557,7 @@ class GenUiMessage extends ChatMessage {
     required super.createdAt,
     required this.widgetName,
     required this.data,
+    super.runId,
   }) : super(user: ChatUser.assistant);
 
   /// Creates a genUI message with the given ID, stamped with the client clock
@@ -534,12 +566,14 @@ class GenUiMessage extends ChatMessage {
     required String id,
     required String widgetName,
     required Map<String, dynamic> data,
+    String? runId,
   }) {
     return GenUiMessage(
       id: id,
       widgetName: widgetName,
       data: data,
       createdAt: DateTime.timestamp(),
+      runId: runId,
     );
   }
 
@@ -557,13 +591,20 @@ class GenUiMessage extends ChatMessage {
 @immutable
 class LoadingMessage extends ChatMessage {
   /// Creates a loading message with all properties.
-  const LoadingMessage({required super.id, required super.createdAt})
-      : super(user: ChatUser.assistant);
+  const LoadingMessage({
+    required super.id,
+    required super.createdAt,
+    super.runId,
+  }) : super(user: ChatUser.assistant);
 
   /// Creates a loading message with the given ID, stamped with the client clock
   /// at creation (a transient client-side placeholder with no backend time).
-  factory LoadingMessage.create({required String id}) {
-    return LoadingMessage(id: id, createdAt: DateTime.timestamp());
+  factory LoadingMessage.create({required String id, String? runId}) {
+    return LoadingMessage(
+      id: id,
+      createdAt: DateTime.timestamp(),
+      runId: runId,
+    );
   }
 
   @override
@@ -599,7 +640,7 @@ class DroppedEventMessage extends ChatMessage {
     required super.createdAt,
     required this.source,
     required this.reason,
-    this.runId,
+    super.runId,
     this.rawPayload,
   }) : super(user: ChatUser.system);
 
@@ -623,10 +664,6 @@ class DroppedEventMessage extends ChatMessage {
       createdAt: createdAt,
     );
   }
-
-  /// Run the drop happened inside, when known. Null for non-run-scoped
-  /// drops (e.g., decode failures that arrive before any run is in flight).
-  final String? runId;
 
   /// Where the drop was caught.
   final DropSource source;
