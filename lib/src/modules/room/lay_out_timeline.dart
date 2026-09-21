@@ -89,13 +89,19 @@ List<RenderedTile> _placeBands({
   };
 
   for (final MapEntry(key: key, value: band) in bands.entries) {
-    final (runId, from) = switch (runOfUnclaimedBand[key]) {
-      final String runId => (runId, tiles.indexWhere((t) => t.runId == runId)),
-      null => switch (tiles.indexWhere((t) => t.message.id == key)) {
-          -1 => (null, -1),
-          final index => (tiles[index].runId, index),
-        },
-    };
+    // A message id first: a run's outcome tile carries the same id its
+    // unclaimed band is keyed by, so reading the key as a run when the tile it
+    // names is right there would hand the band to whatever spoke earlier.
+    final named = tiles.indexWhere((t) => t.message.id == key);
+    final (runId, from) = named >= 0
+        ? (tiles[named].runId, named)
+        : switch (runOfUnclaimedBand[key]) {
+            final String runId => (
+                runId,
+                tiles.indexWhere((t) => t.runId == runId)
+              ),
+            null => (null, -1),
+          };
     final target =
         from < 0 ? -1 : _firstBandCapableAt(tiles, from: from, inRun: runId);
     if (target < 0) {
@@ -174,24 +180,40 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
       if (runId != activeRunId && !representedRuns.contains(runId)) runId,
   };
 
+  // `outcomes` is parked in the order runs ended, which is the only record of
+  // when a run that committed nothing happened.
+  final endedIn = outcomes.keys.toList();
+
   final tiles = <({ChatMessage message, String? runId})>[];
   void settle(String runId) {
     if (!owed.remove(runId)) return;
     tiles.add((message: outcomes[runId]!, runId: runId));
   }
 
+  /// Settles every owed run that ended before [runId] did.
+  ///
+  /// A run that committed nothing has no message to sit beside, so without
+  /// this its outcome falls to the sweep below and lands at the foot of the
+  /// timeline — under a later run's answer, carrying its band with it.
+  void settleRunsEndingBefore(String runId) {
+    final limit = endedIn.indexOf(runId);
+    for (final ended in limit < 0 ? endedIn : endedIn.take(limit)) {
+      if (ended != runId) settle(ended);
+    }
+  }
+
   String? openRun;
   for (final message in projected) {
     final runId = message.runId;
     if (openRun != null && runId != openRun) settle(openRun);
+    if (runId != null) settleRunsEndingBefore(runId);
     openRun = runId;
     if (existsOnlyForToolCall(message)) continue;
     tiles.add((message: message, runId: runId));
   }
-  if (openRun != null) settle(openRun);
-  // A run that committed nothing at all — a cancel before the reply opened, or
-  // a run whose only output was reasoning — has no message to sit beside.
-  for (final runId in outcomes.keys) {
+  // Whatever is still owed ended after everything the timeline holds, so it
+  // belongs at the foot of it, in the order the runs ended.
+  for (final runId in endedIn) {
     settle(runId);
   }
   return tiles;
