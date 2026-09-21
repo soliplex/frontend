@@ -24,7 +24,6 @@ class RunUsage {
     this.finalInputTokens,
     this.resolvedModelName,
     this.finalOutputTokens,
-    this.measuredAt,
   });
 
   /// The run this usage belongs to.
@@ -55,13 +54,6 @@ class RunUsage {
   /// backend predates the field.
   final int? finalOutputTokens;
 
-  /// When the backend recorded this usage, or null from a backend that
-  /// predates the field.
-  ///
-  /// What says which of two measurements is the newer: a client can learn
-  /// of them out of order, and a thread can be run from more than one.
-  final DateTime? measuredAt;
-
   /// Whether this run says anything about the context window.
   bool get isMeasured => finalInputTokens != null;
 
@@ -87,8 +79,7 @@ class RunUsage {
           other.toolCalls == toolCalls &&
           other.finalInputTokens == finalInputTokens &&
           other.resolvedModelName == resolvedModelName &&
-          other.finalOutputTokens == finalOutputTokens &&
-          other.measuredAt == measuredAt;
+          other.finalOutputTokens == finalOutputTokens;
 
   @override
   int get hashCode => Object.hash(
@@ -100,11 +91,9 @@ class RunUsage {
         finalInputTokens,
         resolvedModelName,
         finalOutputTokens,
-        measuredAt,
       );
 
   @override
   String toString() => 'RunUsage($runId, final: ${finalInputTokens ?? "?"}'
-      '+${finalOutputTokens ?? "?"}, model: $resolvedModelName, '
-      'at: $measuredAt)';
+      '+${finalOutputTokens ?? "?"}, model: $resolvedModelName)';
 }

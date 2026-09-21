@@ -1436,7 +1436,6 @@ void main() {
             'final_input_tokens': 1800,
             'resolved_model_name': 'gpt-oss:latest',
             'final_output_tokens': 120,
-            'measured_at': '2026-09-17T10:02:00.000000',
           }),
         );
 
@@ -1449,7 +1448,7 @@ void main() {
         );
         expect(
           found,
-          RunUsage(
+          const RunUsage(
             runId: 'run-789',
             inputTokens: 5400,
             outputTokens: 300,
@@ -1458,50 +1457,9 @@ void main() {
             finalInputTokens: 1800,
             resolvedModelName: 'gpt-oss:latest',
             finalOutputTokens: 120,
-            measuredAt: DateTime.utc(2026, 9, 17, 10, 2),
           ),
         );
         expect(found?.contextTokens, 1920);
-      });
-
-      test('reads an aware timestamp as the same instant', () async {
-        // Postgres hands back an offset; sqlite hands back a naive UTC.
-        answerWithJson(
-          jsonEncode({
-            'input_tokens': 1,
-            'output_tokens': 1,
-            'requests': 1,
-            'tool_calls': 0,
-            'final_input_tokens': 10,
-            'measured_at': '2026-09-17T12:02:00+02:00',
-          }),
-        );
-
-        final found =
-            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
-
-        expect(found?.measuredAt, DateTime.utc(2026, 9, 17, 10, 2));
-      });
-
-      test('keeps the measurement when the timestamp is malformed', () async {
-        // The count is the reading; the time only orders it. Losing the
-        // order must not cost the number.
-        answerWithJson(
-          jsonEncode({
-            'input_tokens': 1,
-            'output_tokens': 1,
-            'requests': 1,
-            'tool_calls': 0,
-            'final_input_tokens': 10,
-            'measured_at': 'not a time',
-          }),
-        );
-
-        final found =
-            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
-
-        expect(found?.finalInputTokens, 10);
-        expect(found?.measuredAt, isNull);
       });
 
       test('reads a run that never reached the model as null', () async {
