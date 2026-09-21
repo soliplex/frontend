@@ -1335,6 +1335,13 @@ class SoliplexApi {
         }
       }
 
+      // The events were fetched under this run's id, so the run is known
+      // before any of them is read. Waiting for a `RUN_STARTED` to say so
+      // leaves a bundle that carries none with every message unattributed and
+      // no record of how the run ended — and the backend's own status branches
+      // describe stored runs that end without the events to prove it.
+      conversation = conversation.withStatus(Running(runId: runId));
+
       // Per-event try/catch so one bad event can't abort replay.
       final decodedEvents = <BaseEvent>[];
       for (var i = 0; i < events.length; i++) {

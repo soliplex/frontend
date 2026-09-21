@@ -616,4 +616,44 @@ void main() {
       );
     });
   });
+
+  group('stamping a message with the run it opened', () {
+    TextMessage echo({String? run}) => TextMessage(
+          id: 'u1',
+          user: ChatUser.user,
+          createdAt: null,
+          text: 'ask',
+          runId: run,
+        );
+
+    test('a message with no run takes the one that started', () {
+      final conversation =
+          Conversation.empty(threadId: 't').withAppendedMessage(echo());
+
+      expect(
+        conversation.withMessageRun('u1', 'run-0').messages.single.runId,
+        equals('run-0'),
+      );
+    });
+
+    test('a message that already names a run keeps it', () {
+      final conversation = Conversation.empty(threadId: 't')
+          .withAppendedMessage(echo(run: 'run-first'));
+
+      expect(
+        conversation.withMessageRun('u1', 'run-second').messages.single.runId,
+        equals('run-first'),
+      );
+    });
+
+    test('a message that is not there changes nothing', () {
+      final conversation =
+          Conversation.empty(threadId: 't').withAppendedMessage(echo());
+
+      expect(
+        conversation.withMessageRun('absent', 'run-0'),
+        equals(conversation),
+      );
+    });
+  });
 }

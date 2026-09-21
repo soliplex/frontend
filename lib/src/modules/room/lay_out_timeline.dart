@@ -158,9 +158,8 @@ int _firstBandCapableAt(
 ///
 /// A run's outcome takes the place its messages held, so a run that went quiet
 /// before an unrelated question renders above that question rather than after
-/// it. A message naming no run does not close the run before it — the
-/// optimistic user echo of the *next* turn arrives with no run of its own, and
-/// the outcome of the run that just ended belongs ahead of it.
+/// it. A message that names no run closes the run before it, which is what puts
+/// that outcome ahead of a turn still waiting for its own run to begin.
 List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   required List<ChatMessage> projected,
   required Map<String, NoResponseTile> outcomes,
@@ -195,11 +194,20 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   /// A run that committed nothing has no message to sit beside, so without
   /// this its outcome falls to the sweep below and lands at the foot of the
   /// timeline — under a later run's answer, carrying its band with it.
+  ///
+  /// Every run that ends records how it ended, so a run missing from that
+  /// record has not ended: it is the one still in flight, and everything owed
+  /// ended before it. A run that is missing for any other reason says nothing
+  /// about when it ended, and reading it as the latest would hoist a later
+  /// run's outcome above a turn that came first.
   void settleRunsEndingBefore(String runId) {
     final limit = endedIn.indexOf(runId);
-    for (final ended in limit < 0 ? endedIn : endedIn.take(limit)) {
-      if (ended != runId) settle(ended);
+    if (limit < 0) {
+      if (runId != activeRunId) return;
+      endedIn.forEach(settle);
+      return;
     }
+    endedIn.take(limit).forEach(settle);
   }
 
   String? openRun;

@@ -249,6 +249,28 @@ class Conversation {
     );
   }
 
+  /// Returns a copy with [messageId] stamped with [runId] when that message is
+  /// present and names no run yet.
+  ///
+  /// The optimistic user echo is minted before the run it opens exists, so it
+  /// starts with neither a time nor a run. Both become known at the same
+  /// moment, and both are what a reload resolves that message to — stamping
+  /// only one of them is what makes the same thread lay out differently before
+  /// and after a refresh.
+  Conversation withMessageRun(String messageId, String runId) {
+    return copyWith(
+      messages: [
+        for (final message in messages)
+          if (message is TextMessage &&
+              message.id == messageId &&
+              message.runId == null)
+            message.copyWith(runId: runId)
+          else
+            message,
+      ],
+    );
+  }
+
   /// Creates a copy with the given fields replaced.
   Conversation copyWith({
     String? threadId,
