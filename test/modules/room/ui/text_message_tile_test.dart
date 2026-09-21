@@ -303,6 +303,27 @@ void main() {
     expect(find.byType(SoliplexShimmer), findsNothing);
   });
 
+  testWidgets('committed whitespace-only assistant message reports no text',
+      (tester) async {
+    // Whitespace is nothing to read, so a reply carrying only spaces is a
+    // reply that carried no text — not a bubble holding a space.
+    await tester.pumpWidget(_wrap(
+      TextMessageTile(
+        isStreaming: false,
+        roomId: 'r',
+        message: TextMessage(
+          id: 'blank-1',
+          user: ChatUser.assistant,
+          createdAt: DateTime(2026),
+          text: '   ',
+        ),
+      ),
+    ));
+
+    expect(find.text('This message has no text'), findsOneWidget);
+    expect(find.byType(FlutterMarkdownPlusRenderer), findsNothing);
+  });
+
   group('a user message carrying image parts', () {
     // A real 1x1 PNG rather than arbitrary bytes, so these tests exercise the
     // decoding path instead of the failure placeholder.
