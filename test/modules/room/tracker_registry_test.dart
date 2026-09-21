@@ -19,6 +19,67 @@ void main() {
 
   tearDown(() => registry.dispose());
 
+  group("work stays with the run that did it", () {
+    void awaiting() => registry.onStreaming(
+          const AwaitingText(currentPhase: ThinkingPhase()),
+          events,
+          activities,
+        );
+    void speaking(String id) => registry.onStreaming(
+          TextStreaming(
+            messageId: id,
+            user: ChatUser.assistant,
+            text: 'Answer.',
+          ),
+          events,
+          activities,
+        );
+
+    test('a terminated run does not hand its band to the next run', () {
+      awaiting();
+      events.value = const ThinkingStarted();
+      registry.onRunTerminated();
+
+      awaiting();
+      speaking('m1');
+
+      expect(
+        registry.trackers['m1']!.timeline.value,
+        isEmpty,
+        reason: "the previous run's work must not appear above this answer",
+      );
+    });
+
+    test(
+        'a second band in one run does not inherit the first one\'s last '
+        'event', () {
+      speaking('m1');
+      events.value = const ThinkingStarted();
+      speaking('m2');
+
+      expect(
+        registry.trackers['m2']!.timeline.value,
+        isEmpty,
+        reason: "m1's work belongs to m1",
+      );
+    });
+
+    test('a band still keeps the work done after it opened', () {
+      awaiting();
+      events.value = const ThinkingStarted();
+      registry.onRunTerminated();
+
+      awaiting();
+      speaking('m1');
+      events.value = const ServerToolCallStarted(
+        toolCallId: 'c-1',
+        toolName: 'search',
+      );
+
+      expect(registry.trackers['m1']!.timeline.value, hasLength(1));
+    });
+  });
+
   test('starts empty', () {
     expect(registry.trackers, isEmpty);
   });

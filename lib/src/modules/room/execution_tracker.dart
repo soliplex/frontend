@@ -16,7 +16,20 @@ class ExecutionTracker {
         _activities = Signal<List<ActivityRecord>>(activities.value),
         _historical = false {
     _stopwatch.start();
-    _unsub = executionEvents.subscribe(_onEvent);
+    // `subscribe` delivers the signal's current value before it delivers
+    // anything new, and that value is the last event of the band that just
+    // closed. Counted here it would put an abandoned run's final execution row
+    // at the top of the next answer. Only that one synchronous delivery is
+    // skipped: the first event of this band's own work arrives afterwards and
+    // is kept, including when the signal was holding nothing to begin with.
+    var replayingCurrentValue = true;
+    _unsub = executionEvents.subscribe((event) {
+      if (replayingCurrentValue) {
+        replayingCurrentValue = false;
+        return;
+      }
+      _onEvent(event);
+    });
     // Mirror the session-owned activities into our local signal so the
     // tracker stays self-contained when ThreadViewState absorbs it on
     // detach: freeze() drops the subscription, and the captured list
