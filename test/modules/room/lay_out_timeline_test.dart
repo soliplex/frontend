@@ -285,12 +285,31 @@ void main() {
           user('u2', text: 'something else'),
           assistant('m2', text: 'Here.', run: 'run-1'),
         ],
-        outcomes: {'run-0': outcome('run-0')},
+        outcomes: {'run-0': outcome('run-0'), 'run-1': outcome('run-1')},
       );
 
       expect(
         idsOf(tiles),
         equals(['u1', 'u2', noResponseMessageId('run-0'), 'm2']),
+      );
+    });
+
+    test('an unparked run does not drag a later outcome above it', () {
+      // A run with no parked outcome says nothing about when it ended, so it
+      // cannot be read as "later than everything owed". Only the run still in
+      // flight can be read that way, and it is named.
+      final tiles = layOut(
+        messages: [
+          user('u1'),
+          assistant('m1', text: 'Here.', run: 'run-0'),
+          assistant('m2', named: true, run: 'run-1'),
+        ],
+        outcomes: {'run-1': outcome('run-1')},
+      );
+
+      expect(
+        idsOf(tiles),
+        equals(['u1', 'm1', noResponseMessageId('run-1')]),
       );
     });
 

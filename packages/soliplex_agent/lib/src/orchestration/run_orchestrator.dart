@@ -912,7 +912,18 @@ class RunOrchestrator {
     _terminalCompleter = Completer<RunState>();
     _subscriptionEpoch++;
     final epoch = _subscriptionEpoch;
-    _setState(initialState);
+    // The provider returned this run's id before the stream opened, so the run
+    // is known before any of its events is read. Leaving the conversation to
+    // learn that from a `RUN_STARTED` leaves a stream carrying none with every
+    // message unattributed and no record of how the run ended — the same gap
+    // replay closes from the id its events were fetched under. Every path that
+    // opens a stream arrives here, so this is where the two agree.
+    _setState(
+      initialState.copyWith(
+        conversation: initialState.conversation
+            .withStatus(Running(runId: initialState.runId)),
+      ),
+    );
     _subscription = events.listen(
       _onEvent,
       onError: _onStreamError,
@@ -1088,14 +1099,21 @@ class RunOrchestrator {
       return;
     }
     if (event is RunStartedEvent) {
-      // Stamp the optimistic user echo with the run's server start time, so its
-      // caption matches the time a reload resolves it to (the `RUN_STARTED`
-      // timestamp, falling back to run `created`).
+      // Stamp the optimistic user echo with what the run's start makes known:
+      // the server time, so its caption matches the one a reload resolves it to
+      // (the `RUN_STARTED` timestamp, falling back to run `created`), and the
+      // run itself, which is the run replay attributes that message to. The
+      // echo is minted before either exists; leaving the run off is what made
+      // a thread lay out differently before and after a refresh.
       final userMessageId = _userMessageId;
       final startTime = _lastEventTime;
-      final conversation = userMessageId != null && startTime != null
-          ? result.conversation.withMessageTime(userMessageId, startTime)
-          : result.conversation;
+      var conversation = result.conversation;
+      if (userMessageId != null) {
+        conversation = conversation.withMessageRun(userMessageId, event.runId);
+        if (startTime != null) {
+          conversation = conversation.withMessageTime(userMessageId, startTime);
+        }
+      }
       _setState(
         previous.copyWith(
           conversation: conversation,

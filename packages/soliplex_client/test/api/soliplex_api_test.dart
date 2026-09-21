@@ -5873,6 +5873,80 @@ void main() {
       });
     });
 
+    group('getThreadHistory establishes the run it is replaying', () {
+      Future<ThreadHistory> hydrate(Map<String, dynamic> run) async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:00:30.000Z',
+              },
+            },
+          },
+        );
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => {'run_id': 'run-1', ...run});
+        return api.getThreadHistory('room-123', 'thread-456');
+      }
+
+      // A stored run whose events do not begin with RUN_STARTED is a shape the
+      // replay loop already anticipates elsewhere. The run id is the key the
+      // events were fetched under, so nothing about the run is unknown — but
+      // waiting for an event to say so leaves every message in the bundle with
+      // no run, and the run with no record of how it ended.
+      const noRunStarted = {
+        'events': [
+          {
+            'type': 'TEXT_MESSAGE_START',
+            'messageId': 'm1',
+            'role': 'assistant',
+          },
+          {'type': 'TEXT_MESSAGE_CONTENT', 'messageId': 'm1', 'delta': 'Here.'},
+          {'type': 'TEXT_MESSAGE_END', 'messageId': 'm1'},
+          {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-1'},
+        ],
+      };
+
+      test('a bundle with no run-start event still names its run', () async {
+        final history = await hydrate(noRunStarted);
+
+        final reply = history.messages.firstWhere((m) => m.id == 'm1');
+        expect(reply.runId, equals('run-1'));
+      });
+
+      test('a bundle with no run-start event still records how it ended',
+          () async {
+        final history = await hydrate(noRunStarted);
+
+        expect(history.runOutcomes.keys, equals(['run-1']));
+      });
+    });
+
     group('getThreadHistory run attribution', () {
       /// Stubs a thread of [runs] keyed by run id, in the order given, each
       /// already finished, then hydrates it.

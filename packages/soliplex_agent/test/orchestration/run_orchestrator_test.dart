@@ -1327,6 +1327,66 @@ void main() {
     });
   });
 
+  group('a stream that never announces its run', () {
+    // The provider returned the run's id before the stream opened, so the run
+    // is known before any event is read. A stream that carries no RUN_STARTED
+    // must not leave its messages unattributed or its ending unrecorded — the
+    // same gap replay closes from the id its events were fetched under.
+    List<BaseEvent> withoutRunStarted() => [
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ];
+
+    test('still names the run on the messages it commits', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(withoutRunStarted()));
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+
+      final conversation =
+          (orchestrator.currentState as CompletedState).conversation;
+      final reply = conversation.messages
+          .whereType<TextMessage>()
+          .firstWhere((m) => m.id == 'msg-1');
+      expect(reply.runId, equals(_runId));
+    });
+
+    test('still records how the run ended', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(withoutRunStarted()));
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+
+      final conversation =
+          (orchestrator.currentState as CompletedState).conversation;
+      expect(conversation.runOutcomes.keys, equals([_runId]));
+    });
+  });
+
+  test('the optimistic echo takes the run once that run starts', () async {
+    // Replay attributes the user message to the run it opened. Live, the echo
+    // exists before that run does — so it takes it when the run announces
+    // itself, and both paths describe the same message the same way.
+    stubCreateRun();
+    stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+    await orchestrator.startRun(key: _key, userMessage: [const TextPart('Hi')]);
+    await Future<void>.delayed(Duration.zero);
+
+    final conversation =
+        (orchestrator.currentState as CompletedState).conversation;
+    final echo = conversation.messages
+        .whereType<TextMessage>()
+        .firstWhere((m) => m.user == ChatUser.user);
+    expect(echo.runId, equals(_runId));
+  });
+
   group('parking how a run ended', () {
     // Every path that ends a run parks a candidate, so whoever renders the
     // thread can decide whether the run has anything to show for itself. Four
