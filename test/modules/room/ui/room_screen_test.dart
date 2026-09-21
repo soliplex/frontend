@@ -3653,8 +3653,9 @@ void main() {
   });
 
   group('reporting a failed run', () {
-    /// A thread whose transcript carries one failed run, with the runId the
-    /// resolver needs on the preceding user message.
+    /// A thread whose transcript carries one failed run. The outcome tile
+    /// names its own run, as synthesis stamps it; the user message carries the
+    /// association its own actions resolve through.
     void seedFailedRun() {
       api.nextThreadHistory = ThreadHistory(
         messages: [
@@ -3669,6 +3670,7 @@ void main() {
             createdAt: DateTime(2026, 3, 1),
             thinkingText: 'thinking',
             errorDetail: 'upstream exploded',
+            runId: 'run-9',
           ),
         ],
         messageStates: {

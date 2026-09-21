@@ -1,28 +1,27 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-/// Maps each non-user message ID to the [MessageState.runId] of its
-/// preceding user message.
+/// The run a tile's actions belong to — reporting a problem, submitting
+/// feedback, inspecting the exchange, listing the files a run wrote.
 ///
-/// Assumes messages are ordered chronologically and that each user message
-/// starts a new "turn" — all subsequent non-user messages (assistant text,
-/// tool calls, errors) belong to that turn until the next user message.
-Map<String, String?> buildRunIdMap(
-  List<ChatMessage> messages,
+/// An assistant tile names the run that produced it and nothing else. Reaching
+/// back to the user message before it would file an early segment's reply under
+/// whichever run happened to finish the turn, because that message's
+/// association deliberately advances to the last segment of a tool loop.
+///
+/// A user tile is the exception, and takes that association first. Its own run
+/// is the one it opened, which is not the run its actions should reach: a
+/// reader reporting a problem with a turn means the turn, not its first
+/// segment. Its own run is the fallback for a message nothing associated —
+/// live, the optimistic echo carries none at all, because it exists before the
+/// run it starts.
+///
+/// Both paths therefore resolve a user tile the same way, which is what keeps
+/// the action it offers from depending on whether the thread has been
+/// reloaded.
+String? resolveRunId(
+  ChatMessage message,
   Map<String, MessageState> messageStates,
-) {
-  final map = <String, String?>{};
-  String? currentUserMessageId;
-
-  for (final message in messages) {
-    if (message.user == ChatUser.user) {
-      currentUserMessageId = message.id;
-    } else {
-      final runId = currentUserMessageId != null
-          ? messageStates[currentUserMessageId]?.runId
-          : null;
-      map[message.id] = runId;
-    }
-  }
-
-  return map;
-}
+) =>
+    message.user == ChatUser.user
+        ? messageStates[message.id]?.runId ?? message.runId
+        : message.runId;
