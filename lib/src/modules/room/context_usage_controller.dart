@@ -62,6 +62,11 @@ class ContextUsageController extends ChangeNotifier {
   int _inFlightTokens = 0;
   bool _disposed = false;
 
+  /// How many measurements have been asked for, which is the only order
+  /// available: a usage record carries no time of its own, and runs end
+  /// in the order this is called.
+  int _fetches = 0;
+
   /// The current reading.
   ///
   /// The terms go in apart: what the backend counted, and what is
@@ -81,13 +86,12 @@ class ContextUsageController extends ChangeNotifier {
   /// Called when the thread's history loads. The history already carries
   /// the newest measured run, so this costs no request.
   ///
-  /// Usually a seed rather than a correction: the fetch behind it was
-  /// issued before any run this controller watched. It displaces a
-  /// measurement in hand only when the backend's clock says it is newer,
-  /// which happens when the thread was run from elsewhere. A history
-  /// carrying no measurement leaves the reading where it was.
+  /// A seed, not a correction: the fetch behind it was issued before any
+  /// run this controller watched, so a measurement already in hand is at
+  /// least as new and the history has nothing to add. A history carrying
+  /// no measurement leaves the reading where it was.
   void historyLoaded(ThreadHistory history) {
-    if (_disposed) return;
+    if (_disposed || _measured != null) return;
 
     final latest = history.latestUsage;
     if (latest == null || !latest.isMeasured) {
@@ -102,7 +106,7 @@ class ContextUsageController extends ChangeNotifier {
     // Releases nothing: a seed says which run was measured, not which
     // messages an estimate here stands for. The run's own answer is what
     // releases it -- including when the seed named that same run.
-    _measure(latest, releasing: 0, seed: true);
+    _measure(latest, releasing: 0);
   }
 
   /// Re-reads the measurement once [runId] has ended.
@@ -118,6 +122,7 @@ class ContextUsageController extends ChangeNotifier {
   /// no prompt tokens for the request it made. The previous reading
   /// stands either way.
   Future<void> runEnded(String runId) async {
+    final fetch = ++_fetches;
     // What this answer can speak for: the run had started, so the model
     // saw everything held now. Anything banked while the request is open
     // is a later message it never saw.
@@ -146,7 +151,9 @@ class ContextUsageController extends ChangeNotifier {
       return;
     }
 
-    if (_disposed) return;
+    // A later run ended while this was in flight, so this answer is about
+    // a request the model has since moved past.
+    if (_disposed || fetch != _fetches) return;
 
     if (found == null || !found.isMeasured) {
       // The reading goes stale here without changing, which looks from
@@ -165,7 +172,7 @@ class ContextUsageController extends ChangeNotifier {
       );
     }
 
-    _measure(found, releasing: heldAtRequest, seed: false);
+    _measure(found, releasing: heldAtRequest);
   }
 
   /// Records that a send ended with no run to report on it.
@@ -177,14 +184,7 @@ class ContextUsageController extends ChangeNotifier {
 
   /// Adopts [found], dropping the [releasing] tokens of estimate it
   /// accounts for and leaving any banked since it was asked for.
-  ///
-  /// [seed] marks a measurement that arrived with the history rather
-  /// than as the answer to a run this controller watched end.
-  void _measure(
-    RunUsage? found, {
-    required int releasing,
-    required bool seed,
-  }) {
+  void _measure(RunUsage? found, {required int releasing}) {
     // A run that measured nothing releases the estimate standing in for
     // the sent message: it either never reached the model or is already
     // inside the previous reading, and holding an estimate against a run
@@ -202,10 +202,6 @@ class ContextUsageController extends ChangeNotifier {
       return;
     }
 
-    // A newer measurement is in hand -- a later run's answer overtook
-    // this one -- and its answer released what this one would have.
-    if (!_supersedes(found, seed: seed)) return;
-
     _measured = found;
     _inFlightTokens = _afterReleasing(releasing);
     // The window is here because a null one is why an otherwise measured
@@ -218,29 +214,10 @@ class ContextUsageController extends ChangeNotifier {
         'runId': found.runId,
         'finalInputTokens': found.finalInputTokens,
         'finalOutputTokens': found.finalOutputTokens,
-        'measuredAt': found.measuredAt,
         'contextWindow': contextWindow,
       },
     );
     notifyListeners();
-  }
-
-  /// Whether [found] is newer than the measurement in hand.
-  ///
-  /// Decided by the backend's clock: a run's answer can resolve after a
-  /// later run's, and a thread run from another client is measured
-  /// without any run ending here. A backend that predates the timestamp
-  /// leaves only the order things arrive in, where an answer to a run
-  /// that ended is newer than whatever it displaces and a seed never is.
-  bool _supersedes(RunUsage found, {required bool seed}) {
-    final current = _measured;
-    if (current == null) return true;
-
-    final at = found.measuredAt;
-    final currentAt = current.measuredAt;
-    if (at != null && currentAt != null) return at.isAfter(currentAt);
-
-    return !seed;
   }
 
   int _afterReleasing(int tokens) {
