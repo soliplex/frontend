@@ -1994,5 +1994,59 @@ void main() {
         });
       }
     });
+
+    group('naming a tool call parent', () {
+      Conversation withCommitted(String id, String text) =>
+          Conversation.empty(threadId: 'thread-1').withAppendedMessage(
+            TextMessage.create(id: id, user: ChatUser.assistant, text: text),
+          );
+
+      test('ToolCallStartEvent marks the message it names', () {
+        final result = processEvent(
+          withCommitted('m1', ''),
+          streaming,
+          const ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'search',
+            parentMessageId: 'm1',
+          ),
+        );
+
+        expect(
+          (result.conversation.messages.single as TextMessage).namedByToolCall,
+          isTrue,
+        );
+      });
+
+      test('a tool call naming no parent marks nothing', () {
+        final result = processEvent(
+          withCommitted('m1', ''),
+          streaming,
+          const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+        );
+
+        expect(
+          (result.conversation.messages.single as TextMessage).namedByToolCall,
+          isFalse,
+        );
+      });
+
+      test('a parent id matching no message leaves the messages alone', () {
+        final result = processEvent(
+          withCommitted('m1', ''),
+          streaming,
+          const ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'search',
+            parentMessageId: 'absent',
+          ),
+        );
+
+        expect(
+          (result.conversation.messages.single as TextMessage).namedByToolCall,
+          isFalse,
+        );
+      });
+    });
   });
 }

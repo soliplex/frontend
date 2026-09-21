@@ -253,6 +253,7 @@ class TextMessage extends ChatMessage {
     super.runId,
     this.thinkingText = '',
     this.parts,
+    this.namedByToolCall = false,
   });
 
   /// Creates a text message with the given ID. [createdAt] is the
@@ -336,6 +337,16 @@ class TextMessage extends ChatMessage {
   /// The thinking/reasoning text if available.
   final String thinkingText;
 
+  /// Whether a tool call named this message as its parent.
+  ///
+  /// Set by `processEvent` when a `ToolCallStartEvent` carrying this id in
+  /// `parentMessageId` arrives, which is always after the message commits. A
+  /// response that begins with a tool call has no text message of its own, so
+  /// the stream opens and immediately closes an empty one purely to make that
+  /// id real; this is what tells such a message from a reply that genuinely
+  /// carried no text, which is an anomaly worth showing.
+  final bool namedByToolCall;
+
   /// Whether this message has thinking text.
   bool get hasThinkingText => thinkingText.isNotEmpty;
 
@@ -347,6 +358,7 @@ class TextMessage extends ChatMessage {
     String? text,
     String? thinkingText,
     String? runId,
+    bool? namedByToolCall,
   }) {
     return TextMessage(
       id: id ?? this.id,
@@ -356,6 +368,7 @@ class TextMessage extends ChatMessage {
       thinkingText: thinkingText ?? this.thinkingText,
       runId: runId ?? this.runId,
       parts: parts,
+      namedByToolCall: namedByToolCall ?? this.namedByToolCall,
     );
   }
 
@@ -761,3 +774,32 @@ class ToolCallInfo {
   @override
   String toString() => 'ToolCallInfo(id: $id, name: $name, status: $status)';
 }
+
+/// Whether [message] was opened only to give a tool call's parent id something
+/// to refer to, rather than to say anything.
+///
+/// A model response that begins with a tool call has no text message of its
+/// own, so the stream opens and immediately closes an empty one to make the id
+/// `ToolCallStartEvent.parentMessageId` names real. There is nothing in it to
+/// read, so the timeline leaves it out; its events and reasoning belong to the
+/// next message that speaks.
+///
+/// An empty assistant message no tool call named is a reply that genuinely
+/// carried no text. That is an anomaly worth surfacing rather than hiding, so
+/// it keeps its notice — which is why this asks about the claim and not only
+/// about the text.
+///
+/// Whitespace is not text: the producer drops an empty text part on a plain
+/// truthiness check, which a space or a newline passes, so a model that opens
+/// with one before calling a tool leaves a bubble holding nothing.
+///
+/// Reasoning is not text either. `TEXT_MESSAGE_START` moves whatever reasoning
+/// was buffered onto the message being opened, so such a message carries it —
+/// and that reasoning renders from the band (`ExecutionThinkingBlock` reads
+/// `tracker.thinkingBlocks`), not from the message, so leaving it out loses
+/// nothing.
+bool existsOnlyForToolCall(ChatMessage message) =>
+    message is TextMessage &&
+    message.user == ChatUser.assistant &&
+    message.namedByToolCall &&
+    message.text.trim().isEmpty;
