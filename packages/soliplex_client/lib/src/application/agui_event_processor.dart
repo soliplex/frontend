@@ -636,8 +636,14 @@ EventProcessingResult _processRunFinished(
     terminalEvent: 'RunFinishedEvent',
     createdAt: createdAt,
   );
-  final result = synthesizeFinishedNoResponse(
+  final parked = parkFinishedOutcome(
     conversation: withPartial,
+    streaming: streaming,
+    runId: runId,
+    createdAt: createdAt,
+  );
+  final result = synthesizeFinishedNoResponse(
+    conversation: parked,
     streaming: streaming,
     runId: runId,
     createdAt: createdAt,
@@ -703,8 +709,15 @@ EventProcessingResult _processRunError(
       terminalEvent: 'RunErrorEvent',
       createdAt: createdAt,
     );
-    final result = synthesizeFailedNoResponse(
+    final parked = parkFailedOutcome(
       conversation: withPartial,
+      streaming: streaming,
+      runId: runId,
+      errorDetail: message,
+      createdAt: createdAt,
+    );
+    final result = synthesizeFailedNoResponse(
+      conversation: parked,
       streaming: streaming,
       runId: runId,
       errorDetail: message,
@@ -742,7 +755,7 @@ EventProcessingResult _processRunError(
     // commit it sits alongside the half-streamed reply.
     final surfaced = result.synthesized
         ? result.conversation
-        : withPartial.withAppendedMessage(
+        : parked.withAppendedMessage(
             ErrorMessage.create(
               id: runErrorMessageId(runId),
               message: message,

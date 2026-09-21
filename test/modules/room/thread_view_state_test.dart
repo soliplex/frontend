@@ -1711,4 +1711,48 @@ void main() {
       );
     });
   });
+
+  group('run outcomes reaching the view', () {
+    NoResponseTile parked(String run) => NoResponseTile.cancelled(
+          id: noResponseMessageId(run),
+          thinkingText: 'weighing it',
+          runId: run,
+        );
+
+    test('a merge keeps an outcome the newer conversation no longer carries',
+        () {
+      // A locally cancelled run is recorded nowhere the backend can replay,
+      // so a later conversation that has dropped it must not erase it here.
+      final first = MessagesLoaded(
+        messages: const [],
+        messageStates: const {},
+        runOutcomes: {'run-0': parked('run-0')},
+      );
+      final second = MessagesLoaded(
+        messages: const [],
+        messageStates: const {},
+        runOutcomes: {...first.runOutcomes, 'run-1': parked('run-1')},
+      );
+
+      expect(second.runOutcomes.keys, equals(['run-0', 'run-1']));
+    });
+
+    test('two states differing only in outcomes are not equal', () {
+      final messages = <ChatMessage>[];
+      const states = <String, MessageState>{};
+
+      expect(
+        MessagesLoaded(
+          messages: messages,
+          messageStates: states,
+          runOutcomes: {'run-0': parked('run-0')},
+        ),
+        isNot(
+          equals(
+            MessagesLoaded(messages: messages, messageStates: states),
+          ),
+        ),
+      );
+    });
+  });
 }

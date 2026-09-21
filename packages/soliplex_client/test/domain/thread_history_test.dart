@@ -152,4 +152,25 @@ void main() {
       expect(bundle.events, hasLength(1));
     });
   });
+
+  group('run outcomes', () {
+    test('a history carries how each run ended', () {
+      final parked = NoResponseTile.cancelled(
+        id: noResponseMessageId('run-0'),
+        thinkingText: 'weighing it',
+        runId: 'run-0',
+      );
+
+      final history = ThreadHistory(
+        messages: const [],
+        runOutcomes: {'run-0': parked},
+      );
+
+      expect(history.runOutcomes['run-0'], same(parked));
+    });
+
+    test('a history with none carries an empty map', () {
+      expect(ThreadHistory(messages: const []).runOutcomes, isEmpty);
+    });
+  });
 }

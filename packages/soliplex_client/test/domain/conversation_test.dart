@@ -548,4 +548,72 @@ void main() {
       expect(conv == conv, isTrue);
     });
   });
+
+  group('run outcomes', () {
+    NoResponseTile parked(String run) => NoResponseTile.finished(
+          id: noResponseMessageId(run),
+          thinkingText: 'weighing it',
+          runId: run,
+        );
+
+    test('a conversation starts with none', () {
+      expect(Conversation.empty(threadId: 't').runOutcomes, isEmpty);
+    });
+
+    test('parking one keeps the runs already parked', () {
+      final conversation = Conversation.empty(threadId: 't')
+          .withRunOutcome('run-0', parked('run-0'))
+          .withRunOutcome('run-1', parked('run-1'));
+
+      expect(conversation.runOutcomes.keys, equals(['run-0', 'run-1']));
+    });
+
+    test('parking the same run again replaces it', () {
+      final failed = NoResponseTile.failed(
+        id: noResponseMessageId('run-0'),
+        thinkingText: '',
+        errorDetail: 'boom',
+        runId: 'run-0',
+      );
+      final conversation = Conversation.empty(threadId: 't')
+          .withRunOutcome('run-0', parked('run-0'))
+          .withRunOutcome('run-0', failed);
+
+      expect(conversation.runOutcomes['run-0'], same(failed));
+    });
+
+    test('withdrawing one leaves the others', () {
+      final conversation = Conversation.empty(threadId: 't')
+          .withRunOutcome('run-0', parked('run-0'))
+          .withRunOutcome('run-1', parked('run-1'))
+          .withoutRunOutcome('run-0');
+
+      expect(conversation.runOutcomes.keys, equals(['run-1']));
+    });
+
+    test('withdrawing a run that parked nothing changes nothing', () {
+      final conversation = Conversation.empty(threadId: 't')
+          .withRunOutcome('run-0', parked('run-0'));
+
+      expect(conversation.withoutRunOutcome('run-9'), equals(conversation));
+    });
+
+    test('copyWith carries them', () {
+      final conversation = Conversation.empty(threadId: 't')
+          .withRunOutcome('run-0', parked('run-0'));
+
+      expect(conversation.copyWith(threadId: 'u').runOutcomes, hasLength(1));
+    });
+
+    test('two conversations differing only in outcomes are not equal', () {
+      // Change detection keys on this: an outcome parked without the
+      // conversation comparing unequal would never reach a rebuild.
+      final base = Conversation.empty(threadId: 't');
+
+      expect(
+        base.withRunOutcome('run-0', parked('run-0')),
+        isNot(equals(base)),
+      );
+    });
+  });
 }

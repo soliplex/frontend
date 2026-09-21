@@ -1327,6 +1327,165 @@ void main() {
     });
   });
 
+  group('parking how a run ended', () {
+    // Every path that ends a run parks a candidate, so whoever renders the
+    // thread can decide whether the run has anything to show for itself. Four
+    // of the six never reach `processEvent` at all, and a rule installed only
+    // in its two terminal arms would miss them.
+
+    test('cancelRun during a run parks a cancelled outcome', () async {
+      final controller = StreamController<BaseEvent>();
+      stubCreateRun();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      controller.add(RunStartedEvent(threadId: 'thread-1', runId: _runId));
+      await Future<void>.delayed(Duration.zero);
+      orchestrator.cancelRun();
+
+      final state = orchestrator.currentState as CancelledState;
+      final parked = state.conversation!.runOutcomes[_runId];
+      expect(parked, isNotNull);
+      expect(parked!.reason, equals(TerminalReason.cancelled));
+
+      await controller.close();
+    });
+
+    test('cancelRun during a tool yield parks a cancelled outcome', () async {
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+
+      orchestrator.cancelRun();
+
+      final state = orchestrator.currentState as CancelledState;
+      final parked = state.conversation!.runOutcomes[_runId];
+      expect(parked, isNotNull);
+      expect(parked!.reason, equals(TerminalReason.cancelled));
+    });
+
+    test('a stream that ends without a terminal parks a failed outcome',
+        () async {
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+
+      final state = orchestrator.currentState as FailedState;
+      final parked = state.conversation!.runOutcomes[_runId];
+      expect(parked, isNotNull);
+      expect(parked!.reason, equals(TerminalReason.failed));
+    });
+
+    test('a transport failure parks a failed outcome', () async {
+      final controller = StreamController<BaseEvent>();
+      stubCreateRun();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      controller.add(RunStartedEvent(threadId: 'thread-1', runId: _runId));
+      await Future<void>.delayed(Duration.zero);
+      controller.addError(StateError('connection lost'));
+      await Future<void>.delayed(Duration.zero);
+
+      final state = orchestrator.currentState as FailedState;
+      final parked = state.conversation!.runOutcomes[_runId];
+      expect(parked, isNotNull);
+      expect(parked!.reason, equals(TerminalReason.failed));
+
+      await controller.close();
+    });
+
+    test('a stream cancellation parks a cancel, not a failure', () async {
+      final controller = StreamController<BaseEvent>();
+      stubCreateRun();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      controller.add(RunStartedEvent(threadId: 'thread-1', runId: _runId));
+      await Future<void>.delayed(Duration.zero);
+      controller.addError(const CancelledException());
+      await Future<void>.delayed(Duration.zero);
+
+      final state = orchestrator.currentState as CancelledState;
+      final parked = state.conversation!.runOutcomes[_runId];
+      expect(parked, isNotNull);
+      expect(parked!.reason, equals(TerminalReason.cancelled));
+
+      await controller.close();
+    });
+
+    test('a second send keeps the outcomes of the runs before it', () async {
+      // Every send builds a fresh Conversation from the cached history. A run
+      // that ended two turns ago still has to be able to say so.
+      final parked = NoResponseTile.cancelled(
+        id: noResponseMessageId('run-earlier'),
+        thinkingText: 'weighing it',
+        runId: 'run-earlier',
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      await orchestrator.startRun(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+        cachedHistory: ThreadHistory(
+          messages: const [],
+          runOutcomes: {'run-earlier': parked},
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final state = orchestrator.currentState as CompletedState;
+      expect(state.conversation.runOutcomes['run-earlier'], same(parked));
+    });
+
+    test('a run that yields to a client tool withdraws its candidate', () {
+      // `processEvent` parks on RUN_FINISHED, before the lifecycle has decided
+      // whether the run is over or waiting on a tool. The branch that knows
+      // takes it back.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
+
+      return orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')])
+          .then((_) => Future<void>.delayed(Duration.zero))
+          .then((_) {
+            final state = orchestrator.currentState as ToolYieldingState;
+            expect(state.conversation.runOutcomes, isEmpty);
+          });
+    });
+  });
+
   group('submitToolOutputs', () {
     late int callCount;
 

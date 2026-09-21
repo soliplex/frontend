@@ -107,6 +107,94 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
       ),
     );
 
+/// Records how a run that finished normally ended, for a thread that may have
+/// nothing else to show for it.
+Conversation parkFinishedOutcome({
+  required Conversation conversation,
+  required StreamingState streaming,
+  required String runId,
+  DateTime? createdAt,
+}) =>
+    _park(
+      conversation: conversation,
+      streaming: streaming,
+      runId: runId,
+      build: (id, thinking) => NoResponseTile.finished(
+        id: id,
+        thinkingText: thinking,
+        createdAt: createdAt,
+        runId: runId,
+      ),
+    );
+
+/// Records how a run that failed ended. [errorDetail] is the backend message.
+Conversation parkFailedOutcome({
+  required Conversation conversation,
+  required StreamingState streaming,
+  required String runId,
+  required String errorDetail,
+  DateTime? createdAt,
+}) =>
+    _park(
+      conversation: conversation,
+      streaming: streaming,
+      runId: runId,
+      build: (id, thinking) => NoResponseTile.failed(
+        id: id,
+        thinkingText: thinking,
+        errorDetail: errorDetail,
+        createdAt: createdAt,
+        runId: runId,
+      ),
+    );
+
+/// Records that the user stopped a run.
+Conversation parkCancelledOutcome({
+  required Conversation conversation,
+  required StreamingState streaming,
+  required String runId,
+  DateTime? createdAt,
+}) =>
+    _park(
+      conversation: conversation,
+      streaming: streaming,
+      runId: runId,
+      build: (id, thinking) => NoResponseTile.cancelled(
+        id: id,
+        thinkingText: thinking,
+        createdAt: createdAt,
+        runId: runId,
+      ),
+    );
+
+/// Parks [runId]'s outcome, always.
+///
+/// Nothing here asks whether the run has anything else to show for itself.
+/// That question needs the whole thread — a run that answered has a reply to
+/// stand for it — and the answer is not available at the moment a run ends.
+/// Parking a candidate and letting the thread decide replaces three guesses
+/// that each had to be right: that a reply was not mid-stream, that some
+/// reasoning had been buffered, and that no tool call was still open.
+///
+/// The reasoning travels with the candidate, from whichever state the run was
+/// in when it stopped. A reply already committed carries its own copy, and a
+/// candidate whose run has a reply to stand for it is simply not shown.
+Conversation _park({
+  required Conversation conversation,
+  required StreamingState streaming,
+  required String runId,
+  required NoResponseTile Function(String id, String thinkingText) build,
+}) {
+  final thinking = switch (streaming) {
+    AwaitingText(:final bufferedThinkingText) => bufferedThinkingText,
+    TextStreaming(:final thinkingText) => thinkingText,
+  };
+  return conversation.withRunOutcome(
+    runId,
+    build(noResponseMessageId(runId), thinking),
+  );
+}
+
 /// Shared decline gate for the three terminal entries.
 ///
 /// Always declines when [streaming] is not [AwaitingText]: a reply was in
