@@ -24,10 +24,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnecting,
         Room,
         TextPart,
-        ThreadHistory,
-        buildDocumentFilter,
-        buildRagDocumentFilterOverlay,
-        buildRagSourcesOverlay;
+        ThreadHistory;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/activity_read.dart' show currentUserRoomMarkers;
@@ -47,6 +44,7 @@ import '../thread_read_tracker.dart';
 import '../unread_boundary.dart';
 import '../database_selections.dart';
 import '../document_filter_hydration.dart';
+import '../rag_state_overlay.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
 import '../agent_runtime_manager.dart';
@@ -393,14 +391,17 @@ class _RoomScreenState extends State<RoomScreen> {
   /// The names selected for the current thread, restricted to the ones the
   /// room actually has: a name hydrated from an older run, for a database
   /// since dropped from the room, would fail the run if sent. Empty means
-  /// every database — the backend's default.
+  /// every database — the backend's default — which a selection covering
+  /// all of them also reads as, so a history that listed every database
+  /// shows and sends the same as a user who selected them all.
   Set<String> _selectedDatabasesIn(RagDatabaseScope scope) {
     final stored = _databaseSelections.get(
       serverId: _serverId,
       roomId: widget.roomId,
       threadId: widget.threadId,
     );
-    return stored.where(scope.names.contains).toSet();
+    final known = stored.where(scope.names.contains).toSet();
+    return known.length == scope.names.length ? const {} : known;
   }
 
   /// Toggles [name] for the current thread. The last selected database
@@ -1018,33 +1019,13 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Map<String, dynamic>? _buildStateOverlay() {
-    final overlay = <String, dynamic>{};
-    if (_filterEnabled) {
-      final selected = _selectedDocuments;
-      overlay.addAll(
-        buildRagDocumentFilterOverlay(
-          selected.isEmpty ? null : buildDocumentFilter(selected.toList()),
-        ),
-      );
-    }
-    // Sent whenever there is a choice, selection or not: a `null` is what
-    // clears a narrower `sources` the thread's cached state may still carry.
     final scope = _databaseScope;
-    if (scope.isSelectable) {
-      final selected = _selectedDatabasesIn(scope);
-      final sources = buildRagSourcesOverlay(
-        selected.isEmpty ? null : scope.names.where(selected.contains).toList(),
-        namespaces: scope.namespaces,
-      );
-      for (final entry in sources.entries) {
-        final existing = overlay[entry.key];
-        overlay[entry.key] = {
-          if (existing is Map<String, dynamic>) ...existing,
-          ...entry.value as Map<String, dynamic>,
-        };
-      }
-    }
-    return overlay.isEmpty ? null : overlay;
+    return buildRagStateOverlay(
+      filterEnabled: _filterEnabled,
+      selectedDocuments: _selectedDocuments,
+      scope: scope,
+      selectedDatabases: _selectedDatabasesIn(scope),
+    );
   }
 
   @override

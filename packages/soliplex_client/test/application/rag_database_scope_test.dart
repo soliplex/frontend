@@ -62,6 +62,9 @@ void main() {
       );
       expect(scope.names, equals(['a', 'b', 'c']));
       expect(scope.namespaces, equals(['rag', 'analysis']));
+      expect(scope.namesFor('rag'), equals(['a', 'b']));
+      expect(scope.namesFor('analysis'), equals(['b', 'c']));
+      expect(scope.namesFor('other'), isEmpty);
     });
 
     test('ignores a skill without a state namespace', () {
@@ -113,7 +116,7 @@ void main() {
       expect(scope.isSelectable, isFalse);
     });
 
-    test('a room whose every database is missing is not none', () {
+    test('a namespace whose every database is missing is not written to', () {
       final scope = RagDatabaseScope.of(
         _room({
           'rag': _skill(
@@ -121,24 +124,41 @@ void main() {
             namespace: 'rag',
             databaseNames: ['MISSING: papers'],
           ),
+          'rag-analysis': _skill(
+            'rag-analysis',
+            namespace: 'analysis',
+            databaseNames: ['wiki', 'notes'],
+          ),
         }),
       );
       expect(scope, isNot(equals(RagDatabaseScope.none)));
-      expect(scope.names, isEmpty);
+      expect(scope.names, equals(['wiki', 'notes']));
       expect(scope.missing, equals(['papers']));
-      expect(scope.namespaces, equals(['rag']));
+      expect(scope.namespaces, equals(['analysis']));
     });
 
     test('equality is by value', () {
-      final a = RagDatabaseScope(names: const ['x'], namespaces: const ['rag']);
-      final b = RagDatabaseScope(names: const ['x'], namespaces: const ['rag']);
+      final a = RagDatabaseScope(
+        byNamespace: const {
+          'rag': ['x'],
+        },
+      );
+      final b = RagDatabaseScope(
+        byNamespace: const {
+          'rag': ['x'],
+        },
+      );
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
       expect(
         a,
         isNot(
           equals(
-            RagDatabaseScope(names: const ['y'], namespaces: const ['rag']),
+            RagDatabaseScope(
+              byNamespace: const {
+                'rag': ['y'],
+              },
+            ),
           ),
         ),
       );

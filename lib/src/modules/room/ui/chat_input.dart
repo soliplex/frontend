@@ -761,7 +761,9 @@ class _DatabaseChips extends StatelessWidget {
                   icon: const Icon(Icons.storage_outlined),
                   label: Text(name),
                   selected: all || selected.contains(name),
-                  onSelected: (value) => onToggled?.call(name, selected: value),
+                  onSelected: onToggled == null
+                      ? null
+                      : (value) => onToggled!(name, selected: value),
                 ),
             ],
           ),

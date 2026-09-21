@@ -5427,6 +5427,52 @@ void main() {
         expect(history.documentFilter, isNull);
       });
 
+      test('reads the sources of a room whose only skill is analysis',
+          () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'analysis': {
+                  'sources': ['notes'],
+                },
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.databaseSources, equals(['notes']));
+      });
+
+      test('rag speaks for a run before any other namespace', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'analysis': {
+                  'sources': ['notes'],
+                },
+                'rag': {'sources': null},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.databaseSources, isNull);
+      });
+
       test('a sources list with a non-string entry reads as null', () async {
         stubThread({
           'run-1': {
