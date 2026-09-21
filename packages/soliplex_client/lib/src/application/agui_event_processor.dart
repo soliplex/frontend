@@ -132,15 +132,19 @@ EventProcessingResult processEvent(
     ToolCallStartEvent(
       :final toolCallId,
       :final toolCallName,
+      :final parentMessageId,
       :final timestamp,
     ) =>
       EventProcessingResult(
-        conversation: conversation.withToolCall(
-          ToolCallInfo(
-            id: toolCallId,
-            name: toolCallName,
-            status: ToolCallStatus.streaming,
+        conversation: _nameToolCallParent(
+          conversation.withToolCall(
+            ToolCallInfo(
+              id: toolCallId,
+              name: toolCallName,
+              status: ToolCallStatus.streaming,
+            ),
           ),
+          parentMessageId,
         ),
         streaming: _withToolCallPhase(
           streaming,
@@ -873,4 +877,31 @@ EventProcessingResult _processActivityDelta(
     conversation: conversation.copyWith(activities: updated),
     streaming: streaming,
   );
+}
+
+/// Marks the message [parentMessageId] names, so the timeline can tell a
+/// message opened only to make that id real from a reply that carried no text.
+///
+/// The claim always arrives after the message commits, so it is applied here
+/// rather than decided when the message is minted. A parent the conversation
+/// does not hold is left alone: the same event stream replayed from the start
+/// always does hold it, so this only fires on a producer that names a message
+/// it never opened.
+Conversation _nameToolCallParent(
+  Conversation conversation,
+  String? parentMessageId,
+) {
+  if (parentMessageId == null) return conversation;
+  var found = false;
+  final messages = [
+    for (final message in conversation.messages)
+      if (message is TextMessage && message.id == parentMessageId)
+        () {
+          found = true;
+          return message.copyWith(namedByToolCall: true);
+        }()
+      else
+        message,
+  ];
+  return found ? conversation.copyWith(messages: messages) : conversation;
 }
