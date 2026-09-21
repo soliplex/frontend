@@ -40,6 +40,49 @@ const String _figureUnavailableLabel = 'Figure unavailable';
 /// Fallback semantic label for a cited figure that has no caption.
 const String _figureSemanticLabel = 'Cited figure';
 
+/// Heading for citations that name no database, shown only beside groups
+/// that do — a list where none does carries no headings at all.
+const String _unattributedCitationsLabel = 'Other sources';
+
+/// A run of citations from one RAG database, keeping each citation's position
+/// in the original list so its badge and expansion state stay its own.
+@immutable
+class CitationGroup {
+  const CitationGroup({required this.database, required this.entries});
+
+  /// The database name the backend reports, or null for citations that carry
+  /// none — a capability that reports no source, or a run from before
+  /// databases were named.
+  final String? database;
+
+  /// Citations in list order, each with its index in the original list.
+  final List<({int index, SourceReference ref})> entries;
+}
+
+/// Groups [refs] by the database they came from, in first-seen order, with
+/// the citations naming none last. A list where none names a database is one
+/// unnamed group — the flat list, for the section to render without headings.
+@visibleForTesting
+List<CitationGroup> groupCitationsByDatabase(List<SourceReference> refs) {
+  final named = <String, List<({int index, SourceReference ref})>>{};
+  final unnamed = <({int index, SourceReference ref})>[];
+  for (var index = 0; index < refs.length; index++) {
+    final ref = refs[index];
+    final database = ref.database;
+    final entry = (index: index, ref: ref);
+    if (database == null || database.isEmpty) {
+      unnamed.add(entry);
+    } else {
+      named.putIfAbsent(database, () => []).add(entry);
+    }
+  }
+  return [
+    for (final entry in named.entries)
+      CitationGroup(database: entry.key, entries: entry.value),
+    if (unnamed.isNotEmpty) CitationGroup(database: null, entries: unnamed),
+  ];
+}
+
 class CitationsSection extends StatefulWidget {
   const CitationsSection({
     super.key,
@@ -128,24 +171,68 @@ class _CitationsSectionState extends State<CitationsSection> {
         ),
         if (_sectionExpanded) ...[
           const SizedBox(height: SoliplexSpacing.s1),
-          ...List.generate(widget.sourceReferences.length, (index) {
-            final ref = widget.sourceReferences[index];
-            return _SourceReferenceRow(
-              sourceReference: ref,
-              badgeNumber: ref.index ?? (index + 1),
-              isExpanded: _expandedIndices.contains(index),
-              onToggle: () => setState(() {
-                if (_expandedIndices.contains(index)) {
-                  _expandedIndices.remove(index);
-                } else {
-                  _expandedIndices.add(index);
-                }
-              }),
-              onShowChunkVisualization: widget.onShowChunkVisualization,
-            );
-          }),
+          ..._groupedRows(context),
         ],
       ],
+    );
+  }
+
+  /// The rows, under a database heading each when any citation names one.
+  /// Badges keep the citation's number in the answer, not its place in the
+  /// group, so an inline marker still points at its row.
+  List<Widget> _groupedRows(BuildContext context) {
+    final groups = groupCitationsByDatabase(widget.sourceReferences);
+    final headed = groups.length > 1 || groups.single.database != null;
+    return [
+      for (final group in groups) ...[
+        if (headed) _DatabaseHeading(database: group.database),
+        for (final (:index, :ref) in group.entries)
+          _SourceReferenceRow(
+            sourceReference: ref,
+            badgeNumber: ref.index ?? (index + 1),
+            isExpanded: _expandedIndices.contains(index),
+            onToggle: () => setState(() {
+              if (_expandedIndices.contains(index)) {
+                _expandedIndices.remove(index);
+              } else {
+                _expandedIndices.add(index);
+              }
+            }),
+            onShowChunkVisualization: widget.onShowChunkVisualization,
+          ),
+      ],
+    ];
+  }
+}
+
+/// Names the RAG database the citations beneath it came from.
+class _DatabaseHeading extends StatelessWidget {
+  const _DatabaseHeading({required this.database});
+
+  final String? database;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: SoliplexSpacing.s1,
+        bottom: SoliplexSpacing.s1,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.storage_outlined, size: 14, color: color),
+          const SizedBox(width: SoliplexSpacing.s1),
+          Text(
+            database ?? _unattributedCitationsLabel,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -648,6 +735,10 @@ String formatCitationForClipboard(SourceReference ref) {
     lines.add(ref.documentUri);
   }
   lines.add('chunk id: ${ref.chunkId}');
+  final database = ref.database;
+  if (database != null && database.isNotEmpty) {
+    lines.add('database: $database');
+  }
   if (ref.content.isNotEmpty) {
     lines
       ..add('')

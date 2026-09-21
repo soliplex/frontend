@@ -21,6 +21,7 @@ SourceReference _ref({
   List<String> headings = const [],
   String content = 'Test content',
   List<int> pageNumbers = const [],
+  String? database,
 }) {
   final name = fileName ?? 'doc-$index.txt';
   return SourceReference(
@@ -34,6 +35,7 @@ SourceReference _ref({
     headings: headings,
     pageNumbers: pageNumbers,
     index: index,
+    database: database,
   );
 }
 
@@ -46,6 +48,108 @@ Widget _wrap(Widget child) => ProviderScope(
     );
 
 void main() {
+  group('groupCitationsByDatabase', () {
+    test('a list naming no database is one unnamed group', () {
+      final groups = groupCitationsByDatabase([_ref(index: 1), _ref(index: 2)]);
+      expect(groups, hasLength(1));
+      expect(groups.single.database, isNull);
+      expect(groups.single.entries.map((e) => e.index), [0, 1]);
+    });
+
+    test('groups in first-seen order, the unnamed last, indices kept', () {
+      final groups = groupCitationsByDatabase([
+        _ref(index: 1, database: 'wiki'),
+        _ref(index: 2),
+        _ref(index: 3, database: 'papers'),
+        _ref(index: 4, database: 'wiki'),
+        _ref(index: 5, database: ''),
+      ]);
+      expect(groups.map((g) => g.database), ['wiki', 'papers', null]);
+      expect(groups[0].entries.map((e) => e.index), [0, 3]);
+      expect(groups[1].entries.map((e) => e.index), [2]);
+      expect(groups[2].entries.map((e) => e.index), [1, 4]);
+    });
+  });
+
+  testWidgets('citations from several databases are grouped under their names',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(index: 1, fileName: 'a.txt', database: 'wiki'),
+          _ref(index: 2, fileName: 'b.txt'),
+          _ref(index: 3, fileName: 'c.txt', database: 'papers'),
+        ],
+      ),
+    ));
+
+    expect(find.text('wiki'), findsOneWidget);
+    expect(find.text('papers'), findsOneWidget);
+    expect(find.text('Other sources'), findsOneWidget);
+    // Headings come in first-seen order, the unnamed group last, and the
+    // rows keep their answer numbering.
+    final wiki = tester.getTopLeft(find.text('wiki')).dy;
+    final papers = tester.getTopLeft(find.text('papers')).dy;
+    final other = tester.getTopLeft(find.text('Other sources')).dy;
+    final a = tester.getTopLeft(find.text('a.txt')).dy;
+    final b = tester.getTopLeft(find.text('b.txt')).dy;
+    final c = tester.getTopLeft(find.text('c.txt')).dy;
+    expect(
+        wiki < a && a < papers && papers < c && c < other && other < b, isTrue);
+    expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('a single named database still shows its name', (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [_ref(index: 1, database: 'papers')],
+      ),
+    ));
+
+    expect(find.text('papers'), findsOneWidget);
+    expect(find.text('Other sources'), findsNothing);
+  });
+
+  testWidgets('citations naming no database render without headings',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(sourceReferences: [_ref(index: 1), _ref(index: 2)]),
+    ));
+
+    expect(find.text('Other sources'), findsNothing);
+    expect(find.byIcon(Icons.storage_outlined), findsNothing);
+  });
+
+  testWidgets('expanding a row in a group keys on the citation, not its place',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(index: 1, fileName: 'a.txt', content: 'Alpha text'),
+          _ref(
+              index: 2,
+              fileName: 'b.txt',
+              database: 'wiki',
+              content: 'Bravo text'),
+        ],
+      ),
+    ));
+
+    // 'b.txt' is first on screen (its group leads) but second in the list.
+    await tester.tap(find.text('b.txt'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Bravo text'), findsOneWidget);
+    expect(find.textContaining('Alpha text'), findsNothing);
+  });
+
+  test('the clipboard text names the database', () {
+    final text = formatCitationForClipboard(_ref(index: 1, database: 'wiki'));
+    expect(text, contains('database: wiki'));
+    expect(formatCitationForClipboard(_ref(index: 1)),
+        isNot(contains('database:')));
+  });
+
   testWidgets(
       'expanded citation content renders non-selectable inside a SelectionArea',
       (tester) async {
