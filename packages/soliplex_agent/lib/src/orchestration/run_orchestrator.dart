@@ -271,8 +271,13 @@ class RunOrchestrator {
           runId: runId,
           createdAt: DateTime.timestamp(),
         );
-        final withCitations =
-            _extractCitations(synthesisResult.conversation, runId);
+        final parked = parkCancelledOutcome(
+          conversation: synthesisResult.conversation,
+          streaming: streaming,
+          runId: runId,
+          createdAt: DateTime.timestamp(),
+        );
+        final withCitations = _extractCitations(parked, runId);
         _setState(
           CancelledState.duringRun(
             threadKey: threadKey,
@@ -295,7 +300,14 @@ class RunOrchestrator {
           CancelledState.duringRun(
             threadKey: threadKey,
             runId: runId,
-            conversation: conversation,
+            // A yielding run withdrew its completion candidate; stopping here
+            // ends it for real, so it parks one again as a cancel.
+            conversation: parkCancelledOutcome(
+              conversation: conversation,
+              streaming: const AwaitingText(),
+              runId: runId,
+              createdAt: DateTime.timestamp(),
+            ),
           ),
         );
       case IdleState():
@@ -841,6 +853,9 @@ class RunOrchestrator {
       messages: [...priorMessages, userMsg],
       aguiState: aguiState,
       messageStates: cachedHistory?.messageStates ?? const {},
+      // Every send builds this afresh, so a run that ended earlier in the
+      // thread loses its outcome unless it is carried over here.
+      runOutcomes: cachedHistory?.runOutcomes ?? const {},
     );
   }
 
@@ -1112,7 +1127,11 @@ class RunOrchestrator {
         ToolYieldingState(
           threadKey: previous.threadKey,
           runId: previous.runId,
-          conversation: withCitations,
+          // `processEvent` parked a completion candidate when it saw
+          // RUN_FINISHED, before this branch knew the run is waiting on a
+          // client tool rather than over. This is where that is known, so the
+          // candidate is taken back — before any subscriber has seen it.
+          conversation: withCitations.withoutRunOutcome(previous.runId),
           pendingToolCalls: pendingTools,
           toolDepth: _toolDepth,
         ),
@@ -1222,14 +1241,23 @@ class RunOrchestrator {
     if (running is! RunningState) return;
     _cleanup();
     _logger.warning('Stream ended without terminal event');
-    final withCitations =
-        _extractCitations(running.conversation, running.runId);
+    const detail = 'Stream ended without terminal event';
+    final withCitations = _extractCitations(
+      parkFailedOutcome(
+        conversation: running.conversation,
+        streaming: running.streaming,
+        runId: running.runId,
+        errorDetail: detail,
+        createdAt: _lastEventTime,
+      ),
+      running.runId,
+    );
     _setState(
       FailedState.duringRun(
         threadKey: running.threadKey,
         runId: running.runId,
         reason: FailureReason.networkLost,
-        error: 'Stream ended without terminal event',
+        error: detail,
         conversation: withCitations,
       ),
     );
@@ -1240,14 +1268,20 @@ class RunOrchestrator {
     final running = _currentState;
     if (running is! RunningState) return;
     _cleanup();
-    final withCitations =
-        _extractCitations(running.conversation, running.runId);
     if (error is CancelledException || error is CancellationError) {
       _setState(
         CancelledState.duringRun(
           threadKey: running.threadKey,
           runId: running.runId,
-          conversation: withCitations,
+          conversation: _extractCitations(
+            parkCancelledOutcome(
+              conversation: running.conversation,
+              streaming: running.streaming,
+              runId: running.runId,
+              createdAt: DateTime.timestamp(),
+            ),
+            running.runId,
+          ),
         ),
       );
       return;
@@ -1260,7 +1294,16 @@ class RunOrchestrator {
         runId: running.runId,
         reason: reason,
         error: _messageOf(error),
-        conversation: withCitations,
+        conversation: _extractCitations(
+          parkFailedOutcome(
+            conversation: running.conversation,
+            streaming: running.streaming,
+            runId: running.runId,
+            errorDetail: _messageOf(error),
+            createdAt: _lastEventTime,
+          ),
+          running.runId,
+        ),
       ),
     );
   }

@@ -1995,6 +1995,83 @@ void main() {
       }
     });
 
+    group('parking how a run ended', () {
+      test('RunFinishedEvent parks a finished outcome', () {
+        final running = conversation.withStatus(const Running(runId: 'run-1'));
+
+        final result = processEvent(
+          running,
+          const app_streaming.AwaitingText(bufferedThinkingText: 'weighing it'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'),
+        );
+
+        final parked = result.conversation.runOutcomes['run-1'];
+        expect(parked, isNotNull);
+        expect(parked!.reason, equals(TerminalReason.finished));
+        expect(parked.thinkingText, equals('weighing it'));
+      });
+
+      test('RunErrorEvent parks a failed outcome with the backend detail', () {
+        final running = conversation.withStatus(const Running(runId: 'run-1'));
+
+        final result = processEvent(
+          running,
+          streaming,
+          const RunErrorEvent(message: 'upstream said no'),
+        );
+
+        final parked = result.conversation.runOutcomes['run-1'];
+        expect(parked, isNotNull);
+        expect(parked!.reason, equals(TerminalReason.failed));
+        expect(parked.errorDetail, equals('upstream said no'));
+      });
+
+      test('a run that answered still parks a candidate', () {
+        // Whether the candidate is ever shown is decided where the reply is
+        // visible; the parking site does not get to guess.
+        final running = conversation
+            .withStatus(const Running(runId: 'run-1'))
+            .withAppendedMessage(
+              TextMessage.create(
+                id: 'm1',
+                user: ChatUser.assistant,
+                text: 'Here.',
+                runId: 'run-1',
+              ),
+            );
+
+        final result = processEvent(
+          running,
+          streaming,
+          const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'),
+        );
+
+        expect(result.conversation.runOutcomes, hasLength(1));
+      });
+
+      test('a pre-run error parks nothing — there is no run', () {
+        final result = processEvent(
+          conversation,
+          streaming,
+          const RunErrorEvent(message: 'boom'),
+        );
+
+        expect(result.conversation.runOutcomes, isEmpty);
+      });
+
+      test('a terminal on an already-terminal status parks nothing', () {
+        final done = conversation.withStatus(const Completed());
+
+        final result = processEvent(
+          done,
+          streaming,
+          const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'),
+        );
+
+        expect(result.conversation.runOutcomes, isEmpty);
+      });
+    });
+
     group('naming a tool call parent', () {
       Conversation withCommitted(String id, String text) =>
           Conversation.empty(threadId: 'thread-1').withAppendedMessage(

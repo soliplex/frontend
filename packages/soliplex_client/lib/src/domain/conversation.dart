@@ -140,6 +140,7 @@ class Conversation {
     this.aguiState = const {},
     this.messageStates = const {},
     this.activities = const [],
+    this.runOutcomes = const {},
   });
 
   /// Creates an empty conversation for the given thread.
@@ -177,6 +178,20 @@ class Conversation {
   /// in place, `replace:false` is ignored if a record already exists.
   final List<ActivityRecord> activities;
 
+  /// How each run that reached a terminal ended, keyed by run id, for runs
+  /// that may have nothing else to show for themselves.
+  ///
+  /// A candidate, not a decision: it is parked whenever a run ends, and
+  /// whoever renders the thread decides whether the run needs it. That keeps
+  /// the choice where the whole picture is — a run that answered has a reply to
+  /// stand for it and needs no tile, and that is not knowable at the moment the
+  /// run ends.
+  ///
+  /// Frontend-only. [NoResponseTile] never crosses the wire, so parking the
+  /// built tile preserves its reasoning, its error detail and its time without
+  /// a second model.
+  final Map<String, NoResponseTile> runOutcomes;
+
   /// Whether a run is currently active.
   bool get isRunning => status is Running;
 
@@ -193,6 +208,22 @@ class Conversation {
   /// Returns a new conversation with the given status.
   Conversation withStatus(ConversationStatus newStatus) {
     return copyWith(status: newStatus);
+  }
+
+  /// Returns a copy recording how [runId] ended.
+  Conversation withRunOutcome(String runId, NoResponseTile outcome) {
+    return copyWith(runOutcomes: {...runOutcomes, runId: outcome});
+  }
+
+  /// Returns a copy with [runId]'s outcome withdrawn, for a run that turned out
+  /// not to have ended after all — a `RUN_FINISHED` that yields to a client
+  /// tool reaches the parking site before the lifecycle has decided it is a
+  /// yield rather than a terminal.
+  ///
+  /// A no-op when [runId] parked nothing.
+  Conversation withoutRunOutcome(String runId) {
+    if (!runOutcomes.containsKey(runId)) return this;
+    return copyWith(runOutcomes: {...runOutcomes}..remove(runId));
   }
 
   /// Returns a new conversation with the given message state added.
@@ -227,6 +258,7 @@ class Conversation {
     Map<String, dynamic>? aguiState,
     Map<String, MessageState>? messageStates,
     List<ActivityRecord>? activities,
+    Map<String, NoResponseTile>? runOutcomes,
   }) {
     return Conversation(
       threadId: threadId ?? this.threadId,
@@ -236,6 +268,7 @@ class Conversation {
       aguiState: aguiState ?? this.aguiState,
       messageStates: messageStates ?? this.messageStates,
       activities: activities ?? this.activities,
+      runOutcomes: runOutcomes ?? this.runOutcomes,
     );
   }
 
@@ -248,13 +281,15 @@ class Conversation {
     const mapEquals = DeepCollectionEquality();
     const messageStateMapEquals = MapEquality<String, MessageState>();
     const activityListEquals = ListEquality<ActivityRecord>();
+    const runOutcomeMapEquals = MapEquality<String, NoResponseTile>();
     return threadId == other.threadId &&
         listEquals.equals(messages, other.messages) &&
         toolCallListEquals.equals(toolCalls, other.toolCalls) &&
         status == other.status &&
         mapEquals.equals(aguiState, other.aguiState) &&
         messageStateMapEquals.equals(messageStates, other.messageStates) &&
-        activityListEquals.equals(activities, other.activities);
+        activityListEquals.equals(activities, other.activities) &&
+        runOutcomeMapEquals.equals(runOutcomes, other.runOutcomes);
   }
 
   @override
@@ -266,6 +301,7 @@ class Conversation {
         const DeepCollectionEquality().hash(aguiState),
         const MapEquality<String, MessageState>().hash(messageStates),
         const ListEquality<ActivityRecord>().hash(activities),
+        const MapEquality<String, NoResponseTile>().hash(runOutcomes),
       );
 
   @override

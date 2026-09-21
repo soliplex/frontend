@@ -26,19 +26,29 @@ sealed class ThreadViewStatus {}
 class MessagesLoading extends ThreadViewStatus {}
 
 class MessagesLoaded extends ThreadViewStatus {
-  MessagesLoaded({required this.messages, required this.messageStates});
+  MessagesLoaded({
+    required this.messages,
+    required this.messageStates,
+    this.runOutcomes = const {},
+  });
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
+
+  /// How each run that may have nothing to show for itself ended, keyed by run
+  /// id. Survives a detach: a cancelled or failed run is recorded nowhere the
+  /// backend can replay it, so losing it here loses it for good.
+  final Map<String, NoResponseTile> runOutcomes;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MessagesLoaded &&
           identical(messages, other.messages) &&
-          identical(messageStates, other.messageStates);
+          identical(messageStates, other.messageStates) &&
+          identical(runOutcomes, other.runOutcomes);
 
   @override
-  int get hashCode => Object.hash(messages, messageStates);
+  int get hashCode => Object.hash(messages, messageStates, runOutcomes);
 }
 
 class MessagesFailed extends ThreadViewStatus {
@@ -394,9 +404,16 @@ class ThreadViewState {
       _ => const <String, MessageState>{},
     };
     final merged = {...existing, ...conversation.messageStates};
+    final existingOutcomes = switch (_messages.value) {
+      MessagesLoaded(:final runOutcomes) => runOutcomes,
+      _ => const <String, NoResponseTile>{},
+    };
     return MessagesLoaded(
       messages: conversation.messages,
       messageStates: merged,
+      // A locally cancelled or failed run is recorded nowhere else, so a
+      // conversation that no longer carries it must not erase what does.
+      runOutcomes: {...existingOutcomes, ...conversation.runOutcomes},
     );
   }
 
@@ -490,6 +507,7 @@ class ThreadViewState {
       _messages.value = MessagesLoaded(
         messages: history.messages,
         messageStates: history.messageStates,
+        runOutcomes: history.runOutcomes,
       );
       onHistoryLoaded?.call(threadId, history);
     } on PermissionDeniedException catch (error) {

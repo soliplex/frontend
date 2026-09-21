@@ -15,11 +15,13 @@ class ThreadHistory {
     Map<String, dynamic> aguiState = const {},
     Map<String, MessageState> messageStates = const {},
     List<RunEventBundle> runs = const [],
+    Map<String, NoResponseTile> runOutcomes = const {},
     this.documentFilter,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
-        runs = List.unmodifiable(runs);
+        runs = List.unmodifiable(runs),
+        runOutcomes = Map.unmodifiable(runOutcomes);
 
   /// Messages in the thread, ordered chronologically.
   final List<ChatMessage> messages;
@@ -44,6 +46,13 @@ class ThreadHistory {
   /// and citations are still derived from [messages] / [messageStates];
   /// [runs] is an additive surface for execution-tracker replay.
   final List<RunEventBundle> runs;
+
+  /// How each run that ended without answering ended, keyed by run id.
+  ///
+  /// A candidate per run, not a decision: whoever renders the thread decides
+  /// whether a run needs a tile of its own, which a run with a reply to stand
+  /// for it does not.
+  final Map<String, NoResponseTile> runOutcomes;
 
   /// The document-filter WHERE clause the client last asserted for this thread,
   /// read from the newest run's `run_input.state.rag.document_filter`. `null`

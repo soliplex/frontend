@@ -1530,6 +1530,7 @@ class SoliplexApi {
       aguiState: conversation.aguiState,
       messageStates: messageStates,
       runs: runs,
+      runOutcomes: conversation.runOutcomes,
       documentFilter: documentFilter,
     );
   }

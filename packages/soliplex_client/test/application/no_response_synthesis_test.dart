@@ -358,4 +358,111 @@ void main() {
       expect((result.messages.first as TextMessage).text, equals('finalized'));
     });
   });
+
+  group('parking a run outcome', () {
+    final conversation = Conversation.empty(threadId: 't');
+
+    test('a finished run parks a finished tile carrying its reasoning', () {
+      final parked = parkFinishedOutcome(
+        conversation: conversation,
+        streaming: const AwaitingText(bufferedThinkingText: 'weighing it'),
+        runId: 'run-0',
+      ).runOutcomes['run-0']!;
+
+      expect(parked.id, equals(noResponseMessageId('run-0')));
+      expect(parked.runId, equals('run-0'));
+      expect(parked.reason, equals(TerminalReason.finished));
+      expect(parked.thinkingText, equals('weighing it'));
+    });
+
+    test('a failed run parks the backend detail with it', () {
+      final parked = parkFailedOutcome(
+        conversation: conversation,
+        streaming: const AwaitingText(),
+        runId: 'run-0',
+        errorDetail: 'upstream said no',
+      ).runOutcomes['run-0']!;
+
+      expect(parked.reason, equals(TerminalReason.failed));
+      expect(parked.errorDetail, equals('upstream said no'));
+    });
+
+    test('a cancelled run parks as cancelled', () {
+      final parked = parkCancelledOutcome(
+        conversation: conversation,
+        streaming: const AwaitingText(bufferedThinkingText: 'weighing it'),
+        runId: 'run-0',
+      ).runOutcomes['run-0']!;
+
+      expect(parked.reason, equals(TerminalReason.cancelled));
+      expect(parked.thinkingText, equals('weighing it'));
+    });
+
+    test('a run that produced nothing at all still parks', () {
+      // Whether the candidate is shown is decided where the whole thread is
+      // visible. Declining to park here is what made a silent turn silent.
+      final parked = parkFinishedOutcome(
+        conversation: conversation,
+        streaming: const AwaitingText(),
+        runId: 'run-0',
+      ).runOutcomes['run-0'];
+
+      expect(parked, isNotNull);
+      expect(parked!.thinkingText, isEmpty);
+    });
+
+    test('a run with a tool call still unresolved parks', () {
+      // Whether the run is really over is the lifecycle's to say, not a guess
+      // made from an unanswered call.
+      final withCall = conversation.withToolCall(
+        const ToolCallInfo(id: 'c1', name: 'search'),
+      );
+
+      expect(
+        parkFinishedOutcome(
+          conversation: withCall,
+          streaming: const AwaitingText(),
+          runId: 'run-0',
+        ).runOutcomes,
+        hasLength(1),
+      );
+    });
+
+    test('a run cancelled mid-reply parks, and keeps what it was reasoning',
+        () {
+      // The pre-delta window: a reply had opened but said nothing. Declining
+      // here is what left the run's band with no tile to render on.
+      final parked = parkCancelledOutcome(
+        conversation: conversation,
+        streaming: const TextStreaming(
+          messageId: 'm1',
+          user: ChatUser.assistant,
+          text: '',
+          thinkingText: 'weighing it',
+        ),
+        runId: 'run-0',
+      ).runOutcomes['run-0'];
+
+      expect(parked, isNotNull);
+      expect(parked!.thinkingText, equals('weighing it'));
+    });
+
+    test('parking leaves the messages alone', () {
+      final spoken = conversation.withAppendedMessage(
+        TextMessage.create(
+          id: 'm1',
+          user: ChatUser.assistant,
+          text: 'Here.',
+        ),
+      );
+
+      final parked = parkFinishedOutcome(
+        conversation: spoken,
+        streaming: const AwaitingText(),
+        runId: 'run-0',
+      );
+
+      expect(parked.messages, equals(spoken.messages));
+    });
+  });
 }
