@@ -433,6 +433,70 @@ void main() {
       });
     });
 
+    group('run attribution', () {
+      test('a synthesized no-response tile names its run', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'I considered the options...',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        expect(result.conversation.messages.last.runId, equals('run-1'));
+      });
+
+      test('a partial reply committed on a terminal names its run', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Half an ans',
+        );
+        const event = RunErrorEvent(message: 'boom');
+
+        final result = processEvent(runningConversation, streamingState, event);
+
+        final partial = result.conversation.messages
+            .whereType<TextMessage>()
+            .singleWhere((m) => m.id == 'msg-1');
+        expect(partial.runId, equals('run-1'));
+      });
+
+      test('an error row for a failed run names that run', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const event = RunErrorEvent(message: 'boom');
+
+        final result = processEvent(runningConversation, streaming, event);
+
+        final error =
+            result.conversation.messages.whereType<ErrorMessage>().single;
+        expect(error.runId, equals('run-1'));
+      });
+
+      test('a pre-run error row names no run', () {
+        // RunErrorEvent on Idle arrives before any RUN_STARTED, so there is no
+        // run it could belong to.
+        const event = RunErrorEvent(message: 'boom');
+
+        final result = processEvent(conversation, streaming, event);
+
+        final error =
+            result.conversation.messages.whereType<ErrorMessage>().single;
+        expect(error.runId, isNull);
+      });
+    });
+
     group('text message streaming', () {
       test('TextMessageStartEvent begins streaming', () {
         const event = TextMessageStartEvent(messageId: 'msg-1');
@@ -549,6 +613,39 @@ void main() {
 
         final message = result.conversation.messages.first;
         expect(message.createdAt, runCreated);
+      });
+
+      test('TextMessageEndEvent stamps the run that produced the message', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello world',
+        );
+        const event = TextMessageEndEvent(messageId: 'msg-1');
+
+        final result = processEvent(runningConversation, streamingState, event);
+
+        expect(result.conversation.messages.first.runId, equals('run-1'));
+      });
+
+      test('TextMessageEndEvent leaves runId null when no run is in flight',
+          () {
+        // A reply committed with the conversation in any other status has no
+        // run to name, and inventing one would group it with a run that did
+        // not produce it.
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello world',
+        );
+        const event = TextMessageEndEvent(messageId: 'msg-1');
+
+        final result = processEvent(conversation, streamingState, event);
+
+        expect(result.conversation.messages.first.runId, isNull);
       });
 
       test('TextMessageEndEvent preserves user role from streaming state', () {

@@ -53,6 +53,7 @@ NoResponseSynthesisResult synthesizeFinishedNoResponse({
         id: id,
         thinkingText: thinking,
         createdAt: createdAt,
+        runId: runId,
       ),
     );
 
@@ -77,6 +78,7 @@ NoResponseSynthesisResult synthesizeFailedNoResponse({
         thinkingText: thinking,
         errorDetail: errorDetail,
         createdAt: createdAt,
+        runId: runId,
       ),
     );
 
@@ -101,6 +103,7 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
         id: id,
         thinkingText: thinking,
         createdAt: createdAt,
+        runId: runId,
       ),
     );
 
@@ -216,6 +219,7 @@ Conversation commitPartialTextOnTerminal({
       text: streaming.text,
       thinkingText: streaming.thinkingText,
       createdAt: createdAt,
+      runId: runId,
     ),
   );
 }

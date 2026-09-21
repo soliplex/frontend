@@ -781,6 +781,7 @@ class RunOrchestrator {
     final toolMsg = ToolCallMessage.fromExecuted(
       id: 'tool-result-${DateTime.now().microsecondsSinceEpoch}',
       toolCalls: executedTools,
+      runId: state.runId,
     );
     return state.conversation.copyWith(
       messages: [...state.conversation.messages, toolMsg],

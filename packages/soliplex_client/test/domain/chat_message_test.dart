@@ -35,6 +35,29 @@ void main() {
       expect(message.hasThinkingText, isTrue);
     });
 
+    test('create leaves runId null when no run produced the message', () {
+      // The optimistic user echo is minted before a run exists, so it has no
+      // run to name.
+      final message = TextMessage.create(
+        id: 'msg-1',
+        user: ChatUser.user,
+        text: 'Hello',
+      );
+
+      expect(message.runId, isNull);
+    });
+
+    test('copyWith keeps the run that produced the message', () {
+      final message = TextMessage.create(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        text: 'Hello',
+        runId: 'run-1',
+      );
+
+      expect(message.copyWith(text: 'Goodbye').runId, equals('run-1'));
+    });
+
     test('equality by id', () {
       final msg1 = TextMessage.create(
         id: 'same-id',

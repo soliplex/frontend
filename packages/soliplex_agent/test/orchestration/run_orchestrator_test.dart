@@ -1375,6 +1375,35 @@ void main() {
       expect(orchestrator.currentState, isA<CompletedState>());
     });
 
+    test('the resumed tool result names the run that yielded', () async {
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgentSequential(
+        first: Stream.fromIterable(_toolCallEvents()),
+        second: Stream.fromIterable(_resumeTextEvents()),
+      );
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
+      await Future<void>.delayed(Duration.zero);
+      final yielding = orchestrator.currentState as ToolYieldingState;
+
+      await orchestrator.submitToolOutputs(_executedTools());
+      await Future<void>.delayed(Duration.zero);
+
+      final resumed = orchestrator.currentState as CompletedState;
+      final toolResult =
+          resumed.conversation.messages.whereType<ToolCallMessage>().single;
+      expect(toolResult.runId, equals(yielding.runId));
+    });
+
     test('throws when not in ToolYieldingState', () {
       expect(
         () => orchestrator.submitToolOutputs(_executedTools()),
