@@ -87,7 +87,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// near-bottom band so the two agree on what "at the bottom" means.
   static const _bottomStickThreshold = 100.0;
 
-  Map<String, String?> _runIdMap = const {};
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
 
   @override
@@ -124,7 +123,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
   }
 
   void _recomputeMaps() {
-    _runIdMap = buildRunIdMap(widget.messages, widget.messageStates);
     _sourceReferencesMap =
         buildSourceReferencesMap(widget.messages, widget.messageStates);
   }
@@ -436,11 +434,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                         final tile = MessageTile(
                           roomId: widget.roomId,
                           message: message,
-                          runId: _runIdMap[message.id] ??
-                              (message is TextMessage &&
-                                      message.user == ChatUser.user
-                                  ? widget.messageStates[message.id]?.runId
-                                  : null),
+                          runId: resolveRunId(message, widget.messageStates),
                           sourceReferences: _sourceReferencesMap[message.id],
                           onFeedbackSubmit: widget.onFeedbackSubmit,
                           onReportRun: widget.onReportRun,
