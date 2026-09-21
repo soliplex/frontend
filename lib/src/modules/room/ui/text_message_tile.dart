@@ -191,7 +191,7 @@ class _MessageBubble extends StatelessWidget {
     // placeholder that says otherwise. What emptied it — a turn that produced
     // no text, or content lost in transit — is not knowable here, so the
     // notice claims neither.
-    if (!isUser && message.text.isEmpty && !isStreaming) {
+    if (!isUser && message.text.trim().isEmpty && !isStreaming) {
       return const NoticeBubble(
         icon: Icons.info_outline,
         label: 'This message has no text',
