@@ -275,6 +275,39 @@ void main() {
       );
     });
 
+    test('a message-less run settles before the next run answers', () {
+      // A cancel before the reply opened leaves the run with nothing committed,
+      // so there is no message to sit beside. Its outcome still belongs where
+      // the run was — not at the bottom, under an answer to a later question.
+      final tiles = layOut(
+        messages: [
+          user('u1'),
+          user('u2', text: 'something else'),
+          assistant('m2', text: 'Here.', run: 'run-1'),
+        ],
+        outcomes: {'run-0': outcome('run-0')},
+      );
+
+      expect(
+        idsOf(tiles),
+        equals(['u1', 'u2', noResponseMessageId('run-0'), 'm2']),
+      );
+    });
+
+    test('a message-less run settles while a later run is still live', () {
+      final tiles = layOut(
+        messages: [user('u1'), user('u2', text: 'something else')],
+        outcomes: {'run-0': outcome('run-0')},
+        streaming: const AwaitingText(),
+        activeRunId: 'run-1',
+      );
+
+      expect(
+        idsOf(tiles),
+        equals(['u1', 'u2', noResponseMessageId('run-0'), loadingMessageId]),
+      );
+    });
+
     test('a run that left no message at all still gets its outcome', () {
       // A cancel before the reply opened, and a run whose only output was
       // reasoning: nothing was ever committed under the run.
@@ -505,6 +538,27 @@ void main() {
       );
 
       expect(bandsOf(tiles), equals({'m1': b}));
+    });
+
+    test('a band keyed to an outcome tile renders on that tile', () {
+      // The key a run's unclaimed band carries is also the id its outcome tile
+      // carries. When the list already holds that tile, the key names it —
+      // reading the key as "the run's start" instead would hand its captured
+      // reasoning to a reply that said something else.
+      final b = band();
+      final parked = NoResponseTile.finished(
+        id: noResponseMessageId('run-0'),
+        thinkingText: 'weighing it',
+        runId: 'run-0',
+      );
+
+      final tiles = layOut(
+        messages: [assistant('m1', text: 'Here.', run: 'run-0'), parked],
+        bands: {noResponseMessageId('run-0'): b},
+      );
+
+      expect(idsOf(tiles), equals(['m1', noResponseMessageId('run-0')]));
+      expect(bandsOf(tiles), equals({noResponseMessageId('run-0'): b}));
     });
 
     test('an unclaimed band is dropped, never hoisted onto the next run', () {
