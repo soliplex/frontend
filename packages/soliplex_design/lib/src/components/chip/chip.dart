@@ -41,11 +41,13 @@ class SoliplexChip extends StatelessWidget {
         _selected = false,
         _onSelected = null;
 
-  /// Filter chip — toggleable, [selected] paints the primary tint.
+  /// Filter chip — toggleable, [selected] paints the primary tint. A null
+  /// [onSelected] disables the chip, as a null `onPressed` does for
+  /// [SoliplexChip.action].
   const SoliplexChip.filter({
     required this.label,
     required bool selected,
-    required ValueChanged<bool> onSelected,
+    required ValueChanged<bool>? onSelected,
     super.key,
     this.icon,
   })  : _kind = _ChipKind.filter,

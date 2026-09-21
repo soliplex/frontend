@@ -1878,6 +1878,36 @@ void main() {
 
       expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
     });
+
+    testWidgets('a history naming every database reads as the default',
+        (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        databaseSources: const ['wiki', 'papers'],
+      );
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: soliplexLightTheme(),
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Searching all 2 databases'), findsOneWidget);
+    });
   });
 
   group('rail account menu', () {

@@ -421,6 +421,9 @@ void main() {
       await tester.pump();
 
       expect(toggles, isEmpty);
+      final chip = tester.widget<FilterChip>(find.byType(FilterChip).first);
+      expect(chip.onSelected, isNull, reason: 'renders as disabled');
+      state.dispose();
     });
   });
 

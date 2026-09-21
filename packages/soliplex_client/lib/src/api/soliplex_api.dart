@@ -1198,17 +1198,22 @@ class SoliplexApi {
   /// on the newest carrying run means "cleared" and wins over older runs.
   /// Resilient: malformed entries are skipped. See U3.
   String? _extractLatestDocumentFilter(Map<String, dynamic> runs) {
-    final filter = _latestRagStateValue(runs, 'document_filter');
+    final filter = _latestStateValue(runs, 'document_filter');
     return filter is String ? filter : null;
   }
 
-  /// The `sources` from the newest run that carries one in its
-  /// `run_input.state.rag`, or null.
+  /// The `sources` from the newest run whose input state carries one, or
+  /// null.
+  ///
+  /// Every haiku.rag capability namespace carries the key and the client
+  /// writes one selection to all of them, so the first namespace found
+  /// speaks for the run — `rag` first, for a room with several. A room with
+  /// only the analysis skill has it under `analysis` alone.
   ///
   /// A list with a non-string entry reads as null: the selector cannot have
   /// sent it, and "every database" is the reading that loses nothing.
   List<String>? _extractLatestDatabaseSources(Map<String, dynamic> runs) {
-    final sources = _latestRagStateValue(runs, ragSourcesKey);
+    final sources = _latestStateValue(runs, ragSourcesKey, anyNamespace: true);
     if (sources is! List || sources.isEmpty) return null;
     final names = <String>[];
     for (final entry in sources) {
@@ -1220,8 +1225,13 @@ class SoliplexApi {
 
   /// The value under [key] in the newest run's `run_input.state.rag` that
   /// carries the key at all — a run carrying it as `null` is an answer, not a
-  /// run to skip past.
-  Object? _latestRagStateValue(Map<String, dynamic> runs, String key) {
+  /// run to skip past. With [anyNamespace], a run is also read through any
+  /// other namespace carrying the key when `rag` does not.
+  Object? _latestStateValue(
+    Map<String, dynamic> runs,
+    String key, {
+    bool anyNamespace = false,
+  }) {
     for (final entry in runs.entries.toList().reversed) {
       final value = entry.value;
       if (value is! Map<String, dynamic>) continue;
@@ -1229,10 +1239,17 @@ class SoliplexApi {
       if (runInput is! Map<String, dynamic>) continue;
       final state = runInput['state'];
       if (state is! Map<String, dynamic>) continue;
-      final rag = state[ragStateKey];
-      if (rag is! Map<String, dynamic>) continue;
-      if (!rag.containsKey(key)) continue;
-      return rag[key];
+      final namespaces = [
+        state[ragStateKey],
+        if (anyNamespace)
+          for (final other in state.entries)
+            if (other.key != ragStateKey) other.value,
+      ];
+      for (final namespace in namespaces) {
+        if (namespace is! Map<String, dynamic>) continue;
+        if (!namespace.containsKey(key)) continue;
+        return namespace[key];
+      }
     }
     return null;
   }
