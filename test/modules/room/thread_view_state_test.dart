@@ -1720,22 +1720,85 @@ void main() {
           runId: run,
         );
 
-    test('a merge keeps an outcome the newer conversation no longer carries',
-        () {
-      // A locally cancelled run is recorded nowhere the backend can replay,
-      // so a later conversation that has dropped it must not erase it here.
-      final first = MessagesLoaded(
+    test('a reloaded thread carries how its stored runs ended', () async {
+      // The backend replays a run that ended saying nothing as an outcome and
+      // nothing else, so if the load drops it that run's work has no tile.
+      api.nextThreadHistory = ThreadHistory(
         messages: const [],
-        messageStates: const {},
         runOutcomes: {'run-0': parked('run-0')},
       );
-      final second = MessagesLoaded(
-        messages: const [],
-        messageStates: const {},
-        runOutcomes: {...first.runOutcomes, 'run-1': parked('run-1')},
-      );
 
-      expect(second.runOutcomes.keys, equals(['run-0', 'run-1']));
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      addTearDown(state.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      final loaded = state.messages.value as MessagesLoaded;
+      expect(loaded.runOutcomes['run-0'], isNotNull);
+      expect(loaded.runOutcomes['run-0']!.thinkingText, equals('weighing it'));
+    });
+
+    test('a later run does not erase how an earlier one ended', () async {
+      // A locally cancelled run is recorded nowhere the backend can replay. A
+      // send that follows builds its conversation afresh, so the view is the
+      // last thing holding the earlier record and must merge rather than
+      // replace.
+      const key = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      addTearDown(state.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      // Each send is its own session, and the second builds its conversation
+      // from scratch — so it carries only its own run.
+      final first = _FakeAgentSession();
+      registry.register(key, first);
+      state.attachSession(first);
+      first.emit(
+        CancelledState.duringRun(
+          threadKey: key,
+          runId: 'run-0',
+          conversation: Conversation(
+            threadId: 'thread-1',
+            runOutcomes: {'run-0': parked('run-0')},
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final second = _FakeAgentSession();
+      registry.register(key, second);
+      state.attachSession(second);
+      second.emit(
+        CompletedState(
+          threadKey: key,
+          runId: 'run-1',
+          conversation: Conversation(
+            threadId: 'thread-1',
+            runOutcomes: {'run-1': parked('run-1')},
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final loaded = state.messages.value as MessagesLoaded;
+      // Ordered: `layOutTimeline` reads this as the order the runs ended,
+      // which is the only record of when a run that committed nothing happened.
+      expect(loaded.runOutcomes.keys, equals(['run-0', 'run-1']));
     });
 
     test('two states differing only in outcomes are not equal', () {

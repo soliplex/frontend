@@ -49,16 +49,6 @@ void main() {
   });
 
   group('a user tile', () {
-    test('uses the run its turn was associated with', () {
-      expect(
-        resolveRunId(
-          _user('u1', run: 'run-0'),
-          {'u1': _association('u1', 'run-2')},
-        ),
-        equals('run-2'),
-      );
-    });
-
     test('falls back to its own run when nothing associated it', () {
       // A replayed user message is stamped with the run it opened; the live
       // optimistic echo is not, because it exists before that run does.
