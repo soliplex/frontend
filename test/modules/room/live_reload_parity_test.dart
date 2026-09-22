@@ -219,9 +219,7 @@ void _expectEveryBandPlaced(String path, _Inputs inputs) {
       if (tile.band case final band?) band,
   };
   for (final MapEntry(key: key, value: band) in inputs.bands.entries) {
-    final hasContent = band.timeline.value.isNotEmpty ||
-        band.thinkingBlocks.value.any((b) => b.trim().isNotEmpty);
-    if (!hasContent) continue;
+    if (!band.hasWork) continue;
     expect(
       placed.contains(band),
       isTrue,
@@ -822,5 +820,22 @@ void main() {
         );
       }
     });
+  });
+
+  test('a reply interrupted mid-stream keeps its work after a reload',
+      () async {
+    // Stored with no TEXT_MESSAGE_END: the stream stopped mid-reply. Reload
+    // never commits a reply without its end, so a band keyed to that reply
+    // would name a tile that does not exist. Live commits the partial text on
+    // every terminal, so the two paths legitimately differ here and this is
+    // checked on reload alone.
+    final reloaded = await _reloaded([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'weighing it'),
+      const TextMessageStartEvent(messageId: 'm1'),
+      const TextMessageContentEvent(messageId: 'm1', delta: 'Partial answ'),
+    ]);
+
+    _expectEveryBandPlaced('reloaded', reloaded);
   });
 }

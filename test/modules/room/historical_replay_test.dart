@@ -60,6 +60,7 @@ void main() {
             const TextMessageStartEvent(messageId: 'msg-1', timestamp: 2000),
             const TextMessageContentEvent(
                 messageId: 'msg-1', delta: 'Hi', timestamp: 2000),
+            const TextMessageEndEvent(messageId: 'msg-1', timestamp: 2000),
             const ToolCallStartEvent(
               toolCallId: 'tc-1',
               toolCallName: 'search',

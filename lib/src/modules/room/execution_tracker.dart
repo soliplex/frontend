@@ -116,9 +116,8 @@ class ExecutionTracker {
   final Signal<List<ActivityRecord>> _activities;
 
   /// True when this tracker is replaying stored events on the reload
-  /// path. Live-only side-effects (e.g. warning-level logs that mirror a
-  /// canonical Sentry event) are gated so they don't fire N times for
-  /// every thread reload.
+  /// path. Live-only side-effects (the log confirming a call's detail reached
+  /// its row) are gated so they don't fire again on every thread reload.
   final bool _historical;
 
   /// `<toolCallId>#<phase>` keys already reported as having no step, so one
@@ -172,16 +171,22 @@ class ExecutionTracker {
       Signal<List<TimelineEntry>>(const []);
   ReadonlySignal<List<TimelineEntry>> get timeline => _timeline;
 
+  /// Whether this band has anything to render: a row, or thinking that says
+  /// something.
+  bool get hasWork =>
+      _timeline.value.isNotEmpty ||
+      _thinkingBlocks.value.any((block) => block.trim().isNotEmpty);
+
   /// Marks the tracker terminal: clears the spinner, settles any step still
   /// active as [unfinishedAs], and releases the subscription. Idempotent.
   ///
-  /// Live, this is the only thing that settles a run's open steps. The state
-  /// change that closes the band is published from the same terminal event
-  /// that bridges to `RunCompleted` / `RunFailed`, and it is published first —
-  /// so the band is already frozen and unsubscribed when that execution event
-  /// would have arrived, and the run's own account of how it ended never
-  /// reaches the step. [unfinishedAs] is that account, carried by the caller
-  /// that can still see the terminal state.
+  /// Live, the registry freezes a band when its response ends — as completed,
+  /// because the run moved on — and when the run ends. At the run's end the
+  /// terminal state is published before the event that bridges to
+  /// `RunCompleted` / `RunFailed`, so by the time that event arrives the band
+  /// is closed and it reaches no band at all. [unfinishedAs] is the run's own
+  /// account of how it ended, carried by the caller that can still see the
+  /// terminal state.
   void freeze(StepStatus unfinishedAs) {
     if (_isFrozen) return;
     _isThinkingStreaming.value = false;
@@ -268,19 +273,7 @@ class ExecutionTracker {
         _completeAllSteps(StepStatus.completed);
         _isThinkingStreaming.value = false;
         _reportCallsMissingResult();
-      case RunFailed(:final error):
-        // Backend RunErrorEvent surfaces here as `RunFailed`. The
-        // application layer (`agui_event_processor._processRunError`) logs
-        // nothing, and `RunOrchestrator._onStreamError` only fires for
-        // stream-level failures — so this is the canonical warning-level
-        // signal.
-        // Skip on historical replay so reloads don't multiply the entry.
-        if (!_historical) {
-          _logger.warning(
-            'Tracker observed run failure',
-            attributes: {'error': error},
-          );
-        }
+      case RunFailed():
         _completeAllSteps(StepStatus.failed);
         _isThinkingStreaming.value = false;
       case RunCancelled():
@@ -393,10 +386,7 @@ class ExecutionTracker {
   /// arrived has lost detail in transit. Reported on the replay path as well,
   /// because a stored thread missing a result has no other trace.
   ///
-  /// Scans the whole timeline rather than one run's slice, since a run's steps
-  /// are not delimited here — so each id is reported at most once, or a replay
-  /// bucket holding several runs would re-report an earlier run's gap at every
-  /// later run's completion.
+  /// Scans the whole timeline and reports each id at most once.
   void _reportCallsMissingResult() {
     final missing = <String>[];
     for (final entry in _timeline.value) {
@@ -416,9 +406,8 @@ class ExecutionTracker {
   /// The most recently opened step carrying [toolCallId] and where it sits, or
   /// null when no step does.
   ///
-  /// Searched newest-first because the reload path can bucket several runs'
-  /// events into one tracker, and a provider that reuses call ids across runs
-  /// would otherwise attach the later run's detail to the earlier run's step.
+  /// Searched newest-first, so a provider that reuses a call id attaches the
+  /// later detail to the latest step that carries it.
   ///
   /// Carries the position so [_replaceEntry] writes to the step that was
   /// found, rather than re-deriving it by searching for an equal one.

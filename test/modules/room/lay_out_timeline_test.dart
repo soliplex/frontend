@@ -338,6 +338,49 @@ void main() {
       expect(idsOf(tiles), equals(['u1', noResponseMessageId('run-0')]));
     });
 
+    test('a failed run with work after its reply reports the failure once', () {
+      // The reply spoke in an earlier response; the run's last response thought
+      // and then failed, so that work has no reply of its own and the outcome
+      // tile hosts it. That tile already says the run failed — an error row
+      // beside it would say so twice, and it appears only once a later message
+      // makes the layout settle the run a second time.
+      final trailing = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
+        events: const [
+          (event: ThinkingStarted(), timestamp: null),
+          (event: ThinkingContent(delta: 'one more check'), timestamp: null),
+        ],
+        origin: null,
+        activities: const [],
+        logger: logger,
+      );
+      addTearDown(trailing.dispose);
+
+      final tiles = layOut(
+        messages: [
+          user('u1', run: 'run-0'),
+          assistant('m1', text: 'Let me look.', run: 'run-0'),
+          user('u2', run: 'run-1'),
+          assistant('m2', text: 'Hi.', run: 'run-1'),
+        ],
+        bands: {noResponseMessageId('run-0'): trailing},
+        outcomes: {
+          'run-0': NoResponseTile.failed(
+            id: noResponseMessageId('run-0'),
+            thinkingText: '',
+            errorDetail: 'the model stream broke off',
+            runId: 'run-0',
+          ),
+          'run-1': outcome('run-1'),
+        },
+      );
+
+      expect(
+        idsOf(tiles),
+        equals(['u1', 'm1', noResponseMessageId('run-0'), 'u2', 'm2']),
+      );
+    });
+
     test('the outcome closes its run, after its other rows', () {
       // The outcome is the last band-capable position in its run, which is
       // what lets an unclaimed band fall back to it. It still precedes the
@@ -583,6 +626,53 @@ void main() {
       );
 
       expect(bandsOf(tiles), equals({loadingMessageId: b}));
+    });
+
+    test(
+        "a later response's band renders on the loading tile, not the reply "
+        'before it', () {
+      // A run that spoke, called a tool and is now in its next response: the
+      // reply holds the band of the response it spoke in, and the response
+      // still open is keyed by the run. That one belongs at the end of the
+      // run, where it is happening, not at the start where the reply already
+      // holds a band.
+      final reply = band();
+      final open = band();
+
+      final tiles = layOut(
+        messages: [
+          user('u1', run: 'run-0'),
+          assistant('m1', text: 'Let me look.', run: 'run-0'),
+        ],
+        bands: {'m1': reply, noResponseMessageId('run-0'): open},
+        streaming: const AwaitingText(),
+        activeRunId: 'run-0',
+      );
+
+      expect(bandsOf(tiles), equals({'m1': reply, loadingMessageId: open}));
+      expect(sink.warnings, isEmpty);
+    });
+
+    test("a later response's band renders on the reply streaming for it", () {
+      final reply = band();
+      final open = band();
+
+      final tiles = layOut(
+        messages: [
+          user('u1', run: 'run-0'),
+          assistant('m1', text: 'Let me look.', run: 'run-0'),
+        ],
+        bands: {'m1': reply, noResponseMessageId('run-0'): open},
+        streaming: const TextStreaming(
+          messageId: 'm2',
+          user: ChatUser.assistant,
+          text: 'Both sources agree.',
+        ),
+        activeRunId: 'run-0',
+      );
+
+      expect(bandsOf(tiles), equals({'m1': reply, 'm2': open}));
+      expect(sink.warnings, isEmpty);
     });
 
     test('an unclaimed band never crosses into the next run', () {

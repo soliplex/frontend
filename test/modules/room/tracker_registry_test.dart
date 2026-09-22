@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
+import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
 import '../../helpers/test_logger.dart';
@@ -390,5 +391,71 @@ void main() {
     // Should not open a second band — the run's band is still open
     expect(registry.trackers, hasLength(1));
     expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
+  });
+
+  test("the next response's band renders while that response streams", () {
+    // Driven through the registry, so the band map is the one production
+    // builds: the reply's band claimed by the reply, and the response still
+    // open reopened under the run's key.
+    const run = 'run-0';
+    final question = TextMessage(
+      id: 'u1',
+      user: ChatUser.user,
+      createdAt: null,
+      text: 'Q',
+      runId: run,
+    );
+    final reply = TextMessage(
+      id: 'm1',
+      user: ChatUser.assistant,
+      createdAt: null,
+      text: 'Let me look.',
+      runId: run,
+    );
+    const answering = TextStreaming(
+      messageId: 'm2',
+      user: ChatUser.assistant,
+      text: 'Both sources agree.',
+    );
+
+    registry.onStreaming(
+      const AwaitingText(currentPhase: ThinkingPhase()),
+      run,
+      events,
+      activities,
+    );
+    events.value = const ThinkingStarted();
+    registry.onStreaming(
+      const TextStreaming(
+        messageId: 'm1',
+        user: ChatUser.assistant,
+        text: 'Let me look.',
+      ),
+      run,
+      events,
+      activities,
+    );
+    events.value =
+        const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search');
+    events.value =
+        const ServerToolCallCompleted(toolCallId: 'c1', result: 'ok');
+    events.value = const ThinkingEnded();
+    // The next response opens with its reasoning, then speaks.
+    events.value = const ThinkingStarted();
+    events.value = const ThinkingContent(delta: 'enough to answer');
+    registry.onStreaming(answering, run, events, activities);
+
+    final tiles = layOutTimeline(
+      messages: [question, reply],
+      bands: registry.trackers,
+      outcomes: const {},
+      streaming: answering,
+      activeRunId: run,
+      logger: testLogger(),
+    );
+    final answer = tiles.singleWhere((t) => t.message.id == 'm2');
+
+    expect(answer.band, isNotNull, reason: "the answer's reasoning renders");
+    expect(answer.band!.thinkingBlocks.value, equals(['enough to answer']));
   });
 }

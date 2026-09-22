@@ -1,5 +1,6 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'execution_tracker.dart';
 import 'lay_out_timeline.dart';
 
 /// The read state behind the unread "New messages" divider for an open thread.
@@ -74,21 +75,37 @@ double unreadScrollOffset({
 /// anchor on either side of that gap is an id [firstUnreadMessageId] cannot
 /// find, and a divider it cannot find is a divider it does not draw.
 ///
-/// Laid out with no streaming state, so the anchor only ever names something
-/// that has committed — a transient [LoadingMessage] is not a candidate, and
-/// persisting one would lose the line on reload.
+/// Laid out from the same inputs as the timeline, so it is the timeline's own
+/// last tile and follows every rule that decides what the timeline shows.
+///
+/// Except the live projection of [streaming]: the loading tile names no
+/// message, so persisting it would lose the line on reload, and a reply still
+/// streaming has been seen only in part, so anchoring on it would mark the rest
+/// read.
 String? lastShownMessageId({
   required List<ChatMessage> messages,
   required Map<String, NoResponseTile> outcomes,
+  required Map<String, ExecutionTracker> bands,
+  required StreamingState? streaming,
+  required String? activeRunId,
   required Logger logger,
 }) {
+  final streamingId = switch (streaming) {
+    TextStreaming(:final messageId) => messageId,
+    AwaitingText() || null => null,
+  };
   final shown = layOutTimeline(
     messages: messages,
-    bands: const {},
+    bands: bands,
     outcomes: outcomes,
-    streaming: null,
-    activeRunId: null,
+    streaming: streaming,
+    activeRunId: activeRunId,
     logger: logger,
   );
-  return shown.isEmpty ? null : shown.last.message.id;
+  for (final tile in shown.reversed) {
+    final message = tile.message;
+    if (message is LoadingMessage || message.id == streamingId) continue;
+    return message.id;
+  }
+  return null;
 }
