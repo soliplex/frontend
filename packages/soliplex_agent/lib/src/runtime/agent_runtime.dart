@@ -463,27 +463,22 @@ class AgentRuntime {
   void _captureThreadHistory(AgentSession session) {
     if (session.ephemeral) return;
     final state = session.runState.value;
-    final history = switch (state) {
-      CompletedState(:final conversation) => ThreadHistory(
-          messages: conversation.messages,
-          aguiState: conversation.aguiState,
-          messageStates: conversation.messageStates,
-        ),
-      CancelledState(:final conversation) when conversation != null =>
-        ThreadHistory(
-          messages: conversation.messages,
-          aguiState: conversation.aguiState,
-          messageStates: conversation.messageStates,
-        ),
-      FailedState(:final conversation) when conversation != null =>
-        ThreadHistory(
-          messages: conversation.messages,
-          aguiState: conversation.aguiState,
-          messageStates: conversation.messageStates,
-        ),
+    final conversation = switch (state) {
+      CompletedState(:final conversation) => conversation,
+      CancelledState(:final conversation) => conversation,
+      FailedState(:final conversation) => conversation,
       _ => null,
     };
-    if (history == null) return;
+    if (conversation == null) return;
+    final history = ThreadHistory(
+      messages: conversation.messages,
+      aguiState: conversation.aguiState,
+      messageStates: conversation.messageStates,
+      // How each run ended lives only here: no message carries it, and the
+      // backend has nothing to replay it from. Dropping it loses the tile
+      // that a run with nothing else to show for itself renders its work on.
+      runOutcomes: conversation.runOutcomes,
+    );
     final key = session.threadKey;
     final threadState = _threadStateFor(key);
     _threadStates[key] = threadState.withHistory(history);

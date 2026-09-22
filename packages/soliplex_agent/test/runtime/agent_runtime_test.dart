@@ -187,6 +187,67 @@ void main() {
     );
   }
 
+  group('thread history carried between sends', () {
+    test('a second send keeps how the runs before it ended', () async {
+      // Every send rebuilds the conversation from the cached history, and the
+      // record of a run that ended with nothing to show for itself lives only
+      // there — no message carries it, and the backend cannot replay it. Lose
+      // it here and the first turn's work has no tile to render on from the
+      // moment the user sends again.
+      stubCreateThread();
+      stubCreateRun();
+      stubDeleteThread();
+      var call = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        call++;
+        final events = call == 1
+            ? <BaseEvent>[
+                RunStartedEvent(threadId: _threadId, runId: 'run-first'),
+                const ReasoningMessageStartEvent(messageId: 'reason-1'),
+                const ReasoningMessageContentEvent(
+                  messageId: 'reason-1',
+                  delta: 'weighing it',
+                ),
+                const ReasoningMessageEndEvent(messageId: 'reason-1'),
+                const RunFinishedEvent(threadId: _threadId, runId: 'run-first'),
+              ]
+            : _happyPathEvents();
+        return Stream.fromIterable(events)
+            .map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+      });
+
+      final first =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hi')]);
+      await first.result;
+      final second = await runtime.spawn(
+        roomId: _roomId,
+        threadId: _threadId,
+        prompt: [const TextPart('And again')],
+      );
+      await second.result;
+
+      final outcomes = switch (second.runState.value) {
+        CompletedState(:final conversation) => conversation.runOutcomes,
+        _ => const <String, NoResponseTile>{},
+      };
+      expect(
+        outcomes['run-first'],
+        isNotNull,
+        reason: 'the first run ended saying nothing, and the second send '
+            'is where that record has to survive',
+      );
+      expect(outcomes['run-first']!.thinkingText, equals('weighing it'));
+    });
+  });
+
   group('spawn', () {
     test('creates thread, starts session, returns AgentSuccess', () async {
       stubCreateThread();
