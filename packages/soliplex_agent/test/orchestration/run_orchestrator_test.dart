@@ -67,6 +67,20 @@ List<BaseEvent> _toolCallEvents({String toolName = 'weather'}) => [
       const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
     ];
 
+List<BaseEvent> _reasonsThenYields({String toolName = 'weather'}) => [
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      const ReasoningMessageStartEvent(messageId: 'reason-1'),
+      const ReasoningMessageContentEvent(
+        messageId: 'reason-1',
+        delta: 'weighing it',
+      ),
+      const ReasoningMessageEndEvent(messageId: 'reason-1'),
+      ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
+      const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
+      const ToolCallEndEvent(toolCallId: 'tc-1'),
+      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+    ];
+
 List<BaseEvent> _resumeTextEvents() => [
       RunStartedEvent(threadId: 'thread-1', runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-2'),
@@ -1851,6 +1865,173 @@ void main() {
         reason: 'transport failure during resume must classify as '
             'networkLost, not toolExecutionFailed',
       );
+    });
+  });
+
+  group('a run that ends while yielding records how it ended', () {
+    // Every exit from `ToolYieldingState` ends the run for real. The
+    // completion candidate was withdrawn on the way in, so unless each exit
+    // records one the run ends with nothing saying it ended — and the
+    // reasoning the user watched, which no message carries because the run
+    // never spoke, is gone with it.
+    late RunOrchestrator yielding;
+
+    setUp(() {
+      yielding = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+    });
+
+    tearDown(() => yielding.dispose());
+
+    NoResponseTile parkedOf(RunState state) {
+      final conversation = switch (state) {
+        FailedState(:final conversation) => conversation,
+        CancelledState(:final conversation) => conversation,
+        CompletedState(:final conversation) => conversation,
+        _ => null,
+      };
+      expect(conversation, isNotNull, reason: 'no terminal conversation');
+      final parked = conversation!.runOutcomes[_runId];
+      expect(parked, isNotNull, reason: 'the run recorded nothing');
+      return parked!;
+    }
+
+    test('a client tool that throws', () async {
+      stubRunAgent(stream: Stream.fromIterable(_reasonsThenYields()));
+
+      final result = await yielding.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) async => throw StateError('tool blew up'),
+      );
+
+      final parked = parkedOf(result);
+      expect(parked.reason, equals(TerminalReason.failed));
+      expect(parked.thinkingText, equals('weighing it'));
+    });
+
+    test('a resume that never starts', () async {
+      // The continuation run is created before anything is subscribed, so a
+      // failure here leaves the yield without a run of its own to record the
+      // ending — the yielding run is the only one there is.
+      var call = 0;
+      when(() => api.createRun(any(), any())).thenAnswer((_) async {
+        call++;
+        if (call == 1) return _runInfo();
+        throw const NetworkException(message: 'could not create the resume');
+      });
+      stubRunAgent(stream: Stream.fromIterable(_reasonsThenYields()));
+
+      final result = await yielding.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) async => _executedTools(),
+      );
+
+      final parked = parkedOf(result);
+      expect(parked.reason, equals(TerminalReason.failed));
+      expect(parked.thinkingText, equals('weighing it'));
+    });
+
+    test('a tool loop that exceeds its depth', () async {
+      yielding = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+        maxToolDepth: 1,
+      );
+      stubRunAgent(stream: Stream.fromIterable(_reasonsThenYields()));
+
+      final result = await yielding.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) async => _executedTools(),
+      );
+
+      final parked = parkedOf(result);
+      expect(parked.reason, equals(TerminalReason.failed));
+      expect(parked.errorDetail, contains('depth limit'));
+      expect(parked.thinkingText, equals('weighing it'));
+    });
+
+    test('the orchestrator is disposed while the tool runs', () async {
+      stubRunAgent(stream: Stream.fromIterable(_reasonsThenYields()));
+
+      final result = await yielding.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) async {
+          yielding.dispose();
+          return _executedTools();
+        },
+      );
+
+      final parked = parkedOf(result);
+      expect(parked.reason, equals(TerminalReason.cancelled));
+      expect(parked.thinkingText, equals('weighing it'));
+    });
+
+    test('the user stops it, and keeps what it was reasoning', () async {
+      stubRunAgent(stream: Stream.fromIterable(_reasonsThenYields()));
+
+      await yielding
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
+      await Future<void>.delayed(Duration.zero);
+      expect(yielding.currentState, isA<ToolYieldingState>());
+
+      yielding.cancelRun();
+
+      final parked = parkedOf(yielding.currentState);
+      expect(parked.reason, equals(TerminalReason.cancelled));
+      expect(parked.thinkingText, equals('weighing it'));
+    });
+  });
+
+  group('disposal ends a run in flight', () {
+    test('a run still streaming records that it was stopped', () async {
+      // Nothing else can: the stream never reaches a terminal event, and the
+      // reasoning the user was watching lives only in the streaming state.
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+      addTearDown(controller.close);
+
+      final pending = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+        toolExecutor: (_) async => [],
+      );
+      await Future<void>.delayed(Duration.zero);
+      controller
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const ReasoningMessageStartEvent(messageId: 'reason-1'))
+        ..add(
+          const ReasoningMessageContentEvent(
+            messageId: 'reason-1',
+            delta: 'weighing it',
+          ),
+        );
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<RunningState>());
+
+      orchestrator.dispose();
+      final result = await pending;
+
+      final parked =
+          (result as CancelledState).conversation!.runOutcomes[_runId];
+      expect(parked, isNotNull, reason: 'the run recorded nothing');
+      expect(parked!.reason, equals(TerminalReason.cancelled));
+      expect(parked.thinkingText, equals('weighing it'));
     });
   });
 

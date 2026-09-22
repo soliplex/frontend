@@ -280,6 +280,7 @@ class RunOrchestrator {
           :final threadKey,
           :final runId,
           :final conversation,
+          :final streaming,
         ):
         // A pending `_resumeStream` may be awaiting `_llmProvider.startRun`
         // with the live cancel token. Cancel the token + cleanup so that
@@ -295,7 +296,7 @@ class RunOrchestrator {
             // ends it for real, so it parks one again as a cancel.
             conversation: parkCancelledOutcome(
               conversation: conversation,
-              streaming: const AwaitingText(),
+              streaming: streaming,
               runId: runId,
               createdAt: DateTime.timestamp(),
             ),
@@ -371,13 +372,17 @@ class RunOrchestrator {
     final yielding = _currentState as ToolYieldingState;
     _toolDepth++;
     if (_toolDepth > _maxToolDepth) {
+      const detail = 'Tool depth limit exceeded';
       _setState(
         FailedState.duringRun(
           threadKey: yielding.threadKey,
           runId: yielding.runId,
           reason: FailureReason.toolExecutionFailed,
           error: 'Tool depth limit exceeded ($_maxToolDepth)',
-          conversation: yielding.conversation,
+          conversation: _recordYieldEndedAsFailed(
+            yielding,
+            '$detail ($_maxToolDepth)',
+          ),
         ),
       );
       return;
@@ -591,7 +596,7 @@ class RunOrchestrator {
     final cancelled = CancelledState.duringRun(
       threadKey: key,
       runId: state.runId,
-      conversation: state.conversation,
+      conversation: _recordYieldEndedAsCancelled(state),
     );
     _setState(cancelled);
     return cancelled;
@@ -609,12 +614,13 @@ class RunOrchestrator {
       error: error,
       stackTrace: stackTrace,
     );
+    final detail = _messageOf(error);
     final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
-      error: _messageOf(error),
-      conversation: state.conversation,
+      error: detail,
+      conversation: _recordYieldEndedAsFailed(state, detail),
     );
     _setState(failed);
     return failed;
@@ -631,12 +637,13 @@ class RunOrchestrator {
     StackTrace stackTrace,
   ) {
     _logger.error('Resume run failed', error: error, stackTrace: stackTrace);
+    final detail = _messageOf(error);
     final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
       reason: classifyError(error),
-      error: _messageOf(error),
-      conversation: state.conversation,
+      error: detail,
+      conversation: _recordYieldEndedAsFailed(state, detail),
     );
     _setState(failed);
     return failed;
@@ -644,16 +651,45 @@ class RunOrchestrator {
 
   /// Returns a [FailedState] when the tool depth limit is exceeded.
   RunState _failDepthExceeded(ThreadKey key, ToolYieldingState state) {
+    final detail = 'Tool depth limit exceeded ($_maxToolDepth)';
     final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
-      error: 'Tool depth limit exceeded ($_maxToolDepth)',
-      conversation: state.conversation,
+      error: detail,
+      conversation: _recordYieldEndedAsFailed(state, detail),
     );
     _setState(failed);
     return failed;
   }
+
+  /// [state]'s conversation with a record that the run ended in failure.
+  ///
+  /// A run waiting on a client tool withdrew its completion candidate on the
+  /// way in, because it was not over. Every exit from that wait ends it for
+  /// real, and has to say so — a run that ended recording nothing has no tile
+  /// to render the work the user watched it do, and reads to the thread as a
+  /// run still in flight.
+  Conversation _recordYieldEndedAsFailed(
+    ToolYieldingState state,
+    String detail,
+  ) =>
+      parkFailedOutcome(
+        conversation: state.conversation,
+        streaming: state.streaming,
+        runId: state.runId,
+        errorDetail: detail,
+        createdAt: _lastEventTime,
+      );
+
+  /// [state]'s conversation with a record that the run was stopped.
+  Conversation _recordYieldEndedAsCancelled(ToolYieldingState state) =>
+      parkCancelledOutcome(
+        conversation: state.conversation,
+        streaming: state.streaming,
+        runId: state.runId,
+        createdAt: DateTime.timestamp(),
+      );
 
   /// Whether [state] is terminal for the SSE subscription completer.
   ///
@@ -693,12 +729,20 @@ class RunOrchestrator {
           :final threadKey,
           :final runId,
           :final conversation,
+          :final streaming,
         )) {
       _terminalCompleter!.complete(
         CancelledState.duringRun(
           threadKey: threadKey,
           runId: runId,
-          conversation: conversation,
+          // Disposal ends the run, and a run that ends records how: without
+          // this the work the user watched has no tile to render on.
+          conversation: parkCancelledOutcome(
+            conversation: conversation,
+            streaming: streaming,
+            runId: runId,
+            createdAt: DateTime.timestamp(),
+          ),
         ),
       );
       return;
@@ -1136,6 +1180,7 @@ class RunOrchestrator {
         ToolYieldingState(
           threadKey: previous.threadKey,
           runId: previous.runId,
+          streaming: previous.streaming,
           // `processEvent` parked a completion candidate when it saw
           // RUN_FINISHED, before this branch knew the run is waiting on a
           // client tool rather than over. This is where that is known, so the
