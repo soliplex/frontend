@@ -324,6 +324,21 @@ void main() {
     ]);
   });
 
+  test('a run that speaks, works, then answers', () async {
+    // Two replies in one run, so the band closes once mid-run and once at the
+    // terminal. The first stretch did finish its work — the run moved on to
+    // another reply — and must not be reported as unfinished on either path.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'let me look'),
+      ..._says('m1', 'Let me look that up.'),
+      ..._declares('m2', 'c1'),
+      ..._reasoning('r2', 'now I have enough'),
+      ..._says('m3', 'Below 2,000 ft AGL.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+  });
+
   test('a declaration whose content event carries only whitespace', () async {
     // Both paths decide whether a message spoke, and so whether it takes the
     // band, from the same rule: content that is only whitespace has not

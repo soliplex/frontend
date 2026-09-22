@@ -840,6 +840,7 @@ void main() {
   group('ExecutionTracker.historical', () {
     test('returns frozen tracker', () {
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: null,
         events: const [],
         activities: const [],
@@ -851,6 +852,7 @@ void main() {
 
     test('seeds steps from events', () {
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: null,
         events: _untimed(const [
           ThinkingStarted(),
@@ -871,6 +873,7 @@ void main() {
 
     test('seeds activities under active step when present', () {
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: null,
         events: _untimed(const [
           ClientToolExecuting(toolName: 'execute_skill', toolCallId: 'tc-1'),
@@ -903,6 +906,7 @@ void main() {
 
     test('empty events list yields empty timeline', () {
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: null,
         events: const [],
         activities: const [],
@@ -917,6 +921,7 @@ void main() {
         'events ending mid-thinking are finalized: no spinner, no '
         'active step', () {
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: null,
         events: _untimed(const [
           ThinkingStarted(),
@@ -935,6 +940,7 @@ void main() {
       // A clock started at replay times the loop, not the run it replays, so
       // the offsets have to come from the times the events were emitted with.
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: 1000,
         events: const [
           (event: ThinkingStarted(), timestamp: 1000),
@@ -966,6 +972,7 @@ void main() {
       // previous offset forward would settle it at the instant it opened,
       // printing the figure the row started with as the one it ended on.
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: 1000,
         events: const [
           (
@@ -997,6 +1004,7 @@ void main() {
       // figure has to go. `_completeAllSteps` folds the step list and the
       // timeline separately, and the row reads the timeline.
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: 1000,
         events: const [
           (event: ThinkingStarted(), timestamp: 2500),
@@ -1022,6 +1030,7 @@ void main() {
       // from the raw events. Without it the clock would start at the first
       // thinking event and drop the wait before it from every figure.
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: 1000,
         events: const [
           (event: ThinkingStarted(), timestamp: 4000),
@@ -1040,6 +1049,7 @@ void main() {
 
     test('leaves offsets unknown when the stored events carry no time', () {
       final tracker = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: null,
         events: _untimed(const [
           ThinkingStarted(),

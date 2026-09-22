@@ -8,6 +8,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../../helpers/test_logger.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
@@ -972,6 +973,7 @@ void main() {
     testWidgets('renders the offset derived from the stored event times',
         (tester) async {
       final historical = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: 1000,
         events: const [
           (event: ThinkingStarted(), timestamp: 1000),
@@ -1001,6 +1003,7 @@ void main() {
       // Stored events that carry no emission time give nothing to offset
       // from; the row must say nothing rather than claim 0.0s.
       final historical = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.failed,
         origin: null,
         events: const [
           (event: ThinkingStarted(), timestamp: null),
