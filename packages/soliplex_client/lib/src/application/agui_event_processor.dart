@@ -602,13 +602,12 @@ StreamingState _withToolCallPhase(
 ///
 /// Only processes when status is `Running`; duplicate or out-of-order
 /// terminal events from the backend on a non-`Running` status are ignored
-/// to avoid double-appending a no-response tile (which would collide on
-/// `noResponseMessageId(runId)`) or overwriting a prior terminal status.
+/// so a prior terminal status is not overwritten.
 ///
 /// On the `Running` path: commits any in-flight `TextStreaming` reply as
 /// a finalized `TextMessage` (so a user reading half-streamed text keeps
-/// it), then routes through `synthesizeFinishedNoResponse` to surface the
-/// run's buffered thinking, if any, as a [NoResponseTile].
+/// it), then parks how the run ended, carrying its buffered reasoning for a
+/// thread that may have nothing else to show for the run.
 EventProcessingResult _processRunFinished(
   Conversation conversation,
   StreamingState streaming,
@@ -636,60 +635,27 @@ EventProcessingResult _processRunFinished(
     terminalEvent: 'RunFinishedEvent',
     createdAt: createdAt,
   );
-  final parked = parkFinishedOutcome(
+  final withOutcome = parkFinishedOutcome(
     conversation: withPartial,
     streaming: streaming,
     runId: runId,
     createdAt: createdAt,
   );
-  final result = synthesizeFinishedNoResponse(
-    conversation: parked,
-    streaming: streaming,
-    runId: runId,
-    createdAt: createdAt,
-  );
-  // RunFinished with no synthesized tile and no reply open produces no
-  // message in the list at all — `AgentSession` will return
-  // `AgentSuccess(output: '')`. Surface as info so the corner case shows
-  // up in BackendLogSink instead of being silent. A reply that was open but
-  // held nothing also produces no message; `commitPartialTextOnTerminal`
-  // records that one, so it is not reported twice here. Decline can fire for
-  // empty thinking, an unresolved tool call, or both — log both counts
-  // so a triage reader can tell which branch decided.
-  if (!result.synthesized && streaming is! TextStreaming) {
-    _logger.info(
-      'RunFinishedEvent produced no NoResponseTile (synthesis declined)',
-      attributes: {
-        'runId': runId,
-        'bufferedThinkingChars': streaming is AwaitingText
-            ? streaming.bufferedThinkingText.length
-            : 0,
-        'unresolvedToolCallCount': conversation.toolCalls
-            .where(
-              (tc) =>
-                  tc.status == ToolCallStatus.pending ||
-                  tc.status == ToolCallStatus.streaming ||
-                  tc.status == ToolCallStatus.executing,
-            )
-            .length,
-      },
-    );
-  }
   return EventProcessingResult(
-    conversation: result.conversation.withStatus(const Completed()),
+    conversation: withOutcome.withStatus(const Completed()),
     streaming: const AwaitingText(),
   );
 }
 
-/// Handles `RunErrorEvent` with a runId-aware no-response synthesis path.
+/// Handles `RunErrorEvent`.
 ///
-/// The synthesis helper needs a runId to mint a stable message id. The
-/// authoritative source for an in-flight runId is `Running` status; the
-/// event itself doesn't carry one. When the conversation is in any other
-/// status at the time `RunErrorEvent` arrives — `Idle` (pre-run error),
-/// `Completed` / `Failed` / `Cancelled` (post-terminal duplicate or
-/// out-of-order event) — synthesis is impossible without a runId, and the
-/// existing terminal status must not be overwritten.
+/// Parking the outcome needs a runId to key it by. The authoritative source
+/// for an in-flight runId is `Running` status; the event itself doesn't carry
+/// one. When the conversation is in any other status at the time
+/// `RunErrorEvent` arrives — `Idle` (pre-run error), `Completed` / `Failed` /
+/// `Cancelled` (post-terminal duplicate or out-of-order event) — there is no
+/// run to park against, and the existing terminal status must not be
+/// overwritten.
 ///
 /// When `streaming` is `TextStreaming` (a reply was streaming when the
 /// error fired), the partial text is committed as a `TextMessage` before
@@ -709,54 +675,19 @@ EventProcessingResult _processRunError(
       terminalEvent: 'RunErrorEvent',
       createdAt: createdAt,
     );
-    final parked = parkFailedOutcome(
+    final withOutcome = parkFailedOutcome(
       conversation: withPartial,
       streaming: streaming,
       runId: runId,
       errorDetail: message,
       createdAt: createdAt,
     );
-    final result = synthesizeFailedNoResponse(
-      conversation: parked,
-      streaming: streaming,
-      runId: runId,
-      errorDetail: message,
-      createdAt: createdAt,
-    );
-    // A reply was open when the error arrived: synthesis declines on
-    // TextStreaming by design, and the ErrorMessage appended below carries
-    // the failure whether or not that reply had anything to commit, so this
-    // is not the anomalous decline the log is for.
-    final replyWasOpen = streaming is TextStreaming;
-    if (!result.synthesized && !replyWasOpen) {
-      _logger.info(
-        'RunErrorEvent: NoResponseTile synthesis declined; falling back '
-        'to ErrorMessage',
-        attributes: {
-          'runId': runId,
-          'streaming': streaming.runtimeType.toString(),
-          'message': message,
-          'bufferedThinkingChars': streaming is AwaitingText
-              ? streaming.bufferedThinkingText.length
-              : 0,
-          'unresolvedToolCallCount': conversation.toolCalls
-              .where(
-                (tc) =>
-                    tc.status == ToolCallStatus.pending ||
-                    tc.status == ToolCallStatus.streaming ||
-                    tc.status == ToolCallStatus.executing,
-              )
-              .length,
-        },
-      );
-    }
     // No row is appended for the failure itself. Whether the run needs one,
     // and whether it sits alone or beside a reply that survived, depends on
     // what else the thread has to show for that run — which is not knowable
     // here. The parked outcome carries the detail to whoever can tell.
     return EventProcessingResult(
-      conversation:
-          (result.synthesized ? result.conversation : parked).withStatus(
+      conversation: withOutcome.withStatus(
         Failed(error: message),
       ),
       streaming: const AwaitingText(),

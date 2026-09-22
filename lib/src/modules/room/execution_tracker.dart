@@ -221,10 +221,10 @@ class ExecutionTracker {
         _reportCallsMissingResult();
       case RunFailed(:final error):
         // Backend RunErrorEvent surfaces here as `RunFailed`. The
-        // application layer (`agui_event_processor._processRunError`) only
-        // logs at info on the synthesis-decline path, and
-        // `RunOrchestrator._onStreamError` only fires for stream-level
-        // failures — so this is the canonical warning-level signal.
+        // application layer (`agui_event_processor._processRunError`) logs
+        // nothing, and `RunOrchestrator._onStreamError` only fires for
+        // stream-level failures — so this is the canonical warning-level
+        // signal.
         // Skip on historical replay so reloads don't multiply the entry.
         if (!_historical) {
           _logger.warning(
