@@ -79,7 +79,11 @@ class ExecutionTracker {
           : Duration(milliseconds: timestamp - origin);
       _onEvent(event);
     }
-    freeze();
+    // A step still active once the stored events run out is a step no terminal
+    // event ever settled: the run was stopped, or its stream ended without
+    // saying how. Live, both of those end in a failure the registry reports
+    // the same way.
+    freeze(StepStatus.failed);
   }
 
   final Logger _logger;
@@ -142,12 +146,20 @@ class ExecutionTracker {
       Signal<List<TimelineEntry>>(const []);
   ReadonlySignal<List<TimelineEntry>> get timeline => _timeline;
 
-  /// Marks the tracker terminal: clears the spinner, completes any
-  /// still-active steps, and releases the subscription. Idempotent.
-  void freeze() {
+  /// Marks the tracker terminal: clears the spinner, settles any step still
+  /// active as [unfinishedAs], and releases the subscription. Idempotent.
+  ///
+  /// Live, this is the only thing that settles a run's open steps. The state
+  /// change that closes the band is published from the same terminal event
+  /// that bridges to `RunCompleted` / `RunFailed`, and it is published first —
+  /// so the band is already frozen and unsubscribed when that execution event
+  /// would have arrived, and the run's own account of how it ended never
+  /// reaches the step. [unfinishedAs] is that account, carried by the caller
+  /// that can still see the terminal state.
+  void freeze(StepStatus unfinishedAs) {
     if (_isFrozen) return;
     _isThinkingStreaming.value = false;
-    _completeAllSteps(StepStatus.completed);
+    _completeAllSteps(unfinishedAs);
     _unsub?.call();
     _unsub = null;
     _activitiesUnsub?.call();

@@ -350,6 +350,24 @@ void main() {
     ]);
   });
 
+  test('a run that fails with a tool call still open', () async {
+    // The step is still active when the run ends, so how it settles is decided
+    // by the band closing rather than by any event that settles it first.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'weighing it'),
+      const TextMessageStartEvent(messageId: 'm1'),
+      const TextMessageEndEvent(messageId: 'm1'),
+      const ToolCallStartEvent(
+        toolCallId: 'c1',
+        toolCallName: 'search',
+        parentMessageId: 'm1',
+      ),
+      const ToolCallEndEvent(toolCallId: 'c1'),
+      const RunErrorEvent(message: 'upstream said no'),
+    ]);
+  });
+
   test('a run that fails after its tool call returned', () async {
     // The failure detail is parked, never committed as a message, so the two
     // paths have to record it identically or a reloaded thread loses why the

@@ -1,5 +1,6 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'execution_step.dart';
 import 'execution_tracker.dart';
 
 /// Manages execution trackers, keyed by the message that owns the work or —
@@ -49,7 +50,9 @@ class TrackerRegistry {
             _trackers[messageId] = tracker;
           }
         } else {
-          _freezeActive();
+          // The run moved on to a new reply, so the stretch that closes here
+          // did finish its work; only a terminal leaves a step unfinished.
+          _freezeActive(StepStatus.completed);
           _trackers[messageId] = ExecutionTracker(
             executionEvents: events,
             activities: activities,
@@ -69,8 +72,8 @@ class TrackerRegistry {
   }
 
   /// Freeze the active tracker when a run reaches a terminal state.
-  void onRunTerminated() {
-    _freezeActive();
+  void onRunTerminated(StepStatus unfinishedAs) {
+    _freezeActive(unfinishedAs);
   }
 
   /// Bulk-inserts already-frozen trackers produced from a loaded thread's
@@ -82,9 +85,9 @@ class TrackerRegistry {
     }
   }
 
-  void _freezeActive() {
+  void _freezeActive(StepStatus unfinishedAs) {
     if (_activeId != null) {
-      _trackers[_activeId!]?.freeze();
+      _trackers[_activeId!]?.freeze(unfinishedAs);
       _activeId = null;
     }
   }
