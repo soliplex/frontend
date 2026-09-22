@@ -97,6 +97,46 @@ void main() {
     });
   });
 
+  test('a run that speaks first opens its band under its own key', () {
+    void speakIn(String runId, String messageId) => registry.onStreaming(
+          TextStreaming(
+            messageId: messageId,
+            user: ChatUser.assistant,
+            text: 'Answer.',
+          ),
+          runId,
+          events,
+          activities,
+        );
+
+    speakIn('run-0', 'm1');
+    registry.onRunTerminated(StepStatus.completed);
+
+    // The next run never reaches an awaiting phase, so this is where it reads
+    // its key from. Its response then ends on a tool result, which is what
+    // opens the band that would carry the wrong run's key.
+    speakIn('run-1', 'm2');
+    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallCompleted(
+      toolCallId: 'c-1',
+      result: 'ok',
+    );
+    events.value = const ThinkingStarted();
+    registry.onRunTerminated(StepStatus.completed);
+
+    expect(registry.trackers['m2']!.timeline.value, hasLength(1));
+    expect(
+      registry.trackers.containsKey(noResponseMessageId('run-0')),
+      isFalse,
+      reason: "run-1's work must not open a band belonging to run-0",
+    );
+    expect(
+      registry.trackers.containsKey(noResponseMessageId('run-1')),
+      isTrue,
+      reason: 'the band left open at the end belongs to the run that did it',
+    );
+  });
+
   test('starts empty', () {
     expect(registry.trackers, isEmpty);
   });

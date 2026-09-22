@@ -53,7 +53,7 @@ typedef _Inputs = ({
   Map<String, NoResponseTile> outcomes,
 });
 
-Future<_Inputs> _live(List<BaseEvent> sequence) async {
+Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
   final api = _MockApi();
   final streamClient = _MockStreamClient();
   final events = StreamController<BaseEvent>();
@@ -103,7 +103,9 @@ Future<_Inputs> _live(List<BaseEvent> sequence) async {
   await Future<void>.delayed(Duration.zero);
   for (final event in sequence) {
     events.add(event);
-    await Future<void>.delayed(Duration.zero);
+    // A real stream does not pause between events. Yielding after each one
+    // hides anything that depends on them arriving one at a time.
+    if (!burst) await Future<void>.delayed(Duration.zero);
   }
   await events.close();
   await Future<void>.delayed(Duration.zero);
@@ -397,6 +399,45 @@ void main() {
       live.bands['m3']!.thinkingBlocks.value,
       equals(['enough to answer']),
       reason: 'the answer carries the reasoning that produced it',
+    );
+  });
+
+  test('attribution survives events arriving without a pause between them',
+      () async {
+    // The parity cases yield after every event, so none of them exercises a
+    // burst — which is what an SSE stream actually delivers.
+    final sequence = [
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'start with the manual'),
+      ..._says('m1', 'Let me check the manual.'),
+      ..._call('c1'),
+      ..._reasoning('r2', 'enough to answer'),
+      ..._says('m2', 'Off below 2,000 ft AGL.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ];
+
+    final paced = await _live(sequence);
+    final burst = await _live(sequence, burst: true);
+
+    expect(
+      burst.bands.keys.toSet(),
+      equals(paced.bands.keys.toSet()),
+      reason: 'a burst must not change which message owns which band',
+    );
+    for (final key in paced.bands.keys) {
+      expect(
+        _contentOf(burst.bands[key]!),
+        equals(_contentOf(paced.bands[key]!)),
+        reason: 'band $key',
+      );
+    }
+    expect(
+      burst.bands['m1']!.thinkingBlocks.value,
+      equals(['start with the manual']),
+    );
+    expect(
+      burst.bands['m2']!.thinkingBlocks.value,
+      equals(['enough to answer']),
     );
   });
 
