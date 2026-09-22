@@ -267,17 +267,17 @@ void main() {
 
   test('freeze called twice is a no-op (idempotent)', () {
     events.value = const ThinkingStarted();
-    tracker.freeze();
+    tracker.freeze(StepStatus.completed);
     expect(tracker.isFrozen, isTrue);
 
-    expect(() => tracker.freeze(), returnsNormally);
+    expect(() => tracker.freeze(StepStatus.completed), returnsNormally);
     expect(tracker.isFrozen, isTrue);
   });
 
   test('freeze stops listening but preserves data', () {
     events.value = const ThinkingStarted();
     events.value = const ThinkingContent(delta: 'hello');
-    tracker.freeze();
+    tracker.freeze(StepStatus.completed);
 
     // Data is preserved
     expect(tracker.steps.value.length, 1);
@@ -603,7 +603,7 @@ void main() {
       ];
       expect(tracker.activities.value.single.messageId, 'rag:call_1');
 
-      tracker.freeze();
+      tracker.freeze(StepStatus.completed);
 
       // Post-absorption, the session is free to mutate or dispose its
       // signals; the absorbed tracker must stay pinned to what it had at
@@ -1041,8 +1041,9 @@ void main() {
         'offset', () {
       // A run interrupted mid-call emits its tool result unstamped, and that
       // result can be the last thing stored for the reply. `freeze` then
-      // settles whatever is still open at an instant nothing recorded, so the
-      // figure has to go — `_completeAllSteps` folds the step list and the
+      // settles whatever is still open — as unfinished, since no terminal
+      // event ever accounted for it — at an instant nothing recorded, so the
+      // figure has to go. `_completeAllSteps` folds the step list and the
       // timeline separately, and the row reads the timeline.
       final tracker = ExecutionTracker.historical(
         origin: 1000,
@@ -1057,7 +1058,7 @@ void main() {
         logger: testLogger(),
       );
 
-      expect(tracker.steps.value.single.status, StepStatus.completed);
+      expect(tracker.steps.value.single.status, StepStatus.failed);
       expect(tracker.steps.value.single.timestamp, isNull);
       final entry = tracker.timeline.value.single as TimelineStep;
       expect(entry.step.timestamp, isNull);
@@ -1113,10 +1114,27 @@ void main() {
     expect(tracker.isThinkingStreaming.value, isTrue);
     expect(tracker.steps.value.single.status, StepStatus.active);
 
-    tracker.freeze();
+    tracker.freeze(StepStatus.completed);
 
     expect(tracker.isThinkingStreaming.value, isFalse);
     expect(tracker.steps.value.single.status, StepStatus.completed);
+  });
+
+  test('freeze settles an unfinished step as the caller says the run ended',
+      () {
+    // Live, nothing else settles it: the state change that closes the band is
+    // published before the terminal event that bridges to `RunFailed`, so the
+    // band is already unsubscribed when that event would arrive.
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'c1',
+    );
+
+    expect(tracker.steps.value.single.status, StepStatus.active);
+
+    tracker.freeze(StepStatus.failed);
+
+    expect(tracker.steps.value.single.status, StepStatus.failed);
   });
 }
 

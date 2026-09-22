@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
@@ -40,7 +41,7 @@ void main() {
     test('a terminated run does not hand its band to the next run', () {
       awaiting();
       events.value = const ThinkingStarted();
-      registry.onRunTerminated();
+      registry.onRunTerminated(StepStatus.completed);
 
       awaiting();
       speaking('m1');
@@ -69,7 +70,7 @@ void main() {
     test('a band still keeps the work done after it opened', () {
       awaiting();
       events.value = const ThinkingStarted();
-      registry.onRunTerminated();
+      registry.onRunTerminated(StepStatus.completed);
 
       awaiting();
       speaking('m1');
@@ -213,13 +214,13 @@ void main() {
       activities,
     );
 
-    registry.onRunTerminated();
+    registry.onRunTerminated(StepStatus.completed);
 
     expect(registry.trackers['msg-1']!.isFrozen, isTrue);
   });
 
   test('onRunTerminated is safe when idle', () {
-    registry.onRunTerminated();
+    registry.onRunTerminated(StepStatus.completed);
     expect(registry.trackers, isEmpty);
   });
 
@@ -235,7 +236,7 @@ void main() {
       activities,
     );
 
-    registry.onRunTerminated();
+    registry.onRunTerminated(StepStatus.completed);
 
     registry.onStreaming(
       const TextStreaming(
