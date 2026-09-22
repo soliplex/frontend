@@ -111,10 +111,14 @@ Map<String, ExecutionTracker> replayToTrackers(
         claim();
         sawResult = false;
       }
+      // The first message to speak in a response speaks for it. A producer
+      // that emits two texts in one response has not done two things, and
+      // splitting the response's work between them would put half of it above
+      // a line that did not ask for it.
       if (raw is TextMessageStartEvent &&
           raw.role == TextMessageRole.assistant &&
           spoke.contains(raw.messageId)) {
-        voice = raw.messageId;
+        voice ??= raw.messageId;
       }
       if (raw is ToolCallResultEvent) sawResult = true;
 

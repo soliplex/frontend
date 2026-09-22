@@ -11,6 +11,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/historical_replay.dart';
+import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/run_id_resolver.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
@@ -200,9 +201,39 @@ String _contentOf(ExecutionTracker band) {
   return 'steps=$steps thinking=$thinking';
 }
 
+/// Every band that has something to show reaches a tile.
+///
+/// Parity alone cannot see this: two paths that both drop a band agree.
+void _expectEveryBandPlaced(String path, _Inputs inputs) {
+  final tiles = layOutTimeline(
+    messages: inputs.messages,
+    bands: inputs.bands,
+    outcomes: inputs.outcomes,
+    streaming: null,
+    activeRunId: null,
+    logger: testLogger('layout'),
+  );
+  final placed = {
+    for (final tile in tiles)
+      if (tile.band case final band?) band,
+  };
+  for (final MapEntry(key: key, value: band) in inputs.bands.entries) {
+    final hasContent = band.timeline.value.isNotEmpty ||
+        band.thinkingBlocks.value.any((b) => b.trim().isNotEmpty);
+    if (!hasContent) continue;
+    expect(
+      placed.contains(band),
+      isTrue,
+      reason: '$path: band $key has work to show and renders nowhere',
+    );
+  }
+}
+
 Future<void> _expectParity(List<BaseEvent> sequence) async {
   final live = await _live(sequence);
   final reloaded = await _reloaded(sequence);
+  _expectEveryBandPlaced('live', live);
+  _expectEveryBandPlaced('reloaded', reloaded);
 
   expect(
     reloaded.messages.map((m) => m.runtimeType).toList(),
@@ -439,6 +470,41 @@ void main() {
       burst.bands['m2']!.thinkingBlocks.value,
       equals(['enough to answer']),
     );
+  });
+
+  test('a run whose last response works but never speaks', () async {
+    // `[decl] N`. The closing response emits reasoning and a tool call and no
+    // message at all, so nothing speaks for it and nothing follows to take it.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'let me check'),
+      ..._says('m1', 'Checking the manual.'),
+      ..._call('c1'),
+      ..._reasoning('r2', 'one more lookup'),
+      const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
+      const ToolCallEndEvent(toolCallId: 'c2'),
+      const ToolCallResultEvent(
+        messageId: 'tr-c2',
+        toolCallId: 'c2',
+        content: 'ok',
+      ),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+  });
+
+  test('one response that emits two replies', () async {
+    // `[decl] O`. Two messages speak with no tool result between them, so they
+    // are one response and only one of them can carry its band.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'two parts'),
+      ..._says('m1', 'First part.'),
+      ..._says('m2', 'Second part.'),
+      ..._call('c1'),
+      ..._reasoning('r2', 'enough to answer'),
+      ..._says('m3', 'Off below 2,000 ft AGL.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
   });
 
   test('a declaration whose content event carries only whitespace', () async {

@@ -54,6 +54,17 @@ List<RenderedTile> layOutTimeline({
     projected: projected,
     outcomes: outcomes,
     activeRunId: activeRunId,
+    // A run can reach its end with work no message ever spoke for: a closing
+    // response that reasons and calls a tool and says nothing. Its band is
+    // still keyed by the run, and a run that already has a reply would
+    // otherwise be judged represented and the band left with nowhere to go.
+    withUnclaimedWork: {
+      for (final runId in outcomes.keys)
+        if (bands[noResponseMessageId(runId)] case final band?)
+          if (band.timeline.value.isNotEmpty ||
+              band.thinkingBlocks.value.any((b) => b.trim().isNotEmpty))
+            runId,
+    },
   );
   return _placeBands(
     tiles: shown,
@@ -168,6 +179,7 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   required List<ChatMessage> projected,
   required Map<String, NoResponseTile> outcomes,
   required String? activeRunId,
+  required Set<String> withUnclaimedWork,
 }) {
   final shown = [
     for (final message in projected)
@@ -180,7 +192,10 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   };
   final owed = {
     for (final runId in outcomes.keys)
-      if (runId != activeRunId && !representedRuns.contains(runId)) runId,
+      if (runId != activeRunId &&
+          (!representedRuns.contains(runId) ||
+              withUnclaimedWork.contains(runId)))
+        runId,
   };
   // A run already showing how it ended needs nothing added; one that ended in
   // failure and is represented by something else does.
