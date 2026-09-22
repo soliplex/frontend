@@ -1469,6 +1469,7 @@ void main() {
             threadId: 'thread-1',
             messages: [],
           ),
+          streaming: const AwaitingText(),
           pendingToolCalls: const [],
           toolDepth: 0,
         ),

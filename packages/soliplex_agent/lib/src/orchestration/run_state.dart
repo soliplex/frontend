@@ -248,6 +248,7 @@ class ToolYieldingState extends RunState {
     required this.threadKey,
     required this.runId,
     required this.conversation,
+    required this.streaming,
     required this.pendingToolCalls,
     required this.toolDepth,
   });
@@ -260,6 +261,14 @@ class ToolYieldingState extends RunState {
 
   /// Conversation state at yield point.
   final Conversation conversation;
+
+  /// Streaming state at the yield point.
+  ///
+  /// A run that reasons before calling a client tool has that reasoning
+  /// nowhere else: the yield is not a terminal, so nothing has committed it,
+  /// and [conversation] holds only what the run said. Whichever exit ends the
+  /// run needs it to record how the run ended.
+  final StreamingState streaming;
 
   /// Client-side tool calls ready to execute.
   final List<ToolCallInfo> pendingToolCalls;

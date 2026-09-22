@@ -1156,6 +1156,7 @@ void main() {
           threadKey: _key,
           runId: _runId,
           conversation: conversation,
+          streaming: const AwaitingText(),
           pendingToolCalls: const [],
           toolDepth: 0,
         ),
