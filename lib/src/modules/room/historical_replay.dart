@@ -18,16 +18,20 @@ final Logger _logger =
 /// by the message that owns the work or — until one speaks — by the run doing
 /// it, which is how the live registry keys them too.
 ///
-/// A run owns its work until one of its messages speaks. Everything a run
-/// does before that buckets under [noResponseMessageId] for the run — which
-/// names the tile that run is given if it never speaks — and the first message
-/// that does speak takes it. Later messages in the same run open buckets of
-/// their own, so work stays with whichever message was speaking when it
-/// happened.
+/// Work buckets by model response: a response ends when the one after a tool
+/// result starts ([opensResponse]). Everything collects under
+/// [noResponseMessageId] for the run — which names the tile that run is given
+/// if nothing speaks for its work — and the first message to speak in a
+/// response takes that response's bucket when the response ends. A response
+/// that says nothing leaves its work where it is, so the next one to speak
+/// takes that too.
 ///
-/// A message that never says anything opens no bucket. A response that begins
+/// A message that never says anything takes no bucket. A response that begins
 /// with a tool call mints one purely to give that call a parent, and the
-/// timeline does not show it, so work left there would render nowhere.
+/// timeline does not show it, so work left there would render nowhere. A
+/// message whose `TEXT_MESSAGE_END` is not stored takes none either: the
+/// history replay commits a reply only at its end, so a band keyed to it would
+/// name a tile that is never shown.
 ///
 /// The move is a move, never a copy: no run offers both its own key and a
 /// message key for the same work, which is the one input the timeline cannot
@@ -74,12 +78,19 @@ Map<String, ExecutionTracker> replayToTrackers(
   final endedOn = <String>{};
 
   for (final bundle in runs) {
-    // A message only takes the work once it has said something. Live, that is
-    // known as it happens; here the whole run is in hand, so the messages that
+    // A message only takes the work once it has said something, and only if
+    // it is shown — which on reload means its end was stored. Live, both are
+    // known as they happen; here the whole run is in hand, so the messages that
     // speak can be read off it first.
+    final ended = {
+      for (final raw in bundle.events)
+        if (raw is TextMessageEndEvent) raw.messageId,
+    };
     final spoke = <String>{
       for (final raw in bundle.events)
-        if (raw is TextMessageContentEvent && raw.delta.trim().isNotEmpty)
+        if (raw is TextMessageContentEvent &&
+            raw.delta.trim().isNotEmpty &&
+            ended.contains(raw.messageId))
           raw.messageId,
     };
 
@@ -157,13 +168,12 @@ Map<String, ExecutionTracker> replayToTrackers(
 /// The instant a bucket's stretch of the run began, or null when none of its
 /// stored events carries a time.
 ///
-/// Read from the raw events rather than the bridged ones because the events
-/// that open a stretch bridge to nothing: `RUN_STARTED` for a run's first
-/// reply, and the `TEXT_MESSAGE_START` of every reply after it. A bucket that
-/// absorbed a hoisted tool-yield run opens on that run's events instead, and
-/// anchors there. Anchoring on the first *bridged* event would start the clock
-/// at the reply's first thinking or tool event, subtracting the wait before it
-/// from every figure in that reply.
+/// Read from the raw events rather than the bridged ones because the event that
+/// opens a stretch can bridge to nothing: `RUN_STARTED` for a run's first
+/// response, and a speaking reply's `TEXT_MESSAGE_START` for a later one.
+/// Anchoring on the first *bridged* event would start the clock at the
+/// response's first thinking or tool event, subtracting the wait before it from
+/// every figure in that response.
 int? _bucketOrigin(List<BaseEvent> raw) {
   for (final event in raw) {
     final timestamp = event.timestamp;

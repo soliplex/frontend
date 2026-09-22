@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/unread_boundary.dart';
 
@@ -96,6 +99,9 @@ void main() {
         lastShownMessageId(
           messages: [_msg('a'), _msg('b')],
           outcomes: const {},
+          bands: const {},
+          streaming: null,
+          activeRunId: null,
           logger: testLogger(),
         ),
         'b',
@@ -140,6 +146,9 @@ void main() {
       final anchor = lastShownMessageId(
         messages: messages,
         outcomes: outcomes,
+        bands: const {},
+        streaming: null,
+        activeRunId: null,
         logger: testLogger(),
       );
 
@@ -148,11 +157,127 @@ void main() {
       expect(firstUnreadMessageId(shown, anchor), isNull);
     });
 
+    test("the anchor counts the tile a run's trailing work is given", () {
+      // The run replied, then did more work that no message spoke for. The
+      // timeline gives that work the run's outcome tile, after the reply, so
+      // an anchor laid out without the bands would stop one tile short and
+      // mark a tile the reader has already seen as new.
+      final trailing = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.completed,
+        events: const [(event: ThinkingStarted(), timestamp: null)],
+        origin: null,
+        activities: const [],
+        logger: testLogger(),
+      );
+      addTearDown(trailing.dispose);
+
+      final anchor = lastShownMessageId(
+        messages: [
+          TextMessage.create(id: 'u1', user: ChatUser.user, text: 'ask'),
+          const TextMessage(
+            id: 'm1',
+            user: ChatUser.assistant,
+            createdAt: null,
+            text: 'Let me look.',
+            runId: 'run-1',
+          ),
+        ],
+        outcomes: {
+          'run-1': NoResponseTile.finished(
+            id: noResponseMessageId('run-1'),
+            thinkingText: '',
+            runId: 'run-1',
+          ),
+        },
+        bands: {noResponseMessageId('run-1'): trailing},
+        streaming: null,
+        activeRunId: null,
+        logger: testLogger(),
+      );
+
+      expect(anchor, equals(noResponseMessageId('run-1')));
+    });
+
+    test('a run in flight anchors on what it has committed', () {
+      // Laid out from the timeline's own inputs, so the open run's band goes to
+      // the loading tile as it does on screen — and the loading tile, which
+      // names no message that will still be there on reload, is not an anchor.
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final open = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.completed,
+        events: const [(event: ThinkingStarted(), timestamp: null)],
+        origin: null,
+        activities: const [],
+        logger: testLogger(),
+      );
+      addTearDown(open.dispose);
+
+      final anchor = lastShownMessageId(
+        messages: [
+          const TextMessage(
+            id: 'u1',
+            user: ChatUser.user,
+            createdAt: null,
+            text: 'ask',
+            runId: 'run-1',
+          ),
+        ],
+        outcomes: const {},
+        bands: {noResponseMessageId('run-1'): open},
+        streaming: const AwaitingText(),
+        activeRunId: 'run-1',
+        logger: testLogger('unread_boundary_test'),
+      );
+
+      expect(anchor, equals('u1'));
+      expect(
+        sink.records.where(
+          (r) =>
+              r.loggerName == 'unread_boundary_test' &&
+              r.level == LogLevel.warning,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a reply still streaming is not an anchor', () {
+      // The reader has seen only part of it; anchoring on it would mark the
+      // rest read when they come back.
+      final anchor = lastShownMessageId(
+        messages: [
+          TextMessage.create(id: 'u1', user: ChatUser.user, text: 'ask'),
+          const TextMessage(
+            id: 'm1',
+            user: ChatUser.assistant,
+            createdAt: null,
+            text: 'Let me look.',
+            runId: 'run-1',
+          ),
+        ],
+        outcomes: const {},
+        bands: const {},
+        streaming: const TextStreaming(
+          messageId: 'm2',
+          user: ChatUser.assistant,
+          text: 'Both sources',
+        ),
+        activeRunId: 'run-1',
+        logger: testLogger(),
+      );
+
+      expect(anchor, equals('m1'));
+    });
+
     test('null when the thread shows nothing', () {
       expect(
         lastShownMessageId(
           messages: const [],
           outcomes: const {},
+          bands: const {},
+          streaming: null,
+          activeRunId: null,
           logger: testLogger(),
         ),
         isNull,

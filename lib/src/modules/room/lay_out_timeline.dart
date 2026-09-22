@@ -25,10 +25,10 @@ typedef RenderedTile = ({
 /// > tile, and every band attaches exactly once to a band-capable tile of the
 /// > run that produced it.
 ///
-/// Pure and total, and identical on the live and reload paths because it reads
-/// only what both of them produce: the committed [messages], the accumulated
-/// [bands], the [outcomes] parked per run, and the [streaming] state of the run
-/// named by [activeRunId].
+/// Total, and identical on the live and reload paths because it reads only what
+/// both of them produce: the committed [messages], the accumulated [bands], the
+/// [outcomes] parked per run, and the [streaming] state of the run named by
+/// [activeRunId].
 ///
 /// Four steps, in order.
 ///
@@ -37,10 +37,12 @@ typedef RenderedTile = ({
 ///    only once it commits.
 /// 2. **Filter** — leave out a message opened only to give a tool call's
 ///    `parentMessageId` a target ([existsOnlyForToolCall]).
-/// 3. **Guarantee** — give a run whose tiles all went away its parked outcome,
-///    so the work the user watched still has somewhere to render.
-/// 4. **Place** — hand each band to the first band-capable assistant tile of
-///    its own run.
+/// 3. **Guarantee** — give a run left with no band-capable tile, or with work no
+///    message spoke for, its parked outcome, so the work the user watched still
+///    has somewhere to render.
+/// 4. **Place** — hand each band to a band-capable tile of its own run: a
+///    claimed band to the message that claimed it, an unclaimed one to the
+///    run's last.
 List<RenderedTile> layOutTimeline({
   required List<ChatMessage> messages,
   required Map<String, ExecutionTracker> bands,
@@ -60,10 +62,7 @@ List<RenderedTile> layOutTimeline({
     // otherwise be judged represented and the band left with nowhere to go.
     withUnclaimedWork: {
       for (final runId in outcomes.keys)
-        if (bands[noResponseMessageId(runId)] case final band?)
-          if (band.timeline.value.isNotEmpty ||
-              band.thinkingBlocks.value.any((b) => b.trim().isNotEmpty))
-            runId,
+        if (bands[noResponseMessageId(runId)]?.hasWork ?? false) runId,
     },
   );
   return _placeBands(
@@ -78,20 +77,20 @@ List<RenderedTile> layOutTimeline({
   );
 }
 
-/// [tiles] with each band handed to the first band-capable assistant tile of
-/// its own run, at or after the band's own position.
+/// [tiles] with each band handed to a band-capable assistant tile of its own
+/// run.
 ///
-/// A band keyed to a message takes that message's position. An **unclaimed**
-/// band — one that collected while no message had spoken — is keyed
-/// [noResponseMessageId] of its run rather than a message id, so it takes the
-/// start of its run and reaches whichever tile speaks first. When none does,
-/// that run's outcome tile is the last band-capable position in the run and
-/// catches it.
+/// A band keyed to a message goes to the first band-capable tile of its run at
+/// or after that message. An **unclaimed** band is keyed [noResponseMessageId]
+/// of its run rather than a message id: it is the run's latest response, the
+/// one still open or the one that ended without a message speaking for it, so
+/// it goes to the run's last band-capable tile — the loading or streaming tile
+/// while the run is live, and its outcome tile once it has ended.
 ///
-/// A band that resolves to neither is reported and dropped. That report is how
-/// the invariant is enforced, and should be read as a defect report rather than
-/// as noise: a band rendering nowhere means the run's work vanished from a turn
-/// the user watched happen.
+/// A band that resolves to neither is reported and dropped. The report detects
+/// a broken invariant rather than enforcing it, and should be read as a defect
+/// report rather than as noise: a band rendering nowhere means the run's work
+/// vanished from a turn the user watched happen.
 List<RenderedTile> _placeBands({
   required List<({ChatMessage message, String? runId})> tiles,
   required Map<String, ExecutionTracker> bands,
@@ -104,21 +103,19 @@ List<RenderedTile> _placeBands({
   };
 
   for (final MapEntry(key: key, value: band) in bands.entries) {
-    // A message id first: a run's outcome tile carries the same id its
-    // unclaimed band is keyed by, so reading the key as a run when the tile it
-    // names is right there would hand the band to whatever spoke earlier.
+    // A message id first. A run's outcome tile carries the id its unclaimed
+    // band is keyed by, and is the run's last band-capable tile, so both
+    // readings of that key reach the same tile.
     final named = tiles.indexWhere((t) => t.message.id == key);
-    final (runId, from) = named >= 0
-        ? (tiles[named].runId, named)
+    final (runId, target) = named >= 0
+        ? (
+            tiles[named].runId,
+            _firstBandCapableAt(tiles, from: named, inRun: tiles[named].runId),
+          )
         : switch (runOfUnclaimedBand[key]) {
-            final String runId => (
-                runId,
-                tiles.indexWhere((t) => t.runId == runId)
-              ),
+            final String runId => (runId, _lastBandCapableIn(tiles, runId)),
             null => (null, -1),
           };
-    final target =
-        from < 0 ? -1 : _firstBandCapableAt(tiles, from: from, inRun: runId);
     if (target < 0) {
       logger.warning(
         'Execution band $key has no tile to render on; dropping it '
@@ -173,8 +170,22 @@ int _firstBandCapableAt(
   return -1;
 }
 
+/// The index of the last tile of [runId] that can host a band, or `-1` when
+/// the run has none.
+int _lastBandCapableIn(
+  List<({ChatMessage message, String? runId})> tiles,
+  String runId,
+) {
+  for (var i = tiles.length - 1; i >= 0; i--) {
+    final tile = tiles[i];
+    if (tile.runId == runId && _standsInForItsRun(tile.message)) return i;
+  }
+  return -1;
+}
+
 /// One tile per message that survives the filter, plus the parked outcome of
-/// every run that ended with nothing left to show for it.
+/// every run that ended with no band-capable tile or with work no message
+/// spoke for, and an error row for a failed run that shows no outcome tile.
 ///
 /// A run's outcome takes the place its messages held, so a run that went quiet
 /// before an unrelated question renders above that question rather than after
@@ -211,11 +222,13 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   };
   // A failed run whose reply survives keeps that reply, so its outcome tile is
   // suppressed — and with it the only account of why the run failed. The
-  // failure is reported beside the reply instead.
+  // failure is reported beside the reply instead, unless the run is owed its
+  // outcome tile anyway, which already says the run failed.
   final unreported = {
     for (final MapEntry(key: runId, value: outcome) in outcomes.entries)
       if (runId != activeRunId &&
           representedRuns.contains(runId) &&
+          !owed.contains(runId) &&
           !runsReportingThemselves.contains(runId) &&
           outcome.reason == TerminalReason.failed)
         runId,

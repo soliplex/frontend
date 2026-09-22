@@ -794,6 +794,9 @@ class _RoomScreenState extends State<RoomScreen> {
         lastShownMessageId(
           messages: status.messages,
           outcomes: status.runOutcomes,
+          bands: view.executionTrackers,
+          streaming: view.streamingState.value,
+          activeRunId: view.activeRunId.value,
           logger: _logger,
         ),
       );
