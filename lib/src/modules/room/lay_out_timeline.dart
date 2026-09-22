@@ -201,8 +201,9 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
         runId,
   };
 
-  // `outcomes` is parked in the order runs ended, which is the only record of
-  // when a run that committed nothing happened.
+  // `outcomes` is parked in the order runs ended. A tile carries its own time
+  // too, but only when the terminal that parked it had one, so the order is
+  // what places a run that committed nothing.
   final endedIn = outcomes.keys.toList();
 
   final tiles = <({ChatMessage message, String? runId})>[];
@@ -223,7 +224,8 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
     ));
   }
 
-  /// Settles every owed run that ended before [runId] did.
+  /// Settles every owed run that ended before [runId] did, when that is
+  /// known, and nothing at all when it is not.
   ///
   /// A run that committed nothing has no message to sit beside, so without
   /// this its outcome falls to the sweep below and lands at the foot of the
@@ -233,7 +235,8 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   /// record has not ended: it is the one still in flight, and everything owed
   /// ended before it. A run that is missing for any other reason says nothing
   /// about when it ended, and reading it as the latest would hoist a later
-  /// run's outcome above a turn that came first.
+  /// run's outcome above a turn that came first — so that case settles
+  /// nothing here and leaves the sweep to place what is owed.
   void settleRunsEndingBefore(String runId) {
     final limit = endedIn.indexOf(runId);
     if (limit < 0) {

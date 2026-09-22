@@ -1720,6 +1720,60 @@ void main() {
           runId: run,
         );
 
+    test('a refresh keeps a run the backend cannot replay', () async {
+      // A run the user stopped is recorded nowhere the backend has, so a
+      // refresh that replaces rather than merges loses it — and with it the
+      // only tile the work that run did has to render on.
+      const key = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      addTearDown(state.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      registry.register(key, session);
+      state.attachSession(session);
+      session.emit(
+        CancelledState.duringRun(
+          threadKey: key,
+          runId: 'run-0',
+          conversation: Conversation(
+            threadId: 'thread-1',
+            runOutcomes: {'run-0': parked('run-0')},
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      // Replay of the same run sees only that its events ran out.
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        runOutcomes: {
+          'run-0': NoResponseTile.finished(
+            id: noResponseMessageId('run-0'),
+            thinkingText: 'weighing it',
+            runId: 'run-0',
+          ),
+        },
+      );
+      await state.refresh();
+      await Future<void>.delayed(Duration.zero);
+
+      final loaded = state.messages.value as MessagesLoaded;
+      expect(loaded.runOutcomes['run-0'], isNotNull);
+      expect(loaded.runOutcomes['run-0']!.reason, TerminalReason.cancelled);
+    });
+
     test('a reloaded thread carries how its stored runs ended', () async {
       // The backend replays a run that ended saying nothing as an outcome and
       // nothing else, so if the load drops it that run's work has no tile.

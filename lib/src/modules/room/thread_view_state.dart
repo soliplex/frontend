@@ -34,9 +34,14 @@ class MessagesLoaded extends ThreadViewStatus {
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
 
-  /// How each run that may have nothing to show for itself ended, keyed by run
-  /// id. Survives a detach: a cancelled or failed run is recorded nowhere the
-  /// backend can replay it, so losing it here loses it for good.
+  /// How each run that ended ended, keyed by run id.
+  ///
+  /// Survives a detach: a run the user stopped, or one whose stream dropped, is
+  /// recorded nowhere the backend can replay it, so losing it here loses it for
+  /// good. A backend `RUN_ERROR` is replayed and would come back.
+  ///
+  /// Insertion-ordered, and read that way by the timeline: the order runs were
+  /// recorded is the order they ended.
   final Map<String, NoResponseTile> runOutcomes;
 
   @override
@@ -513,10 +518,19 @@ class ThreadViewState {
       for (final entry in replayToTrackers(history.runs).entries) {
         _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
       }
+      final kept = switch (_messages.value) {
+        MessagesLoaded(:final runOutcomes) => runOutcomes,
+        _ => const <String, NoResponseTile>{},
+      };
       _messages.value = MessagesLoaded(
         messages: history.messages,
         messageStates: history.messageStates,
-        runOutcomes: history.runOutcomes,
+        // Same rule as the trackers above, for the same reason: a run the user
+        // stopped, or one whose stream dropped, is recorded nowhere the
+        // backend has. Replay sees only that such a run's events ran out and
+        // records it as finished, so letting it win would tell the user a run
+        // completed that they stopped.
+        runOutcomes: {...history.runOutcomes, ...kept},
       );
       onHistoryLoaded?.call(threadId, history);
     } on PermissionDeniedException catch (error) {
