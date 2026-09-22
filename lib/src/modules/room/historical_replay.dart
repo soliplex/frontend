@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import 'execution_step.dart';
 import 'execution_tracker.dart';
 
 /// Signature for the per-event AG-UI → execution-event bridger. The
@@ -67,6 +68,11 @@ Map<String, ExecutionTracker> replayToTrackers(
     }
   }
 
+  // The key each run was filling when its events ran out. Every other bucket
+  // closed because the run moved on to another reply, which means its work
+  // finished; only these were left open by the run ending.
+  final endedOn = <String>{};
+
   for (final bundle in runs) {
     // A message only takes the work once it has said something. Live, that is
     // known as it happens; here the whole run is in hand, so the messages that
@@ -107,6 +113,7 @@ Map<String, ExecutionTracker> replayToTrackers(
             .add((event: execEvent, timestamp: raw.timestamp));
       }
     }
+    endedOn.add(key);
   }
 
   return {
@@ -115,6 +122,9 @@ Map<String, ExecutionTracker> replayToTrackers(
         events: entry.value,
         origin: _bucketOrigin(rawBuckets[entry.key] ?? const []),
         activities: _foldActivities(rawBuckets[entry.key] ?? const []),
+        unfinishedAs: endedOn.contains(entry.key)
+            ? StepStatus.failed
+            : StepStatus.completed,
         logger: _logger,
       ),
   };

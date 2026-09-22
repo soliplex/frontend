@@ -69,6 +69,7 @@ class ExecutionTracker {
     required List<TimedExecutionEvent> events,
     required int? origin,
     required List<ActivityRecord> activities,
+    required StepStatus unfinishedAs,
     required Logger logger,
   })  : _logger = logger,
         _activities = Signal<List<ActivityRecord>>(activities),
@@ -79,11 +80,10 @@ class ExecutionTracker {
           : Duration(milliseconds: timestamp - origin);
       _onEvent(event);
     }
-    // A step still active once the stored events run out is a step no terminal
-    // event ever settled: the run was stopped, or its stream ended without
-    // saying how. Live, both of those end in a failure the registry reports
-    // the same way.
-    freeze(StepStatus.failed);
+    // Only the caller knows why this bucket ended. A run that moved on to
+    // another reply finished the stretch it is closing; a run whose events ran
+    // out left whatever was open unaccounted for.
+    freeze(unfinishedAs);
   }
 
   final Logger _logger;

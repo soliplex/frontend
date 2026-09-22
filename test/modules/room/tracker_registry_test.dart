@@ -257,12 +257,14 @@ void main() {
     test('adds frozen trackers under their message ids', () {
       final historical = {
         'asst-1': ExecutionTracker.historical(
+          unfinishedAs: StepStatus.failed,
           origin: null,
           events: const [],
           activities: const [],
           logger: testLogger(),
         ),
         'asst-2': ExecutionTracker.historical(
+          unfinishedAs: StepStatus.failed,
           origin: null,
           events: const [],
           activities: const [],
@@ -291,6 +293,7 @@ void main() {
 
       final historical = {
         'asst-1': ExecutionTracker.historical(
+          unfinishedAs: StepStatus.failed,
           origin: null,
           events: const [],
           activities: const [],
