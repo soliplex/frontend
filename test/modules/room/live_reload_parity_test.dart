@@ -287,6 +287,17 @@ List<BaseEvent> _declares(String messageId, String toolCallId) => [
       ),
     ];
 
+/// A tool call and its result — the boundary between two model responses.
+List<BaseEvent> _call(String toolCallId) => [
+      ToolCallStartEvent(toolCallId: toolCallId, toolCallName: 'search'),
+      ToolCallEndEvent(toolCallId: toolCallId),
+      ToolCallResultEvent(
+        messageId: 'tr-$toolCallId',
+        toolCallId: toolCallId,
+        content: 'ok',
+      ),
+    ];
+
 List<BaseEvent> _says(String messageId, String text) => [
       TextMessageStartEvent(messageId: messageId),
       TextMessageContentEvent(messageId: messageId, delta: text),
@@ -337,6 +348,56 @@ void main() {
       ..._says('m3', 'Below 2,000 ft AGL.'),
       RunFinishedEvent(threadId: 't', runId: _runId),
     ]);
+  });
+
+  test('each reply carries the work of the response it was emitted in',
+      () async {
+    // The producer emits one response at a time: reasoning, then a message,
+    // then the tool calls that message asked for. A tool result ends the
+    // response, because the model is invoked again to produce the next one.
+    // Each reply must therefore carry its own response's work — not the work
+    // of the response that follows it.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'start with the manual'),
+      ..._says('m1', 'Let me check the manual.'),
+      ..._call('c1'),
+      ..._reasoning('r2', 'now the shutdown procedure'),
+      ..._says('m2', 'Now the shutdown procedure.'),
+      ..._call('c2'),
+      ..._reasoning('r3', 'enough to answer'),
+      ..._says('m3', 'Off below 2,000 ft AGL.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+
+    // Parity alone would pass with both paths wrong in the same way, which is
+    // how this went unnoticed. Pin the attribution itself.
+    final live = await _live([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'start with the manual'),
+      ..._says('m1', 'Let me check the manual.'),
+      ..._call('c1'),
+      ..._reasoning('r2', 'now the shutdown procedure'),
+      ..._says('m2', 'Now the shutdown procedure.'),
+      ..._call('c2'),
+      ..._reasoning('r3', 'enough to answer'),
+      ..._says('m3', 'Off below 2,000 ft AGL.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+    expect(
+      live.bands['m1']!.thinkingBlocks.value,
+      equals(['start with the manual']),
+      reason: 'the first reply carries only its own response',
+    );
+    expect(
+      live.bands['m2']!.thinkingBlocks.value,
+      equals(['now the shutdown procedure']),
+    );
+    expect(
+      live.bands['m3']!.thinkingBlocks.value,
+      equals(['enough to answer']),
+      reason: 'the answer carries the reasoning that produced it',
+    );
   });
 
   test('a declaration whose content event carries only whitespace', () async {

@@ -9,7 +9,7 @@ typedef TimedExecutionEvent = ({ExecutionEvent event, int? timestamp});
 
 class ExecutionTracker {
   ExecutionTracker({
-    required ReadonlySignal<ExecutionEvent?> executionEvents,
+    ReadonlySignal<ExecutionEvent?>? executionEvents,
     required ReadonlySignal<List<ActivityRecord>> activities,
     required Logger logger,
   })  : _logger = logger,
@@ -23,7 +23,7 @@ class ExecutionTracker {
     // skipped: the first event of this band's own work arrives afterwards and
     // is kept, including when the signal was holding nothing to begin with.
     var replayingCurrentValue = true;
-    _unsub = executionEvents.subscribe((event) {
+    _unsub = executionEvents?.subscribe((event) {
       if (replayingCurrentValue) {
         replayingCurrentValue = false;
         return;
@@ -166,6 +166,17 @@ class ExecutionTracker {
     _activitiesUnsub = null;
     _stopwatch.stop();
     _isFrozen = true;
+  }
+
+  /// Records [event] against this band.
+  ///
+  /// For a caller that routes events itself rather than subscribing this band
+  /// to a signal. A write to a signal made inside another signal's callback
+  /// does not reach subscribers until that callback returns, so a router that
+  /// closes a band in the same breath would freeze it before the event landed.
+  void observe(ExecutionEvent? event) {
+    if (_isFrozen) return;
+    _onEvent(event);
   }
 
   void _onEvent(ExecutionEvent? event) {
