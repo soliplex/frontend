@@ -91,7 +91,7 @@ class NoResponseTileWidget extends StatelessWidget {
 /// tile being scrolled out of the sliver's cache extent, a thread switch, a
 /// history reload and a restart.
 ///
-/// A `failed` tile is only ever synthesized from a `RunErrorEvent`, which the
+/// A `failed` tile is only ever parked from a `RunErrorEvent`, which the
 /// registry attempts to auto-file, so a note usually exists — but the POST is
 /// best-effort and a tile replayed from history may predate any attempt, so
 /// the label describes the affordance rather than a stored record, and the

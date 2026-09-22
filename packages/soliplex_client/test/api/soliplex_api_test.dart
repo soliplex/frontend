@@ -2319,13 +2319,13 @@ void main() {
       });
 
       test(
-          'no-response run synthesizes a NoResponseTile in '
-          'ThreadHistory.messages', () async {
-        // Replay drives the same processEvent machinery as the live
-        // path, so a run with buffered thinking but no assistant
-        // TextMessageStart must produce a synthesized NoResponseTile in
-        // history.messages — matching the no-response tracker keyed
-        // under the same id by replayToTrackers.
+          'a run that only reasoned parks that reasoning in '
+          'ThreadHistory.runOutcomes', () async {
+        // Replay drives the same processEvent machinery as the live path, so
+        // a run with buffered thinking but no assistant TextMessageStart must
+        // end with a parked outcome carrying it. Nothing else in the reloaded
+        // thread holds that reasoning, and the band `replayToTrackers` keys
+        // under the same id has that outcome's tile to render on.
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -2389,11 +2389,11 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        final synthesized = history.messages.singleWhere(
-          (m) => m.id == noResponseMessageId('run-1'),
-        ) as NoResponseTile;
-        expect(synthesized.reason, equals(TerminalReason.finished));
-        expect(synthesized.thinkingText, equals('reasoning preserved'));
+        final parked = history.runOutcomes['run-1']!;
+        expect(parked.id, equals(noResponseMessageId('run-1')));
+        expect(parked.reason, equals(TerminalReason.finished));
+        expect(parked.thinkingText, equals('reasoning preserved'));
+        expect(history.messages.whereType<NoResponseTile>(), isEmpty);
       });
 
       test('handles null runs gracefully', () async {

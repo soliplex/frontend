@@ -254,10 +254,7 @@ class RunOrchestrator {
         _cleanup();
         // Mirror `_processRunFinished`/`_processRunError`: commit any
         // mid-stream reply text as a finalized `TextMessage` so the user
-        // keeps what was already on screen, then synthesize a
-        // "no response" tile if buffered thinking exists. When the user
-        // hits Stop before any text or thinking buffered (early cancel),
-        // neither fires — by design; the user knows they pressed Stop.
+        // keeps what was already on screen, then park how the run ended.
         final withPartial = commitPartialTextOnTerminal(
           conversation: conversation,
           streaming: streaming,
@@ -265,19 +262,13 @@ class RunOrchestrator {
           terminalEvent: 'cancelRun',
           createdAt: _lastEventTime,
         );
-        final synthesisResult = synthesizeCancelledNoResponse(
+        final withOutcome = parkCancelledOutcome(
           conversation: withPartial,
           streaming: streaming,
           runId: runId,
           createdAt: DateTime.timestamp(),
         );
-        final parked = parkCancelledOutcome(
-          conversation: synthesisResult.conversation,
-          streaming: streaming,
-          runId: runId,
-          createdAt: DateTime.timestamp(),
-        );
-        final withCitations = _extractCitations(parked, runId);
+        final withCitations = _extractCitations(withOutcome, runId);
         _setState(
           CancelledState.duringRun(
             threadKey: threadKey,

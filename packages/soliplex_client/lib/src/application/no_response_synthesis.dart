@@ -6,22 +6,14 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.no_response_synthesis');
 
-/// Outcome of the `synthesize…NoResponse` entries. The `synthesized` flag
-/// tells callers whether a [NoResponseTile] was appended without forcing
-/// them to compare conversations by reference.
-typedef NoResponseSynthesisResult = ({
-  Conversation conversation,
-  bool synthesized,
-});
-
-/// Single source of truth for synthesized no-response message ids;
-/// synthesis, tracker rekeying, and historical replay must derive ids
-/// through this helper so they agree for the same run.
+/// Single source of truth for the id of a run's parked outcome. It doubles as
+/// the key of a band that collected while no message had spoken, so parking,
+/// band keying on both paths, and placement all have to derive it here for the
+/// three to agree about the same run.
 String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
 
-/// Single source of truth for ids of `ErrorMessage`s synthesized when
-/// `_processRunError` falls back from `NoResponseTile` synthesis (no
-/// buffered thinking or unresolved tool calls).
+/// Id of the row that reports a failed run which has something else to show
+/// for itself, and so shows no outcome tile of its own to carry the failure.
 String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
 
 /// Id for an `ErrorMessage` synthesized when `RunErrorEvent` arrives on
@@ -35,77 +27,6 @@ String preRunErrorMessageId(String threadId, String message) =>
 const _noResponseIdPrefix = 'no-response-';
 const _runErrorIdPrefix = 'run-error-';
 const _preRunErrorIdPrefix = 'pre-run-error-';
-
-/// Appends a synthesized [NoResponseTile.finished] when a run completed
-/// normally with buffered thinking but no assistant text reply.
-NoResponseSynthesisResult synthesizeFinishedNoResponse({
-  required Conversation conversation,
-  required StreamingState streaming,
-  required String runId,
-  DateTime? createdAt,
-}) =>
-    _synthesize(
-      conversation: conversation,
-      streaming: streaming,
-      runId: runId,
-      preserveWhateverWasShown: false,
-      buildTile: (id, thinking) => NoResponseTile.finished(
-        id: id,
-        thinkingText: thinking,
-        createdAt: createdAt,
-        runId: runId,
-      ),
-    );
-
-/// Appends a synthesized [NoResponseTile.failed] when a run failed with
-/// buffered thinking but no assistant text reply. [errorDetail] is the
-/// backend error message; the type-level invariant on [NoResponseTile.failed]
-/// requires it to be non-null.
-NoResponseSynthesisResult synthesizeFailedNoResponse({
-  required Conversation conversation,
-  required StreamingState streaming,
-  required String runId,
-  required String errorDetail,
-  DateTime? createdAt,
-}) =>
-    _synthesize(
-      conversation: conversation,
-      streaming: streaming,
-      runId: runId,
-      preserveWhateverWasShown: false,
-      buildTile: (id, thinking) => NoResponseTile.failed(
-        id: id,
-        thinkingText: thinking,
-        errorDetail: errorDetail,
-        createdAt: createdAt,
-        runId: runId,
-      ),
-    );
-
-/// Appends a synthesized [NoResponseTile.cancelled] when a run was cancelled
-/// after thinking began — buffered or merely streaming — with no assistant
-/// text reply.
-NoResponseSynthesisResult synthesizeCancelledNoResponse({
-  required Conversation conversation,
-  required StreamingState streaming,
-  required String runId,
-  DateTime? createdAt,
-}) =>
-    _synthesize(
-      conversation: conversation,
-      streaming: streaming,
-      runId: runId,
-      // Whatever the user was already looking at has to outlive the Stop —
-      // a Thinking indicator with no content yet, or thinking beside a tool
-      // call still in flight. Declining either blanks the exchange.
-      preserveWhateverWasShown: true,
-      buildTile: (id, thinking) => NoResponseTile.cancelled(
-        id: id,
-        thinkingText: thinking,
-        createdAt: createdAt,
-        runId: runId,
-      ),
-    );
 
 /// Records how a run that finished normally ended, for a thread that may have
 /// nothing else to show for it.
@@ -195,54 +116,6 @@ Conversation _park({
   );
 }
 
-/// Shared decline gate for the three terminal entries.
-///
-/// Always declines when [streaming] is not [AwaitingText]: a reply was in
-/// progress, and the caller commits that partial text instead.
-///
-/// [preserveWhateverWasShown] then chooses between two policies.
-///
-/// A cancel sets it. The user stopped a run they were watching, so anything
-/// already on screen has to survive, and only the streaming state holds it —
-/// the tile is what carries it afterwards. That includes the window after the
-/// reasoning-start event but before its first content, which
-/// [AwaitingText.hasThinkingContent] covers and an empty buffer does not, and
-/// it includes a tool call still in flight.
-///
-/// The two backend outcomes clear it. They require real thinking text, since a
-/// run that emitted nothing has no missing reply to report, and they decline
-/// while any tool call is `pending`, `streaming` or `executing`, because there
-/// the run is yielding to client tools and the tool call IS the response. That
-/// yield never reaches the cancel path: `cancelRun` handles
-/// `ToolYieldingState` in its own branch, so an unresolved tool call seen here
-/// after a cancel is a backend call mid-flight, which shows the user nothing.
-NoResponseSynthesisResult _synthesize({
-  required Conversation conversation,
-  required StreamingState streaming,
-  required String runId,
-  required bool preserveWhateverWasShown,
-  required NoResponseTile Function(String id, String thinkingText) buildTile,
-}) {
-  if (streaming is! AwaitingText) {
-    return (conversation: conversation, synthesized: false);
-  }
-  final synthesize = preserveWhateverWasShown
-      ? streaming.hasThinkingContent
-      : streaming.bufferedThinkingText.isNotEmpty &&
-          !_hasUnresolvedToolCalls(conversation);
-  if (!synthesize) {
-    return (conversation: conversation, synthesized: false);
-  }
-  final tile = buildTile(
-    noResponseMessageId(runId),
-    streaming.bufferedThinkingText,
-  );
-  return (
-    conversation: conversation.withAppendedMessage(tile),
-    synthesized: true,
-  );
-}
-
 /// Commits an in-flight `TextStreaming` reply as a finalized [TextMessage]
 /// when a terminal event (`RunFinishedEvent`, `RunErrorEvent`, or
 /// `cancelRun`) arrives mid-stream. Without this, the partial reply the
@@ -310,15 +183,4 @@ Conversation commitPartialTextOnTerminal({
       runId: runId,
     ),
   );
-}
-
-bool _hasUnresolvedToolCalls(Conversation conversation) {
-  for (final tc in conversation.toolCalls) {
-    if (tc.status == ToolCallStatus.pending ||
-        tc.status == ToolCallStatus.streaming ||
-        tc.status == ToolCallStatus.executing) {
-      return true;
-    }
-  }
-  return false;
 }

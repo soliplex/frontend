@@ -449,11 +449,12 @@ void main() {
     );
 
     test(
-        'RunErrorEvent with buffered thinking surfaces NoResponseTile in '
+        'RunErrorEvent with buffered thinking parks that reasoning in '
         'FailedState.conversation', () async {
-      // Locks the cross-layer contract: processEvent appends the
-      // synthesized tile, _mapEventResult must thread it through into
-      // the terminal state's conversation.
+      // Locks the cross-layer contract: processEvent parks the outcome, and
+      // _mapEventResult must thread it through into the terminal state's
+      // conversation. Nothing else holds the reasoning of a run that failed
+      // before it spoke.
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
@@ -478,11 +479,11 @@ void main() {
 
       expect(orchestrator.currentState, isA<FailedState>());
       final failed = orchestrator.currentState as FailedState;
-      final synthesized = failed.conversation!.messages.last as NoResponseTile;
-      expect(synthesized.id, equals(noResponseMessageId(_runId)));
-      expect(synthesized.reason, equals(TerminalReason.failed));
-      expect(synthesized.errorDetail, equals('boom'));
-      expect(synthesized.thinkingText, equals('partial reasoning'));
+      final parked = failed.conversation!.runOutcomes[_runId]!;
+      expect(parked.id, equals(noResponseMessageId(_runId)));
+      expect(parked.reason, equals(TerminalReason.failed));
+      expect(parked.errorDetail, equals('boom'));
+      expect(parked.thinkingText, equals('partial reasoning'));
     });
 
     test(
@@ -666,7 +667,7 @@ void main() {
 
     test(
         'cancelRun on Running with buffered thinking and no reply '
-        'synthesizes a NoResponseTile with reason: cancelled', () async {
+        'parks a cancelled outcome carrying that reasoning', () async {
       stubCreateRun();
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
@@ -697,17 +698,16 @@ void main() {
       orchestrator.cancelRun();
 
       final cancelled = orchestrator.currentState as CancelledState;
-      final synthesized =
-          cancelled.conversation!.messages.last as NoResponseTile;
-      expect(synthesized.id, equals(noResponseMessageId(_runId)));
-      expect(synthesized.reason, equals(TerminalReason.cancelled));
-      expect(synthesized.thinkingText, equals('considering options'));
-      // The cancel is a client action with no backend event, so the tile
+      final parked = cancelled.conversation!.runOutcomes[_runId]!;
+      expect(parked.id, equals(noResponseMessageId(_runId)));
+      expect(parked.reason, equals(TerminalReason.cancelled));
+      expect(parked.thinkingText, equals('considering options'));
+      // The cancel is a client action with no backend event, so the record
       // carries the cancel instant (client now) — not the stale last-event
       // time.
-      expect(synthesized.createdAt, isNotNull);
-      expect(synthesized.createdAt!.isUtc, isTrue);
-      expect(synthesized.createdAt!.isAfter(DateTime.utc(2026, 1, 2)), isTrue);
+      expect(parked.createdAt, isNotNull);
+      expect(parked.createdAt!.isUtc, isTrue);
+      expect(parked.createdAt!.isAfter(DateTime.utc(2026, 1, 2)), isTrue);
 
       await controller.close();
     });
@@ -716,8 +716,9 @@ void main() {
         'cancelRun mid-text-stream commits the partial reply as a finalized '
         'TextMessage (mirrors RunFinished/RunError behavior)', () async {
       // Without the partial-text commit, a half-streamed reply vanishes
-      // when streaming resets to AwaitingText on Stop. Synthesis declines
-      // on TextStreaming, so the commit is the only surfacing path.
+      // when streaming resets to AwaitingText on Stop. The parked outcome
+      // is a record, not a message, so the commit is the only path that
+      // keeps the text on screen.
       stubCreateRun();
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);

@@ -70,48 +70,10 @@ void main() {
         expect(result.streaming, isA<app_streaming.AwaitingText>());
       });
 
-      test(
-          'RunFinishedEvent with buffered thinking synthesizes a no-response '
-          'message', () {
-        final runningConversation = conversation.withStatus(
-          const Running(runId: 'run-1'),
-        );
-        const streamingWithThinking = app_streaming.AwaitingText(
-          bufferedThinkingText: 'I considered the options...',
-        );
-        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
-
-        final result =
-            processEvent(runningConversation, streamingWithThinking, event);
-
-        final synthesized = result.conversation.messages.last as NoResponseTile;
-        expect(synthesized.id, equals(noResponseMessageId('run-1')));
-        expect(synthesized.user, equals(ChatUser.assistant));
-        expect(
-          synthesized.thinkingText,
-          equals('I considered the options...'),
-        );
-        expect(synthesized.reason, equals(TerminalReason.finished));
-      });
-
-      test(
-          'RunFinishedEvent with empty thinking buffer does NOT '
-          'synthesize a no-response message', () {
-        final runningConversation = conversation.withStatus(
-          const Running(runId: 'run-1'),
-        );
-        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
-
-        final result = processEvent(runningConversation, streaming, event);
-
-        expect(result.conversation.messages, isEmpty);
-      });
-
-      test(
-          'RunFinishedEvent while streaming text does NOT '
-          'synthesize a no-response message', () {
-        // A reply was in progress (TextMessageStart fired). The reply is
-        // the response — there's nothing to synthesize.
+      test('RunFinishedEvent commits the reply that was still streaming', () {
+        // The run ended between the first delta and TEXT_MESSAGE_END. What
+        // the user was already reading has to survive the reset to
+        // AwaitingText, or the answer blanks at the moment it completes.
         final runningConversation = conversation.withStatus(
           const Running(runId: 'run-1'),
         );
@@ -125,37 +87,11 @@ void main() {
 
         final result = processEvent(runningConversation, textStreaming, event);
 
-        expect(
-          result.conversation.messages.whereType<NoResponseTile>(),
-          isEmpty,
-        );
-      });
-
-      test(
-          'RunFinishedEvent with pending tool call does NOT '
-          'synthesize a no-response message', () {
-        final runningConversation =
-            conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
-                  const ToolCallInfo(
-                    id: 'tc1',
-                    name: 'search',
-                  ),
-                );
-        const streamingWithThinking = app_streaming.AwaitingText(
-          bufferedThinkingText: 'planning the call',
-        );
-        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
-
-        final result = processEvent(
-          runningConversation,
-          streamingWithThinking,
-          event,
-        );
-
-        expect(
-          result.conversation.messages.whereType<NoResponseTile>(),
-          isEmpty,
-        );
+        final committed = result.conversation.messages
+            .whereType<TextMessage>()
+            .singleWhere((m) => m.id == 'msg-1');
+        expect(committed.text, equals('partial'));
+        expect(committed.thinkingText, equals('reasoning'));
       });
 
       test(
@@ -194,30 +130,6 @@ void main() {
           equals(preRunErrorMessageId(conversation.threadId, 'pre-run error')),
         );
         expect(surfaced.errorText, equals('pre-run error'));
-      });
-
-      test(
-          'RunErrorEvent with buffered thinking synthesizes a no-response '
-          'message with reason: failed', () {
-        final runningConversation = conversation.withStatus(
-          const Running(runId: 'run-1'),
-        );
-        const streamingWithThinking = app_streaming.AwaitingText(
-          bufferedThinkingText: 'partial reasoning',
-        );
-        const event = RunErrorEvent(message: 'boom');
-
-        final result = processEvent(
-          runningConversation,
-          streamingWithThinking,
-          event,
-        );
-
-        final synthesized = result.conversation.messages.last as NoResponseTile;
-        expect(synthesized.reason, equals(TerminalReason.failed));
-        // The backend error must be attached to the persisted tile so it
-        // survives reload — not just the transient send-error banner.
-        expect(synthesized.errorDetail, equals('boom'));
       });
 
       test(
@@ -409,7 +321,7 @@ void main() {
       });
 
       test(
-          'RunFinishedEvent stamps synthesized NoResponseTile createdAt from '
+          'RunFinishedEvent stamps the parked outcome createdAt from '
           'event.timestamp', () {
         final runningConversation =
             conversation.withStatus(const Running(runId: 'run-1'));
@@ -426,14 +338,13 @@ void main() {
         final result =
             processEvent(runningConversation, streamingWithThinking, event);
 
-        final tile =
-            result.conversation.messages.whereType<NoResponseTile>().single;
-        expect(tile.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+        final parked = result.conversation.runOutcomes['run-1']!;
+        expect(parked.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
     });
 
     group('run attribution', () {
-      test('a synthesized no-response tile names its run', () {
+      test('a parked outcome names its run, under the id its band uses', () {
         final runningConversation = conversation.withStatus(
           const Running(runId: 'run-1'),
         );
@@ -448,7 +359,9 @@ void main() {
           event,
         );
 
-        expect(result.conversation.messages.last.runId, equals('run-1'));
+        final parked = result.conversation.runOutcomes['run-1']!;
+        expect(parked.runId, equals('run-1'));
+        expect(parked.id, equals(noResponseMessageId('run-1')));
       });
 
       test('a partial reply committed on a terminal names its run', () {
