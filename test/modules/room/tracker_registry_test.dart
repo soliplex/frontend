@@ -217,12 +217,15 @@ void main() {
       activities,
     );
 
-    // The result ends msg-1's response: its band is claimed and closed, and a
-    // fresh one opens for whatever the producer emits next.
+    // The result ends msg-1's response, read at the next event that is not
+    // another result — so calls made in parallel stay in the response that
+    // made them. That next event is what claims the band and opens the one
+    // after it.
     events1.value = const ServerToolCallCompleted(
       toolCallId: 'c-1',
       result: 'ok',
     );
+    events1.value = const ThinkingStarted();
 
     expect(registry.trackers, hasLength(2));
     expect(registry.trackers['msg-1']!.isFrozen, isTrue);

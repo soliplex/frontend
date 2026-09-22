@@ -8,6 +8,7 @@ import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, HttpTransport, SoliplexApi, UrlBuilder;
 
+import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/historical_replay.dart';
@@ -507,6 +508,35 @@ void main() {
     ]);
   });
 
+  test('a reply that makes two calls at once keeps them in one response',
+      () async {
+    // Both results belong to the response that made the calls. Closing on the
+    // first would strand the second in a band with no step for it, and leave
+    // that band resolving to a tile the first one already took.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'two lookups at once'),
+      ..._says('m1', 'Checking both.'),
+      const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+      const ToolCallEndEvent(toolCallId: 'c1'),
+      const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
+      const ToolCallEndEvent(toolCallId: 'c2'),
+      const ToolCallResultEvent(
+        messageId: 'tr-c1',
+        toolCallId: 'c1',
+        content: 'ok',
+      ),
+      const ToolCallResultEvent(
+        messageId: 'tr-c2',
+        toolCallId: 'c2',
+        content: 'ok',
+      ),
+      ..._reasoning('r2', 'enough to answer'),
+      ..._says('m2', 'Off below 2,000 ft AGL.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+  });
+
   test('a declaration whose content event carries only whitespace', () async {
     // Both paths decide whether a message spoke, and so whether it takes the
     // band, from the same rule: content that is only whitespace has not
@@ -561,5 +591,236 @@ void main() {
       ..._declares('m1', 'c1'),
       const RunErrorEvent(message: 'upstream said no'),
     ]);
+  });
+
+  // A response ends because the next one begins, and the next one begins with
+  // output: reasoning, text or a tool call. What can sit between a tool result
+  // and that — state the tool wrote, the run ending — belongs to the response
+  // that made the call. In the stored threads, 13 of 132 runs end on a result.
+
+  test('a reply that works, then the run finishes on the result', () async {
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._says('m1', 'Let me look that up.'),
+      ..._call('c1'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+  });
+
+  test('state written after a result, then the run finishes', () async {
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._says('m1', 'Let me look that up.'),
+      ..._call('c1'),
+      const StateSnapshotEvent(snapshot: {'k': 1}),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+  });
+
+  test('state written between two parallel results', () async {
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._says('m1', 'Checking both.'),
+      const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+      const ToolCallEndEvent(toolCallId: 'c1'),
+      const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
+      const ToolCallEndEvent(toolCallId: 'c2'),
+      const ToolCallResultEvent(
+        messageId: 'tr-c1',
+        toolCallId: 'c1',
+        content: 'ok',
+      ),
+      const StateDeltaEvent(delta: [
+        {'op': 'add', 'path': '/k', 'value': 1},
+      ]),
+      const ToolCallResultEvent(
+        messageId: 'tr-c2',
+        toolCallId: 'c2',
+        content: 'ok',
+      ),
+      ..._says('m2', 'Done.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+  });
+
+  test('a run that fails while one of two parallel calls is still out',
+      () async {
+    final sequence = [
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._says('m1', 'Checking both.'),
+      const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+      const ToolCallEndEvent(toolCallId: 'c1'),
+      const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
+      const ToolCallEndEvent(toolCallId: 'c2'),
+      const ToolCallResultEvent(
+        messageId: 'tr-c1',
+        toolCallId: 'c1',
+        content: 'ok',
+      ),
+      const RunErrorEvent(message: 'upstream said no'),
+    ];
+    await _expectParity(sequence);
+
+    // Parity passes when both paths paint the call that never returned green,
+    // so pin how it settles.
+    for (final (path, inputs) in [
+      ('live', await _live(sequence)),
+      ('reloaded', await _reloaded(sequence)),
+    ]) {
+      final c2 = inputs.bands['m1']!.timeline.value
+          .whereType<TimelineStep>()
+          .singleWhere((s) => s.toolCallId == 'c2');
+      expect(
+        c2.step.status,
+        equals(StepStatus.failed),
+        reason: '$path: a call the failed run never answered',
+      );
+    }
+  });
+
+  test('a tool reports progress between two parallel results', () async {
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._says('m1', 'Checking both.'),
+      const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+      const ToolCallEndEvent(toolCallId: 'c1'),
+      const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
+      const ToolCallEndEvent(toolCallId: 'c2'),
+      const ToolCallResultEvent(
+        messageId: 'tr-c1',
+        toolCallId: 'c1',
+        content: 'ok',
+      ),
+      const ActivitySnapshotEvent(
+        messageId: 'a1',
+        activityType: 'progress',
+        content: {'fetched': 1},
+      ),
+      const ToolCallResultEvent(
+        messageId: 'tr-c2',
+        toolCallId: 'c2',
+        content: 'ok',
+      ),
+      ..._says('m2', 'Done.'),
+      RunFinishedEvent(threadId: 't', runId: _runId),
+    ]);
+  });
+
+  group('as the backend streams them', () {
+    // The faux room's scripted scenarios, event for event as pydantic-ai's
+    // AG-UI adapter emits them: a tool's state rides after its result as
+    // metadata, a tool's progress arrives while it runs, and an error closes
+    // any call still out with a result of its own before `RUN_ERROR`.
+
+    List<BaseEvent> speaksThenCalls(List<String> toolCallIds) => [
+          RunStartedEvent(threadId: 't', runId: _runId),
+          ..._reasoning('r1', 'The manual will have this.'),
+          ..._says('m1', 'Let me look that up.'),
+          for (final id in toolCallIds) ...[
+            ToolCallStartEvent(
+              toolCallId: id,
+              toolCallName: 'faux_tool',
+              parentMessageId: 'm1',
+            ),
+            ToolCallArgsEvent(toolCallId: id, delta: '{"query":"$id"}'),
+            ToolCallEndEvent(toolCallId: id),
+          ],
+        ];
+
+    ToolCallResultEvent result(String id, String content) =>
+        ToolCallResultEvent(
+            messageId: 'tr-$id', toolCallId: id, content: content);
+
+    const stateWritten = StateDeltaEvent(delta: [
+      {'op': 'add', 'path': '/faux', 'value': 'scenario'},
+    ]);
+
+    List<BaseEvent> answers() => [
+          ..._reasoning('r2', 'Enough to answer.'),
+          ..._says('m2', 'Both sources agree: off below 2,000 ft AGL.'),
+          RunFinishedEvent(threadId: 't', runId: _runId),
+        ];
+
+    test('the model request after a tool fails', () async {
+      await _expectParity([
+        ...speaksThenCalls(['c1']),
+        result('c1', 'something random'),
+        stateWritten,
+        const RunErrorEvent(message: 'the next model request failed'),
+      ]);
+    });
+
+    test('one of two calls at once raises', () async {
+      final sequence = [
+        ...speaksThenCalls(['c1', 'c2']),
+        result('c1', 'something random'),
+        stateWritten,
+        result('c2', 'Tool execution was interrupted by an error.'),
+        const ReasoningEncryptedValueEvent(
+          subtype: ReasoningEncryptedValueSubtype.message,
+          entityId: 'tr-c2',
+          encryptedValue: '{"pydantic_ai": {"outcome": "failed"}}',
+        ),
+        const RunErrorEvent(message: 'the second lookup timed out'),
+      ];
+      await _expectParity(sequence);
+
+      // Parity passes when both paths lose the closing result the same way.
+      for (final (path, inputs) in [
+        ('live', await _live(sequence)),
+        ('reloaded', await _reloaded(sequence)),
+      ]) {
+        final c2 = inputs.bands['m1']!.timeline.value
+            .whereType<TimelineStep>()
+            .singleWhere((s) => s.toolCallId == 'c2');
+        expect(
+          c2.result,
+          equals('Tool execution was interrupted by an error.'),
+          reason: '$path: the call the error closed keeps its result',
+        );
+      }
+    });
+
+    test('two calls at once, each writing state, then an answer', () async {
+      await _expectParity([
+        ...speaksThenCalls(['c1', 'c2']),
+        result('c1', 'something random'),
+        stateWritten,
+        result('c2', 'something random'),
+        stateWritten,
+        ...answers(),
+      ]);
+    });
+
+    test('two calls at once, the slower reporting progress', () async {
+      final sequence = [
+        ...speaksThenCalls(['c1', 'c2']),
+        result('c1', 'something random'),
+        stateWritten,
+        const ActivitySnapshotEvent(
+          messageId: 'faux:c2',
+          activityType: 'skill_tool_call',
+          content: {'skill': 'faux', 'tool_name': 'search'},
+        ),
+        result('c2', 'something random'),
+        stateWritten,
+        ...answers(),
+      ];
+      await _expectParity(sequence);
+
+      // Parity does not compare where an activity sits, so pin that it stays
+      // under the reply whose call reported it.
+      for (final (path, inputs) in [
+        ('live', await _live(sequence)),
+        ('reloaded', await _reloaded(sequence)),
+      ]) {
+        final answerEntries = inputs.bands['m2']!.timeline.value;
+        expect(
+          answerEntries.whereType<TimelineStandaloneActivity>(),
+          isEmpty,
+          reason: "$path: the progress landed in the answer's band",
+        );
+      }
+    });
   });
 }

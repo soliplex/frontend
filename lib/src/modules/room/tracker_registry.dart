@@ -21,6 +21,11 @@ class TrackerRegistry {
   /// response ends.
   String? _voice;
 
+  /// A tool result has arrived and the response that made the call has not
+  /// been closed yet. Held so the close happens when the next response starts
+  /// ([opensResponse]).
+  bool _sawResult = false;
+
   /// The registry reads the session's events and hands each to the open band
   /// itself, so recording an event and acting on it happen in one place, in a
   /// stated order. Subscribing each band to the session signal instead would
@@ -69,6 +74,8 @@ class TrackerRegistry {
           _openBand(unclaimed);
           _sessionUnsub ??= _routeEvents(events);
         }
+        // A reply arriving after a tool result is the next response opening.
+        _endResponseIfPending();
         // The first message to speak in a response speaks for it. A producer
         // that emits two texts in one response has not done two things, and
         // splitting the response's work between them would put half of it
@@ -81,6 +88,24 @@ class TrackerRegistry {
         _openBand(unclaimed);
         _sessionUnsub ??= _routeEvents(events);
     }
+  }
+
+  /// Ends the response a tool result closed, if one is waiting to be ended.
+  ///
+  /// The producer is invoked again after a result, so the next thing it emits
+  /// belongs to a new response. Called from the event stream and from the
+  /// streaming state, because neither sees everything: a message start does
+  /// not bridge to an execution event, and a tool result does not change the
+  /// streaming state.
+  void _endResponseIfPending() {
+    if (!_sawResult) return;
+    _sawResult = false;
+    final takes = _voice;
+    // A response that said nothing leaves its work where it is, so the next
+    // response to speak takes that too.
+    if (takes == null) return;
+    _claim(takes, StepStatus.completed);
+    _openBand(_unclaimed!);
   }
 
   void _openBand(String key) {
@@ -107,15 +132,12 @@ class TrackerRegistry {
         replayingCurrentValue = false;
         return;
       }
+      // Closed only once the next response starts, so calls a response made in
+      // parallel stay in it, and what arrives between a result and the next
+      // response — state the tool wrote, the run ending — stays with it too.
+      if (event != null && opensResponse(event)) _endResponseIfPending();
       _trackers[_activeId]?.observe(event);
-      if (event is! ServerToolCallCompleted) return;
-      final takes = _voice;
-      // A response that said nothing leaves its work where it is, so the next
-      // response to speak takes that too. It is also what keeps calls made in
-      // parallel together: nothing moves between their results.
-      if (takes == null) return;
-      _claim(takes, StepStatus.completed);
-      _openBand(_unclaimed!);
+      if (event is ServerToolCallCompleted) _sawResult = true;
     });
   }
 
@@ -135,6 +157,7 @@ class TrackerRegistry {
   /// takes the band — the last response of a run has no tool result to end it.
   void onRunTerminated(StepStatus unfinishedAs) {
     final takes = _voice;
+    _sawResult = false;
     if (takes != null) {
       _claim(takes, unfinishedAs);
       return;

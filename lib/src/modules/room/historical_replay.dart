@@ -103,11 +103,19 @@ Map<String, ExecutionTracker> replayToTrackers(
 
     var sawResult = false;
     for (final raw in bundle.events) {
+      final execEvent = bridgeOrLog(raw);
+      final speaker = raw is TextMessageStartEvent &&
+              raw.role == TextMessageRole.assistant &&
+              spoke.contains(raw.messageId)
+          ? raw.messageId
+          : null;
       // A tool result ends the response that made the call: the producer is
       // invoked again to decide what to do with it, and what it emits next is
-      // a new response. Read at the next event that is not another result, so
-      // calls made in parallel stay in the response that made them.
-      if (sawResult && raw is! ToolCallResultEvent) {
+      // a new response. Live reads the same two signals — a message starting
+      // to speak, and an execution event that opens a response.
+      if (sawResult &&
+          (speaker != null ||
+              (execEvent != null && opensResponse(execEvent)))) {
         claim();
         sawResult = false;
       }
@@ -115,15 +123,10 @@ Map<String, ExecutionTracker> replayToTrackers(
       // that emits two texts in one response has not done two things, and
       // splitting the response's work between them would put half of it above
       // a line that did not ask for it.
-      if (raw is TextMessageStartEvent &&
-          raw.role == TextMessageRole.assistant &&
-          spoke.contains(raw.messageId)) {
-        voice ??= raw.messageId;
-      }
+      voice ??= speaker;
       if (raw is ToolCallResultEvent) sawResult = true;
 
       rawBuckets.putIfAbsent(unclaimed, () => []).add(raw);
-      final execEvent = bridgeOrLog(raw);
       if (execEvent != null) {
         buckets
             .putIfAbsent(unclaimed, () => [])
