@@ -1262,7 +1262,15 @@ class RunOrchestrator {
     const detail = 'Stream ended without terminal event';
     final withCitations = _extractCitations(
       parkFailedOutcome(
-        conversation: running.conversation,
+        // The reply the user was reading goes first, or the failure appears
+        // while what they were already looking at disappears.
+        conversation: commitPartialTextOnTerminal(
+          conversation: running.conversation,
+          streaming: running.streaming,
+          runId: running.runId,
+          terminalEvent: 'streamEndedWithoutTerminal',
+          createdAt: _lastEventTime,
+        ),
         streaming: running.streaming,
         runId: running.runId,
         errorDetail: detail,
@@ -1293,7 +1301,13 @@ class RunOrchestrator {
           runId: running.runId,
           conversation: _extractCitations(
             parkCancelledOutcome(
-              conversation: running.conversation,
+              conversation: commitPartialTextOnTerminal(
+                conversation: running.conversation,
+                streaming: running.streaming,
+                runId: running.runId,
+                terminalEvent: 'streamCancelled',
+                createdAt: _lastEventTime,
+              ),
               streaming: running.streaming,
               runId: running.runId,
               createdAt: DateTime.timestamp(),
@@ -1314,7 +1328,13 @@ class RunOrchestrator {
         error: _messageOf(error),
         conversation: _extractCitations(
           parkFailedOutcome(
-            conversation: running.conversation,
+            conversation: commitPartialTextOnTerminal(
+              conversation: running.conversation,
+              streaming: running.streaming,
+              runId: running.runId,
+              terminalEvent: 'streamError',
+              createdAt: _lastEventTime,
+            ),
             streaming: running.streaming,
             runId: running.runId,
             errorDetail: _messageOf(error),

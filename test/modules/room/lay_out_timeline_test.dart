@@ -357,6 +357,81 @@ void main() {
       );
     });
 
+    group('showing that a run failed', () {
+      NoResponseTile failed(String run) => NoResponseTile.failed(
+            id: noResponseMessageId(run),
+            thinkingText: '',
+            errorDetail: 'upstream said no',
+            runId: run,
+          );
+
+      test('a failed run with nothing to show says so once', () {
+        // One failure, one row. A failed outcome beside a separate error row
+        // reports the same thing twice.
+        final tiles = layOut(
+          messages: [user('u1'), assistant('m1', named: true, run: 'run-0')],
+          outcomes: {'run-0': failed('run-0')},
+        );
+
+        expect(idsOf(tiles), equals(['u1', noResponseMessageId('run-0')]));
+      });
+
+      test(
+          'a failed run that answered keeps the answer and reports the '
+          'failure beside it', () {
+        // The reply stands for the run, so the outcome tile is suppressed —
+        // but the run still failed, and saying nothing about it loses the
+        // only account of why.
+        final tiles = layOut(
+          messages: [user('u1'), assistant('m1', text: 'Here.', run: 'run-0')],
+          outcomes: {'run-0': failed('run-0')},
+        );
+
+        expect(idsOf(tiles), equals(['u1', 'm1', runErrorMessageId('run-0')]));
+        final error = tiles.last.message as ErrorMessage;
+        expect(error.errorText, equals('upstream said no'));
+        expect(error.runId, equals('run-0'));
+      });
+
+      test('a failed run already reporting itself is not reported twice', () {
+        // A tile that says the run failed carries the detail already. Adding
+        // a second row beside it states one failure twice.
+        final tiles = layOut(
+          messages: [
+            user('u1'),
+            NoResponseTile.failed(
+              id: noResponseMessageId('run-0'),
+              thinkingText: '',
+              errorDetail: 'upstream said no',
+              runId: 'run-0',
+            ),
+          ],
+          outcomes: {'run-0': failed('run-0')},
+        );
+
+        expect(idsOf(tiles), equals(['u1', noResponseMessageId('run-0')]));
+      });
+
+      test('a run that finished normally reports nothing extra', () {
+        final tiles = layOut(
+          messages: [user('u1'), assistant('m1', text: 'Here.', run: 'run-0')],
+          outcomes: {'run-0': outcome('run-0')},
+        );
+
+        expect(idsOf(tiles), equals(['u1', 'm1']));
+      });
+
+      test('the run still in flight reports no failure', () {
+        final tiles = layOut(
+          messages: [user('u1'), assistant('m1', text: 'Here.', run: 'run-0')],
+          outcomes: {'run-0': failed('run-0')},
+          activeRunId: 'run-0',
+        );
+
+        expect(idsOf(tiles), equals(['u1', 'm1']));
+      });
+    });
+
     group('what stands in for a run, and what does not', () {
       List<String> withSurvivor(ChatMessage survivor) => idsOf(
             layOut(
