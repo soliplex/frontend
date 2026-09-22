@@ -182,6 +182,24 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
     for (final runId in outcomes.keys)
       if (runId != activeRunId && !representedRuns.contains(runId)) runId,
   };
+  // A run already showing how it ended needs nothing added; one that ended in
+  // failure and is represented by something else does.
+  final runsReportingThemselves = {
+    for (final message in shown)
+      if (message is NoResponseTile)
+        if (message.runId case final runId?) runId,
+  };
+  // A failed run whose reply survives keeps that reply, so its outcome tile is
+  // suppressed — and with it the only account of why the run failed. The
+  // failure is reported beside the reply instead.
+  final unreported = {
+    for (final MapEntry(key: runId, value: outcome) in outcomes.entries)
+      if (runId != activeRunId &&
+          representedRuns.contains(runId) &&
+          !runsReportingThemselves.contains(runId) &&
+          outcome.reason == TerminalReason.failed)
+        runId,
+  };
 
   // `outcomes` is parked in the order runs ended, which is the only record of
   // when a run that committed nothing happened.
@@ -189,8 +207,20 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
 
   final tiles = <({ChatMessage message, String? runId})>[];
   void settle(String runId) {
-    if (!owed.remove(runId)) return;
-    tiles.add((message: outcomes[runId]!, runId: runId));
+    if (owed.remove(runId)) {
+      tiles.add((message: outcomes[runId]!, runId: runId));
+      return;
+    }
+    if (!unreported.remove(runId)) return;
+    tiles.add((
+      message: ErrorMessage.create(
+        id: runErrorMessageId(runId),
+        message: outcomes[runId]!.errorDetail ?? '',
+        createdAt: outcomes[runId]!.createdAt,
+        runId: runId,
+      ),
+      runId: runId,
+    ));
   }
 
   /// Settles every owed run that ended before [runId] did.

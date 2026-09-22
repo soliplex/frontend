@@ -750,21 +750,15 @@ EventProcessingResult _processRunError(
         },
       );
     }
-    // Append an ErrorMessage when synthesis declined so the run failure
-    // has a visible status row in the messages list. With a partial
-    // commit it sits alongside the half-streamed reply.
-    final surfaced = result.synthesized
-        ? result.conversation
-        : parked.withAppendedMessage(
-            ErrorMessage.create(
-              id: runErrorMessageId(runId),
-              message: message,
-              createdAt: createdAt,
-              runId: runId,
-            ),
-          );
+    // No row is appended for the failure itself. Whether the run needs one,
+    // and whether it sits alone or beside a reply that survived, depends on
+    // what else the thread has to show for that run — which is not knowable
+    // here. The parked outcome carries the detail to whoever can tell.
     return EventProcessingResult(
-      conversation: surfaced.withStatus(Failed(error: message)),
+      conversation:
+          (result.synthesized ? result.conversation : parked).withStatus(
+        Failed(error: message),
+      ),
       streaming: const AwaitingText(),
     );
   }

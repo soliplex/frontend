@@ -221,8 +221,8 @@ void main() {
       });
 
       test(
-          'RunErrorEvent with empty buffered thinking surfaces the '
-          'failure as an ErrorMessage', () {
+          'RunErrorEvent with empty buffered thinking still records the '
+          'failure', () {
         // Synthesis declines when there's nothing to preserve; without a
         // surfaced tile the user would have no signal that the run
         // failed (status alone doesn't render in the messages list).
@@ -233,12 +233,12 @@ void main() {
 
         final result = processEvent(runningConversation, streaming, event);
 
-        final surfaced = result.conversation.messages.last as ErrorMessage;
-        expect(surfaced.errorText, equals('boom'));
+        final parked = result.conversation.runOutcomes['run-1']!;
+        expect(parked.errorDetail, equals('boom'));
         expect(
           result.conversation.messages.whereType<NoResponseTile>(),
           isEmpty,
-          reason: 'no thinking to preserve — ErrorMessage carries the signal',
+          reason: 'no thinking to preserve — the parked outcome carries it',
         );
       });
 
@@ -338,8 +338,8 @@ void main() {
       });
 
       test(
-          'RunErrorEvent with unresolved tool call surfaces the '
-          'failure as an ErrorMessage', () {
+          'RunErrorEvent with an unresolved tool call still records the '
+          'failure', () {
         // Tool-call synthesis declines (the tool call IS the response);
         // a real failure still needs to be visible to the user.
         final runningConversation =
@@ -357,12 +357,12 @@ void main() {
           event,
         );
 
-        final surfaced = result.conversation.messages.last as ErrorMessage;
-        expect(surfaced.errorText, equals('tool failure'));
+        final parked = result.conversation.runOutcomes['run-1']!;
+        expect(parked.errorDetail, equals('tool failure'));
       });
 
       test(
-          'RunErrorEvent stamps surfaced ErrorMessage createdAt from '
+          'RunErrorEvent stamps the parked failure createdAt from '
           'event.timestamp', () {
         final runningConversation =
             conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
@@ -380,9 +380,8 @@ void main() {
         final result =
             processEvent(runningConversation, streamingWithThinking, event);
 
-        final surfaced =
-            result.conversation.messages.whereType<ErrorMessage>().single;
-        expect(surfaced.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+        final parked = result.conversation.runOutcomes['run-1']!;
+        expect(parked.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
 
       test(
@@ -471,7 +470,7 @@ void main() {
         expect(partial.runId, equals('run-1'));
       });
 
-      test('an error row for a failed run names that run', () {
+      test('the record of a failed run names that run', () {
         final runningConversation = conversation.withStatus(
           const Running(runId: 'run-1'),
         );
@@ -479,12 +478,11 @@ void main() {
 
         final result = processEvent(runningConversation, streaming, event);
 
-        final error =
-            result.conversation.messages.whereType<ErrorMessage>().single;
-        expect(error.runId, equals('run-1'));
+        final parked = result.conversation.runOutcomes['run-1']!;
+        expect(parked.runId, equals('run-1'));
       });
 
-      test('a pre-run error row names no run', () {
+      test('a pre-run error still appends a row, and names no run', () {
         // RunErrorEvent on Idle arrives before any RUN_STARTED, so there is no
         // run it could belong to.
         const event = RunErrorEvent(message: 'boom');

@@ -486,11 +486,11 @@ void main() {
     });
 
     test(
-        'RunErrorEvent with empty thinking surfaces ErrorMessage in '
+        'RunErrorEvent with empty thinking records the failure in '
         'FailedState.conversation', () async {
-      // Same cross-layer contract test for the empty-thinking fallback
-      // branch. Without this, a regression that drops result.conversation
-      // in _mapEventResult would not be caught.
+      // A cross-layer contract test: a regression that drops
+      // result.conversation in _mapEventResult would not be caught
+      // anywhere else.
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
@@ -505,14 +505,14 @@ void main() {
 
       expect(orchestrator.currentState, isA<FailedState>());
       final failed = orchestrator.currentState as FailedState;
-      final surfaced = failed.conversation!.messages.last as ErrorMessage;
-      expect(surfaced.id, equals('run-error-$_runId'));
-      expect(surfaced.errorText, equals('rate limited'));
+      final parked = failed.conversation!.runOutcomes[_runId]!;
+      expect(parked.reason, equals(TerminalReason.failed));
+      expect(parked.errorDetail, equals('rate limited'));
     });
 
     test(
         'RunErrorEvent mid-text-stream commits the partial reply text and '
-        'appends ErrorMessage', () async {
+        'records the failure', () async {
       // Without this commit the half-streamed reply the user was already
       // reading vanishes when streaming resets to AwaitingText.
       stubCreateRun();
@@ -536,9 +536,12 @@ void main() {
           messages.firstWhere((m) => m.id == 'msg-1') as TextMessage;
       expect(committed.text, equals('partial'));
       expect(committed.user, equals(ChatUser.assistant));
-      final surfaced = messages.firstWhere((m) => m.id == 'run-error-$_runId')
-          as ErrorMessage;
-      expect(surfaced.errorText, equals('connection lost'));
+      // The failure travels with the run, not as a row beside the reply —
+      // whether it needs one depends on what else the thread shows for it.
+      expect(
+        failed.conversation!.runOutcomes[_runId]!.errorDetail,
+        equals('connection lost'),
+      );
     });
 
     test(
@@ -1474,6 +1477,65 @@ void main() {
       expect(parked!.reason, equals(TerminalReason.failed));
 
       await controller.close();
+    });
+
+    test('a transport failure keeps the reply the user was reading', () async {
+      // The failure becomes visible either way; without committing first, the
+      // half-read reply disappears at the same moment.
+      final controller = StreamController<BaseEvent>();
+      stubCreateRun();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      controller
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const TextMessageStartEvent(messageId: 'msg-1'))
+        ..add(
+          const TextMessageContentEvent(
+            messageId: 'msg-1',
+            delta: 'Half an ans',
+          ),
+        );
+      await Future<void>.delayed(Duration.zero);
+      controller.addError(StateError('connection lost'));
+      await Future<void>.delayed(Duration.zero);
+
+      final state = orchestrator.currentState as FailedState;
+      final partial = state.conversation!.messages
+          .whereType<TextMessage>()
+          .firstWhere((m) => m.id == 'msg-1');
+      expect(partial.text, equals('Half an ans'));
+
+      await controller.close();
+    });
+
+    test('a stream that ends early keeps the reply the user was reading',
+        () async {
+      final controller = StreamController<BaseEvent>();
+      stubCreateRun();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      controller
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const TextMessageStartEvent(messageId: 'msg-1'))
+        ..add(
+          const TextMessageContentEvent(
+            messageId: 'msg-1',
+            delta: 'Half an ans',
+          ),
+        );
+      await Future<void>.delayed(Duration.zero);
+      await controller.close();
+      await Future<void>.delayed(Duration.zero);
+
+      final state = orchestrator.currentState as FailedState;
+      final partial = state.conversation!.messages
+          .whereType<TextMessage>()
+          .firstWhere((m) => m.id == 'msg-1');
+      expect(partial.text, equals('Half an ans'));
     });
 
     test('a stream cancellation parks a cancel, not a failure', () async {
