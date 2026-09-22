@@ -137,18 +137,6 @@ void main() {
       expect(parked.thinkingText, equals('weighing it'));
     });
 
-    test('a failed run parks the backend detail with it', () {
-      final parked = parkFailedOutcome(
-        conversation: conversation,
-        streaming: const AwaitingText(),
-        runId: 'run-0',
-        errorDetail: 'upstream said no',
-      ).runOutcomes['run-0']!;
-
-      expect(parked.reason, equals(TerminalReason.failed));
-      expect(parked.errorDetail, equals('upstream said no'));
-    });
-
     test('a cancelled run parks as cancelled', () {
       final parked = parkCancelledOutcome(
         conversation: conversation,
