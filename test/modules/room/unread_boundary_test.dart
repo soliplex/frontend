@@ -3,6 +3,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/unread_boundary.dart';
 
+import '../../helpers/test_logger.dart';
+
 TextMessage _msg(String id) =>
     TextMessage.create(id: id, user: ChatUser.assistant, text: id);
 
@@ -88,20 +90,71 @@ void main() {
     });
   });
 
-  group('lastRealMessageId', () {
+  group('lastShownMessageId', () {
     test('returns the last id', () {
-      expect(lastRealMessageId([_msg('a'), _msg('b')]), 'b');
-    });
-
-    test('skips the loading sentinel', () {
-      final messages = [_msg('a'), LoadingMessage.create(id: loadingMessageId)];
-      expect(lastRealMessageId(messages), 'a');
-    });
-
-    test('null when empty or only ephemeral', () {
-      expect(lastRealMessageId(const []), isNull);
       expect(
-        lastRealMessageId([LoadingMessage.create(id: loadingMessageId)]),
+        lastShownMessageId(
+          messages: [_msg('a'), _msg('b')],
+          outcomes: const {},
+          logger: testLogger(),
+        ),
+        'b',
+      );
+    });
+
+    test('the anchor is an id the divider can resolve', () {
+      // A run that only opened a message to name a tool call leaves that
+      // message committed and shows its outcome tile instead. Anchoring on the
+      // message the timeline does not show resolves to nothing on reopen, and
+      // the "New messages" line is silently not drawn.
+      final messages = [
+        TextMessage.create(id: 'u1', user: ChatUser.user, text: 'ask'),
+        const TextMessage(
+          id: 'm1',
+          user: ChatUser.assistant,
+          createdAt: null,
+          text: '',
+          runId: 'run-1',
+          namedByToolCall: true,
+        ),
+      ];
+      final outcomes = {
+        'run-1': NoResponseTile.finished(
+          id: noResponseMessageId('run-1'),
+          thinkingText: 'weighing it',
+          runId: 'run-1',
+        ),
+      };
+      final shown = [
+        for (final tile in layOutTimeline(
+          messages: messages,
+          bands: const {},
+          outcomes: outcomes,
+          streaming: null,
+          activeRunId: null,
+          logger: testLogger(),
+        ))
+          tile.message,
+      ];
+
+      final anchor = lastShownMessageId(
+        messages: messages,
+        outcomes: outcomes,
+        logger: testLogger(),
+      );
+
+      expect(shown.map((m) => m.id), ['u1', noResponseMessageId('run-1')]);
+      expect(anchor, equals(noResponseMessageId('run-1')));
+      expect(firstUnreadMessageId(shown, anchor), isNull);
+    });
+
+    test('null when the thread shows nothing', () {
+      expect(
+        lastShownMessageId(
+          messages: const [],
+          outcomes: const {},
+          logger: testLogger(),
+        ),
         isNull,
       );
     });

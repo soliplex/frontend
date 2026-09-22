@@ -66,13 +66,29 @@ double unreadScrollOffset({
   return anchorTop > pinnedDivider ? anchorTop : pinnedDivider;
 }
 
-/// The id of the last non-ephemeral message, used to advance the read anchor.
-/// Skips the loading sentinel so a transient [LoadingMessage] is never
-/// persisted — it would not resolve on reload and would silently lose the line.
-String? lastRealMessageId(List<ChatMessage> messages) {
-  for (var i = messages.length - 1; i >= 0; i--) {
-    final id = messages[i].id;
-    if (id != loadingMessageId) return id;
-  }
-  return null;
+/// The id of the last tile the timeline shows, used to advance the read anchor.
+///
+/// Laid out rather than read off [messages], because the two differ: a message
+/// opened only to name a tool call is committed but never shown, and a run that
+/// ended with nothing to show for itself is shown but never committed. An
+/// anchor on either side of that gap is an id [firstUnreadMessageId] cannot
+/// find, and a divider it cannot find is a divider it does not draw.
+///
+/// Laid out with no streaming state, so the anchor only ever names something
+/// that has committed — a transient [LoadingMessage] is not a candidate, and
+/// persisting one would lose the line on reload.
+String? lastShownMessageId({
+  required List<ChatMessage> messages,
+  required Map<String, NoResponseTile> outcomes,
+  required Logger logger,
+}) {
+  final shown = layOutTimeline(
+    messages: messages,
+    bands: const {},
+    outcomes: outcomes,
+    streaming: null,
+    activeRunId: null,
+    logger: logger,
+  );
+  return shown.isEmpty ? null : shown.last.message.id;
 }

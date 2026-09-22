@@ -2127,6 +2127,69 @@ void main() {
     });
   });
 
+  group('the unread anchor', () {
+    testWidgets('advances to a tile the timeline shows, not one it filters out',
+        (tester) async {
+      // A run that only opened a message to name a tool call leaves that
+      // message committed and shows its outcome tile instead. Anchoring on the
+      // committed one resolves to nothing when the thread reopens, and the
+      // "New messages" line is silently never drawn again.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final signedInEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity());
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          TextMessage.create(id: 'u1', user: ChatUser.user, text: 'ask'),
+          const TextMessage(
+            id: 'm1',
+            user: ChatUser.assistant,
+            createdAt: null,
+            text: '',
+            runId: 'run-1',
+            namedByToolCall: true,
+          ),
+        ],
+        runOutcomes: {
+          'run-1': NoResponseTile.finished(
+            id: noResponseMessageId('run-1'),
+            thinkingText: 'weighing it',
+            runId: 'run-1',
+          ),
+        },
+      );
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+        ],
+        child: MaterialApp(
+          home: RoomScreen(
+            appName: 'Test App',
+            serverEntry: signedInEntry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final anchors = await ThreadAnchorStorage.loadRoom(
+        serverId: signedInEntry.serverId,
+        userId: testUserIdentity,
+        roomId: 'room-1',
+      );
+      expect(anchors['thread-1'], equals(noResponseMessageId('run-1')));
+    });
+  });
+
   group('thread unread dot', () {
     Finder threadUnreadDots() => find.descendant(
           of: find.byType(ThreadSidebar),
