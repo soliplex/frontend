@@ -47,11 +47,14 @@ class ThreadHistory {
   /// [runs] is an additive surface for execution-tracker replay.
   final List<RunEventBundle> runs;
 
-  /// How each run that ended without answering ended, keyed by run id.
+  /// How each run that ended ended, keyed by run id.
   ///
-  /// A candidate per run, not a decision: whoever renders the thread decides
-  /// whether a run needs a tile of its own, which a run with a reply to stand
-  /// for it does not.
+  /// A candidate per run, not a decision: every run that ends records one, and
+  /// whoever renders the thread decides whether a run needs a tile of its own,
+  /// which a run with a reply to stand for it does not.
+  ///
+  /// Insertion-ordered, and read that way: the order runs were recorded is the
+  /// order they ended, which is what places a run that committed no message.
   final Map<String, NoResponseTile> runOutcomes;
 
   /// The document-filter WHERE clause the client last asserted for this thread,

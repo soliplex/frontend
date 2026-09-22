@@ -190,6 +190,10 @@ class Conversation {
   /// Frontend-only. [NoResponseTile] never crosses the wire, so parking the
   /// built tile preserves its reasoning, its error detail and its time without
   /// a second model.
+  ///
+  /// Insertion-ordered, and read that way: the order runs were recorded is the
+  /// order they ended, which is what places a run that committed no message.
+  /// One entry per terminal run in the thread; nothing evicts from it.
   final Map<String, NoResponseTile> runOutcomes;
 
   /// Whether a run is currently active.

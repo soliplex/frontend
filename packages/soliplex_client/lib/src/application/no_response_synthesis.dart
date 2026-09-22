@@ -48,7 +48,9 @@ Conversation parkFinishedOutcome({
       ),
     );
 
-/// Records how a run that failed ended. [errorDetail] is the backend message.
+/// Records how a run that failed ended. [errorDetail] is what the tile shows
+/// as the reason — the backend's message when the failure came from there, and
+/// the caller's own description when it did not.
 Conversation parkFailedOutcome({
   required Conversation conversation,
   required StreamingState streaming,
