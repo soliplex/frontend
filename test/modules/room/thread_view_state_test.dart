@@ -1755,4 +1755,52 @@ void main() {
       );
     });
   });
+
+  group('outcomes surviving a trip away from the thread', () {
+    test('a run that ended is still reported after navigating back', () async {
+      // Navigating away disposes the view; coming back builds a new one from
+      // the registry. A run the backend cannot replay — a local cancel — lives
+      // only in what the registry kept, so losing it here loses it for good.
+      const key = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final parked = NoResponseTile.cancelled(
+        id: noResponseMessageId('run-0'),
+        thinkingText: 'weighing it',
+        runId: 'run-0',
+      );
+
+      final session = _FakeAgentSession();
+      registry.register(key, session);
+      session.emit(
+        CancelledState.duringRun(
+          threadKey: key,
+          runId: 'run-0',
+          conversation: Conversation(
+            threadId: 'thread-1',
+            runOutcomes: {'run-0': parked},
+          ),
+        ),
+      );
+      session.complete(
+        const AgentSuccess(threadKey: key, output: '', runId: 'run-0'),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final restored = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      addTearDown(restored.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      final loaded = restored.messages.value as MessagesLoaded;
+      expect(loaded.runOutcomes['run-0'], same(parked));
+    });
+  });
 }
