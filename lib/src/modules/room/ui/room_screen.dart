@@ -776,7 +776,13 @@ class _RoomScreenState extends State<RoomScreen> {
     _anchorAdvanceUnsub = view.messages.subscribe((status) {
       if (!mounted) return;
       if (status is! MessagesLoaded) return;
-      _anchorTracker.advance(lastRealMessageId(status.messages));
+      _anchorTracker.advance(
+        lastShownMessageId(
+          messages: status.messages,
+          outcomes: status.runOutcomes,
+          logger: _logger,
+        ),
+      );
     });
   }
 
