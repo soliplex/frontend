@@ -3683,6 +3683,39 @@ void main() {
       );
     }
 
+    /// The same failed run, recorded rather than rendered: the transcript
+    /// holds no tile for it, so the timeline has to derive one from the record
+    /// of how the run ended — and that tile's actions have no message to take
+    /// their run from.
+    void seedFailedRunWithNoTile() {
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          TextMessage(
+            id: 'user-1',
+            user: ChatUser.user,
+            createdAt: DateTime(2026, 3, 1),
+            text: 'summarise the report',
+          ),
+        ],
+        messageStates: {
+          'user-1': MessageState(
+            userMessageId: 'user-1',
+            sourceReferences: const [],
+            runId: 'run-9',
+          ),
+        },
+        runOutcomes: {
+          'run-9': NoResponseTile.failed(
+            id: noResponseMessageId('run-9'),
+            createdAt: DateTime(2026, 3, 1),
+            thinkingText: 'thinking',
+            errorDetail: 'upstream exploded',
+            runId: 'run-9',
+          ),
+        },
+      );
+    }
+
     Future<void> openRoom(WidgetTester tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -3750,6 +3783,31 @@ void main() {
       expect(filed.feedback, FeedbackType.thumbsDown);
       expect(filed.reason, 'it lost my attachment');
       expect(find.text('Tell us why'), findsNothing);
+    });
+
+    testWidgets('a tile the timeline derived can still report its run',
+        (tester) async {
+      // Nothing in the transcript names this run — the tile is minted from the
+      // record of how it ended, and takes its run from the same place. Without
+      // that, the action is simply absent and the failure is unreportable.
+      seedFailedRunWithNoTile();
+      await openRoom(tester);
+
+      await tapReport(tester);
+
+      expect(
+        api.requestedRunFeedback.single,
+        (roomId: 'room-1', threadId: 'thread-1', runId: 'run-9'),
+      );
+
+      await tester.enterText(dialogField, 'never came back');
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+
+      final filed = api.submittedFeedback.single;
+      expect(filed.runId, 'run-9');
+      expect(filed.feedback, FeedbackType.thumbsDown);
+      expect(filed.reason, 'never came back');
     });
 
     testWidgets('prefills the note already on file', (tester) async {
