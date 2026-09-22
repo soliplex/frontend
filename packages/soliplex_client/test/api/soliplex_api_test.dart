@@ -5945,6 +5945,51 @@ void main() {
 
         expect(history.runOutcomes.keys, equals(['run-1']));
       });
+
+      // The backend's own status branches describe stored runs that finished
+      // without the events to prove it. Waiting for a terminal event that is
+      // not there leaves the run with no record of how it ended, and the work
+      // it did with no tile to render on.
+      const noTerminal = {
+        'events': [
+          {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+          {
+            'type': 'TEXT_MESSAGE_START',
+            'messageId': 'm1',
+            'role': 'assistant',
+          },
+          {'type': 'TEXT_MESSAGE_END', 'messageId': 'm1'},
+        ],
+      };
+
+      test('a bundle whose events run out still records how it ended',
+          () async {
+        final history = await hydrate(noTerminal);
+
+        expect(history.runOutcomes.keys, equals(['run-1']));
+      });
+
+      test('a bundle that did announce its end records that once', () async {
+        final history = await hydrate(const {
+          'events': [
+            {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+            {
+              'type': 'TEXT_MESSAGE_START',
+              'messageId': 'm1',
+              'role': 'assistant',
+            },
+            {
+              'type': 'TEXT_MESSAGE_CONTENT',
+              'messageId': 'm1',
+              'delta': 'Here.',
+            },
+            {'type': 'TEXT_MESSAGE_END', 'messageId': 'm1'},
+            {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-1'},
+          ],
+        });
+
+        expect(history.runOutcomes.keys, equals(['run-1']));
+      });
     });
 
     group('getThreadHistory run attribution', () {

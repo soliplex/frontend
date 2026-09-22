@@ -8,6 +8,7 @@ import 'package:soliplex_client/src/api/mappers.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
+import 'package:soliplex_client/src/application/no_response_synthesis.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -1464,6 +1465,24 @@ class SoliplexApi {
             }
         }
       }
+      // A stored run that ends without saying so. The backend's own unknown
+      // and empty status branches describe exactly this, and the run record
+      // already said the run finished — so the end of its events is the end
+      // of the run, and waiting for an event to announce it would leave the
+      // run with no record of how it ended and its work with no tile.
+      // Only the record, not the half-written reply: nobody was reading it,
+      // and the backend never finished it. Whatever reasoning it had reached
+      // travels with the record.
+      if (conversation.status case Running(runId: final open)) {
+        conversation = parkFinishedOutcome(
+          conversation: conversation,
+          streaming: streaming,
+          runId: open,
+          createdAt: fallbackCreated,
+        );
+        streaming = const AwaitingText();
+      }
+
       runs.add(RunEventBundle(runId: runId, events: decodedEvents));
 
       // Resolve the turn's accumulated ids against this run's end-of-turn state
