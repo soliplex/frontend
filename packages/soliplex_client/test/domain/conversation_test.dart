@@ -556,8 +556,16 @@ void main() {
           runId: run,
         );
 
-    test('a conversation starts with none', () {
-      expect(Conversation.empty(threadId: 't').runOutcomes, isEmpty);
+    test('a run cannot be filed under a slot belonging to another', () {
+      // The key decides which slot the thread reads the outcome from; the
+      // tile's own `runId` decides which run a bug report about it is filed
+      // against. They are read in different files, so a disagreement misfiles
+      // the report against a run that did not produce it.
+      expect(
+        () => Conversation.empty(threadId: 't')
+            .withRunOutcome('run-0', parked('run-1')),
+        throwsA(isA<ArgumentError>()),
+      );
     });
 
     test('parking one keeps the runs already parked', () {
