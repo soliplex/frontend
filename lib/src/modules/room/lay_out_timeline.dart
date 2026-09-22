@@ -121,21 +121,26 @@ List<RenderedTile> _placeBands({
         from < 0 ? -1 : _firstBandCapableAt(tiles, from: from, inRun: runId);
     if (target < 0) {
       logger.warning(
-        'Execution band has no tile to render on; dropping it',
+        'Execution band $key has no tile to render on; dropping it '
+        '(${band.timeline.value.length} entries, run ${runId ?? "unknown"})',
         attributes: {
           'band': key,
           'entries': band.timeline.value.length,
+          'runId': runId,
         },
       );
       continue;
     }
     if (placed[target] != null) {
       logger.warning(
-        'Execution band would be the second on one tile; dropping it',
+        'Execution band $key would be the second on tile '
+        '${tiles[target].message.id}; dropping it '
+        '(${band.timeline.value.length} entries, run ${runId ?? "unknown"})',
         attributes: {
           'band': key,
           'tile': tiles[target].message.id,
           'entries': band.timeline.value.length,
+          'runId': runId,
         },
       );
       continue;
