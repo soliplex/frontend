@@ -59,11 +59,13 @@ class TrackerRegistry {
         // give that call's `parentMessageId` something to refer to, and says
         // nothing — so its response's work passes to the reply that does.
         if (text.trim().isEmpty) return;
-        _activities ??= activities;
-        _unclaimed ??= unclaimed;
         // A run whose first streaming state is a reply — no phase before it —
-        // still needs somewhere to put the work that follows.
+        // still needs somewhere to put the work that follows. Read this run's
+        // key, not whatever the last one left behind, or its work would open a
+        // band belonging to a run that did not do it.
         if (_activeId == null) {
+          _activities = activities;
+          _unclaimed = unclaimed;
           _openBand(unclaimed);
           _sessionUnsub ??= _routeEvents(events);
         }
