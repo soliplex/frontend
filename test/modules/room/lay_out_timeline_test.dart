@@ -1,9 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
-import 'package:soliplex_frontend/src/modules/room/compute_display_messages.dart';
-import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 
 import '../../helpers/test_logger.dart';
 

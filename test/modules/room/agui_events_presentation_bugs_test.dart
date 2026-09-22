@@ -48,6 +48,7 @@ void main() {
             runId: 'run-1',
             events: const [
               TextMessageStartEvent(messageId: 'asst-1'),
+              TextMessageContentEvent(messageId: 'asst-1', delta: 'Here.'),
               ToolCallStartEvent(
                 toolCallId: 'tc-1',
                 toolCallName: 'execute_skill',

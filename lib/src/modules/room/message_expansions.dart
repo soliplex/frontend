@@ -1,4 +1,4 @@
-import 'compute_display_messages.dart' show loadingMessageId;
+import 'lay_out_timeline.dart' show loadingMessageId;
 
 /// Per-message UI expansion state for assistant responses — whether each
 /// message's execution timeline, thinking block, and expandable source blocks

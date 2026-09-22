@@ -1,6 +1,6 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import 'compute_display_messages.dart';
+import 'lay_out_timeline.dart';
 
 /// The read state behind the unread "New messages" divider for an open thread.
 sealed class UnreadBoundary {

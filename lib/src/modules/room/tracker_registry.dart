@@ -2,13 +2,11 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
 
-/// Sentinel key for the execution tracker created before a message ID is known.
-const awaitingTrackerKey = '_awaiting';
-
-/// Manages execution trackers keyed by message ID.
+/// Manages execution trackers, keyed by the message that owns the work or —
+/// until one speaks — by the run doing it.
 ///
-/// Handles the tracker lifecycle: creation on first streaming event,
-/// re-keying when a message ID becomes available, and freezing when
+/// Handles the tracker lifecycle: creation on the first streaming event,
+/// re-keying to a message once that message says something, and freezing when
 /// a run terminates.
 class TrackerRegistry {
   TrackerRegistry({required Logger logger}) : _logger = logger;
@@ -28,14 +26,25 @@ class TrackerRegistry {
   /// that moment.
   void onStreaming(
     StreamingState streaming,
+    String runId,
     ReadonlySignal<ExecutionEvent?> events,
     ReadonlySignal<List<ActivityRecord>> activities,
   ) {
+    // Until a message speaks, the run owns the band. Keying it by run rather
+    // than by a slot shared across runs is what lets two runs that both go
+    // quiet each keep their own work, and it names the tile such a run will be
+    // given if it never speaks at all.
+    final unclaimed = noResponseMessageId(runId);
     switch (streaming) {
-      case TextStreaming(:final messageId):
+      case TextStreaming(:final messageId, :final text):
+        // A band goes to a message once it has said something. A response that
+        // begins with a tool call opens a message with nothing in it, purely to
+        // give that call's `parentMessageId` something to refer to, and its
+        // work belongs to the reply that eventually speaks.
+        if (text.trim().isEmpty) return;
         if (_activeId == messageId) return;
-        if (_activeId == awaitingTrackerKey) {
-          final tracker = _trackers.remove(awaitingTrackerKey);
+        if (_activeId == unclaimed) {
+          final tracker = _trackers.remove(unclaimed);
           if (tracker != null) {
             _trackers[messageId] = tracker;
           }
@@ -50,8 +59,8 @@ class TrackerRegistry {
         _activeId = messageId;
       case AwaitingText():
         if (_activeId != null) return;
-        _activeId = awaitingTrackerKey;
-        _trackers[awaitingTrackerKey] = ExecutionTracker(
+        _activeId = unclaimed;
+        _trackers[unclaimed] = ExecutionTracker(
           executionEvents: events,
           activities: activities,
           logger: _logger,
@@ -62,47 +71,6 @@ class TrackerRegistry {
   /// Freeze the active tracker when a run reaches a terminal state.
   void onRunTerminated() {
     _freezeActive();
-  }
-
-  /// Renames the awaiting tracker to [key] so that the tile rendered for
-  /// a synthesized "no response" message attaches to the same tracker
-  /// that captured the run's thinking.
-  ///
-  /// No-op when the awaiting tracker doesn't exist or [key] is the same
-  /// as the awaiting key. Called by `ExecutionTrackerExtension` on
-  /// terminal `RunState` transitions for runs that ended with buffered
-  /// thinking but no assistant text.
-  ///
-  /// When no awaiting tracker is present the synthesized [NoResponseTile]
-  /// still renders its `thinkingText` field, but no execution-step
-  /// timeline attaches; the warning makes that divergence observable.
-  void renameAwaitingTo(String key) {
-    if (key == awaitingTrackerKey) return;
-    final tracker = _trackers.remove(awaitingTrackerKey);
-    if (tracker == null) {
-      _logger.warning(
-        'No awaiting tracker for renameAwaitingTo; NoResponseTile will '
-        'render thinking but lack the execution-step timeline.',
-        attributes: {'targetKey': key},
-      );
-      return;
-    }
-    final clobbered = _trackers[key];
-    if (clobbered != null) {
-      // `seedHistorical` declared "live always wins over historical", but
-      // an unguarded overwrite here loses any tracker (live or historical)
-      // already bound to the same key. Freeze the loser so its
-      // subscription is released and warn so the divergence is observable.
-      clobbered.freeze();
-      _logger.warning(
-        'renameAwaitingTo overwrote an existing tracker at the target key.',
-        attributes: {'targetKey': key},
-      );
-    }
-    _trackers[key] = tracker;
-    if (_activeId == awaitingTrackerKey) {
-      _activeId = key;
-    }
   }
 
   /// Bulk-inserts already-frozen trackers produced from a loaded thread's

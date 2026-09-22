@@ -34,6 +34,7 @@ void main() {
           events: [
             RunStartedEvent(threadId: 't-1', runId: 'run-1'),
             const TextMessageStartEvent(messageId: 'msg-1'),
+            const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
             const TextMessageContentEvent(messageId: 'msg-1', delta: 'hi'),
             const TextMessageEndEvent(messageId: 'msg-1'),
             const RunFinishedEvent(threadId: 't-1', runId: 'run-1'),
@@ -57,6 +58,8 @@ void main() {
           events: [
             RunStartedEvent(threadId: 't-1', runId: 'run-1', timestamp: 1000),
             const TextMessageStartEvent(messageId: 'msg-1', timestamp: 2000),
+            const TextMessageContentEvent(
+                messageId: 'msg-1', delta: 'Hi', timestamp: 2000),
             const ToolCallStartEvent(
               toolCallId: 'tc-1',
               toolCallName: 'search',
@@ -85,13 +88,11 @@ void main() {
       );
     });
 
-    test('a thinking step flushed from pending keeps its own emission time',
-        () {
-      // Events before TEXT_MESSAGE_START are hoisted through `pending` and
-      // drained into the reply's bucket. The thinking step opens 1.5s after
-      // the run started, and `freeze` settles it there because no later
-      // bridged event carries a time; dropping the time on the pending path
-      // would leave it with no offset at all.
+    test('work a reply inherits keeps the times it was recorded with', () {
+      // The run collects what it does before any message speaks, and the reply
+      // takes it. The thinking step opens 1.5s after the run started and
+      // settles when the reply's first delta lands 5s in; losing the times on
+      // the way across would leave it with no offset at all.
       final runs = [
         RunEventBundle(
           runId: 'run-1',
@@ -102,6 +103,8 @@ void main() {
               timestamp: 2500,
             ),
             const TextMessageStartEvent(messageId: 'msg-1', timestamp: 6000),
+            const TextMessageContentEvent(
+                messageId: 'msg-1', delta: 'Hi', timestamp: 6000),
             const TextMessageEndEvent(messageId: 'msg-1', timestamp: 6000),
           ],
         ),
@@ -112,7 +115,7 @@ void main() {
       expect(tracker.steps.value.single.label, 'Thinking');
       expect(
         tracker.steps.value.single.timestamp,
-        const Duration(milliseconds: 1500),
+        const Duration(milliseconds: 5000),
       );
     });
 
@@ -132,6 +135,8 @@ void main() {
               timestamp: 1050,
             ),
             const TextMessageStartEvent(messageId: 'msg-1', timestamp: 1100),
+            const TextMessageContentEvent(
+                messageId: 'msg-1', delta: 'Hi', timestamp: 1100),
             const TextMessageEndEvent(messageId: 'msg-1', timestamp: 1200),
           ],
         ),
@@ -144,6 +149,8 @@ void main() {
               timestamp: 60500,
             ),
             const TextMessageStartEvent(messageId: 'msg-2', timestamp: 61000),
+            const TextMessageContentEvent(
+                messageId: 'msg-2', delta: 'Hi', timestamp: 61000),
             const TextMessageEndEvent(messageId: 'msg-2', timestamp: 61000),
           ],
         ),
@@ -153,7 +160,8 @@ void main() {
 
       expect(
         trackers['msg-2']!.steps.value.single.timestamp,
-        const Duration(milliseconds: 500),
+        // Relative to run-2's own start, not run-1's a minute earlier.
+        const Duration(milliseconds: 1000),
       );
       expect(trackers['msg-1']!.activities.value, hasLength(1));
       expect(trackers['msg-2']!.activities.value, isEmpty);
@@ -171,6 +179,7 @@ void main() {
               delta: 'thinking...',
             ),
             TextMessageStartEvent(messageId: 'msg-1'),
+            TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'msg-1'),
           ],
         ),
@@ -190,6 +199,7 @@ void main() {
           runId: 'run-1',
           events: const [
             TextMessageStartEvent(messageId: 'msg-1'),
+            TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'msg-1'),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
@@ -205,6 +215,7 @@ void main() {
               content: 'ok',
             ),
             TextMessageStartEvent(messageId: 'msg-2'),
+            TextMessageContentEvent(messageId: 'msg-2', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'msg-2'),
           ],
         ),
@@ -233,6 +244,7 @@ void main() {
           runId: 'run-1',
           events: const [
             TextMessageStartEvent(messageId: 'msg-1'),
+            TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'msg-1'),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
@@ -315,8 +327,8 @@ void main() {
     });
 
     test(
-        "tool-yield bundle's events forward into the next normal "
-        "bundle's first assistant tracker", () {
+        "a run that worked and never spoke keeps its work, rather than "
+        "handing it to whatever answers next", () {
       final runs = [
         RunEventBundle(
           runId: 'run-yield',
@@ -348,6 +360,7 @@ void main() {
           runId: 'run-resume',
           events: const [
             TextMessageStartEvent(messageId: 'asst-1'),
+            TextMessageContentEvent(messageId: 'asst-1', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'asst-1'),
           ],
         ),
@@ -355,12 +368,25 @@ void main() {
 
       final trackers = replayToTrackers(runs);
 
-      expect(trackers.keys, ['asst-1']);
-      expect(trackers['asst-1']!.thinkingBlocks.value, ['pre-tool']);
+      // Two runs, two bands. Giving run-yield's steps to run-resume's reply
+      // would file one turn's work above another turn's answer.
       expect(
-        trackers['asst-1']!.steps.value.map((s) => s.label),
+        trackers.keys,
+        containsAll([noResponseMessageId('run-yield'), 'asst-1']),
+      );
+      expect(
+        trackers[noResponseMessageId('run-yield')]!.thinkingBlocks.value,
+        ['pre-tool'],
+      );
+      expect(trackers['asst-1']!.thinkingBlocks.value, isEmpty);
+      expect(
+        trackers[noResponseMessageId('run-yield')]!
+            .steps
+            .value
+            .map((s) => s.label),
         ['Thinking', 'search'],
       );
+      expect(trackers['asst-1']!.steps.value, isEmpty);
     });
 
     test(
@@ -420,15 +446,10 @@ void main() {
       );
     });
 
-    test(
-        'tool-yield -> no-response -> normal sequence: hoisted pre-tool '
-        'events attach to the no-response tracker, not to the next normal '
-        "bundle's assistant tracker", () {
-      // Without `pending.clear()` in the no-response branch, pre-tool
-      // events from the tool-yield bundle would leak through the
-      // no-response bundle into the next normal bundle's assistant
-      // tracker — silently mis-attributing thinking from one run's
-      // tool-yield to a later run's reply.
+    test('three runs in a row each keep their own work', () {
+      // Nothing crosses a run boundary. A run that yielded, a run that went
+      // quiet, and a run that answered are three turns, and reading them as
+      // one would file the first's thinking under the last's reply.
       final runs = [
         RunEventBundle(
           runId: 'run-yield',
@@ -470,6 +491,7 @@ void main() {
           runId: 'run-resume',
           events: const [
             TextMessageStartEvent(messageId: 'asst-1'),
+            TextMessageContentEvent(messageId: 'asst-1', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'asst-1'),
           ],
         ),
@@ -479,13 +501,19 @@ void main() {
 
       expect(
         trackers.keys,
-        containsAll(['no-response-run-no-response', 'asst-1']),
+        containsAll([
+          noResponseMessageId('run-yield'),
+          'no-response-run-no-response',
+          'asst-1',
+        ]),
       );
-      // The no-response tracker absorbs the hoisted pre-tool events plus
-      // its own mid thinking — so the next normal bundle starts clean.
+      expect(
+        trackers[noResponseMessageId('run-yield')]!.thinkingBlocks.value,
+        ['pre-tool'],
+      );
       expect(
         trackers['no-response-run-no-response']!.thinkingBlocks.value,
-        ['pre-tool', 'mid'],
+        ['mid'],
       );
       expect(trackers['asst-1']!.thinkingBlocks.value, isEmpty);
       expect(trackers['asst-1']!.steps.value, isEmpty);
@@ -497,6 +525,7 @@ void main() {
           runId: 'run-1',
           events: const [
             TextMessageStartEvent(messageId: 'asst-1'),
+            TextMessageContentEvent(messageId: 'asst-1', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'asst-1'),
           ],
         ),
@@ -506,6 +535,7 @@ void main() {
             ReasoningMessageStartEvent(messageId: 'r-1'),
             ReasoningMessageContentEvent(messageId: 'r-1', delta: 'go'),
             TextMessageStartEvent(messageId: 'asst-2'),
+            TextMessageContentEvent(messageId: 'asst-2', delta: 'Hi'),
             TextMessageEndEvent(messageId: 'asst-2'),
           ],
         ),
@@ -534,6 +564,7 @@ void main() {
               ),
               const ReasoningMessageEndEvent(messageId: 'think-1'),
               const TextMessageStartEvent(messageId: 'asst-1'),
+              const TextMessageContentEvent(messageId: 'asst-1', delta: 'Hi'),
               // The bridger throws on this delta.
               const TextMessageContentEvent(
                 messageId: 'asst-1',

@@ -1,7 +1,11 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import 'compute_display_messages.dart';
 import 'execution_tracker.dart';
+
+/// Sentinel id for the placeholder [LoadingMessage] shown while a run has yet
+/// to say anything. It is reused across runs, so it must never be used as a
+/// persistence key — state written under it would leak into the next reply.
+const loadingMessageId = '_loading';
 
 /// What the timeline shows: a tile, the execution band it renders, and the run
 /// the tile belongs to.

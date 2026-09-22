@@ -50,7 +50,7 @@ import '../room_state.dart';
 import '../run_registry.dart';
 import '../thread_list_state.dart';
 import '../thread_view_state.dart';
-import '../compute_display_messages.dart';
+import '../lay_out_timeline.dart';
 import '../workdir_controller.dart';
 import 'approval_handler.dart';
 import 'chat_ai_disclaimer.dart';
@@ -192,6 +192,9 @@ RoomAccount accountFromJson(Map<String, dynamic> json) {
   // doesn't render the same string twice.
   return (name: name, email: hasName && email.isNotEmpty ? email : null);
 }
+
+final Logger _welcomeLogger =
+    LogManager.instance.getLogger('soliplex_frontend.room_screen.welcome');
 
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
@@ -2368,6 +2371,7 @@ class _RoomScreenState extends State<RoomScreen> {
     ThreadViewStatus status,
   ) {
     final streaming = threadView.streamingState.watch(context);
+    final activeRunId = threadView.activeRunId.watch(context);
     final sendError = threadView.lastSendError.watch(context);
     final reconnectStatus = threadView.reconnectStatus.watch(context);
     _restoreUnsentText(sendError?.unsentText);
@@ -2403,8 +2407,22 @@ class _RoomScreenState extends State<RoomScreen> {
                         : threadView.refresh,
                     onReauthenticate: _onReauthenticate,
                   ),
-                MessagesLoaded(:final messages, :final messageStates) =>
-                  computeDisplayMessages(messages, streaming).isEmpty
+                MessagesLoaded(
+                  :final messages,
+                  :final messageStates,
+                  :final runOutcomes,
+                ) =>
+                  // A thread with nothing to show is a thread with no tiles,
+                  // which is not the same as a thread with no messages: a run
+                  // may have left only a record of how it ended.
+                  layOutTimeline(
+                    messages: messages,
+                    bands: const {},
+                    outcomes: runOutcomes,
+                    streaming: streaming,
+                    activeRunId: null,
+                    logger: _welcomeLogger,
+                  ).isEmpty
                       ? RoomWelcome(
                           room: room,
                           onSuggestionTapped: (suggestion) =>
@@ -2424,6 +2442,8 @@ class _RoomScreenState extends State<RoomScreen> {
                           streamingState: streaming,
                           unreadBoundary: _anchorTracker.boundary,
                           executionTrackers: threadView.executionTrackers,
+                          runOutcomes: runOutcomes,
+                          activeRunId: activeRunId,
                           onFeedbackSubmit: threadView.submitFeedback,
                           onReportRun: (runId) => _reportRun(threadView, runId),
                           onInspect: (runId) => context.push(

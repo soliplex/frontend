@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
-import '../../compute_display_messages.dart' show loadingMessageId;
+import '../../lay_out_timeline.dart' show loadingMessageId;
 import '../../execution_tracker.dart';
 import '../../message_expansions.dart' show MessageExpansion;
 import '../../room_providers.dart';
