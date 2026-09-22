@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
-import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
 import '../../helpers/test_logger.dart';
 
@@ -52,9 +51,10 @@ void main() {
 
   tearDown(() => ext.onDispose());
 
-  test('rekeys awaiting tracker when terminal state has synthesized message',
-      () {
-    // Seed an awaiting tracker by entering RunningState with AwaitingText.
+  test("a run that never speaks keeps its band under its own run", () {
+    // The key is the run's from the moment the band exists, so the tile that
+    // stands for a run with nothing else to show for it finds its work
+    // already there. Nothing is renamed on the way to a terminal.
     session.emitRunState(
       const RunningState(
         threadKey: _key,
@@ -63,22 +63,20 @@ void main() {
         streaming: AwaitingText(),
       ),
     );
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
+    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
 
-    final synthesized = _synthesized(_runId);
     session.emitRunState(
       CancelledState.duringRun(
         threadKey: _key,
         runId: _runId,
-        conversation: _conversationWith([synthesized]),
+        conversation: _conversationWith([_synthesized(_runId)]),
       ),
     );
 
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isFalse);
     expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
   });
 
-  test('skips rekey when runId is null (e.g., pre-run failure)', () {
+  test('a terminal that names no run leaves the band where it is', () {
     session.emitRunState(
       const RunningState(
         threadKey: _key,
@@ -87,10 +85,9 @@ void main() {
         streaming: AwaitingText(),
       ),
     );
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
 
-    // Pre-run failure: runId is null and no synthesized message exists in
-    // the conversation. The rekey is skipped instead of crashing.
+    // A pre-run failure carries no run of its own, and cannot disturb the
+    // band of the run that was already going.
     session.emitRunState(
       FailedState.preRun(
         threadKey: _key,
@@ -99,45 +96,7 @@ void main() {
       ),
     );
 
-    // The awaiting tracker is frozen on terminal but not renamed.
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
-    expect(
-      ext.trackers.containsKey(noResponseMessageId(_runId)),
-      isFalse,
-    );
-  });
-
-  test('skips rekey when synthesized message is not in the conversation', () {
-    session.emitRunState(
-      const RunningState(
-        threadKey: _key,
-        runId: _runId,
-        conversation: Conversation(threadId: _threadId),
-        streaming: AwaitingText(),
-      ),
-    );
-
-    // Conversation has no synthesized "no response" message — the run
-    // produced an actual reply that's already attached. No rekey needed.
-    session.emitRunState(
-      CompletedState(
-        threadKey: _key,
-        runId: _runId,
-        conversation: _conversationWith([
-          TextMessage.create(
-            id: 'asst-1',
-            user: ChatUser.assistant,
-            text: 'hello',
-          ),
-        ]),
-      ),
-    );
-
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
-    expect(
-      ext.trackers.containsKey(noResponseMessageId(_runId)),
-      isFalse,
-    );
+    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
   });
 
   test('post-dispose runState arrival logs and returns; does not crash', () {

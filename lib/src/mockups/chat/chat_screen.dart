@@ -54,7 +54,7 @@ import '../../modules/room/room_state.dart';
 import '../../modules/room/run_registry.dart';
 import '../../modules/room/thread_list_state.dart';
 import '../../modules/room/thread_view_state.dart';
-import '../../modules/room/compute_display_messages.dart';
+import '../../modules/room/lay_out_timeline.dart';
 import '../../modules/room/workdir_controller.dart';
 import '../../modules/room/ui/approval_handler.dart';
 import '../../modules/room/ui/chat_ai_disclaimer.dart';
@@ -198,6 +198,9 @@ RoomAccount accountFromJson(Map<String, dynamic> json) {
   // doesn't render the same string twice.
   return (name: name, email: hasName && email.isNotEmpty ? email : null);
 }
+
+final Logger _welcomeLogger =
+    LogManager.instance.getLogger('soliplex_frontend.room_screen.welcome');
 
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
@@ -2477,8 +2480,22 @@ class _RoomScreenState extends State<RoomScreen> {
                         : threadView.refresh,
                     onReauthenticate: _onReauthenticate,
                   ),
-                MessagesLoaded(:final messages, :final messageStates) =>
-                  computeDisplayMessages(messages, streaming).isEmpty
+                MessagesLoaded(
+                  :final messages,
+                  :final messageStates,
+                  :final runOutcomes,
+                ) =>
+                  // A thread with nothing to show is a thread with no tiles,
+                  // which is not the same as a thread with no messages: a run
+                  // may have left only a record of how it ended.
+                  layOutTimeline(
+                    messages: messages,
+                    bands: const {},
+                    outcomes: runOutcomes,
+                    streaming: streaming,
+                    activeRunId: null,
+                    logger: _welcomeLogger,
+                  ).isEmpty
                       ? RoomWelcome(
                           room: room,
                           onSuggestionTapped: (suggestion) =>

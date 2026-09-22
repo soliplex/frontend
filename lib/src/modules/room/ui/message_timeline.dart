@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/local_time_format.dart' show isSameCalendarDay;
-import '../compute_display_messages.dart';
+import '../lay_out_timeline.dart';
 import '../execution_tracker.dart';
 import '../message_timestamp_format.dart';
-import '../tracker_registry.dart' show awaitingTrackerKey;
+
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
 import '../unread_boundary.dart';
@@ -27,6 +28,8 @@ class MessageTimeline extends StatefulWidget {
     this.unreadBoundary = const BoundaryPending(),
     this.streamingState,
     this.executionTrackers = const {},
+    this.runOutcomes = const {},
+    this.activeRunId,
     this.onFeedbackSubmit,
     this.onReportRun,
     this.onInspect,
@@ -45,6 +48,13 @@ class MessageTimeline extends StatefulWidget {
   final UnreadBoundary unreadBoundary;
   final StreamingState? streamingState;
   final Map<String, ExecutionTracker> executionTrackers;
+
+  /// How each run that may have nothing to show for itself ended, keyed by run
+  /// id. A run whose every message was left out still has work to render.
+  final Map<String, NoResponseTile> runOutcomes;
+
+  /// The run in flight, which is not owed a tile saying it never answered.
+  final String? activeRunId;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
   final void Function(String runId)? onReportRun;
@@ -57,6 +67,9 @@ class MessageTimeline extends StatefulWidget {
   @override
   State<MessageTimeline> createState() => _MessageTimelineState();
 }
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_frontend.message_timeline');
 
 class _MessageTimelineState extends State<MessageTimeline> {
   late final AnchoredScrollController _scrollController;
@@ -118,9 +131,22 @@ class _MessageTimelineState extends State<MessageTimeline> {
     _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
 
     _evaluateUnread(
-      computeDisplayMessages(widget.messages, widget.streamingState),
+      [for (final tile in _layOut()) tile.message],
     );
   }
+
+  /// The tiles this thread shows and the band each one renders.
+  ///
+  /// One decision, taken in one place, so that what the timeline shows and
+  /// what each tile renders cannot drift apart.
+  List<RenderedTile> _layOut() => layOutTimeline(
+        messages: widget.messages,
+        bands: widget.executionTrackers,
+        outcomes: widget.runOutcomes,
+        streaming: widget.streamingState,
+        activeRunId: widget.activeRunId,
+        logger: _logger,
+      );
 
   void _recomputeMaps() {
     _sourceReferencesMap =
@@ -358,10 +384,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
   @override
   Widget build(BuildContext context) {
-    final displayMessages = computeDisplayMessages(
-      widget.messages,
-      widget.streamingState,
-    );
+    final tiles = _layOut();
+    final displayMessages = [for (final tile in tiles) tile.message];
 
     _evaluateUnread(displayMessages);
 
@@ -421,9 +445,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
                   SliverPadding(
                     padding: const EdgeInsets.all(SoliplexSpacing.s4),
                     sliver: SliverList.builder(
-                      itemCount: displayMessages.length,
+                      itemCount: tiles.length,
                       itemBuilder: (context, index) {
-                        final message = displayMessages[index];
+                        final entry = tiles[index];
+                        final message = entry.message;
                         final isLastItem = index == displayMessages.length - 1;
                         // A distinct key for the loading sentinel forces a
                         // remount at the AwaitingText → TextStreaming transition.
@@ -434,7 +459,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
                         final tile = MessageTile(
                           roomId: widget.roomId,
                           message: message,
-                          runId: resolveRunId(message, widget.messageStates),
+                          runId: entry.runId ??
+                              resolveRunId(message, widget.messageStates),
                           sourceReferences: _sourceReferencesMap[message.id],
                           onFeedbackSubmit: widget.onFeedbackSubmit,
                           onReportRun: widget.onReportRun,
@@ -444,11 +470,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
                           onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
                           onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
-                          executionTracker: widget
-                                  .executionTrackers[message.id] ??
-                              (message is LoadingMessage
-                                  ? widget.executionTrackers[awaitingTrackerKey]
-                                  : null),
+                          executionTracker: entry.band,
                           streamingPhase: isLastItem ? streamingPhase : null,
                           isStreaming: message.id == streamingMessageId,
                         );

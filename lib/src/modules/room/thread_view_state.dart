@@ -118,6 +118,13 @@ class ThreadViewState {
   final Signal<StreamingState?> _streamingState = Signal<StreamingState?>(null);
   ReadonlySignal<StreamingState?> get streamingState => _streamingState;
 
+  final Signal<String?> _activeRunId = Signal<String?>(null);
+
+  /// The run in flight, or null when none is. A run that has ended is not
+  /// owed a tile saying so while it is still going, and the timeline needs to
+  /// know which one that is.
+  ReadonlySignal<String?> get activeRunId => _activeRunId;
+
   /// Tracks the session lifecycle: null → spawning → running → null.
   /// Driven by [_spawner] during spawn (via its state-transition callback)
   /// and updated directly here for attach, running, and detach transitions.
@@ -354,13 +361,14 @@ class ThreadViewState {
 
   void _onRunState(RunState runState) {
     switch (runState) {
-      case RunningState(:final conversation, :final streaming):
+      case RunningState(:final conversation, :final streaming, :final runId):
         final current = _messages.value;
         if (current is! MessagesLoaded ||
             !identical(current.messages, conversation.messages)) {
           _messages.value = _messagesLoaded(conversation);
         }
         _streamingState.value = streaming;
+        _activeRunId.value = runId;
         _sessionState.value = AgentSessionState.running;
       case CompletedState(:final conversation):
         _detachSession();
@@ -433,6 +441,7 @@ class ThreadViewState {
     _reconnectStatusUnsub = null;
     _activeSession.value = null;
     _streamingState.value = null;
+    _activeRunId.value = null;
     _sessionState.value = null;
     // Preserve `Reconnected` so its banner-side auto-dismiss runs.
     // Other states have no auto-dismiss; clear them here.

@@ -12,7 +12,7 @@ import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
-import 'package:soliplex_frontend/src/modules/room/compute_display_messages.dart'
+import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart'
     show loadingMessageId;
 
 const _roomId = 'r1';

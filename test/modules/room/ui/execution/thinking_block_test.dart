@@ -5,7 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../../../../helpers/test_logger.dart';
 
-import 'package:soliplex_frontend/src/modules/room/compute_display_messages.dart'
+import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart'
     show loadingMessageId;
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';

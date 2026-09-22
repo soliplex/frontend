@@ -6,7 +6,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../compute_display_messages.dart' show loadingMessageId;
+import '../../lay_out_timeline.dart' show loadingMessageId;
 import '../../execution_step.dart';
 import '../../execution_tracker.dart';
 import '../../message_expansions.dart';

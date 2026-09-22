@@ -13,27 +13,28 @@ typedef ExecutionBridge = ExecutionEvent? Function(BaseEvent event);
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.historical_replay');
 
-/// Replays stored AG-UI event bundles into one frozen [ExecutionTracker]
-/// per assistant message, keyed by that message's id.
+/// Replays stored AG-UI event bundles into frozen [ExecutionTracker]s, keyed
+/// by the message that owns the work or — until one speaks — by the run doing
+/// it, which is how the live registry keys them too.
 ///
-/// Bundle classification:
+/// A run owns its work until one of its messages speaks. Everything a run
+/// does before that buckets under [noResponseMessageId] for the run — which
+/// names the tile that run is given if it never speaks — and the first message
+/// that does speak takes it. Later messages in the same run open buckets of
+/// their own, so work stays with whichever message was speaking when it
+/// happened.
 ///
-/// - **Normal**: contains an assistant `TextMessageStart`. Events bucket
-///   under that id; any events accumulated in the hoisted `pending` from
-///   prior tool-yield bundles drain into the first assistant bucket.
-/// - **Tool-yield**: contains a `ToolCallStart` but no assistant
-///   `TextMessageStart`. Events flow into the hoisted `pending` so the
-///   next normal bundle's first assistant message absorbs them.
-/// - **No-response**: neither assistant `TextMessageStart` nor
-///   `ToolCallStart`. Bucket events (including any prior pending) under
-///   [noResponseMessageId] for the run so the synthesized no-response
-///   tile has a tracker to attach to.
+/// A message that never says anything opens no bucket. A response that begins
+/// with a tool call mints one purely to give that call a parent, and the
+/// timeline does not show it, so work left there would render nowhere.
 ///
-/// When the run sequence ends with hoisted `pending` events (the last
-/// bundle was tool-yield with no follow-up), the events bucket under
-/// `noResponseMessageId(lastToolYieldRunId)` so they attach to the
-/// no-response tile the chat-message side synthesizes for the same
-/// run — the live bubble survives a reload.
+/// The move is a move, never a copy: no run offers both its own key and a
+/// message key for the same work, which is the one input the timeline cannot
+/// place — both resolve to the same tile and one would have to be dropped.
+///
+/// Nothing is carried between runs. A run that worked and never spoke keeps
+/// its work under its own key rather than handing it to whatever answers
+/// next, which would file one turn's steps above another turn's reply.
 ///
 /// A throw from [bridge] is logged at error and the offending event
 /// skipped so surrounding events in the same bundle still bucket
@@ -52,13 +53,6 @@ Map<String, ExecutionTracker> replayToTrackers(
   // bridged `ExecutionEvent` stream is insufficient for activity
   // reconstruction.
   final rawBuckets = <String, List<BaseEvent>>{};
-  // Hoisted across bundles: tool-yield events accumulate here until the
-  // next normal bundle's first assistant message absorbs them. If no
-  // such bundle exists, the trailing handler below routes them under
-  // `noResponseMessageId(lastToolYieldRunId)`.
-  final pending = <TimedExecutionEvent>[];
-  final pendingRaw = <BaseEvent>[];
-  String? lastToolYieldRunId;
 
   ExecutionEvent? bridgeOrLog(BaseEvent raw) {
     try {
@@ -74,98 +68,45 @@ Map<String, ExecutionTracker> replayToTrackers(
   }
 
   for (final bundle in runs) {
-    final hasAssistantStart = bundle.events.any(
-      (e) => e is TextMessageStartEvent && e.role == TextMessageRole.assistant,
-    );
-    final hasToolCall = bundle.events.any((e) => e is ToolCallStartEvent);
+    // A message only takes the work once it has said something. Live, that is
+    // known as it happens; here the whole run is in hand, so the messages that
+    // speak can be read off it first.
+    final spoke = <String>{
+      for (final raw in bundle.events)
+        if (raw is TextMessageContentEvent && raw.delta.trim().isNotEmpty)
+          raw.messageId,
+    };
 
-    if (hasAssistantStart) {
-      String? currentMessageId;
-      for (final raw in bundle.events) {
-        if (raw is TextMessageStartEvent &&
-            raw.role == TextMessageRole.assistant) {
-          final messageId = raw.messageId;
-          currentMessageId = messageId;
-          buckets.putIfAbsent(messageId, () => []);
-          final rawBucket = rawBuckets.putIfAbsent(messageId, () => []);
-          if (pending.isNotEmpty) {
-            buckets[messageId]!.addAll(pending);
-            pending.clear();
-            lastToolYieldRunId = null;
-          }
-          // Drained on its own condition: the raw events preceding a reply
-          // belong to its stretch whether or not any of them bridged, and the
-          // run's own `RUN_STARTED` — which bridges to nothing — is what
-          // anchors the reply's offsets.
-          if (pendingRaw.isNotEmpty) {
-            rawBucket.addAll(pendingRaw);
-            pendingRaw.clear();
-          }
-        }
+    // Until one of them does, the run owns its work, under the key that names
+    // the tile the run is given if it never speaks at all.
+    final unclaimed = noResponseMessageId(bundle.runId);
+    var key = unclaimed;
 
-        final execEvent = bridgeOrLog(raw);
-        if (currentMessageId != null) {
-          rawBuckets.putIfAbsent(currentMessageId, () => []).add(raw);
-          if (execEvent != null) {
-            buckets
-                .putIfAbsent(currentMessageId, () => [])
-                .add((event: execEvent, timestamp: raw.timestamp));
-          }
-        } else {
-          pendingRaw.add(raw);
-          if (execEvent != null) {
-            pending.add((event: execEvent, timestamp: raw.timestamp));
-          }
+    for (final raw in bundle.events) {
+      if (raw is TextMessageStartEvent &&
+          raw.role == TextMessageRole.assistant &&
+          spoke.contains(raw.messageId) &&
+          key != raw.messageId) {
+        if (key == unclaimed) {
+          // The first message to speak takes what the run collected waiting
+          // for it — moved, never copied, so no run ever offers two bands for
+          // one tile to choose between.
+          final events = buckets.remove(unclaimed);
+          final rawEvents = rawBuckets.remove(unclaimed);
+          if (events != null) buckets[raw.messageId] = events;
+          if (rawEvents != null) rawBuckets[raw.messageId] = rawEvents;
         }
+        key = raw.messageId;
       }
-    } else if (hasToolCall) {
-      lastToolYieldRunId = bundle.runId;
-      for (final raw in bundle.events) {
-        pendingRaw.add(raw);
-        final execEvent = bridgeOrLog(raw);
-        if (execEvent != null) {
-          pending.add((event: execEvent, timestamp: raw.timestamp));
-        }
-      }
-    } else {
-      final synthesizedId = noResponseMessageId(bundle.runId);
-      final bucket = buckets.putIfAbsent(synthesizedId, () => []);
-      final rawBucket = rawBuckets.putIfAbsent(synthesizedId, () => []);
-      if (pending.isNotEmpty) {
-        bucket.addAll(pending);
-        pending.clear();
-        lastToolYieldRunId = null;
-      }
-      if (pendingRaw.isNotEmpty) {
-        rawBucket.addAll(pendingRaw);
-        pendingRaw.clear();
-      }
-      for (final raw in bundle.events) {
-        rawBucket.add(raw);
-        final execEvent = bridgeOrLog(raw);
-        if (execEvent != null) {
-          bucket.add((event: execEvent, timestamp: raw.timestamp));
-        }
+
+      rawBuckets.putIfAbsent(key, () => []).add(raw);
+      final execEvent = bridgeOrLog(raw);
+      if (execEvent != null) {
+        buckets
+            .putIfAbsent(key, () => [])
+            .add((event: execEvent, timestamp: raw.timestamp));
       }
     }
-  }
-
-  // Trailing tool-yield: the chat-message side synthesizes a no-response
-  // tile under `noResponseMessageId(runId)` for the same run, so route
-  // the hoisted events there. Without this, the bubble disappears on
-  // reload even though it was visible while the run was live.
-  if (pending.isNotEmpty && lastToolYieldRunId != null) {
-    final synthesizedId = noResponseMessageId(lastToolYieldRunId);
-    buckets.putIfAbsent(synthesizedId, () => []).addAll(pending);
-    rawBuckets.putIfAbsent(synthesizedId, () => []).addAll(pendingRaw);
-    pending.clear();
-    pendingRaw.clear();
-  } else if (pending.isNotEmpty) {
-    _logger.warning(
-      'Dropping unattached events with no tool-yield runId to anchor to.',
-      attributes: {'pendingCount': pending.length},
-    );
-    pendingRaw.clear();
   }
 
   return {
