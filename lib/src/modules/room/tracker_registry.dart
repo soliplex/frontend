@@ -16,15 +16,31 @@ class TrackerRegistry {
   String? _activeId;
   final Logger _logger;
 
+  /// The message that has spoken in the response now being collected, or null
+  /// while the response has said nothing. It is what claims the band when the
+  /// response ends.
+  String? _voice;
+
+  /// The registry reads the session's events and hands each to the open band
+  /// itself, so recording an event and acting on it happen in one place, in a
+  /// stated order. Subscribing each band to the session signal instead would
+  /// make that order depend on which subscribed first, and a band opened at a
+  /// response boundary always subscribes last.
+  void Function()? _sessionUnsub;
+
+  /// Kept from the first band so a response boundary can open the next one
+  /// without waiting for another streaming state.
+  ReadonlySignal<List<ActivityRecord>>? _activities;
+  String? _unclaimed;
+
   Map<String, ExecutionTracker> get trackers => Map.unmodifiable(_trackers);
 
   /// Update tracker state based on the current streaming state.
   ///
-  /// [events] is the execution event signal to subscribe a new tracker
-  /// to, only used when a tracker needs to be created. [activities] is
-  /// the live `Conversation.activities` signal the new tracker mirrors
-  /// into a local copy, so that freezing it pins the records it had at
-  /// that moment.
+  /// [events] is the session's execution event signal, read once so the
+  /// registry can route each event to the open band. [activities] is the live
+  /// `Conversation.activities` signal each band mirrors into a local copy, so
+  /// that freezing it pins the records it had at that moment.
   void onStreaming(
     StreamingState streaming,
     String runId,
@@ -38,41 +54,89 @@ class TrackerRegistry {
     final unclaimed = noResponseMessageId(runId);
     switch (streaming) {
       case TextStreaming(:final messageId, :final text):
-        // A band goes to a message once it has said something. A response that
+        // A message speaks for the response it was emitted in. A response that
         // begins with a tool call opens a message with nothing in it, purely to
-        // give that call's `parentMessageId` something to refer to, and its
-        // work belongs to the reply that eventually speaks.
+        // give that call's `parentMessageId` something to refer to, and says
+        // nothing — so its response's work passes to the reply that does.
         if (text.trim().isEmpty) return;
-        if (_activeId == messageId) return;
-        if (_activeId == unclaimed) {
-          final tracker = _trackers.remove(unclaimed);
-          if (tracker != null) {
-            _trackers[messageId] = tracker;
-          }
-        } else {
-          // The run moved on to a new reply, so the stretch that closes here
-          // did finish its work; only a terminal leaves a step unfinished.
-          _freezeActive(StepStatus.completed);
-          _trackers[messageId] = ExecutionTracker(
-            executionEvents: events,
-            activities: activities,
-            logger: _logger,
-          );
+        _activities ??= activities;
+        _unclaimed ??= unclaimed;
+        // A run whose first streaming state is a reply — no phase before it —
+        // still needs somewhere to put the work that follows.
+        if (_activeId == null) {
+          _openBand(unclaimed);
+          _sessionUnsub ??= _routeEvents(events);
         }
-        _activeId = messageId;
+        // The first message to speak in a response speaks for it. A producer
+        // that emits two texts in one response has not done two things, and
+        // splitting the response's work between them would put half of it
+        // above a line that did not ask for it.
+        _voice ??= messageId;
       case AwaitingText():
         if (_activeId != null) return;
-        _activeId = unclaimed;
-        _trackers[unclaimed] = ExecutionTracker(
-          executionEvents: events,
-          activities: activities,
-          logger: _logger,
-        );
+        _activities = activities;
+        _unclaimed = unclaimed;
+        _openBand(unclaimed);
+        _sessionUnsub ??= _routeEvents(events);
     }
   }
 
-  /// Freeze the active tracker when a run reaches a terminal state.
+  void _openBand(String key) {
+    _activeId = key;
+    _trackers[key] = ExecutionTracker(
+      activities: _activities!,
+      logger: _logger,
+    );
+  }
+
+  /// Routes each execution event to the open band, then ends the response if
+  /// that event ended it.
+  ///
+  /// A tool result ends the response that made the call: the producer is
+  /// invoked again to decide what to do with the result, and what it emits
+  /// next belongs to a new response. Nothing in the streaming state says so —
+  /// a result leaves it untouched — so this is the only place live can see it.
+  void Function() _routeEvents(ReadonlySignal<ExecutionEvent?> events) {
+    // `subscribe` delivers the signal's current value at once: the last event
+    // of the run that just ended, which this run's bands must not record.
+    var replayingCurrentValue = true;
+    return events.subscribe((event) {
+      if (replayingCurrentValue) {
+        replayingCurrentValue = false;
+        return;
+      }
+      _trackers[_activeId]?.observe(event);
+      if (event is! ServerToolCallCompleted) return;
+      final takes = _voice;
+      // A response that said nothing leaves its work where it is, so the next
+      // response to speak takes that too. It is also what keeps calls made in
+      // parallel together: nothing moves between their results.
+      if (takes == null) return;
+      _claim(takes, StepStatus.completed);
+      _openBand(_unclaimed!);
+    });
+  }
+
+  /// Hands the open band to [takes], the message that spoke for it.
+  void _claim(String takes, StepStatus unfinishedAs) {
+    final from = _activeId;
+    if (from == null) return;
+    final tracker = _trackers.remove(from);
+    if (tracker != null) _trackers[takes] = tracker..freeze(unfinishedAs);
+    _voice = null;
+    _activeId = null;
+  }
+
+  /// Freeze the open band when a run reaches a terminal state.
+  ///
+  /// The run ending ends the response being collected, so whoever spoke in it
+  /// takes the band — the last response of a run has no tool result to end it.
   void onRunTerminated(StepStatus unfinishedAs) {
+    final takes = _voice;
+    if (takes != null) {
+      _claim(takes, unfinishedAs);
+      return;
+    }
     _freezeActive(unfinishedAs);
   }
 
@@ -93,6 +157,8 @@ class TrackerRegistry {
   }
 
   void dispose() {
+    _sessionUnsub?.call();
+    _sessionUnsub = null;
     for (final tracker in _trackers.values) {
       tracker.dispose();
     }

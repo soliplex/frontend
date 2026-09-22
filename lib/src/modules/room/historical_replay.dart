@@ -83,37 +83,54 @@ Map<String, ExecutionTracker> replayToTrackers(
           raw.messageId,
     };
 
-    // Until one of them does, the run owns its work, under the key that names
-    // the tile the run is given if it never speaks at all.
+    // Everything collects under the key that names the tile this run is given
+    // if it never speaks, and moves to whichever message speaks for it.
     final unclaimed = noResponseMessageId(bundle.runId);
-    var key = unclaimed;
+    String? voice;
 
+    void claim() {
+      final takes = voice;
+      // A response that said nothing leaves its work where it is, so the next
+      // response to speak takes that too. This is what merges a declaration's
+      // round into the reply it was opened for.
+      if (takes == null) return;
+      final events = buckets.remove(unclaimed);
+      final rawEvents = rawBuckets.remove(unclaimed);
+      if (events != null) buckets[takes] = events;
+      if (rawEvents != null) rawBuckets[takes] = rawEvents;
+      voice = null;
+    }
+
+    var sawResult = false;
     for (final raw in bundle.events) {
+      // A tool result ends the response that made the call: the producer is
+      // invoked again to decide what to do with it, and what it emits next is
+      // a new response. Read at the next event that is not another result, so
+      // calls made in parallel stay in the response that made them.
+      if (sawResult && raw is! ToolCallResultEvent) {
+        claim();
+        sawResult = false;
+      }
       if (raw is TextMessageStartEvent &&
           raw.role == TextMessageRole.assistant &&
-          spoke.contains(raw.messageId) &&
-          key != raw.messageId) {
-        if (key == unclaimed) {
-          // The first message to speak takes what the run collected waiting
-          // for it — moved, never copied, so no run ever offers two bands for
-          // one tile to choose between.
-          final events = buckets.remove(unclaimed);
-          final rawEvents = rawBuckets.remove(unclaimed);
-          if (events != null) buckets[raw.messageId] = events;
-          if (rawEvents != null) rawBuckets[raw.messageId] = rawEvents;
-        }
-        key = raw.messageId;
+          spoke.contains(raw.messageId)) {
+        voice = raw.messageId;
       }
+      if (raw is ToolCallResultEvent) sawResult = true;
 
-      rawBuckets.putIfAbsent(key, () => []).add(raw);
+      rawBuckets.putIfAbsent(unclaimed, () => []).add(raw);
       final execEvent = bridgeOrLog(raw);
       if (execEvent != null) {
         buckets
-            .putIfAbsent(key, () => [])
+            .putIfAbsent(unclaimed, () => [])
             .add((event: execEvent, timestamp: raw.timestamp));
       }
     }
-    endedOn.add(key);
+    // The run ended, so the response being filled ends with it and whoever
+    // spoke in it takes the work. Whatever it was filling is the bucket no
+    // terminal event accounted for.
+    endedOn.add(voice ?? unclaimed);
+    claim();
   }
 
   return {

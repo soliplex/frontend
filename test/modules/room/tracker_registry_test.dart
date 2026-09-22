@@ -45,6 +45,7 @@ void main() {
 
       awaiting();
       speaking('m1');
+      registry.onRunTerminated(StepStatus.completed);
 
       expect(
         registry.trackers['m1']!.timeline.value,
@@ -58,12 +59,24 @@ void main() {
         'event', () {
       speaking('m1');
       events.value = const ThinkingStarted();
+      // The result ends m1's response, so the band that opens next starts on
+      // nothing rather than on what m1 was doing.
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'c-1',
+        result: 'ok',
+      );
       speaking('m2');
+      registry.onRunTerminated(StepStatus.completed);
 
+      expect(
+        registry.trackers['m1']!.timeline.value,
+        hasLength(1),
+        reason: "m1's work belongs to m1",
+      );
       expect(
         registry.trackers['m2']!.timeline.value,
         isEmpty,
-        reason: "m1's work belongs to m1",
+        reason: 'the next response starts clean',
       );
     });
 
@@ -78,6 +91,7 @@ void main() {
         toolCallId: 'c-1',
         toolName: 'search',
       );
+      registry.onRunTerminated(StepStatus.completed);
 
       expect(registry.trackers['m1']!.timeline.value, hasLength(1));
     });
@@ -99,7 +113,7 @@ void main() {
     expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
   });
 
-  test('re-keys awaiting tracker to message ID on TextStreaming', () {
+  test('the band goes to the message that spoke, once its response ends', () {
     registry.onStreaming(
       const AwaitingText(currentPhase: ThinkingPhase()),
       'run-0',
@@ -117,6 +131,11 @@ void main() {
       events,
       activities,
     );
+    // Speaking names the message the response will be filed under; the run
+    // ending is what ends the response.
+    expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
+
+    registry.onRunTerminated(StepStatus.completed);
 
     expect(
         registry.trackers.containsKey(noResponseMessageId('run-0')), isFalse);
@@ -125,7 +144,7 @@ void main() {
     expect(registry.trackers, hasLength(1));
   });
 
-  test('creates new tracker on TextStreaming when idle', () {
+  test('opens a band when the run speaks before any other phase', () {
     registry.onStreaming(
       const TextStreaming(
         messageId: 'msg-1',
@@ -138,10 +157,12 @@ void main() {
     );
 
     expect(registry.trackers, hasLength(1));
+
+    registry.onRunTerminated(StepStatus.completed);
     expect(registry.trackers.containsKey('msg-1'), isTrue);
   });
 
-  test('freezes old tracker when new message starts streaming', () {
+  test('a tool result ends the response and opens the next band', () {
     final events1 = Signal<ExecutionEvent?>(null);
     final events2 = Signal<ExecutionEvent?>(null);
 
@@ -156,20 +177,17 @@ void main() {
       activities,
     );
 
-    registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-2',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events2,
-      activities,
+    // The result ends msg-1's response: its band is claimed and closed, and a
+    // fresh one opens for whatever the producer emits next.
+    events1.value = const ServerToolCallCompleted(
+      toolCallId: 'c-1',
+      result: 'ok',
     );
 
     expect(registry.trackers, hasLength(2));
     expect(registry.trackers['msg-1']!.isFrozen, isTrue);
-    expect(registry.trackers['msg-2']!.isFrozen, isFalse);
+    expect(registry.trackers[noResponseMessageId('run-0')]!.isFrozen, isFalse);
+    expect(events2.value, isNull, reason: 'unused; kept for the signature');
   });
 
   test('no-ops when same message ID streams again', () {
@@ -184,7 +202,7 @@ void main() {
       activities,
     );
 
-    final tracker = registry.trackers['msg-1'];
+    final tracker = registry.trackers[noResponseMessageId('run-0')];
 
     registry.onStreaming(
       const TextStreaming(
@@ -198,7 +216,7 @@ void main() {
     );
 
     expect(registry.trackers, hasLength(1));
-    expect(registry.trackers['msg-1'], same(tracker));
+    expect(registry.trackers[noResponseMessageId('run-0')], same(tracker));
     expect(tracker!.isFrozen, isFalse);
   });
 
@@ -289,6 +307,7 @@ void main() {
         events,
         activities,
       );
+      registry.onRunTerminated(StepStatus.completed);
       final live = registry.trackers['asst-1'];
 
       final historical = {
@@ -325,10 +344,8 @@ void main() {
       activities,
     );
 
-    // Should not create an awaiting tracker — msg-1 is still active
+    // Should not open a second band — the run's band is still open
     expect(registry.trackers, hasLength(1));
-    expect(registry.trackers.containsKey('msg-1'), isTrue);
-    expect(
-        registry.trackers.containsKey(noResponseMessageId('run-0')), isFalse);
+    expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
   });
 }
