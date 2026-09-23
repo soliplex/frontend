@@ -244,44 +244,20 @@ class RunOrchestrator {
   void cancelRun() {
     _guardNotDisposed();
     switch (_currentState) {
-      case RunningState(
-          :final threadKey,
-          :final runId,
-          :final conversation,
-          :final streaming,
-        ):
+      case final RunningState running:
         _cancelToken?.cancel();
         _cleanup();
-        // Mirror `_processRunFinished`/`_processRunError`: commit any
-        // mid-stream reply text as a finalized `TextMessage` so the user
-        // keeps what was already on screen, then park how the run ended.
-        final withPartial = commitPartialTextOnTerminal(
-          conversation: conversation,
-          streaming: streaming,
-          runId: runId,
-          terminalEvent: 'cancelRun',
-          createdAt: _lastEventTime,
-        );
-        final withOutcome = parkCancelledOutcome(
-          conversation: withPartial,
-          streaming: streaming,
-          runId: runId,
-          createdAt: DateTime.timestamp(),
-        );
-        final withCitations = _extractCitations(withOutcome, runId);
         _setState(
           CancelledState.duringRun(
-            threadKey: threadKey,
-            runId: runId,
-            conversation: withCitations,
+            threadKey: running.threadKey,
+            runId: running.runId,
+            conversation: _recordRunEndedAsCancelled(
+              running,
+              terminalEvent: 'cancelRun',
+            ),
           ),
         );
-      case ToolYieldingState(
-          :final threadKey,
-          :final runId,
-          :final conversation,
-          :final streaming,
-        ):
+      case final ToolYieldingState yielding:
         // A pending `_resumeStream` may be awaiting `_llmProvider.startRun`
         // with the live cancel token. Cancel the token + cleanup so that
         // await aborts before `_subscribeToStream` fires and overwrites
@@ -290,16 +266,11 @@ class RunOrchestrator {
         _cleanup();
         _setState(
           CancelledState.duringRun(
-            threadKey: threadKey,
-            runId: runId,
+            threadKey: yielding.threadKey,
+            runId: yielding.runId,
             // A yielding run withdrew its completion candidate; stopping here
             // ends it for real, so it parks one again as a cancel.
-            conversation: parkCancelledOutcome(
-              conversation: conversation,
-              streaming: streaming,
-              runId: runId,
-              createdAt: DateTime.timestamp(),
-            ),
+            conversation: _recordYieldEndedAsCancelled(yielding),
           ),
         );
       case IdleState():
@@ -372,19 +343,7 @@ class RunOrchestrator {
     final yielding = _currentState as ToolYieldingState;
     _toolDepth++;
     if (_toolDepth > _maxToolDepth) {
-      const detail = 'Tool depth limit exceeded';
-      _setState(
-        FailedState.duringRun(
-          threadKey: yielding.threadKey,
-          runId: yielding.runId,
-          reason: FailureReason.toolExecutionFailed,
-          error: 'Tool depth limit exceeded ($_maxToolDepth)',
-          conversation: _recordYieldEndedAsFailed(
-            yielding,
-            '$detail ($_maxToolDepth)',
-          ),
-        ),
-      );
+      _failDepthExceeded(yielding.threadKey, yielding);
       return;
     }
     final conversation = _buildResumeConversation(yielding, executedTools);
@@ -689,6 +648,57 @@ class RunOrchestrator {
         streaming: state.streaming,
         runId: state.runId,
         createdAt: DateTime.timestamp(),
+      );
+
+  /// [running]'s conversation with a record that the run was stopped, stamped
+  /// when the user stopped it. [terminalEvent] names the ending in the log.
+  Conversation _recordRunEndedAsCancelled(
+    RunningState running, {
+    required String terminalEvent,
+  }) =>
+      _extractCitations(
+        parkCancelledOutcome(
+          conversation: _keepingPartialReply(running, terminalEvent),
+          streaming: running.streaming,
+          runId: running.runId,
+          createdAt: DateTime.timestamp(),
+        ),
+        running.runId,
+      );
+
+  /// [running]'s conversation with a record that the run failed with
+  /// [detail], stamped with the last event the run delivered. [terminalEvent]
+  /// names the ending in the log.
+  Conversation _recordRunEndedAsFailed(
+    RunningState running,
+    String detail, {
+    required String terminalEvent,
+  }) =>
+      _extractCitations(
+        parkFailedOutcome(
+          conversation: _keepingPartialReply(running, terminalEvent),
+          streaming: running.streaming,
+          runId: running.runId,
+          errorDetail: detail,
+          createdAt: _lastEventTime,
+        ),
+        running.runId,
+      );
+
+  /// [running]'s conversation with the reply it was streaming committed.
+  ///
+  /// The reply the user was reading goes first, or the run's ending appears
+  /// while what they were already looking at disappears.
+  Conversation _keepingPartialReply(
+    RunningState running,
+    String terminalEvent,
+  ) =>
+      commitPartialTextOnTerminal(
+        conversation: running.conversation,
+        streaming: running.streaming,
+        runId: running.runId,
+        terminalEvent: terminalEvent,
+        createdAt: _lastEventTime,
       );
 
   /// Whether [state] is terminal for the SSE subscription completer.
@@ -1296,31 +1306,17 @@ class RunOrchestrator {
     _cleanup();
     _logger.warning('Stream ended without terminal event');
     const detail = 'Stream ended without terminal event';
-    final withCitations = _extractCitations(
-      parkFailedOutcome(
-        // The reply the user was reading goes first, or the failure appears
-        // while what they were already looking at disappears.
-        conversation: commitPartialTextOnTerminal(
-          conversation: running.conversation,
-          streaming: running.streaming,
-          runId: running.runId,
-          terminalEvent: 'streamEndedWithoutTerminal',
-          createdAt: _lastEventTime,
-        ),
-        streaming: running.streaming,
-        runId: running.runId,
-        errorDetail: detail,
-        createdAt: _lastEventTime,
-      ),
-      running.runId,
-    );
     _setState(
       FailedState.duringRun(
         threadKey: running.threadKey,
         runId: running.runId,
         reason: FailureReason.networkLost,
         error: detail,
-        conversation: withCitations,
+        conversation: _recordRunEndedAsFailed(
+          running,
+          detail,
+          terminalEvent: 'streamEndedWithoutTerminal',
+        ),
       ),
     );
   }
@@ -1335,20 +1331,9 @@ class RunOrchestrator {
         CancelledState.duringRun(
           threadKey: running.threadKey,
           runId: running.runId,
-          conversation: _extractCitations(
-            parkCancelledOutcome(
-              conversation: commitPartialTextOnTerminal(
-                conversation: running.conversation,
-                streaming: running.streaming,
-                runId: running.runId,
-                terminalEvent: 'streamCancelled',
-                createdAt: _lastEventTime,
-              ),
-              streaming: running.streaming,
-              runId: running.runId,
-              createdAt: DateTime.timestamp(),
-            ),
-            running.runId,
+          conversation: _recordRunEndedAsCancelled(
+            running,
+            terminalEvent: 'streamCancelled',
           ),
         ),
       );
@@ -1362,21 +1347,10 @@ class RunOrchestrator {
         runId: running.runId,
         reason: reason,
         error: _messageOf(error),
-        conversation: _extractCitations(
-          parkFailedOutcome(
-            conversation: commitPartialTextOnTerminal(
-              conversation: running.conversation,
-              streaming: running.streaming,
-              runId: running.runId,
-              terminalEvent: 'streamError',
-              createdAt: _lastEventTime,
-            ),
-            streaming: running.streaming,
-            runId: running.runId,
-            errorDetail: _messageOf(error),
-            createdAt: _lastEventTime,
-          ),
-          running.runId,
+        conversation: _recordRunEndedAsFailed(
+          running,
+          _messageOf(error),
+          terminalEvent: 'streamError',
         ),
       ),
     );
