@@ -6,7 +6,146 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.106.0+90] - 2026-09-23
+
+### Added
+
+- **Library consumers:** `ChatMessage.runId` names the run that produced a
+  message. It is stamped where messages are minted — a committed or partial
+  reply, a run's outcome and error rows, the user message a run was started
+  with, a client tool's result — and on the optimistic user echo once its run
+  starts. It stays null only where no run produced the message, such as an
+  error that arrived before any run began. `DroppedEventMessage.runId` is now
+  that same field.
+- **Library consumers:** `TextMessage.namedByToolCall` records that a tool call
+  named the message as its parent, and `existsOnlyForToolCall` asks whether an
+  assistant message exists for nothing else — named by a call, with no text but
+  whitespace.
+
+### Changed
+
+- **Breaking:** how a run ended is recorded, not rendered, at the moment it
+  ends. Every run that ends parks its outcome in `Conversation.runOutcomes`,
+  keyed by run id and carried through `ThreadHistory.runOutcomes`, and the room
+  timeline decides from the whole thread whether that run needs a tile of its
+  own. A terminal used to decide on the spot, behind a gate that guessed whether
+  the run had anything else to show, and append the tile to the message list
+  itself; a failed run also appended an error row there. Neither is appended
+  any more, so code reading `Conversation.messages` for a run's no-response
+  tile or error row will not find one — read `runOutcomes`. An error before any
+  run started still appends its own row, having no run to travel with.
+- **Breaking:** the `NoResponseTile.finished`, `.failed` and `.cancelled`
+  factories take `runId:` in place of `id:`, and derive the id from it, so a
+  tile's id and the run a report about it is filed against cannot disagree.
+- **Breaking:** `ToolYieldingState` requires `streaming:`, the streaming state
+  the run yielded in. A run that reasons before calling a client tool has that
+  reasoning nowhere else, and every way out of the wait needs it to record how
+  the run ended.
+
+### Removed
+
+- **Library consumers:** `synthesizeFinishedNoResponse`,
+  `synthesizeFailedNoResponse`, `synthesizeCancelledNoResponse` and
+  `NoResponseSynthesisResult`. `parkFinishedOutcome`, `parkFailedOutcome` and
+  `parkCancelledOutcome` record the outcome in their place.
+  `noResponseMessageId`, `runErrorMessageId`, `preRunErrorMessageId` and
+  `commitPartialTextOnTerminal` are unchanged and still exported.
+
+### Fixed
+
+- A multi-step answer no longer shows "This message has no text" once per tool
+  round. A model response that begins with a tool call opens an empty message
+  only to give the call a parent to name, and the timeline rendered it as a
+  reply that had said nothing. It is left out, and its work renders with the
+  reply it was opened for.
+- Each reply shows the work of the model response that produced it. The
+  reasoning that opens a response was filed under the previous reply, so a run
+  that speaks, works, then answers showed its closing thought above the work
+  and the answer rendered bare.
+- A run's work stays with that run. A new execution band opened holding the
+  last step of the band before it, so an abandoned run's final row appeared at
+  the top of the next answer. A run stopped before its reply opened rendered
+  below the answer to a later question; it now sits where it happened. A run
+  that ends with nothing to say still gets a tile, so the steps the user
+  watched have somewhere to render.
+- With two tool calls in flight, progress reported by the first renders under
+  the first rather than the second.
+- A step still running when a run failed or was stopped shows as failed. It was
+  settled green whatever the run did, so a stopped run showed its open tool
+  call as having succeeded — and a refresh then showed the same call as failed.
+- A failed run reports its failure once. It showed both an error row and a tile
+  saying the run never answered.
+- A run whose connection drops keeps the reply the user was reading, and the
+  reasoning behind it. The failure appeared at the same moment the answer
+  vanished.
+- Reporting a problem, submitting feedback and listing a run's files reach the
+  run that produced the reply. Every reply in a multi-step turn used the run
+  that happened to finish the turn.
+- Returning to a thread fetches its history. The view restored its own copy and
+  fetched nothing, so a thread came back without its execution bands, and a run
+  stopped before it answered never showed the answer the backend completed and
+  stored after the client disconnected. The thread now shows at once as it was
+  left and updates when the fetch lands; history decides how every run it read
+  ended, and a run still in flight keeps its turn.
+- A stored run whose events stop before a terminal event, or could not all be
+  read, is recorded as failed, which is what the live path records for the
+  same interrupted stream. It used to record no ending at all, so a run with
+  nothing else to show had no tile for its work.
+- A reply whose only content is whitespace reports that it carries no text
+  rather than rendering a bubble holding a space.
+- A failed run is logged by its reason and run id, not by the backend's error
+  text, which the logging rule keeps out of the log buffer.
+
+## [0.105.1+89] - 2026-09-18
+
+### Added
+
+- The home screen lists every server, and tapping any row opens the lobby on
+  that server; a signed-out row signs in first and lands on the same server.
+  Home listed only signed-out servers, with one "Go to Lobby" button standing
+  in for every connected one, which is gone. Both home and the lobby sidebar
+  order servers signed-in, signed-out, then no-auth, alphabetically within
+  each; the sidebar then pins the server it is showing. The lobby also accepts
+  the server to open as `/lobby?server=<id>`.
+- A server tile's menu in the lobby sidebar opens on long-press or right-click.
+  Hover never fires on touch, so an unselected tile had no reachable actions
+  without first selecting its server.
+- A harness for prototyping screens inside the app, so a mockup carries the
+  shipped theme, fonts and components: `flutter run -t lib/main_mockups.dart`.
+  It toggles breakpoint and brightness, stubs the backend, and ships with a
+  first prototype of a thread panel. Nothing in it reaches the app. See
+  `docs/mockups.md`.
+
+### Changed
+
+- Server addresses on home and in the lobby are shown without their scheme.
+  Adding an `http` server already passes a screen warning that it is not
+  encrypted, so the list does not repeat it.
+- The delete icon on home appears only where removal cannot fail: not on a
+  signed-in server, whose removal needs a round-trip to its identity provider,
+  and now on a no-auth server, which had none.
+- Every server row reserves the sign-in dot's slot, so titles share one indent.
+  No-auth titles sat 20px left of the rest.
+- `.fvmrc` is the one place the Flutter SDK version is written, read by CI and
+  by the Docker build; the two pins it replaces had already drifted apart. fvm
+  itself stays optional, and the `pubspec.yaml` SDK floor is unchanged.
+
+### Fixed
+
+- On the diagnostics screen the Requests/Logs switcher sits with each pane's own
+  controls, the filter toggles share one width, and the filters collapse behind
+  a labelled control — collapsed by default on a phone, where they otherwise
+  crowd out the list. The count and the run scope stay visible while collapsed,
+  since they say what the filters are withholding. The controls no longer
+  overflow a short viewport or large text — a phone in landscape overflowed by
+  17px, and twice the default text size by 467px — and the run scope's label,
+  the request heading and the export-failure notice give way rather than
+  running off the edge or starving the pane.
+- On a phone, the versions screen rendered a backend's address one character
+  per line, squeezed by the actions beside it. The address now gets the tile's
+  full width, and the actions move below it when both do not fit.
+
+## [0.105.0+88] - 2026-09-10
 
 ### Added
 
@@ -55,6 +194,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   title and a type. The same compile-invisible hazard as `allowedTools`
   applies — `if (stateTypeSchema != null)` still analyses and is now always
   true. Read `stateTypeSchema.isNotEmpty`.
+
+- A completed thinking step's check icon is muted, reading `onSurfaceVariant`
+  rather than `tertiary`. `tertiary` is the slot a whitelabel fills with its
+  loudest accent, so beside the green of a completed tool call a warm brand
+  made every finished thinking step look like an error. The shipped palette
+  looks the same either way.
+- CI builds and tests with Flutter 3.41.9. No source changed, and the
+  `pubspec.yaml` floor stays at 3.38.4, so consumers are unaffected.
 
 ### Removed
 
