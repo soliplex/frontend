@@ -616,6 +616,30 @@ void main() {
       );
     });
 
+    test('an activity nests under the call it names, not the latest one', () {
+      // Two calls run at once and the first reports progress: the activity
+      // names its call, so it belongs under that one even though another call
+      // opened after it.
+      tracker
+        ..observe(const ServerToolCallStarted(
+          toolCallId: 'call-1',
+          toolName: 'faux_tool',
+        ))
+        ..observe(const ServerToolCallStarted(
+          toolCallId: 'call-2',
+          toolName: 'faux_tool',
+        ))
+        ..observe(const ActivitySnapshot(
+          messageId: 'faux:call-1',
+          activityType: 'skill_tool_call',
+          content: {'tool_call_id': 'call-1', 'status': 'working'},
+        ));
+
+      final steps = tracker.timeline.value.cast<TimelineStep>();
+      expect(steps.first.activityIds, ['faux:call-1']);
+      expect(steps.last.activityIds, isEmpty);
+    });
+
     test('activity arriving with no active step is standalone', () {
       tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',

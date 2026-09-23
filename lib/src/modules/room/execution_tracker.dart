@@ -122,9 +122,9 @@ class ExecutionTracker {
   ReadonlySignal<List<ActivityRecord>> get activities => _activities;
 
   /// Timeline of steps with their nested activity ids, in arrival
-  /// order. Activities that arrive while a step is active are nested
-  /// under that step; activities arriving outside any active step are
-  /// emitted as [TimelineStandaloneActivity]. The renderer resolves
+  /// order. An activity that names a call in its content nests under that
+  /// call's step; one that names none nests under the step still active when
+  /// it arrives; any other is emitted as [TimelineStandaloneActivity]. The renderer resolves
   /// each id against [activities] at paint time.
   final Signal<List<TimelineEntry>> _timeline =
       Signal<List<TimelineEntry>>(const []);
@@ -238,8 +238,8 @@ class ExecutionTracker {
       case RunCancelled():
         _completeAllSteps(StepStatus.failed);
         _isThinkingStreaming.value = false;
-      case ActivitySnapshot(:final messageId):
-        _placeActivityInTimeline(messageId);
+      case ActivitySnapshot(:final messageId, :final content):
+        _placeActivityInTimeline(messageId, content['tool_call_id']);
       case TextDelta() ||
             StateUpdated() ||
             StepProgress() ||
@@ -254,7 +254,13 @@ class ExecutionTracker {
   /// the row nests under (or whether it stands alone). An id already
   /// present in any entry is a no-op — the activity updates in place
   /// through the signal.
-  void _placeActivityInTimeline(String activityId) {
+  ///
+  /// [namedCall] is the content's `tool_call_id`, which AG-UI does not
+  /// define but producers set to say which call an activity reports on.
+  /// When it names a call this band holds, the activity nests under that
+  /// call wherever it sits: with calls running in parallel, the last one
+  /// opened is not necessarily the one reporting.
+  void _placeActivityInTimeline(String activityId, Object? namedCall) {
     final current = _timeline.value;
     for (final entry in current) {
       if (entry is TimelineStep && entry.activityIds.contains(activityId)) {
@@ -262,6 +268,16 @@ class ExecutionTracker {
       }
       if (entry is TimelineStandaloneActivity &&
           entry.activityId == activityId) {
+        return;
+      }
+    }
+    if (namedCall is String) {
+      final match = _findCall(namedCall);
+      if (match != null) {
+        _replaceEntry(
+          match,
+          match.entry.withActivities([...match.entry.activityIds, activityId]),
+        );
         return;
       }
     }
