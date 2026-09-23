@@ -1351,6 +1351,9 @@ class SoliplexApi {
 
       // Per-event try/catch so one bad event can't abort replay.
       final decodedEvents = <BaseEvent>[];
+      // Whether any of this run's events could not be read, which is what
+      // would have said how it ended if its terminal event is among them.
+      var unreadable = false;
       for (var i = 0; i < events.length; i++) {
         final eventJson = events[i];
         void appendDrop({
@@ -1361,6 +1364,7 @@ class SoliplexApi {
           required Object? rawPayload,
           String? typeForLog,
         }) {
+          unreadable = true;
           _logger.error(
             'replay: $stage failed at events[$i] '
             '(type=$typeForLog) in run $runId of thread $threadId.',
@@ -1476,14 +1480,20 @@ class SoliplexApi {
       // already said the run finished — so the end of its events is the end
       // of the run, and waiting for an event to announce it would leave the
       // run with no record of how it ended and its work with no tile.
+      // Recorded as a failure, as live records the same interrupted stream:
+      // nothing says the run completed, and when events went unread, nothing
+      // says what it answered either.
       // Only the record, not the half-written reply: nobody was reading it,
       // and the backend never finished it. Whatever reasoning it had reached
       // travels with the record.
       if (conversation.status case Running(runId: final open)) {
-        conversation = parkFinishedOutcome(
+        conversation = parkFailedOutcome(
           conversation: conversation,
           streaming: streaming,
           runId: open,
+          errorDetail: unreadable
+              ? "Some of this run's events could not be read"
+              : 'Stream ended without terminal event',
           createdAt: fallbackCreated,
         );
         streaming = const AwaitingText();

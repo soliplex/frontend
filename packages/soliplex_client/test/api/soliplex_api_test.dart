@@ -6023,6 +6023,52 @@ void main() {
         expect(history.runOutcomes.keys, equals(['run-1']));
       });
 
+      test('a run interrupted mid-reply is recorded as failed, as live does',
+          () async {
+        // Live records this same stream as a failure and its steps settle as
+        // failed; recording it finished would say the run completed without
+        // answering, when it did answer, in part, and never completed.
+        final history = await hydrate(const {
+          'events': [
+            {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+            {
+              'type': 'TEXT_MESSAGE_START',
+              'messageId': 'm1',
+              'role': 'assistant',
+            },
+            {
+              'type': 'TEXT_MESSAGE_CONTENT',
+              'messageId': 'm1',
+              'delta': 'Half an ans',
+            },
+          ],
+        });
+
+        final outcome = history.runOutcomes['run-1']!;
+        expect(outcome.reason, TerminalReason.failed);
+        expect(outcome.errorDetail, 'Stream ended without terminal event');
+      });
+
+      test('a run whose events could not be read is recorded as failed',
+          () async {
+        // Whether it answered is exactly what the unreadable events would
+        // have said, so the record claims neither that it finished nor that
+        // it said nothing.
+        final history = await hydrate(const {
+          'events': [
+            {'type': 'NOT_AN_EVENT'},
+            42,
+          ],
+        });
+
+        final outcome = history.runOutcomes['run-1']!;
+        expect(outcome.reason, TerminalReason.failed);
+        expect(
+          outcome.errorDetail,
+          "Some of this run's events could not be read",
+        );
+      });
+
       test('a bundle that did announce its end records that once', () async {
         final history = await hydrate(const {
           'events': [
