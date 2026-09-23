@@ -14,6 +14,7 @@ import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 const _defaultUser = ChatUser.assistant;
@@ -2017,6 +2018,61 @@ void main() {
           (result.conversation.messages.single as TextMessage).namedByToolCall,
           isFalse,
         );
+      });
+
+      group('a parent the conversation does not hold', () {
+        late MemorySink sink;
+        setUp(() {
+          sink = MemorySink();
+          LogManager.instance.addSink(sink);
+          addTearDown(() => LogManager.instance.removeSink(sink));
+        });
+        Iterable<LogRecord> lostClaims() => sink.records.where(
+              (r) =>
+                  r.loggerName == 'soliplex_client.event_processor' &&
+                  r.message.contains('names the message still streaming'),
+            );
+
+        test('is reported when it is the message still streaming', () {
+          // The claim is applied to committed messages only, so naming a
+          // message before its end loses the claim and it renders as the
+          // "no text" notice once it commits.
+          final opened = processEvent(
+            Conversation.empty(threadId: 'thread-1')
+                .withStatus(const Running(runId: 'run-1')),
+            const app_streaming.AwaitingText(),
+            const TextMessageStartEvent(messageId: 'm1'),
+          );
+          processEvent(
+            opened.conversation,
+            opened.streaming,
+            const ToolCallStartEvent(
+              toolCallId: 'c1',
+              toolCallName: 'search',
+              parentMessageId: 'm1',
+            ),
+          );
+
+          expect(lostClaims(), hasLength(1));
+          expect(
+            lostClaims().single.attributes,
+            containsPair('messageId', 'm1'),
+          );
+        });
+
+        test('is not reported when no message was ever opened for it', () {
+          processEvent(
+            withCommitted('m1', ''),
+            streaming,
+            const ToolCallStartEvent(
+              toolCallId: 'c1',
+              toolCallName: 'search',
+              parentMessageId: 'absent',
+            ),
+          );
+
+          expect(lostClaims(), isEmpty);
+        });
       });
 
       test('a parent id matching no message leaves the messages alone', () {

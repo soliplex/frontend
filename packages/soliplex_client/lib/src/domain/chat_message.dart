@@ -340,11 +340,12 @@ class TextMessage extends ChatMessage {
   /// Whether a tool call named this message as its parent.
   ///
   /// Set by `processEvent` when a `ToolCallStartEvent` carrying this id in
-  /// `parentMessageId` arrives, which is always after the message commits. A
-  /// response that begins with a tool call has no text message of its own, so
-  /// the stream opens and immediately closes an empty one purely to make that
-  /// id real; this is what tells such a message from a reply that genuinely
-  /// carried no text, which is an anomaly worth showing.
+  /// `parentMessageId` arrives after the message commits, as pydantic-ai emits
+  /// it; one arriving before is reported and not applied. A response that
+  /// begins with a tool call has no text message of its own, so the stream
+  /// opens and immediately closes an empty one purely to make that id real;
+  /// this is what tells such a message from a reply that genuinely carried no
+  /// text, which is an anomaly worth showing.
   final bool namedByToolCall;
 
   /// Whether this message has thinking text.

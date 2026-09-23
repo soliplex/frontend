@@ -144,6 +144,7 @@ EventProcessingResult processEvent(
               status: ToolCallStatus.streaming,
             ),
           ),
+          streaming,
           parentMessageId,
         ),
         streaming: _withToolCallPhase(
@@ -820,16 +821,28 @@ EventProcessingResult _processActivityDelta(
 /// Marks the message [parentMessageId] names, so the timeline can tell a
 /// message opened only to make that id real from a reply that carried no text.
 ///
-/// The claim always arrives after the message commits, so it is applied here
-/// rather than decided when the message is minted. A parent the conversation
-/// does not hold is left alone: the same event stream replayed from the start
-/// always does hold it, so this only fires on a producer that names a message
-/// it never opened.
+/// Only a committed message can be marked. pydantic-ai ends a text part before
+/// it starts the next, so the message a call names has always committed by
+/// then; nothing here holds a claim for a message still streaming. A producer
+/// that names one before its end loses the claim, and if that message ends
+/// with no text it renders as the "no text" notice, so that case is reported.
+/// A parent that was never opened is left alone and unreported: there is no
+/// message to mark and nothing renders wrong.
 Conversation _nameToolCallParent(
   Conversation conversation,
+  StreamingState streaming,
   String? parentMessageId,
 ) {
   if (parentMessageId == null) return conversation;
+  if (streaming case TextStreaming(:final messageId)
+      when messageId == parentMessageId) {
+    _logger.warning(
+      'A tool call names the message still streaming; the claim is lost, so '
+      'if the message ends with no text it renders as having none.',
+      attributes: {'messageId': parentMessageId},
+    );
+    return conversation;
+  }
   var found = false;
   final messages = [
     for (final message in conversation.messages)
