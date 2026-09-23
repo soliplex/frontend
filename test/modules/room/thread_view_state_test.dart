@@ -392,7 +392,7 @@ void main() {
     state.dispose();
   });
 
-  test('uses registry outcome instead of server fetch', () async {
+  test('keeps a restored run the server has not recorded yet', () async {
     final threadKey = (
       serverId: 'test-server',
       roomId: 'room-1',
@@ -405,12 +405,14 @@ void main() {
       user: ChatUser.user,
       createdAt: DateTime(2026, 3, 1),
       text: 'Hello',
+      runId: 'run-1',
     );
     final assistantMessage = TextMessage(
       id: 'assistant-1',
       user: ChatUser.assistant,
       createdAt: DateTime(2026, 3, 1),
       text: 'I can help with that',
+      runId: 'run-1',
     );
     final conversation = Conversation(
       threadId: 'thread-1',
@@ -431,8 +433,8 @@ void main() {
     ));
     await Future<void>.delayed(Duration.zero);
 
-    // Server has only the assistant message (user message not persisted yet).
-    api.nextThreadHistory = ThreadHistory(messages: [assistantMessage]);
+    // The server has not recorded run-1 yet, so its history does not read it.
+    api.nextThreadHistory = ThreadHistory(messages: const []);
 
     // Now create a new ThreadViewState (simulates navigating back).
     final state = ThreadViewState(
@@ -448,12 +450,12 @@ void main() {
     expect(loaded.messages.length, 2, reason: 'should have both messages');
     expect(loaded.messages.first.id, 'user-1');
 
-    // After server fetch completes, registry data should NOT be overwritten.
+    // History replaces only the runs it read, and it read none.
     await Future<void>.delayed(Duration.zero);
 
     final afterFetch = state.messages.value as MessagesLoaded;
     expect(afterFetch.messages.length, 2,
-        reason: 'server fetch must not overwrite registry outcome');
+        reason: 'the fetch must not drop a run history has not recorded');
     expect(afterFetch.messages.first.id, 'user-1');
 
     state.dispose();

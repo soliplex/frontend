@@ -91,7 +91,11 @@ class ThreadViewState {
         _roomId = roomId,
         _registry = registry {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
-    if (!_restoreFromRegistry()) unawaited(_fetch());
+    // What the registry holds shows at once. It is only what this app saw of
+    // the thread's last run, so the fetch still runs, and replaces every run
+    // the backend has recorded since.
+    _restoreFromRegistry();
+    unawaited(_fetch());
   }
 
   final ServerConnection _connection;
@@ -470,18 +474,14 @@ class ThreadViewState {
         'you can send your message again.';
   }
 
-  bool _restoreFromRegistry() {
+  void _restoreFromRegistry() {
     final session = _registry.activeSession(threadKey);
     if (session != null) {
       _attachSession(session);
-      return true;
+      return;
     }
     final outcome = _registry.completedOutcome(threadKey);
-    if (outcome != null) {
-      _applyOutcome(outcome);
-      return true;
-    }
-    return false;
+    if (outcome != null) _applyOutcome(outcome);
   }
 
   void _applyOutcome(RunOutcome outcome) {
@@ -546,7 +546,14 @@ class ThreadViewState {
         )
         ..addAll(replayToTrackers(history.runs));
       _messages.value = MessagesLoaded(
-        messages: history.messages,
+        // The view's own messages keep a run history has not read, and a turn
+        // whose run has not started yet. Both are later than anything history
+        // holds, so they follow it.
+        messages: [
+          ...history.messages,
+          for (final message in heldMessages)
+            if (!read.contains(message.runId)) message,
+        ],
         messageStates: history.messageStates,
         // In the order the runs ended: the history's first, then the view's
         // own, which ended after every run the backend has finished.
