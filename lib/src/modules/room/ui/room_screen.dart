@@ -2630,11 +2630,12 @@ class _RoomScreenState extends State<RoomScreen> {
       );
 
       // `subscribe` fires with the current value. A thread restored
-      // from a completed outcome already carries that ending, and its
-      // restore skipped the history fetch, so the run named there is
-      // where its reading comes from. A thread restored while still
-      // running, or one that loads history, has had no ending yet and
-      // stops at the count.
+      // from a completed outcome already carries that ending, so the run
+      // named there is read at once. Its history is fetched as well, but
+      // only seeds a reading nothing has measured yet, so whichever
+      // answers first, a count for the run replaces the history's. A
+      // thread restored while still running, or not restored at all, has
+      // had no ending yet and stops at the count.
       _contextRunUnsub = threadView.endedRun.subscribe((ending) {
         if (!mounted) return;
         final (endings, runId) = ending;
