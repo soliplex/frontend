@@ -183,9 +183,10 @@ void main() {
     expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
   });
 
-  test('the band goes to the message that spoke, once its response ends', () {
+  test('the band goes to the message that speaks, as soon as it speaks', () {
     registry.onStreaming(
         const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
+    final band = registry.trackers[noResponseMessageId('run-0')];
 
     registry.onStreaming(
         const TextStreaming(
@@ -194,17 +195,16 @@ void main() {
           text: 'Answer.',
         ),
         'run-0');
-    // Speaking names the message the response will be filed under; the run
-    // ending is what ends the response.
-    expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
+    // Keyed by the run, the band would follow the run's last tile, and leave
+    // the reply for the loading tile once the reply commits.
+    expect(registry.trackers.keys, equals(['msg-1']));
+    expect(registry.trackers['msg-1'], same(band));
+    expect(band!.isFrozen, isFalse, reason: 'its response is still open');
 
     registry.onRunTerminated(StepStatus.completed);
 
-    expect(
-        registry.trackers.containsKey(noResponseMessageId('run-0')), isFalse);
-    expect(registry.trackers.containsKey('msg-1'), isTrue);
-    // Same tracker instance — not a new one
-    expect(registry.trackers, hasLength(1));
+    expect(registry.trackers.keys, equals(['msg-1']));
+    expect(band.isFrozen, isTrue);
   });
 
   test('opens a band when the run speaks before any other phase', () {
@@ -233,8 +233,8 @@ void main() {
 
     // The result ends msg-1's response, read at the next event that is not
     // another result — so calls made in parallel stay in the response that
-    // made them. That next event is what claims the band and opens the one
-    // after it.
+    // made them. That next event is what freezes msg-1's band and opens the
+    // one after it.
     events.value = const ServerToolCallCompleted(
       toolCallId: 'c-1',
       result: 'ok',
@@ -255,7 +255,7 @@ void main() {
         ),
         'run-0');
 
-    final tracker = registry.trackers[noResponseMessageId('run-0')];
+    final tracker = registry.trackers['msg-1'];
 
     registry.onStreaming(
         const TextStreaming(
@@ -266,7 +266,7 @@ void main() {
         'run-0');
 
     expect(registry.trackers, hasLength(1));
-    expect(registry.trackers[noResponseMessageId('run-0')], same(tracker));
+    expect(registry.trackers['msg-1'], same(tracker));
     expect(tracker!.isFrozen, isFalse);
   });
 
@@ -324,9 +324,9 @@ void main() {
     registry.onStreaming(
         const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
 
-    // Should not open a second band — the run's band is still open
+    // Should not open a second band — the reply's band is still open
     expect(registry.trackers, hasLength(1));
-    expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
+    expect(registry.trackers.containsKey('msg-1'), isTrue);
   });
 
   test("the next response's band renders while that response streams", () {

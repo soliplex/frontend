@@ -32,7 +32,7 @@ bool opensResponse(ExecutionEvent event) => switch (event) {
 /// the tool calls that message asked for — and a tool result ends it: the
 /// producer is invoked again to decide what to do with the result, and what it
 /// emits next belongs to a new response. The first message to speak in a
-/// response speaks for it, and takes the response's work when it ends. A
+/// response speaks for it, and owns the response's work. A
 /// response that says nothing leaves its work where it is, so the next one to
 /// speak takes that too.
 ///
@@ -43,6 +43,7 @@ bool opensResponse(ExecutionEvent event) => switch (event) {
 class ResponseSegmenter {
   /// The message that has spoken in the response now being collected, or null
   /// while it has said nothing.
+  String? get owner => _voice;
   String? _voice;
 
   /// A tool result arrived and the response that made the call has not ended,

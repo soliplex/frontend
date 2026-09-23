@@ -866,9 +866,9 @@ void main() {
         ),
       ));
 
-      // The band is keyed by the run until the response it belongs to ends,
-      // so it is the terminal below that files it under `asst-1`.
-      final liveTracker = ext.trackers[noResponseMessageId('run-live')];
+      // The band is keyed by `asst-1` as soon as it speaks, so the two
+      // collide from here on.
+      final liveTracker = ext.trackers['asst-1'];
       expect(liveTracker, isNotNull);
       expect(identical(liveTracker, historicalTracker), isFalse);
 
