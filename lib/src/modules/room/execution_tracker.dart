@@ -7,32 +7,6 @@ import 'ui/execution/timeline_entry.dart';
 /// of the AG-UI event it came from, or null when that event carried none.
 typedef TimedExecutionEvent = ({ExecutionEvent event, int? timestamp});
 
-/// Whether [event] is the first output of a model response: its reasoning,
-/// its text, or its first tool call.
-///
-/// A tool result ends the response that made the call, but what follows it is
-/// not all a new response. State the tool wrote, a result for a call made in
-/// parallel, and the run ending all belong to the response being closed. Live
-/// and reload both decide where a response ends with this.
-bool opensResponse(ExecutionEvent event) => switch (event) {
-      ThinkingStarted() || TextDelta() || ServerToolCallStarted() => true,
-      ThinkingContent() ||
-      ThinkingEnded() ||
-      ServerToolCallArgs() ||
-      ServerToolCallCompleted() ||
-      ClientToolExecuting() ||
-      ClientToolCompleted() ||
-      RunCompleted() ||
-      RunFailed() ||
-      RunCancelled() ||
-      StateUpdated() ||
-      StepProgress() ||
-      AwaitingApproval() ||
-      ActivitySnapshot() ||
-      CustomExecutionEvent() =>
-        false,
-    };
-
 class ExecutionTracker {
   /// A band being collected live. Its events arrive through [observe].
   ExecutionTracker({

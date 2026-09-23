@@ -2,6 +2,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_step.dart';
 import 'execution_tracker.dart';
+import 'response_segmenter.dart';
 
 /// Manages execution trackers, keyed by the message that owns the work or —
 /// until one speaks — by the run doing it.
@@ -16,15 +17,9 @@ class TrackerRegistry {
   String? _activeId;
   final Logger _logger;
 
-  /// The message that has spoken in the response now being collected, or null
-  /// while the response has said nothing. It is what claims the band when the
-  /// response ends.
-  String? _voice;
-
-  /// A tool result has arrived and the response that made the call has not
-  /// been closed yet. Held so the close happens when the next response starts
-  /// ([opensResponse]).
-  bool _sawResult = false;
+  /// Decides, for the run whose band is open, when a response ends and which
+  /// message takes its band.
+  ResponseSegmenter? _segmenter;
 
   /// The registry reads the session's events and hands each to the open band
   /// itself, so recording an event and acting on it happen in one place, in a
@@ -71,38 +66,31 @@ class TrackerRegistry {
         if (_activeId == null) {
           _activities = activities;
           _unclaimed = unclaimed;
+          _segmenter = ResponseSegmenter();
           _openBand(unclaimed);
           _sessionUnsub ??= _routeEvents(events);
         }
         // A reply arriving after a tool result is the next response opening.
-        _endResponseIfPending();
-        // The first message to speak in a response speaks for it. A producer
-        // that emits two texts in one response has not done two things, and
-        // splitting the response's work between them would put half of it
-        // above a line that did not ask for it.
-        _voice ??= messageId;
+        _handOver(_segmenter!.speaks(messageId));
       case AwaitingText():
         if (_activeId != null) return;
         _activities = activities;
         _unclaimed = unclaimed;
+        _segmenter = ResponseSegmenter();
         _openBand(unclaimed);
         _sessionUnsub ??= _routeEvents(events);
     }
   }
 
-  /// Ends the response a tool result closed, if one is waiting to be ended.
+  /// Hands the band of a response that ended to [takes], the message that
+  /// spoke in it, and opens the next response's band.
   ///
-  /// The producer is invoked again after a result, so the next thing it emits
-  /// belongs to a new response. Called from the event stream and from the
-  /// streaming state, because neither sees everything: a message start does
-  /// not bridge to an execution event, and a tool result does not change the
-  /// streaming state.
-  void _endResponseIfPending() {
-    if (!_sawResult) return;
-    _sawResult = false;
-    final takes = _voice;
-    // A response that said nothing leaves its work where it is, so the next
-    // response to speak takes that too.
+  /// Asked of the segmenter from the event stream and from the streaming
+  /// state, because neither sees everything: a message start does not bridge
+  /// to an execution event, and a tool result does not change the streaming
+  /// state. A response that said nothing leaves its work where it is, so the
+  /// next response to speak takes that too.
+  void _handOver(String? takes) {
     if (takes == null) return;
     _claim(takes, StepStatus.completed);
     _openBand(_unclaimed!);
@@ -128,9 +116,8 @@ class TrackerRegistry {
       // Closed only once the next response starts, so calls a response made in
       // parallel stay in it, and what arrives between a result and the next
       // response — state the tool wrote, the run ending — stays with it too.
-      if (event != null && opensResponse(event)) _endResponseIfPending();
+      if (event != null) _handOver(_segmenter?.arrives(event));
       _trackers[_activeId]?.observe(event);
-      if (event is ServerToolCallCompleted) _sawResult = true;
     });
   }
 
@@ -140,7 +127,6 @@ class TrackerRegistry {
     if (from == null) return;
     final tracker = _trackers.remove(from);
     if (tracker != null) _trackers[takes] = tracker..freeze(unfinishedAs);
-    _voice = null;
     _activeId = null;
   }
 
@@ -149,8 +135,8 @@ class TrackerRegistry {
   /// The run ending ends the response being collected, so whoever spoke in it
   /// takes the band — the last response of a run has no tool result to end it.
   void onRunTerminated(StepStatus unfinishedAs) {
-    final takes = _voice;
-    _sawResult = false;
+    final takes = _segmenter?.ends();
+    _segmenter = null;
     if (takes != null) {
       _claim(takes, unfinishedAs);
       return;
