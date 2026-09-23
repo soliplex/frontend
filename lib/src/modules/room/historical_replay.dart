@@ -4,6 +4,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'execution_step.dart';
 import 'execution_tracker.dart';
+import 'response_segmenter.dart';
 
 /// Signature for the per-event AG-UI → execution-event bridger. The
 /// production implementation is the top-level [bridgeBaseEvent] from
@@ -18,8 +19,9 @@ final Logger _logger =
 /// by the message that owns the work or — until one speaks — by the run doing
 /// it, which is how the live registry keys them too.
 ///
-/// Work buckets by model response: a response ends when the one after a tool
-/// result starts ([opensResponse]). Everything collects under
+/// Work buckets by model response, as [ResponseSegmenter] decides it: a
+/// response ends when the one after a tool result starts. Everything collects
+/// under
 /// [noResponseMessageId] for the run — which names the tile that run is given
 /// if nothing speaks for its work — and the first message to speak in a
 /// response takes that response's bucket when the response ends. A response
@@ -97,10 +99,9 @@ Map<String, ExecutionTracker> replayToTrackers(
     // Everything collects under the key that names the tile this run is given
     // if it never speaks, and moves to whichever message speaks for it.
     final unclaimed = noResponseMessageId(bundle.runId);
-    String? voice;
+    final segmenter = ResponseSegmenter();
 
-    void claim() {
-      final takes = voice;
+    void handOver(String? takes) {
       // A response that said nothing leaves its work where it is, so the next
       // response to speak takes that too. This is what merges a declaration's
       // round into the reply it was opened for.
@@ -109,33 +110,18 @@ Map<String, ExecutionTracker> replayToTrackers(
       final rawEvents = rawBuckets.remove(unclaimed);
       if (events != null) buckets[takes] = events;
       if (rawEvents != null) rawBuckets[takes] = rawEvents;
-      voice = null;
     }
 
-    var sawResult = false;
     for (final raw in bundle.events) {
       final execEvent = bridgeOrLog(raw);
-      final speaker = raw is TextMessageStartEvent &&
-              raw.role == TextMessageRole.assistant &&
-              spoke.contains(raw.messageId)
-          ? raw.messageId
-          : null;
-      // A tool result ends the response that made the call: the producer is
-      // invoked again to decide what to do with it, and what it emits next is
-      // a new response. Live reads the same two signals — a message starting
-      // to speak, and an execution event that opens a response.
-      if (sawResult &&
-          (speaker != null ||
-              (execEvent != null && opensResponse(execEvent)))) {
-        claim();
-        sawResult = false;
+      // Live reads the same two signals — a message starting to speak, and an
+      // execution event that opens a response.
+      if (raw is TextMessageStartEvent &&
+          raw.role == TextMessageRole.assistant &&
+          spoke.contains(raw.messageId)) {
+        handOver(segmenter.speaks(raw.messageId));
       }
-      // The first message to speak in a response speaks for it. A producer
-      // that emits two texts in one response has not done two things, and
-      // splitting the response's work between them would put half of it above
-      // a line that did not ask for it.
-      voice ??= speaker;
-      if (raw is ToolCallResultEvent) sawResult = true;
+      if (execEvent != null) handOver(segmenter.arrives(execEvent));
 
       rawBuckets.putIfAbsent(unclaimed, () => []).add(raw);
       if (execEvent != null) {
@@ -147,8 +133,9 @@ Map<String, ExecutionTracker> replayToTrackers(
     // The run ended, so the response being filled ends with it and whoever
     // spoke in it takes the work. Whatever it was filling is the bucket no
     // terminal event accounted for.
-    endedOn.add(voice ?? unclaimed);
-    claim();
+    final takes = segmenter.ends();
+    endedOn.add(takes ?? unclaimed);
+    handOver(takes);
   }
 
   return {
