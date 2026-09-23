@@ -3337,6 +3337,59 @@ void main() {
       );
 
       test(
+        'a run that could not be fetched records no outcome, because none of '
+        'its events were read',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': {
+                'run-1': {
+                  'run_id': 'run-1',
+                  'created': '2026-01-07T01:00:00.000Z',
+                  'finished': '2026-01-07T01:01:00.000Z',
+                },
+              },
+            },
+          );
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenThrow(const NetworkException(message: 'Connection failed'));
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(history.runOutcomes, isEmpty);
+          expect(
+            history.messages.single,
+            isA<DroppedEventMessage>().having((m) => m.runId, 'runId', 'run-1'),
+          );
+        },
+      );
+
+      test(
         'non-Map run entry in runs envelope mints a drop tile so the run '
         'is visibly absent from replay',
         () async {
@@ -3367,6 +3420,7 @@ void main() {
           final drop = history.messages.whereType<DroppedEventMessage>().single;
           expect(drop.runId, 'run-1');
           expect(drop.reason, contains('shape'));
+          expect(history.runOutcomes, isEmpty);
         },
       );
 

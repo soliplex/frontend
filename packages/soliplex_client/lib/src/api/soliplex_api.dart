@@ -1341,7 +1341,13 @@ class SoliplexApi {
       // leaves a bundle that carries none with every message unattributed and
       // no record of how the run ended — and the backend's own status branches
       // describe stored runs that end without the events to prove it.
-      conversation = conversation.withStatus(Running(runId: runId));
+      //
+      // A run that could not be fetched has no events, and nothing is known of
+      // how it ended; its drop tile says so, and an open status would have the
+      // end-of-events rule below record that it finished.
+      if (fetchError == null) {
+        conversation = conversation.withStatus(Running(runId: runId));
+      }
 
       // Per-event try/catch so one bad event can't abort replay.
       final decodedEvents = <BaseEvent>[];
