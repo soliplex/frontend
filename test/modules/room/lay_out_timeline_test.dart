@@ -96,6 +96,24 @@ void main() {
       expect(idsOf(tiles), equals(['u1', loadingMessageId]));
     });
 
+    test('a reply that has streamed only whitespace shows the loading tile',
+        () {
+      // The producer drops an empty text part on a truthiness check, which a
+      // space or a newline passes, so a model that opens with one before
+      // calling a tool streams a reply holding nothing.
+      final tiles = layOut(
+        messages: [user('u1')],
+        streaming: const TextStreaming(
+          messageId: 'm1',
+          user: ChatUser.assistant,
+          text: ' \n',
+        ),
+        activeRunId: 'run-0',
+      );
+
+      expect(idsOf(tiles), equals(['u1', loadingMessageId]));
+    });
+
     test('a reply mid-stream shows its partial text and thinking', () {
       final tiles = layOut(
         messages: [user('u1')],
