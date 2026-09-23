@@ -16,48 +16,18 @@ List<TimedExecutionEvent> _untimed(List<ExecutionEvent> events) =>
     [for (final event in events) (event: event, timestamp: null)];
 
 void main() {
-  late Signal<ExecutionEvent?> events;
   late Signal<List<ActivityRecord>> activities;
   late ExecutionTracker tracker;
 
   setUp(() {
-    events = Signal<ExecutionEvent?>(null);
     activities = Signal<List<ActivityRecord>>(const []);
     tracker = ExecutionTracker(
-      executionEvents: events,
       activities: activities,
       logger: testLogger(),
     );
   });
 
   tearDown(() => tracker.dispose());
-
-  group('the event a signal is already holding', () {
-    // `subscribe` delivers the signal's current value at once. That value is
-    // the last event of the band that just closed, so without a guard the next
-    // band opens holding work the previous run did — an abandoned run's last
-    // execution row appearing at the top of the next answer.
-
-    test('the first event delivered after opening is kept, exactly once', () {
-      // The guard skips the synchronous replay only. A band that drops the
-      // first real event instead would lose the step that opens every run.
-      events.value = const ServerToolCallStarted(
-        toolCallId: 'c-abandoned',
-        toolName: 'search',
-      );
-      final next = ExecutionTracker(
-        executionEvents: events,
-        activities: activities,
-        logger: testLogger(),
-      );
-      addTearDown(next.dispose);
-
-      events.value = const ThinkingStarted();
-
-      expect(next.steps.value, hasLength(1));
-      expect(next.steps.value.single.label, equals('Thinking'));
-    });
-  });
 
   test('starts with empty steps and no thinking', () {
     expect(tracker.steps.value, isEmpty);
@@ -66,7 +36,7 @@ void main() {
   });
 
   test('ThinkingStarted adds an active thinking step', () {
-    events.value = const ThinkingStarted();
+    tracker.observe(const ThinkingStarted());
 
     expect(tracker.steps.value.length, 1);
     expect(tracker.steps.value.first.label, 'Thinking');
@@ -78,43 +48,43 @@ void main() {
     // A ThinkingEnded that arrives without a matching ThinkingStarted
     // (e.g., reasoning message bridged with no start) must clear the
     // streaming flag without inventing a step.
-    events.value = const ThinkingEnded();
+    tracker.observe(const ThinkingEnded());
 
     expect(tracker.steps.value, isEmpty);
     expect(tracker.isThinkingStreaming.value, isFalse);
   });
 
   test('ThinkingContent accumulates in current thinking block', () {
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'Hello ');
-    events.value = const ThinkingContent(delta: 'world');
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ThinkingContent(delta: 'Hello '));
+    tracker.observe(const ThinkingContent(delta: 'world'));
 
     expect(tracker.thinkingBlocks.value, ['Hello world']);
   });
 
   test('multiple thinking phases create separate blocks', () {
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'first');
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ThinkingContent(delta: 'first'));
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
-    events.value = const ServerToolCallCompleted(
+    ));
+    tracker.observe(const ServerToolCallCompleted(
       toolCallId: 'tc-1',
       result: 'done',
-    );
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'second');
+    ));
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ThinkingContent(delta: 'second'));
 
     expect(tracker.thinkingBlocks.value, ['first', 'second']);
   });
 
   test('ServerToolCallStarted completes previous step and adds new', () {
-    events.value = const ThinkingStarted();
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
+    ));
 
     expect(tracker.steps.value.length, 2);
     expect(tracker.steps.value[0].status, StepStatus.completed);
@@ -128,11 +98,11 @@ void main() {
     // The replay path derives offsets from stored event times and leaves them
     // null when it cannot; the live path has a running clock and must never
     // produce null, or the row silently renders no elapsed figure.
-    events.value = const ThinkingStarted();
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
+    ));
 
     // Asserted before the run completes, while the tool call is still open:
     // settling replaces the opening offset, so an assertion made only after
@@ -141,29 +111,29 @@ void main() {
     expect(tracker.steps.value, hasLength(2));
     expect(tracker.steps.value.every((s) => s.timestamp != null), isTrue);
 
-    events.value = const RunCompleted();
+    tracker.observe(const RunCompleted());
     expect(tracker.steps.value.every((s) => s.timestamp != null), isTrue);
   });
 
   test('ServerToolCallCompleted marks step completed', () {
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
-    events.value = const ServerToolCallCompleted(
+    ));
+    tracker.observe(const ServerToolCallCompleted(
       toolCallId: 'tc-1',
       result: 'done',
-    );
+    ));
 
     expect(tracker.steps.value.length, 1);
     expect(tracker.steps.value.first.status, StepStatus.completed);
   });
 
   test('ClientToolExecuting adds a step', () {
-    events.value = const ClientToolExecuting(
+    tracker.observe(const ClientToolExecuting(
       toolName: 'calculator',
       toolCallId: 'tc-2',
-    );
+    ));
 
     expect(tracker.steps.value.length, 1);
     expect(tracker.steps.value.first.label, 'calculator');
@@ -171,26 +141,26 @@ void main() {
   });
 
   test('ClientToolCompleted marks step completed', () {
-    events.value = const ClientToolExecuting(
+    tracker.observe(const ClientToolExecuting(
       toolName: 'calculator',
       toolCallId: 'tc-2',
-    );
-    events.value = const ClientToolCompleted(
+    ));
+    tracker.observe(const ClientToolCompleted(
       toolCallId: 'tc-2',
       result: '42',
       status: ToolCallStatus.completed,
-    );
+    ));
 
     expect(tracker.steps.value.first.status, StepStatus.completed);
   });
 
   test('RunCompleted marks all steps completed', () {
-    events.value = const ThinkingStarted();
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
-    events.value = const RunCompleted();
+    ));
+    tracker.observe(const RunCompleted());
 
     for (final step in tracker.steps.value) {
       expect(step.status, StepStatus.completed);
@@ -199,8 +169,8 @@ void main() {
   });
 
   test('RunFailed marks all active steps as failed', () {
-    events.value = const ThinkingStarted();
-    events.value = const RunFailed(error: 'oops');
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const RunFailed(error: 'oops'));
 
     for (final step in tracker.steps.value) {
       expect(step.status, StepStatus.failed);
@@ -208,8 +178,8 @@ void main() {
   });
 
   test('RunCancelled marks all active steps as failed', () {
-    events.value = const ThinkingStarted();
-    events.value = const RunCancelled();
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const RunCancelled());
 
     for (final step in tracker.steps.value) {
       expect(step.status, StepStatus.failed);
@@ -217,7 +187,7 @@ void main() {
   });
 
   test('freeze called twice is a no-op (idempotent)', () {
-    events.value = const ThinkingStarted();
+    tracker.observe(const ThinkingStarted());
     tracker.freeze(StepStatus.completed);
     expect(tracker.isFrozen, isTrue);
 
@@ -226,8 +196,8 @@ void main() {
   });
 
   test('freeze stops listening but preserves data', () {
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'hello');
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ThinkingContent(delta: 'hello'));
     tracker.freeze(StepStatus.completed);
 
     // Data is preserved
@@ -236,31 +206,25 @@ void main() {
     expect(tracker.isFrozen, isTrue);
 
     // New events are ignored
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
+    ));
     expect(tracker.steps.value.length, 1);
   });
 
   test('ActivitySnapshot does not affect steps or thinking', () {
-    events.value = const ThinkingStarted();
-    events.value = const ActivitySnapshot(
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ActivitySnapshot(
       messageId: 'rag:call_1',
       activityType: 'skill_tool_call',
       content: {'tool_name': 'search'},
-    );
+    ));
 
     expect(tracker.steps.value.length, 1);
     expect(tracker.steps.value.first.label, 'Thinking');
     expect(tracker.steps.value.first.status, StepStatus.active);
     expect(tracker.isThinkingStreaming.value, isTrue);
-  });
-
-  test('dispose stops listening to events', () {
-    tracker.dispose();
-    events.value = const ThinkingStarted();
-    expect(tracker.steps.value, isEmpty);
   });
 
   group('tool call detail', () {
@@ -273,41 +237,41 @@ void main() {
     test('thinking and client-tool steps carry no toolCallId', () {
       // Only a server tool call has args and a result to show, so only its
       // step is expandable. A null id is what makes the chevron absent.
-      events.value = const ThinkingStarted();
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ClientToolExecuting(
         toolName: 'local_tool',
         toolCallId: 'tc-client',
-      );
+      ));
 
       expect(steps().map((s) => s.toolCallId), [null, null]);
     });
 
     test('args deltas concatenate onto the step in arrival order', () {
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"query":"pump ',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: 'maintenance"}',
-      );
+      ));
 
       expect(steps().single.args, '{"query":"pump maintenance"}');
     });
 
     test('ServerToolCallCompleted attaches its result to the same call', () {
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_cite',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'Registered 2 citation(s).',
-      );
+      ));
 
       expect(steps().single.result, 'Registered 2 citation(s).');
       expect(steps().single.step.status, StepStatus.completed);
@@ -317,22 +281,22 @@ void main() {
       // A toolset that does not declare itself sequential can overlap calls, so
       // both the detail and the completion must follow the id. Resolving either
       // by position puts one call's result or check mark on the other's row.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'run_python',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallStarted(
+      ));
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'run',
         toolCallId: 'tc-2',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"script":"print(1)"}',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'first done',
-      );
+      ));
 
       final byId = {for (final s in steps()) s.toolCallId: s};
       expect(byId['tc-1']!.args, '{"script":"print(1)"}');
@@ -358,31 +322,31 @@ void main() {
       // The reload path buckets several runs' events into one tracker, so the
       // same id can open two steps. Detail must land on the one that opened
       // most recently, or the later run's args overwrite the earlier run's row.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"query":"first"}',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'first result',
-      );
-      events.value = const RunCompleted();
-      events.value = const ServerToolCallStarted(
+      ));
+      tracker.observe(const RunCompleted());
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"query":"second"}',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'second result',
-      );
+      ));
 
       expect(
         steps().map((s) => s.args),
@@ -396,15 +360,15 @@ void main() {
       // Without an observed TOOL_CALL_START there is no step to attach to. The
       // orphan must be discarded rather than landing on whichever step happens
       // to be present — here the thinking step.
-      events.value = const ThinkingStarted();
-      events.value = const ServerToolCallArgs(
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-missing',
         delta: '{"query":"orphan"}',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-missing',
         result: 'orphan result',
-      );
+      ));
 
       expect(steps().single.args, isEmpty);
       expect(steps().single.result, isNull);
@@ -429,7 +393,6 @@ void main() {
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
       subject = ExecutionTracker(
-        executionEvents: events,
         activities: activities,
         logger: testLogger(loggerName),
       );
@@ -437,11 +400,11 @@ void main() {
     });
 
     test('a run completing with no result for a call warns once', () {
-      events.value = const ServerToolCallStarted(
+      subject.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = const RunCompleted();
+      ));
+      subject.observe(const RunCompleted());
 
       final record = sink.warnings.single;
       expect(record.attributes['tools'], 'rag_search');
@@ -452,16 +415,16 @@ void main() {
       // A replay bucket holds several runs, and the scan covers the whole
       // timeline, so without per-id dedup run 1's gap is reported again at
       // every later run's completion.
-      events.value = const ServerToolCallStarted(
+      subject.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = const RunCompleted();
-      events.value = const ServerToolCallStarted(
+      ));
+      subject.observe(const RunCompleted());
+      subject.observe(const ServerToolCallStarted(
         toolName: 'rag_cite',
         toolCallId: 'tc-2',
-      );
-      events.value = const RunCompleted();
+      ));
+      subject.observe(const RunCompleted());
 
       expect(
         sink.warnings.map((r) => r.attributes['tools']),
@@ -471,15 +434,15 @@ void main() {
     });
 
     test('a call that returned a result is not reported', () {
-      events.value = const ServerToolCallStarted(
+      subject.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      subject.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: '',
-      );
-      events.value = const RunCompleted();
+      ));
+      subject.observe(const RunCompleted());
 
       expect(
         sink.warnings,
@@ -492,15 +455,15 @@ void main() {
       // The delta stream would flood the sink unthrottled, but a lost result
       // still has to be reported for an id whose args were already lost.
       for (var i = 0; i < 5; i++) {
-        events.value = ServerToolCallArgs(
+        subject.observe(ServerToolCallArgs(
           toolCallId: 'tc-missing',
           delta: 'chunk$i',
-        );
+        ));
       }
-      events.value = const ServerToolCallCompleted(
+      subject.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-missing',
         result: 'orphan',
-      );
+      ));
 
       expect(
         sink.warnings.map((r) => r.attributes['phase']),
@@ -614,7 +577,7 @@ void main() {
     });
 
     test('step appended as TimelineStep with empty activities', () {
-      events.value = const ThinkingStarted();
+      tracker.observe(const ThinkingStarted());
 
       expect(tracker.timeline.value, hasLength(1));
       final entry = tracker.timeline.value.single;
@@ -625,10 +588,10 @@ void main() {
     });
 
     test('activity during active step nests under it', () {
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
+      ));
       activities.value = const [
         ActivityRecord(
           messageId: 'bwrap:call_1',
@@ -637,12 +600,12 @@ void main() {
           timestamp: 100,
         ),
       ];
-      events.value = const ActivitySnapshot(
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
         content: {'tool_name': 'execute_script', 'args': '{}'},
         timestamp: 100,
-      );
+      ));
 
       expect(tracker.timeline.value, hasLength(1));
       final step = tracker.timeline.value.single as TimelineStep;
@@ -654,12 +617,12 @@ void main() {
     });
 
     test('activity arriving with no active step is standalone', () {
-      events.value = const ActivitySnapshot(
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
         content: {'tool_name': 'execute_script', 'args': '{}'},
         timestamp: 100,
-      );
+      ));
 
       expect(tracker.timeline.value, hasLength(1));
       expect(tracker.timeline.value.single, isA<TimelineStandaloneActivity>());
@@ -671,27 +634,27 @@ void main() {
       // Both placements are asserted because that gate sat upstream of the
       // choice between them, and every other test in this group uses a type
       // the old gate admitted.
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'plan_step',
         toolCallId: 'tc-1',
-      );
-      events.value = const ActivitySnapshot(
+      ));
+      tracker.observe(const ActivitySnapshot(
         messageId: 'plan:1',
         activityType: 'plan',
         content: {'steps': 3},
         timestamp: 100,
-      );
-      events.value = const ClientToolCompleted(
+      ));
+      tracker.observe(const ClientToolCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
         status: ToolCallStatus.completed,
-      );
-      events.value = const ActivitySnapshot(
+      ));
+      tracker.observe(const ActivitySnapshot(
         messageId: 'audit:1',
         activityType: 'audit',
         content: {'checked': true},
         timestamp: 200,
-      );
+      ));
 
       expect(tracker.timeline.value, hasLength(2));
       final nested = tracker.timeline.value.first as TimelineStep;
@@ -704,58 +667,58 @@ void main() {
     test(
         'activity after a completed step with no new active step is standalone',
         () {
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
-      events.value = const ClientToolCompleted(
+      ));
+      tracker.observe(const ClientToolCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
         status: ToolCallStatus.completed,
-      );
-      events.value = const ActivitySnapshot(
+      ));
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
         content: {'tool_name': 'execute_script', 'args': '{}'},
         timestamp: 100,
-      );
+      ));
 
       expect(tracker.timeline.value, hasLength(2));
       expect(tracker.timeline.value.last, isA<TimelineStandaloneActivity>());
     });
 
     test('multiple steps each get their own activities', () {
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
-      events.value = const ActivitySnapshot(
+      ));
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
         content: {'tool_name': 'execute_script', 'args': '{}'},
         timestamp: 100,
-      );
-      events.value = const ClientToolCompleted(
+      ));
+      tracker.observe(const ClientToolCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
         status: ToolCallStatus.completed,
-      );
-      events.value = const ClientToolExecuting(
+      ));
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-2',
-      );
-      events.value = const ActivitySnapshot(
+      ));
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_2',
         activityType: 'skill_tool_call',
         content: {'tool_name': 'list_environments', 'args': '{}'},
         timestamp: 200,
-      );
-      events.value = const ActivitySnapshot(
+      ));
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_3',
         activityType: 'skill_tool_call',
         content: {'tool_name': 'execute_script', 'args': '{}'},
         timestamp: 201,
-      );
+      ));
 
       final tl = tracker.timeline.value;
       expect(tl, hasLength(2));
@@ -767,10 +730,10 @@ void main() {
     });
 
     test('replace updates nested activity in place', () {
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
+      ));
       activities.value = const [
         ActivityRecord(
           messageId: 'bwrap:call_1',
@@ -783,7 +746,7 @@ void main() {
           timestamp: 100,
         ),
       ];
-      events.value = const ActivitySnapshot(
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
         content: {
@@ -792,7 +755,7 @@ void main() {
           'status': 'in_progress',
         },
         timestamp: 100,
-      );
+      ));
       activities.value = const [
         ActivityRecord(
           messageId: 'bwrap:call_1',
@@ -805,7 +768,7 @@ void main() {
           timestamp: 150,
         ),
       ];
-      events.value = const ActivitySnapshot(
+      tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
         content: {
@@ -814,7 +777,7 @@ void main() {
           'status': 'done',
         },
         timestamp: 150,
-      );
+      ));
 
       final step = tracker.timeline.value.single as TimelineStep;
       expect(step.activityIds, ['bwrap:call_1']);
@@ -822,15 +785,15 @@ void main() {
     });
 
     test('step completion updates status in timeline entry', () {
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
-      events.value = const ClientToolCompleted(
+      ));
+      tracker.observe(const ClientToolCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
         status: ToolCallStatus.completed,
-      );
+      ));
 
       final step = tracker.timeline.value.single as TimelineStep;
       expect(step.step.status, StepStatus.completed);
@@ -1069,8 +1032,8 @@ void main() {
   });
 
   test('freeze mid-thinking clears spinner and completes active step', () {
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'hello');
+    tracker.observe(const ThinkingStarted());
+    tracker.observe(const ThinkingContent(delta: 'hello'));
 
     expect(tracker.isThinkingStreaming.value, isTrue);
     expect(tracker.steps.value.single.status, StepStatus.active);
@@ -1086,10 +1049,10 @@ void main() {
     // Live, nothing else settles it: the state change that closes the band is
     // published before the terminal event that bridges to `RunFailed`, so the
     // band is already unsubscribed when that event would arrive.
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'c1',
-    );
+    ));
 
     expect(tracker.steps.value.single.status, StepStatus.active);
 

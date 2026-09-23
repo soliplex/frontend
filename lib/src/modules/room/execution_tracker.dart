@@ -34,28 +34,14 @@ bool opensResponse(ExecutionEvent event) => switch (event) {
     };
 
 class ExecutionTracker {
+  /// A band being collected live. Its events arrive through [observe].
   ExecutionTracker({
-    ReadonlySignal<ExecutionEvent?>? executionEvents,
     required ReadonlySignal<List<ActivityRecord>> activities,
     required Logger logger,
   })  : _logger = logger,
         _activities = Signal<List<ActivityRecord>>(activities.value),
         _historical = false {
     _stopwatch.start();
-    // `subscribe` delivers the signal's current value before it delivers
-    // anything new, and that value is the last event of the band that just
-    // closed. Counted here it would put an abandoned run's final execution row
-    // at the top of the next answer. Only that one synchronous delivery is
-    // skipped: the first event of this band's own work arrives afterwards and
-    // is kept, including when the signal was holding nothing to begin with.
-    var replayingCurrentValue = true;
-    _unsub = executionEvents?.subscribe((event) {
-      if (replayingCurrentValue) {
-        replayingCurrentValue = false;
-        return;
-      }
-      _onEvent(event);
-    });
     // Mirror the session-owned activities into our local signal so the
     // tracker stays self-contained when ThreadViewState absorbs it on
     // detach: freeze() drops the subscription, and the captured list
@@ -141,7 +127,6 @@ class ExecutionTracker {
   /// — or, once the loop has finished, of the last one.
   Duration? get _now => _historical ? _replayOffset : _stopwatch.elapsed;
 
-  void Function()? _unsub;
   void Function()? _activitiesUnsub;
   bool _isFrozen = false;
   bool get isFrozen => _isFrozen;
@@ -178,7 +163,8 @@ class ExecutionTracker {
       _thinkingBlocks.value.any((block) => block.trim().isNotEmpty);
 
   /// Marks the tracker terminal: clears the spinner, settles any step still
-  /// active as [unfinishedAs], and releases the subscription. Idempotent.
+  /// active as [unfinishedAs], and stops mirroring the session's activities.
+  /// Idempotent.
   ///
   /// Live, the registry freezes a band when its response ends — as completed,
   /// because the run moved on — and when the run ends. At the run's end the
@@ -191,8 +177,6 @@ class ExecutionTracker {
     if (_isFrozen) return;
     _isThinkingStreaming.value = false;
     _completeAllSteps(unfinishedAs);
-    _unsub?.call();
-    _unsub = null;
     _activitiesUnsub?.call();
     _activitiesUnsub = null;
     _stopwatch.stop();
@@ -201,10 +185,11 @@ class ExecutionTracker {
 
   /// Records [event] against this band.
   ///
-  /// For a caller that routes events itself rather than subscribing this band
-  /// to a signal. A write to a signal made inside another signal's callback
-  /// does not reach subscribers until that callback returns, so a router that
-  /// closes a band in the same breath would freeze it before the event landed.
+  /// Called by whoever routes the session's events, rather than the band
+  /// subscribing itself: a write to a signal made inside another signal's
+  /// callback does not reach subscribers until that callback returns, so a
+  /// router that closes a band in the same breath would freeze it before the
+  /// event landed.
   void observe(ExecutionEvent? event) {
     if (_isFrozen) return;
     _onEvent(event);
@@ -330,8 +315,8 @@ class ExecutionTracker {
     if (match == null) {
       // The client layer's warning for this condition tests a weaker
       // predicate — one `Conversation` spans a whole thread, while a tracker
-      // holds one message's bucket — so a call whose start landed in another
-      // bucket is unmatched here and known there. Report it on the replay
+      // holds one model response — so a call whose start landed in another
+      // response is unmatched here and known there. Report it on the replay
       // path too, or that delta is lost with no trace anywhere.
       _reportUnmatchedCall(toolCallId, 'args');
       return;
@@ -500,8 +485,6 @@ class ExecutionTracker {
   }
 
   void dispose() {
-    _unsub?.call();
-    _unsub = null;
     _activitiesUnsub?.call();
     _activitiesUnsub = null;
     _stopwatch.stop();

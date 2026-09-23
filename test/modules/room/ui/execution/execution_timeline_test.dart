@@ -20,16 +20,13 @@ const _roomId = 'r1';
 const _messageId = 'm1';
 
 void main() {
-  late Signal<ExecutionEvent?> events;
   late Signal<List<ActivityRecord>> activities;
   late ExecutionTracker tracker;
   late MessageExpansions store;
 
   setUp(() {
-    events = Signal<ExecutionEvent?>(null);
     activities = Signal<List<ActivityRecord>>(const []);
     tracker = ExecutionTracker(
-      executionEvents: events,
       activities: activities,
       logger: testLogger(),
     );
@@ -60,13 +57,13 @@ void main() {
     } else {
       activities.value = [...activities.value, record];
     }
-    events.value = ActivitySnapshot(
+    tracker.observe(ActivitySnapshot(
       messageId: messageId,
       activityType: activityType,
       content: content,
       timestamp: timestamp,
       replace: replace,
-    );
+    ));
   }
 
   tearDown(() => tracker.dispose());
@@ -112,10 +109,10 @@ void main() {
       // the dangling id rather than throw on the missing lookup: an id and
       // its record arrive by two independent routes, so either can be
       // present without the other.
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
+      ));
       pushSnapshot(
         messageId: 'rag:call_1',
         activityType: 'skill_tool_call',
@@ -139,10 +136,10 @@ void main() {
   );
 
   testWidgets('header counts step + nested activities', (tester) async {
-    events.value = const ClientToolExecuting(
+    tracker.observe(const ClientToolExecuting(
       toolName: 'execute_skill',
       toolCallId: 'tc-1',
-    );
+    ));
     pushSnapshot(
       messageId: 'bwrap:call_1',
       activityType: 'skill_tool_call',
@@ -163,7 +160,7 @@ void main() {
   });
 
   testWidgets('singular label when only one event', (tester) async {
-    events.value = const ThinkingStarted();
+    tracker.observe(const ThinkingStarted());
 
     await tester.pumpWidget(wrap(build()));
     await tester.pump();
@@ -172,10 +169,10 @@ void main() {
   });
 
   testWidgets('tap expands to show step and nested activity', (tester) async {
-    events.value = const ClientToolExecuting(
+    tracker.observe(const ClientToolExecuting(
       toolName: 'execute_skill',
       toolCallId: 'tc-1',
-    );
+    ));
     pushSnapshot(
       messageId: 'bwrap:call_1',
       activityType: 'skill_tool_call',
@@ -203,10 +200,10 @@ void main() {
       'tool_name': 'execute_script',
       'args': '{"script":"print(42)"}',
     };
-    events.value = const ClientToolExecuting(
+    tracker.observe(const ClientToolExecuting(
       toolName: 'execute_skill',
       toolCallId: 'tc-1',
-    );
+    ));
     pushSnapshot(
       messageId: 'bwrap:call_1',
       activityType: 'skill_tool_call',
@@ -253,14 +250,14 @@ void main() {
   });
 
   testWidgets('completed step shows check_circle icon', (tester) async {
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
-    events.value = const ServerToolCallCompleted(
+    ));
+    tracker.observe(const ServerToolCallCompleted(
       toolCallId: 'tc-1',
       result: 'ok',
-    );
+    ));
 
     await tester.pumpWidget(wrap(build()));
     await tester.pump();
@@ -286,8 +283,8 @@ void main() {
         Brightness.dark,
       );
 
-      events.value = const ThinkingStarted();
-      events.value = const RunCompleted();
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const RunCompleted());
 
       await tester.pumpWidget(
         ProviderScope(
@@ -315,10 +312,10 @@ void main() {
   testWidgets('running step shimmers its label instead of showing a spinner',
       (tester) async {
     // Started-but-not-completed: the step stays active.
-    events.value = const ServerToolCallStarted(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
-    );
+    ));
 
     await tester.pumpWidget(wrap(build()));
     await tester.pump();
@@ -486,7 +483,7 @@ void main() {
   group('MessageExpansions persistence', () {
     testWidgets('header expansion persists across parent-key swap',
         (tester) async {
-      events.value = const ThinkingStarted();
+      tracker.observe(const ThinkingStarted());
 
       Widget tree(Key parentKey) => wrap(
             KeyedSubtree(key: parentKey, child: build()),
@@ -507,10 +504,10 @@ void main() {
 
     testWidgets('source expansion persists across parent-key swap',
         (tester) async {
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
+      ));
       pushSnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
@@ -539,25 +536,19 @@ void main() {
     });
 
     testWidgets('state is keyed by both roomId and messageId', (tester) async {
-      events.value = const ThinkingStarted();
-
-      final events2 = Signal<ExecutionEvent?>(null);
+      tracker.observe(const ThinkingStarted());
       final tracker2 = ExecutionTracker(
-        executionEvents: events2,
         activities: Signal<List<ActivityRecord>>(const []),
         logger: testLogger(),
       );
       addTearDown(tracker2.dispose);
-      events2.value = const ThinkingStarted();
-
-      final events3 = Signal<ExecutionEvent?>(null);
+      tracker2.observe(const ThinkingStarted());
       final tracker3 = ExecutionTracker(
-        executionEvents: events3,
         activities: Signal<List<ActivityRecord>>(const []),
         logger: testLogger(),
       );
       addTearDown(tracker3.dispose);
-      events3.value = const ThinkingStarted();
+      tracker3.observe(const ThinkingStarted());
 
       // Three widgets: (r1, m1), (r1, other-msg), (other-room, m1).
       // Tapping the first must not affect the other two.
@@ -579,7 +570,7 @@ void main() {
     });
 
     testWidgets('collapse persists across parent-key swap', (tester) async {
-      events.value = const ThinkingStarted();
+      tracker.observe(const ThinkingStarted());
 
       Widget tree(Key parentKey) => wrap(
             KeyedSubtree(key: parentKey, child: build()),
@@ -603,7 +594,7 @@ void main() {
 
     testWidgets('header toggle in loading phase uses local state only',
         (tester) async {
-      events.value = const ThinkingStarted();
+      tracker.observe(const ThinkingStarted());
 
       await tester.pumpWidget(wrap(build(messageId: loadingMessageId)));
       await tester.pump();
@@ -619,10 +610,10 @@ void main() {
 
     testWidgets('source toggle in loading phase uses local state only',
         (tester) async {
-      events.value = const ClientToolExecuting(
+      tracker.observe(const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
+      ));
       pushSnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
@@ -664,18 +655,18 @@ void main() {
     }
 
     testWidgets('expands to show arguments and result', (tester) async {
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'analysis_execute_code',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"code":"df.groupby(\'site\').mean()"}',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'site   value\nA      12.4',
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -693,14 +684,14 @@ void main() {
       // The state of every tool call row between its start and its first delta,
       // of a call whose stream was truncated, and of a tool returning no output.
       // An empty grey block would be worse than no block.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'list_environments',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: '',
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -716,11 +707,12 @@ void main() {
         (tester) async {
       // A no-argument tool sends `{}`. Pretty-printing that produces a block
       // whose entire content is `{}` — an affordance hiding nothing.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'list_environments',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(toolCallId: 'tc-1', delta: '{}');
+      ));
+      tracker
+          .observe(const ServerToolCallArgs(toolCallId: 'tc-1', delta: '{}'));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -743,12 +735,12 @@ void main() {
       // unscaled, long enough to overflow scaled — so both directions are
       // asserted and a length that drifts out of that band fails loudly.
       final wrapping = 'wrapped ' * 40;
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value =
-          ServerToolCallCompleted(toolCallId: 'tc-1', result: wrapping);
+      ));
+      tracker.observe(
+          ServerToolCallCompleted(toolCallId: 'tc-1', result: wrapping));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -776,14 +768,14 @@ void main() {
         (tester) async {
       // `command` is the sandbox shell tool's argument; the preference list is
       // shared with the activity rows, so its contents are load-bearing twice.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'run',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"command":"ls -la","environment_name":"default"}',
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -793,7 +785,7 @@ void main() {
     });
 
     testWidgets('a step with no detail is not expandable', (tester) async {
-      events.value = const ThinkingStarted();
+      tracker.observe(const ThinkingStarted());
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -809,14 +801,14 @@ void main() {
         (tester) async {
       // While TOOL_CALL_ARGS is still streaming, the accumulated string is a
       // JSON prefix, so the formatter must not require it to parse.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"query":"Soli',
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -829,14 +821,14 @@ void main() {
       // A rag_search result is 20-35 KB of chunk text. Showing all of it by
       // default buries the rest of the timeline.
       final long = List.generate(40, (i) => 'chunk line $i').join('\n');
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
-      );
-      events.value = ServerToolCallCompleted(
+      ));
+      tracker.observe(ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: long,
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -859,14 +851,14 @@ void main() {
         (tester) async {
       // Same principle as the step row's chevron: no affordance where nothing
       // is hidden.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_cite',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'Registered 2 citation(s).',
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -884,18 +876,18 @@ void main() {
       // one would make "Show more" under Arguments unclamp the Result too.
       final script = List.generate(40, (i) => 'script line $i').join('\n');
       final result = List.generate(40, (i) => 'result line $i').join('\n');
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'run_python',
         toolCallId: 'tc-1',
-      );
-      events.value = ServerToolCallArgs(
+      ));
+      tracker.observe(ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: jsonEncode({'script': script}),
-      );
-      events.value = ServerToolCallCompleted(
+      ));
+      tracker.observe(ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: result,
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -922,11 +914,11 @@ void main() {
       // unclamp every other row in the run.
       final long = List.generate(40, (i) => 'line $i').join('\n');
       for (final id in ['tc-1', 'tc-2']) {
-        events.value = ServerToolCallStarted(
+        tracker.observe(ServerToolCallStarted(
           toolName: 'rag_search_$id',
           toolCallId: id,
-        );
-        events.value = ServerToolCallCompleted(toolCallId: id, result: long);
+        ));
+        tracker.observe(ServerToolCallCompleted(toolCallId: id, result: long));
       }
 
       await tester.pumpWidget(wrap(build()));
@@ -948,14 +940,14 @@ void main() {
         (tester) async {
       // Args carrying no recognised key: the whole object is the only thing
       // worth showing.
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallArgs(
+      ));
+      tracker.observe(const ServerToolCallArgs(
         toolCallId: 'tc-1',
         delta: '{"request":"Search the docs","skill_name":"rag"}',
-      );
+      ));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();

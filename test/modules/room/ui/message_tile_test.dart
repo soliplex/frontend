@@ -67,19 +67,17 @@ void main() {
     testWidgets(
         'renders ExecutionTimeline and ThinkingBlock when tracker provided',
         (tester) async {
-      final events = Signal<ExecutionEvent?>(null);
       final tracker = ExecutionTracker(
-        executionEvents: events,
         activities: Signal<List<ActivityRecord>>(const []),
         logger: testLogger(),
       );
 
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'reasoning...');
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'reasoning...'));
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'search',
         toolCallId: 'tc-1',
-      );
+      ));
 
       final msg = TextMessage(
         id: 'msg-1',
@@ -141,15 +139,13 @@ void main() {
 
     testWidgets('prefers ExecutionThinkingBlock over message thinkingText',
         (tester) async {
-      final events = Signal<ExecutionEvent?>(null);
       final tracker = ExecutionTracker(
-        executionEvents: events,
         activities: Signal<List<ActivityRecord>>(const []),
         logger: testLogger(),
       );
 
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'live thinking');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'live thinking'));
 
       final msg = TextMessage(
         id: 'msg-1',
@@ -191,15 +187,13 @@ void main() {
     });
 
     testWidgets('renders execution widgets with tracker', (tester) async {
-      final events = Signal<ExecutionEvent?>(null);
       final tracker = ExecutionTracker(
-        executionEvents: events,
         activities: Signal<List<ActivityRecord>>(const []),
         logger: testLogger(),
       );
 
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'working...');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'working...'));
 
       await tester.pumpWidget(_wrap(LoadingMessageTile(
         roomId: 'r',

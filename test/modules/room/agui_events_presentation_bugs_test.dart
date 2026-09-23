@@ -106,10 +106,8 @@ void main() {
       'live tracker: call ActivitySnapshot then result ActivitySnapshot '
       'on the same messageId leave one row, carrying the result',
       () {
-        final events = Signal<ExecutionEvent?>(null);
         final activities = Signal<List<ActivityRecord>>(const []);
         final tracker = ExecutionTracker(
-          executionEvents: events,
           activities: activities,
           logger: testLogger(),
         );
@@ -134,7 +132,7 @@ void main() {
           callEvent,
           logger: testLogger(),
         );
-        events.value = callSnapshot;
+        tracker.observe(callSnapshot);
 
         final calls = tracker.activities.value;
         expect(calls, hasLength(1));
@@ -156,7 +154,7 @@ void main() {
           resultEvent,
           logger: testLogger(),
         );
-        events.value = resultSnapshot;
+        tracker.observe(resultSnapshot);
 
         final updated = tracker.activities.value;
         expect(
