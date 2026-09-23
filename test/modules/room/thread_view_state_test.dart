@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
@@ -1093,6 +1094,49 @@ void main() {
         expect(state.lastSendError.value?.error, 'Some other failure');
 
         state.dispose();
+      },
+    );
+
+    test(
+      'a failed run is logged by its reason and run, never by the error text '
+      'the backend sent',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        addTearDown(state.dispose);
+        await Future<void>.delayed(Duration.zero);
+
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(
+          const FailedState.duringRun(
+            threadKey: (
+              serverId: 'test-server',
+              roomId: 'room-1',
+              threadId: 'thread-1',
+            ),
+            runId: 'run-1',
+            reason: FailureReason.serverError,
+            error: 'backend-supplied detail',
+          ),
+        );
+
+        final record = sink.records.singleWhere(
+          (r) => r.message.startsWith('Thread run failed'),
+        );
+        expect(record.toString(), isNot(contains('backend-supplied detail')));
+        expect(record.attributes, containsPair('runId', 'run-1'));
       },
     );
 
