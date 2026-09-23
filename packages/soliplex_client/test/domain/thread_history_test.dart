@@ -156,9 +156,8 @@ void main() {
   group('run outcomes', () {
     test('a history carries how each run ended', () {
       final parked = NoResponseTile.cancelled(
-        id: noResponseMessageId('run-0'),
-        thinkingText: 'weighing it',
         runId: 'run-0',
+        thinkingText: 'weighing it',
       );
 
       final history = ThreadHistory(

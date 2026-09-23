@@ -214,24 +214,9 @@ class Conversation {
     return copyWith(status: newStatus);
   }
 
-  /// Returns a copy recording how [runId] ended.
-  ///
-  /// [outcome] must name [runId] as its own run. The key decides which slot
-  /// the thread reads the record from, and the tile's `runId` decides which
-  /// run a report about it is filed against; those are read in different
-  /// places, so a disagreement between them would file a report against a run
-  /// that did not produce the tile. Rejected rather than reconciled: either
-  /// side could be the wrong one, and nothing here can tell which.
-  Conversation withRunOutcome(String runId, NoResponseTile outcome) {
-    if (outcome.runId != runId) {
-      throw ArgumentError.value(
-        outcome.runId,
-        'outcome.runId',
-        'does not name the run this outcome is parked under',
-      );
-    }
-    return copyWith(runOutcomes: {...runOutcomes, runId: outcome});
-  }
+  /// Returns a copy recording how [outcome]'s run ended, keyed by that run.
+  Conversation withRunOutcome(NoResponseTile outcome) =>
+      copyWith(runOutcomes: {...runOutcomes, outcome.runId: outcome});
 
   /// Returns a copy with [runId]'s outcome withdrawn, for a run that turned out
   /// not to have ended after all — a `RUN_FINISHED` that yields to a client

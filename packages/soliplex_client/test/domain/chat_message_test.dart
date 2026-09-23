@@ -114,7 +114,7 @@ void main() {
   group('NoResponseTile', () {
     test('synthesized tile is always an assistant message', () {
       final tile = NoResponseTile.finished(
-        id: 'no-response-run-1',
+        runId: 'run-1',
         thinkingText: '',
       );
 
@@ -123,12 +123,12 @@ void main() {
 
     test('hasThinkingText reflects thinking content', () {
       final empty = NoResponseTile.failed(
-        id: 'no-response-run-1',
+        runId: 'run-1',
         thinkingText: '',
         errorDetail: 'boom',
       );
       final filled = NoResponseTile.failed(
-        id: 'no-response-run-2',
+        runId: 'run-2',
         thinkingText: 'reasoning',
         errorDetail: 'boom',
       );
@@ -139,12 +139,12 @@ void main() {
 
     test('failed factory carries errorDetail; cancelled factory has none', () {
       final failed = NoResponseTile.failed(
-        id: 'no-response-run-1',
+        runId: 'run-1',
         thinkingText: '',
         errorDetail: 'rate limit',
       );
       final cancelled = NoResponseTile.cancelled(
-        id: 'no-response-run-2',
+        runId: 'run-2',
         thinkingText: '',
       );
 
@@ -349,7 +349,7 @@ void main() {
           reason: 'malformed JSON',
         ),
         NoResponseTile.finished(
-          id: 'no-response-run-1',
+          runId: 'run-1',
           thinkingText: '',
         ),
       ];
@@ -671,7 +671,7 @@ void _attachmentNumbering() {
     test('a non-text tile is not a message that failed to speak', () {
       expect(
         existsOnlyForToolCall(
-          NoResponseTile.finished(id: 'n1', thinkingText: ''),
+          NoResponseTile.finished(runId: 'run-1', thinkingText: ''),
         ),
         isFalse,
       );

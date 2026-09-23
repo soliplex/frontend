@@ -35,7 +35,7 @@ TextMessage user(String id, {String text = 'ask', String? run}) => TextMessage(
     );
 
 NoResponseTile outcome(String run) =>
-    NoResponseTile.finished(id: noResponseMessageId(run), thinkingText: '');
+    NoResponseTile.finished(runId: run, thinkingText: '');
 
 /// The ids of the tiles laid out, in order.
 List<String> idsOf(List<RenderedTile> tiles) =>
@@ -153,8 +153,8 @@ void main() {
         activeRunId: 'run-0',
       );
 
-      expect(loading.single.runId, equals('run-0'));
-      expect(partial.single.runId, equals('run-0'));
+      expect(loading.single.message.runId, equals('run-0'));
+      expect(partial.single.message.runId, equals('run-0'));
     });
   });
 
@@ -201,7 +201,7 @@ void main() {
       );
 
       expect(idsOf(tiles), equals(['u1', noResponseMessageId('run-0')]));
-      expect(tiles.last.runId, equals('run-0'));
+      expect(tiles.last.message.runId, equals('run-0'));
     });
 
     test('a run that answered gets no outcome', () {
@@ -366,10 +366,9 @@ void main() {
         bands: {noResponseMessageId('run-0'): trailing},
         outcomes: {
           'run-0': NoResponseTile.failed(
-            id: noResponseMessageId('run-0'),
+            runId: 'run-0',
             thinkingText: '',
             errorDetail: 'the model stream broke off',
-            runId: 'run-0',
           ),
           'run-1': outcome('run-1'),
         },
@@ -403,10 +402,9 @@ void main() {
 
     group('showing that a run failed', () {
       NoResponseTile failed(String run) => NoResponseTile.failed(
-            id: noResponseMessageId(run),
+            runId: run,
             thinkingText: '',
             errorDetail: 'upstream said no',
-            runId: run,
           );
 
       test('a failed run with nothing to show says so once', () {
@@ -444,10 +442,9 @@ void main() {
           messages: [
             user('u1'),
             NoResponseTile.failed(
-              id: noResponseMessageId('run-0'),
+              runId: 'run-0',
               thinkingText: '',
               errorDetail: 'upstream said no',
-              runId: 'run-0',
             ),
           ],
           outcomes: {'run-0': failed('run-0')},
@@ -499,12 +496,11 @@ void main() {
         expect(
           withSurvivor(
             NoResponseTile.finished(
-              id: 'already-there',
-              thinkingText: '',
               runId: 'run-0',
+              thinkingText: '',
             ),
           ),
-          equals(['u1', 'already-there']),
+          equals(['u1', noResponseMessageId('run-0')]),
         );
       });
 
@@ -732,9 +728,8 @@ void main() {
       // reasoning to a reply that said something else.
       final b = band();
       final parked = NoResponseTile.finished(
-        id: noResponseMessageId('run-0'),
-        thinkingText: 'weighing it',
         runId: 'run-0',
+        thinkingText: 'weighing it',
       );
 
       final tiles = layOut(

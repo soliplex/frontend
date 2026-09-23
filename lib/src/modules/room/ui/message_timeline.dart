@@ -455,8 +455,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                         final tile = MessageTile(
                           roomId: widget.roomId,
                           message: message,
-                          runId: entry.runId ??
-                              resolveRunId(message, widget.messageStates),
+                          runId: resolveRunId(message, widget.messageStates),
                           sourceReferences: _sourceReferencesMap[message.id],
                           onFeedbackSubmit: widget.onFeedbackSubmit,
                           onReportRun: widget.onReportRun,

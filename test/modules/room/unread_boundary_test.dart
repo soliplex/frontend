@@ -126,9 +126,8 @@ void main() {
       ];
       final outcomes = {
         'run-1': NoResponseTile.finished(
-          id: noResponseMessageId('run-1'),
-          thinkingText: 'weighing it',
           runId: 'run-1',
+          thinkingText: 'weighing it',
         ),
       };
       final shown = [
@@ -184,9 +183,8 @@ void main() {
         ],
         outcomes: {
           'run-1': NoResponseTile.finished(
-            id: noResponseMessageId('run-1'),
-            thinkingText: '',
             runId: 'run-1',
+            thinkingText: '',
           ),
         },
         bands: {noResponseMessageId('run-1'): trailing},

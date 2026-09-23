@@ -23,18 +23,18 @@ NoResponseTile _tile({
 }) =>
     switch (reason) {
       TerminalReason.failed => NoResponseTile.failed(
-          id: 'no-response-run-1',
+          runId: 'run-1',
           createdAt: DateTime(2026),
           thinkingText: thinkingText,
           errorDetail: errorDetail ?? '',
         ),
       TerminalReason.cancelled => NoResponseTile.cancelled(
-          id: 'no-response-run-1',
+          runId: 'run-1',
           createdAt: DateTime(2026),
           thinkingText: thinkingText,
         ),
       TerminalReason.finished => NoResponseTile.finished(
-          id: 'no-response-run-1',
+          runId: 'run-1',
           createdAt: DateTime(2026),
           thinkingText: thinkingText,
         ),
@@ -46,7 +46,7 @@ void main() {
       NoResponseTileWidget(
         roomId: 'r',
         message: NoResponseTile.finished(
-          id: 'nr1',
+          runId: 'run-1',
           createdAt: DateTime(2020, 3, 3, 9, 3),
           thinkingText: 'thinking',
         ),

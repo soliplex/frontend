@@ -545,7 +545,7 @@ void main() {
             createdAt: DateTime.now(),
           ),
           NoResponseTile.cancelled(
-            id: 'no-response-run-1',
+            runId: 'run-1',
             thinkingText: 'reasoning preserved on cancel',
           ),
           TextMessage(

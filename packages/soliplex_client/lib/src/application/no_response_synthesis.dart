@@ -6,12 +6,6 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.no_response_synthesis');
 
-/// Single source of truth for the id of a run's parked outcome. It doubles as
-/// the key of a band that collected while no message had spoken, so parking,
-/// band keying on both paths, and placement all have to derive it here for the
-/// three to agree about the same run.
-String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
-
 /// Id of the row that reports a failed run which has something else to show
 /// for itself, and so shows no outcome tile of its own to carry the failure.
 String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
@@ -24,7 +18,6 @@ String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
 String preRunErrorMessageId(String threadId, String message) =>
     '$_preRunErrorIdPrefix$threadId-${message.hashCode}';
 
-const _noResponseIdPrefix = 'no-response-';
 const _runErrorIdPrefix = 'run-error-';
 const _preRunErrorIdPrefix = 'pre-run-error-';
 
@@ -39,12 +32,10 @@ Conversation parkFinishedOutcome({
     _park(
       conversation: conversation,
       streaming: streaming,
-      runId: runId,
-      build: (id, thinking) => NoResponseTile.finished(
-        id: id,
+      build: (thinking) => NoResponseTile.finished(
+        runId: runId,
         thinkingText: thinking,
         createdAt: createdAt,
-        runId: runId,
       ),
     );
 
@@ -61,13 +52,11 @@ Conversation parkFailedOutcome({
     _park(
       conversation: conversation,
       streaming: streaming,
-      runId: runId,
-      build: (id, thinking) => NoResponseTile.failed(
-        id: id,
+      build: (thinking) => NoResponseTile.failed(
+        runId: runId,
         thinkingText: thinking,
         errorDetail: errorDetail,
         createdAt: createdAt,
-        runId: runId,
       ),
     );
 
@@ -81,23 +70,21 @@ Conversation parkCancelledOutcome({
     _park(
       conversation: conversation,
       streaming: streaming,
-      runId: runId,
-      build: (id, thinking) => NoResponseTile.cancelled(
-        id: id,
+      build: (thinking) => NoResponseTile.cancelled(
+        runId: runId,
         thinkingText: thinking,
         createdAt: createdAt,
-        runId: runId,
       ),
     );
 
-/// Parks [runId]'s outcome, always.
+/// Parks the outcome [build] makes, always.
 ///
 /// Nothing here asks whether the run has anything else to show for itself.
 /// That question needs the whole thread — a run that answered has a reply to
 /// stand for it — and the answer is not available at the moment a run ends.
-/// Parking a candidate and letting the thread decide replaces three guesses
-/// that each had to be right: that a reply was not mid-stream, that some
-/// reasoning had been buffered, and that no tool call was still open.
+/// Parking a candidate and letting the thread decide means nothing here has to
+/// know whether a reply was mid-stream, whether reasoning had been buffered, or
+/// whether a tool call was still open.
 ///
 /// The reasoning travels with the candidate, from whichever state the run was
 /// in when it stopped. A reply already committed carries its own copy, and a
@@ -105,17 +92,13 @@ Conversation parkCancelledOutcome({
 Conversation _park({
   required Conversation conversation,
   required StreamingState streaming,
-  required String runId,
-  required NoResponseTile Function(String id, String thinkingText) build,
+  required NoResponseTile Function(String thinkingText) build,
 }) {
   final thinking = switch (streaming) {
     AwaitingText(:final bufferedThinkingText) => bufferedThinkingText,
     TextStreaming(:final thinkingText) => thinkingText,
   };
-  return conversation.withRunOutcome(
-    runId,
-    build(noResponseMessageId(runId), thinking),
-  );
+  return conversation.withRunOutcome(build(thinking));
 }
 
 /// Commits an in-flight `TextStreaming` reply as a finalized [TextMessage]

@@ -7,12 +7,10 @@ import 'execution_tracker.dart';
 /// persistence key — state written under it would leak into the next reply.
 const loadingMessageId = '_loading';
 
-/// What the timeline shows: a tile, the execution band it renders, and the run
-/// the tile belongs to.
+/// What the timeline shows: a tile and the execution band it renders.
 typedef RenderedTile = ({
   ChatMessage message,
   ExecutionTracker? band,
-  String? runId,
 });
 
 /// The tiles the timeline shows, and the band each one renders.
@@ -92,7 +90,7 @@ List<RenderedTile> layOutTimeline({
 /// report rather than as noise: a band rendering nowhere means the run's work
 /// vanished from a turn the user watched happen.
 List<RenderedTile> _placeBands({
-  required List<({ChatMessage message, String? runId})> tiles,
+  required List<ChatMessage> tiles,
   required Map<String, ExecutionTracker> bands,
   required Set<String> knownRuns,
   required Logger logger,
@@ -106,7 +104,7 @@ List<RenderedTile> _placeBands({
     // A message id first. A run's outcome tile carries the id its unclaimed
     // band is keyed by, and is the run's last band-capable tile, so both
     // readings of that key reach the same tile.
-    final named = tiles.indexWhere((t) => t.message.id == key);
+    final named = tiles.indexWhere((t) => t.id == key);
     final (runId, target) = named >= 0
         ? (
             tiles[named].runId,
@@ -131,11 +129,11 @@ List<RenderedTile> _placeBands({
     if (placed[target] != null) {
       logger.warning(
         'Execution band $key would be the second on tile '
-        '${tiles[target].message.id}; dropping it '
+        '${tiles[target].id}; dropping it '
         '(${band.timeline.value.length} entries, run ${runId ?? "unknown"})',
         attributes: {
           'band': key,
-          'tile': tiles[target].message.id,
+          'tile': tiles[target].id,
           'entries': band.timeline.value.length,
           'runId': runId,
         },
@@ -146,12 +144,7 @@ List<RenderedTile> _placeBands({
   }
 
   return [
-    for (var i = 0; i < tiles.length; i++)
-      (
-        message: tiles[i].message,
-        band: placed[i],
-        runId: tiles[i].runId,
-      ),
+    for (var i = 0; i < tiles.length; i++) (message: tiles[i], band: placed[i]),
   ];
 }
 
@@ -159,13 +152,13 @@ List<RenderedTile> _placeBands({
 /// band, or `-1` when the run has none. User tiles and diagnostic rows are
 /// skipped: they render no band, so stopping on one would lose it.
 int _firstBandCapableAt(
-  List<({ChatMessage message, String? runId})> tiles, {
+  List<ChatMessage> tiles, {
   required int from,
   required String? inRun,
 }) {
   for (var i = from; i < tiles.length; i++) {
     final tile = tiles[i];
-    if (tile.runId == inRun && _standsInForItsRun(tile.message)) return i;
+    if (tile.runId == inRun && _standsInForItsRun(tile)) return i;
   }
   return -1;
 }
@@ -173,12 +166,12 @@ int _firstBandCapableAt(
 /// The index of the last tile of [runId] that can host a band, or `-1` when
 /// the run has none.
 int _lastBandCapableIn(
-  List<({ChatMessage message, String? runId})> tiles,
+  List<ChatMessage> tiles,
   String runId,
 ) {
   for (var i = tiles.length - 1; i >= 0; i--) {
     final tile = tiles[i];
-    if (tile.runId == runId && _standsInForItsRun(tile.message)) return i;
+    if (tile.runId == runId && _standsInForItsRun(tile)) return i;
   }
   return -1;
 }
@@ -191,7 +184,7 @@ int _lastBandCapableIn(
 /// before an unrelated question renders above that question rather than after
 /// it. A message that names no run closes the run before it, which is what puts
 /// that outcome ahead of a turn still waiting for its own run to begin.
-List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
+List<ChatMessage> _guaranteeATilePerRun({
   required List<ChatMessage> projected,
   required Map<String, NoResponseTile> outcomes,
   required String? activeRunId,
@@ -217,8 +210,7 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   // failure and is represented by something else does.
   final runsReportingThemselves = {
     for (final message in shown)
-      if (message is NoResponseTile)
-        if (message.runId case final runId?) runId,
+      if (message is NoResponseTile) message.runId,
   };
   // A failed run whose reply survives keeps that reply, so its outcome tile is
   // suppressed — and with it the only account of why the run failed. The
@@ -239,22 +231,21 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
   // what places a run that committed nothing.
   final endedIn = outcomes.keys.toList();
 
-  final tiles = <({ChatMessage message, String? runId})>[];
+  final tiles = <ChatMessage>[];
   void settle(String runId) {
     if (owed.remove(runId)) {
-      tiles.add((message: outcomes[runId]!, runId: runId));
+      tiles.add(outcomes[runId]!);
       return;
     }
     if (!unreported.remove(runId)) return;
-    tiles.add((
-      message: ErrorMessage.create(
+    tiles.add(
+      ErrorMessage.create(
         id: runErrorMessageId(runId),
         message: outcomes[runId]!.errorDetail ?? '',
         createdAt: outcomes[runId]!.createdAt,
         runId: runId,
       ),
-      runId: runId,
-    ));
+    );
   }
 
   /// Settles every owed run that ended before [runId] did, when that is
@@ -287,7 +278,7 @@ List<({ChatMessage message, String? runId})> _guaranteeATilePerRun({
     if (runId != null) settleRunsEndingBefore(runId);
     openRun = runId;
     if (existsOnlyForToolCall(message)) continue;
-    tiles.add((message: message, runId: runId));
+    tiles.add(message);
   }
   // Whatever is still owed ended after everything the timeline holds, so it
   // belongs at the foot of it, in the order the runs ended.
