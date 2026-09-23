@@ -55,6 +55,74 @@ typedef _Inputs = ({
   Map<String, NoResponseTile> outcomes,
 });
 
+/// The timeline as the room screen would lay it out in [state], or null when
+/// there is no run to show yet.
+TimelineLayout? _layOutNow(
+  RunState state,
+  Map<String, ExecutionTracker> bands,
+) {
+  final (conversation, streaming, activeRunId) = switch (state) {
+    RunningState(:final conversation, :final streaming, :final runId) => (
+        conversation,
+        streaming,
+        runId,
+      ),
+    CompletedState(:final conversation) => (conversation, null, null),
+    FailedState(:final conversation?) => (conversation, null, null),
+    CancelledState(:final conversation?) => (conversation, null, null),
+    _ => (null, null, null),
+  };
+  if (conversation == null) return null;
+  return layOutTimeline(
+    messages: conversation.messages,
+    bands: bands,
+    outcomes: conversation.runOutcomes,
+    streaming: streaming,
+    activeRunId: activeRunId,
+  );
+}
+
+/// Checks every layout of a live run, one event at a time, for what a user
+/// watching it would see go wrong.
+///
+/// Final states are pinned elsewhere; this is the only check on what happens
+/// between them, where a band can leave a reply and come back while every end
+/// state stays correct.
+class _BandWatch {
+  /// The tile each band, by identity, first rested on other than the loading
+  /// tile. The loading tile stands in for a reply that has not spoken yet, so a
+  /// band may leave it; from anywhere else, moving is the band visibly jumping.
+  final Map<ExecutionTracker, String> _restedOn = {};
+
+  void check(TimelineLayout? layout, String when) {
+    if (layout == null) return;
+    expect(layout.dropped, isEmpty, reason: '$when: bands dropped');
+    final tileOf = {
+      for (final (:message, :band) in layout.tiles)
+        if (band != null) band: message,
+    };
+    for (final MapEntry(key: band, value: tile) in tileOf.entries) {
+      if (!band.hasWork) continue;
+      expect(
+        tile.runId,
+        equals(_runId),
+        reason: '$when: a band with work is on tile ${tile.id} of another run',
+      );
+    }
+    for (final MapEntry(key: band, value: restedOn) in _restedOn.entries) {
+      expect(
+        tileOf[band]?.id,
+        equals(restedOn),
+        reason: '$when: a band that was on tile $restedOn left it',
+      );
+    }
+    for (final MapEntry(key: band, value: tile) in tileOf.entries) {
+      if (tile is LoadingMessage) continue;
+      _restedOn.putIfAbsent(band, () => tile.id);
+    }
+  }
+}
+
 Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
   final api = _MockApi();
   final streamClient = _MockStreamClient();
@@ -101,16 +169,28 @@ Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
     logger: testLogger('session'),
   );
 
+  final watch = _BandWatch();
   unawaited(session.start(userMessage: [const TextPart('Q')]));
   await Future<void>.delayed(Duration.zero);
-  for (final event in sequence) {
+  for (final (index, event) in sequence.indexed) {
     events.add(event);
     // A real stream does not pause between events. Yielding after each one
     // hides anything that depends on them arriving one at a time.
-    if (!burst) await Future<void>.delayed(Duration.zero);
+    if (burst) continue;
+    await Future<void>.delayed(Duration.zero);
+    watch.check(
+      _layOutNow(orchestrator.currentState, ext.trackers),
+      'after event $index (${event.runtimeType})',
+    );
   }
   await events.close();
   await Future<void>.delayed(Duration.zero);
+  if (!burst) {
+    watch.check(
+      _layOutNow(orchestrator.currentState, ext.trackers),
+      'after the stream closed',
+    );
+  }
 
   final conversation = switch (orchestrator.currentState) {
     CompletedState(:final conversation) => conversation,
@@ -816,6 +896,62 @@ void main() {
           answerEntries.whereType<TimelineStandaloneActivity>(),
           isEmpty,
           reason: "$path: the progress landed in the answer's band",
+        );
+      }
+    });
+
+    test('the response after a tool thinks, then the stream breaks off',
+        () async {
+      final sequence = [
+        ...speaksThenCalls(['c1']),
+        result('c1', 'something random'),
+        stateWritten,
+        ..._reasoning('r2', 'One more thing to check.'),
+        const RunErrorEvent(message: 'the model stream broke off'),
+      ];
+      await _expectParity(sequence);
+
+      // Parity passes when both paths hand the later thinking to the reply,
+      // so pin that it rides the failed run's outcome tile instead.
+      for (final (path, inputs) in [
+        ('live', await _live(sequence)),
+        ('reloaded', await _reloaded(sequence)),
+      ]) {
+        final reply = inputs.bands['m1']!;
+        expect(
+          reply.thinkingBlocks.value,
+          equals(['The manual will have this.']),
+          reason: '$path: the reply carries only its own response',
+        );
+        expect(
+          reply.timeline.value
+              .whereType<TimelineStep>()
+              .singleWhere((s) => s.toolCallId == 'c1')
+              .result,
+          equals('something random'),
+          reason: '$path: the reply keeps its call',
+        );
+        final trailing = inputs.bands[noResponseMessageId(_runId)]!;
+        expect(
+          trailing.thinkingBlocks.value,
+          equals(['One more thing to check.']),
+          reason: '$path: the response that never spoke keeps its thinking',
+        );
+        final host = layOutTimeline(
+          messages: inputs.messages,
+          bands: inputs.bands,
+          outcomes: inputs.outcomes,
+          streaming: null,
+          activeRunId: null,
+        ).tiles.singleWhere((t) => identical(t.band, trailing)).message;
+        expect(
+          host,
+          isA<NoResponseTile>().having(
+            (t) => t.reason,
+            'reason',
+            TerminalReason.failed,
+          ),
+          reason: "$path: the later thinking rides the failed run's tile",
         );
       }
     });
