@@ -124,14 +124,7 @@ class TrackerRegistry {
   /// next belongs to a new response. Nothing in the streaming state says so —
   /// a result leaves it untouched — so this is the only place live can see it.
   void Function() _routeEvents(ReadonlySignal<ExecutionEvent?> events) {
-    // `subscribe` delivers the signal's current value at once: the last event
-    // of the run that just ended, which this run's bands must not record.
-    var replayingCurrentValue = true;
     return events.subscribe((event) {
-      if (replayingCurrentValue) {
-        replayingCurrentValue = false;
-        return;
-      }
       // Closed only once the next response starts, so calls a response made in
       // parallel stay in it, and what arrives between a result and the next
       // response — state the tool wrote, the run ending — stays with it too.

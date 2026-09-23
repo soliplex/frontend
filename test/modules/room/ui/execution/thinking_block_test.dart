@@ -17,14 +17,11 @@ const _messageId = 'm1';
 
 void main() {
   group('ExecutionThinkingBlock', () {
-    late Signal<ExecutionEvent?> events;
     late ExecutionTracker tracker;
     late MessageExpansions store;
 
     setUp(() {
-      events = Signal<ExecutionEvent?>(null);
       tracker = ExecutionTracker(
-        executionEvents: events,
         activities: Signal<List<ActivityRecord>>(const []),
         logger: testLogger(),
       );
@@ -62,8 +59,8 @@ void main() {
     });
 
     testWidgets('shows header when blocks exist', (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'Some thoughts');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'Some thoughts'));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -73,7 +70,7 @@ void main() {
 
     testWidgets('shows streaming indicator when isThinkingStreaming',
         (tester) async {
-      events.value = const ThinkingStarted();
+      tracker.observe(const ThinkingStarted());
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -83,9 +80,9 @@ void main() {
 
     testWidgets('does not show streaming indicator when not streaming',
         (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'Some thoughts');
-      events.value = const RunCompleted();
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'Some thoughts'));
+      tracker.observe(const RunCompleted());
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -94,8 +91,8 @@ void main() {
     });
 
     testWidgets('tap expands thinking content', (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'Let me think about this');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'Let me think about this'));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -109,8 +106,8 @@ void main() {
     });
 
     testWidgets('tap again collapses content', (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'Let me think about this');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'Let me think about this'));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -127,18 +124,18 @@ void main() {
     });
 
     testWidgets('shows block count when multiple blocks', (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'First thought');
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'First thought'));
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'search',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
-      );
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'Second thought');
+      ));
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'Second thought'));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -147,18 +144,18 @@ void main() {
     });
 
     testWidgets('skips empty blocks in expanded view', (tester) async {
-      events.value = const ThinkingStarted();
+      tracker.observe(const ThinkingStarted());
       // No ThinkingContent — block stays empty
-      events.value = const ServerToolCallStarted(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'search',
         toolCallId: 'tc-1',
-      );
-      events.value = const ServerToolCallCompleted(
+      ));
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
-      );
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'Second thought');
+      ));
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'Second thought'));
 
       await tester.pumpWidget(wrap(build()));
       await tester.pump();
@@ -175,8 +172,8 @@ void main() {
     });
 
     testWidgets('expansion persists across parent-key swap', (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'A deep thought');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'A deep thought'));
 
       Widget tree(Key parentKey) => wrap(
             KeyedSubtree(key: parentKey, child: build()),
@@ -194,8 +191,8 @@ void main() {
     });
 
     testWidgets('collapse persists across parent-key swap', (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'A deep thought');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'A deep thought'));
 
       Widget tree(Key parentKey) => wrap(
             KeyedSubtree(key: parentKey, child: build()),
@@ -215,8 +212,8 @@ void main() {
     });
 
     testWidgets('does not write to store during loading phase', (tester) async {
-      events.value = const ThinkingStarted();
-      events.value = const ThinkingContent(delta: 'transient');
+      tracker.observe(const ThinkingStarted());
+      tracker.observe(const ThinkingContent(delta: 'transient'));
 
       await tester.pumpWidget(wrap(build(messageId: loadingMessageId)));
       await tester.pump();
