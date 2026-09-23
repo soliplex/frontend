@@ -129,10 +129,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
     final activeIds = widget.messages.map((m) => m.id).toSet();
     _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
-
-    _evaluateUnread(
-      [for (final tile in _layOut()) tile.message],
-    );
   }
 
   /// The tiles this thread shows and the band each one renders.
