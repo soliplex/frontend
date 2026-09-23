@@ -846,7 +846,9 @@ Conversation _nameToolCallParent(
   var found = false;
   final messages = [
     for (final message in conversation.messages)
-      if (message is TextMessage && message.id == parentMessageId)
+      if (message is TextMessage &&
+          message.user == ChatUser.assistant &&
+          message.id == parentMessageId)
         () {
           found = true;
           return message.copyWith(namedByToolCall: true);

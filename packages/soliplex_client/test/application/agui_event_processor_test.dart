@@ -2007,6 +2007,27 @@ void main() {
         );
       });
 
+      test('a tool call naming a user message marks nothing', () {
+        // A call's parent is the assistant message it was opened for; a
+        // producer naming the user's message has named nothing to hide.
+        final result = processEvent(
+          Conversation.empty(threadId: 'thread-1').withAppendedMessage(
+            TextMessage.create(id: 'u1', user: ChatUser.user, text: ''),
+          ),
+          streaming,
+          const ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'search',
+            parentMessageId: 'u1',
+          ),
+        );
+
+        expect(
+          (result.conversation.messages.single as TextMessage).namedByToolCall,
+          isFalse,
+        );
+      });
+
       test('a tool call naming no parent marks nothing', () {
         final result = processEvent(
           withCommitted('m1', ''),
