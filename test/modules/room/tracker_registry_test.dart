@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
-import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
@@ -16,28 +15,25 @@ void main() {
   setUp(() {
     events = Signal<ExecutionEvent?>(null);
     activities = Signal<List<ActivityRecord>>(const []);
-    registry = TrackerRegistry(logger: testLogger());
+    registry = TrackerRegistry(
+      events: events,
+      activities: activities,
+      logger: testLogger(),
+    );
   });
 
   tearDown(() => registry.dispose());
 
   group("work stays with the run that did it", () {
     void awaiting() => registry.onStreaming(
-          const AwaitingText(currentPhase: ThinkingPhase()),
-          'run-0',
-          events,
-          activities,
-        );
+        const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
     void speaking(String id) => registry.onStreaming(
-          TextStreaming(
-            messageId: id,
-            user: ChatUser.assistant,
-            text: 'Answer.',
-          ),
-          'run-0',
-          events,
-          activities,
-        );
+        TextStreaming(
+          messageId: id,
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
 
     test('a terminated run does not hand its band to the next run', () {
       awaiting();
@@ -100,15 +96,12 @@ void main() {
 
   test('a run that speaks first opens its band under its own key', () {
     void speakIn(String runId, String messageId) => registry.onStreaming(
-          TextStreaming(
-            messageId: messageId,
-            user: ChatUser.assistant,
-            text: 'Answer.',
-          ),
-          runId,
-          events,
-          activities,
-        );
+        TextStreaming(
+          messageId: messageId,
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        runId);
 
     speakIn('run-0', 'm1');
     registry.onRunTerminated(StepStatus.completed);
@@ -144,11 +137,7 @@ void main() {
 
   test('creates tracker on AwaitingText when idle', () {
     registry.onStreaming(
-      const AwaitingText(currentPhase: ThinkingPhase()),
-      'run-0',
-      events,
-      activities,
-    );
+        const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
 
     expect(registry.trackers, hasLength(1));
     expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
@@ -156,22 +145,15 @@ void main() {
 
   test('the band goes to the message that spoke, once its response ends', () {
     registry.onStreaming(
-      const AwaitingText(currentPhase: ThinkingPhase()),
-      'run-0',
-      events,
-      activities,
-    );
+        const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
 
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
     // Speaking names the message the response will be filed under; the run
     // ending is what ends the response.
     expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
@@ -187,15 +169,12 @@ void main() {
 
   test('opens a band when the run speaks before any other phase', () {
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
 
     expect(registry.trackers, hasLength(1));
 
@@ -204,60 +183,47 @@ void main() {
   });
 
   test('a tool result ends the response and opens the next band', () {
-    final events1 = Signal<ExecutionEvent?>(null);
-    final events2 = Signal<ExecutionEvent?>(null);
-
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events1,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
 
     // The result ends msg-1's response, read at the next event that is not
     // another result — so calls made in parallel stay in the response that
     // made them. That next event is what claims the band and opens the one
     // after it.
-    events1.value = const ServerToolCallCompleted(
+    events.value = const ServerToolCallCompleted(
       toolCallId: 'c-1',
       result: 'ok',
     );
-    events1.value = const ThinkingStarted();
+    events.value = const ThinkingStarted();
 
     expect(registry.trackers, hasLength(2));
     expect(registry.trackers['msg-1']!.isFrozen, isTrue);
     expect(registry.trackers[noResponseMessageId('run-0')]!.isFrozen, isFalse);
-    expect(events2.value, isNull, reason: 'unused; kept for the signature');
   });
 
   test('no-ops when same message ID streams again', () {
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
 
     final tracker = registry.trackers[noResponseMessageId('run-0')];
 
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'more text',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'more text',
+        ),
+        'run-0');
 
     expect(registry.trackers, hasLength(1));
     expect(registry.trackers[noResponseMessageId('run-0')], same(tracker));
@@ -266,15 +232,12 @@ void main() {
 
   test('freezes active tracker on run terminated', () {
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
 
     registry.onRunTerminated(StepStatus.completed);
 
@@ -288,105 +251,38 @@ void main() {
 
   test('dispose disposes all trackers', () {
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
 
     registry.onRunTerminated(StepStatus.completed);
 
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-2',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'msg-2',
+          user: ChatUser.assistant,
+          text: 'Answer.',
+        ),
+        'run-0');
 
     registry.dispose();
     expect(registry.trackers, isEmpty);
   });
 
-  group('seedHistorical', () {
-    test('adds frozen trackers under their message ids', () {
-      final historical = {
-        'asst-1': ExecutionTracker.historical(
-          unfinishedAs: StepStatus.failed,
-          origin: null,
-          events: const [],
-          activities: const [],
-          logger: testLogger(),
-        ),
-        'asst-2': ExecutionTracker.historical(
-          unfinishedAs: StepStatus.failed,
-          origin: null,
-          events: const [],
-          activities: const [],
-          logger: testLogger(),
-        ),
-      };
-
-      registry.seedHistorical(historical);
-
-      expect(registry.trackers.keys, containsAll(['asst-1', 'asst-2']));
-      expect(registry.trackers['asst-1']!.isFrozen, isTrue);
-    });
-
-    test('does not overwrite an existing live tracker', () {
-      registry.onStreaming(
+  test('ignores AwaitingText when tracker already active', () {
+    registry.onStreaming(
         const TextStreaming(
-          messageId: 'asst-1',
+          messageId: 'msg-1',
           user: ChatUser.assistant,
           text: 'Answer.',
         ),
-        'run-0',
-        events,
-        activities,
-      );
-      registry.onRunTerminated(StepStatus.completed);
-      final live = registry.trackers['asst-1'];
-
-      final historical = {
-        'asst-1': ExecutionTracker.historical(
-          unfinishedAs: StepStatus.failed,
-          origin: null,
-          events: const [],
-          activities: const [],
-          logger: testLogger(),
-        ),
-      };
-      registry.seedHistorical(historical);
-
-      expect(registry.trackers['asst-1'], same(live));
-    });
-  });
-
-  test('ignores AwaitingText when tracker already active', () {
-    registry.onStreaming(
-      const TextStreaming(
-        messageId: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Answer.',
-      ),
-      'run-0',
-      events,
-      activities,
-    );
+        'run-0');
 
     registry.onStreaming(
-      const AwaitingText(currentPhase: ThinkingPhase()),
-      'run-0',
-      events,
-      activities,
-    );
+        const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
 
     // Should not open a second band — the run's band is still open
     expect(registry.trackers, hasLength(1));
@@ -419,22 +315,15 @@ void main() {
     );
 
     registry.onStreaming(
-      const AwaitingText(currentPhase: ThinkingPhase()),
-      run,
-      events,
-      activities,
-    );
+        const AwaitingText(currentPhase: ThinkingPhase()), run);
     events.value = const ThinkingStarted();
     registry.onStreaming(
-      const TextStreaming(
-        messageId: 'm1',
-        user: ChatUser.assistant,
-        text: 'Let me look.',
-      ),
-      run,
-      events,
-      activities,
-    );
+        const TextStreaming(
+          messageId: 'm1',
+          user: ChatUser.assistant,
+          text: 'Let me look.',
+        ),
+        run);
     events.value =
         const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search');
     events.value =
@@ -443,7 +332,7 @@ void main() {
     // The next response opens with its reasoning, then speaks.
     events.value = const ThinkingStarted();
     events.value = const ThinkingContent(delta: 'enough to answer');
-    registry.onStreaming(answering, run, events, activities);
+    registry.onStreaming(answering, run);
 
     final tiles = layOutTimeline(
       messages: [question, reply],
