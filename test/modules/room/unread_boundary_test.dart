@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
@@ -102,7 +101,6 @@ void main() {
           bands: const {},
           streaming: null,
           activeRunId: null,
-          logger: testLogger(),
         ),
         'b',
       );
@@ -137,8 +135,7 @@ void main() {
           outcomes: outcomes,
           streaming: null,
           activeRunId: null,
-          logger: testLogger(),
-        ))
+        ).tiles)
           tile.message,
       ];
 
@@ -148,7 +145,6 @@ void main() {
         bands: const {},
         streaming: null,
         activeRunId: null,
-        logger: testLogger(),
       );
 
       expect(shown.map((m) => m.id), ['u1', noResponseMessageId('run-1')]);
@@ -190,7 +186,6 @@ void main() {
         bands: {noResponseMessageId('run-1'): trailing},
         streaming: null,
         activeRunId: null,
-        logger: testLogger(),
       );
 
       expect(anchor, equals(noResponseMessageId('run-1')));
@@ -200,9 +195,6 @@ void main() {
       // Laid out from the timeline's own inputs, so the open run's band goes to
       // the loading tile as it does on screen — and the loading tile, which
       // names no message that will still be there on reload, is not an anchor.
-      final sink = MemorySink();
-      LogManager.instance.addSink(sink);
-      addTearDown(() => LogManager.instance.removeSink(sink));
       final open = ExecutionTracker.historical(
         unfinishedAs: StepStatus.completed,
         events: const [(event: ThinkingStarted(), timestamp: null)],
@@ -226,18 +218,9 @@ void main() {
         bands: {noResponseMessageId('run-1'): open},
         streaming: const AwaitingText(),
         activeRunId: 'run-1',
-        logger: testLogger('unread_boundary_test'),
       );
 
       expect(anchor, equals('u1'));
-      expect(
-        sink.records.where(
-          (r) =>
-              r.loggerName == 'unread_boundary_test' &&
-              r.level == LogLevel.warning,
-        ),
-        isEmpty,
-      );
     });
 
     test('a reply still streaming is not an anchor', () {
@@ -262,7 +245,6 @@ void main() {
           text: 'Both sources',
         ),
         activeRunId: 'run-1',
-        logger: testLogger(),
       );
 
       expect(anchor, equals('m1'));
@@ -276,7 +258,6 @@ void main() {
           bands: const {},
           streaming: null,
           activeRunId: null,
-          logger: testLogger(),
         ),
         isNull,
       );

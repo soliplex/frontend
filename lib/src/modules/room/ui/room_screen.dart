@@ -193,9 +193,6 @@ RoomAccount accountFromJson(Map<String, dynamic> json) {
   return (name: name, email: hasName && email.isNotEmpty ? email : null);
 }
 
-final Logger _welcomeLogger =
-    LogManager.instance.getLogger('soliplex_frontend.room_screen.welcome');
-
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
     super.key,
@@ -783,7 +780,6 @@ class _RoomScreenState extends State<RoomScreen> {
           bands: view.executionTrackers,
           streaming: view.streamingState.value,
           activeRunId: view.activeRunId.value,
-          logger: _logger,
         ),
       );
     });
@@ -2430,8 +2426,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     outcomes: runOutcomes,
                     streaming: streaming,
                     activeRunId: null,
-                    logger: _welcomeLogger,
-                  ).isEmpty
+                  ).tiles.isEmpty
                       ? RoomWelcome(
                           room: room,
                           onSuggestionTapped: (suggestion) =>

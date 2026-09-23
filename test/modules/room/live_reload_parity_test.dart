@@ -212,8 +212,7 @@ void _expectEveryBandPlaced(String path, _Inputs inputs) {
     outcomes: inputs.outcomes,
     streaming: null,
     activeRunId: null,
-    logger: testLogger('layout'),
-  );
+  ).tiles;
   final placed = {
     for (final tile in tiles)
       if (tile.band case final band?) band,

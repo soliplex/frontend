@@ -131,18 +131,43 @@ class _MessageTimelineState extends State<MessageTimeline> {
     _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
   }
 
-  /// The tiles this thread shows and the band each one renders.
+  /// The tiles this thread shows, the band each one renders, and the bands
+  /// that found no tile.
   ///
   /// One decision, taken in one place, so that what the timeline shows and
   /// what each tile renders cannot drift apart.
-  List<RenderedTile> _layOut() => layOutTimeline(
+  TimelineLayout _layOut() => layOutTimeline(
         messages: widget.messages,
         bands: widget.executionTrackers,
         outcomes: widget.runOutcomes,
         streaming: widget.streamingState,
         activeRunId: widget.activeRunId,
-        logger: _logger,
       );
+
+  /// Bands already reported as dropped. The timeline rebuilds on every
+  /// streaming delta, and a report per rebuild would bury the one record that
+  /// says a run's work vanished.
+  final Set<String> _reportedDrops = {};
+
+  void _reportNewDrops(List<DroppedBand> dropped) {
+    for (final (:band, :runId, :entries, :tile) in dropped) {
+      if (!_reportedDrops.add(band)) continue;
+      final where = switch (tile) {
+        null => 'has no tile to render on',
+        final tile => 'would be the second on tile $tile',
+      };
+      _logger.warning(
+        'Execution band $band $where; dropping it '
+        '($entries entries, run ${runId ?? "unknown"})',
+        attributes: {
+          'band': band,
+          if (tile != null) 'tile': tile,
+          'entries': entries,
+          'runId': runId,
+        },
+      );
+    }
+  }
 
   void _recomputeMaps() {
     _sourceReferencesMap =
@@ -380,7 +405,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
   @override
   Widget build(BuildContext context) {
-    final tiles = _layOut();
+    final (:tiles, :dropped) = _layOut();
+    _reportNewDrops(dropped);
     final displayMessages = [for (final tile in tiles) tile.message];
 
     _evaluateUnread(displayMessages);

@@ -13,6 +13,22 @@ typedef RenderedTile = ({
   ExecutionTracker? band,
 });
 
+/// A band [layOutTimeline] found no place for, and so left out: its key, the
+/// run it names if one is known, how many entries it held, and the tile it
+/// would have been the second band on, or null when it had no tile at all.
+typedef DroppedBand = ({
+  String band,
+  String? runId,
+  int entries,
+  String? tile,
+});
+
+/// The tiles the timeline shows, and the bands left out of them.
+typedef TimelineLayout = ({
+  List<RenderedTile> tiles,
+  List<DroppedBand> dropped,
+});
+
 /// The tiles the timeline shows, and the band each one renders.
 ///
 /// One decision in one place, so that the property every caller depends on is
@@ -40,14 +56,14 @@ typedef RenderedTile = ({
 ///    has somewhere to render.
 /// 4. **Place** — hand each band to a band-capable tile of its own run: a
 ///    claimed band to the message that claimed it, an unclaimed one to the
-///    run's last.
-List<RenderedTile> layOutTimeline({
+///    run's last. A band with no such tile comes back in `dropped`, for the
+///    caller to report.
+TimelineLayout layOutTimeline({
   required List<ChatMessage> messages,
   required Map<String, ExecutionTracker> bands,
   required Map<String, NoResponseTile> outcomes,
   required StreamingState? streaming,
   required String? activeRunId,
-  required Logger logger,
 }) {
   final projected = _project(messages, streaming, activeRunId);
   final shown = _guaranteeATilePerRun(
@@ -71,7 +87,6 @@ List<RenderedTile> layOutTimeline({
         if (tile.runId case final runId?) runId,
       ...outcomes.keys,
     },
-    logger: logger,
   );
 }
 
@@ -85,17 +100,17 @@ List<RenderedTile> layOutTimeline({
 /// it goes to the run's last band-capable tile — the loading or streaming tile
 /// while the run is live, and its outcome tile once it has ended.
 ///
-/// A band that resolves to neither is reported and dropped. The report detects
-/// a broken invariant rather than enforcing it, and should be read as a defect
-/// report rather than as noise: a band rendering nowhere means the run's work
-/// vanished from a turn the user watched happen.
-List<RenderedTile> _placeBands({
+/// A band that resolves to neither is left out and returned as dropped. A drop
+/// detects a broken invariant rather than enforcing it, and is a defect rather
+/// than noise: a band rendering nowhere means the run's work vanished from a
+/// turn the user watched happen.
+TimelineLayout _placeBands({
   required List<ChatMessage> tiles,
   required Map<String, ExecutionTracker> bands,
   required Set<String> knownRuns,
-  required Logger logger,
 }) {
   final placed = List<ExecutionTracker?>.filled(tiles.length, null);
+  final dropped = <DroppedBand>[];
   final runOfUnclaimedBand = {
     for (final runId in knownRuns) noResponseMessageId(runId): runId,
   };
@@ -114,38 +129,25 @@ List<RenderedTile> _placeBands({
             final String runId => (runId, _lastBandCapableIn(tiles, runId)),
             null => (null, -1),
           };
-    if (target < 0) {
-      logger.warning(
-        'Execution band $key has no tile to render on; dropping it '
-        '(${band.timeline.value.length} entries, run ${runId ?? "unknown"})',
-        attributes: {
-          'band': key,
-          'entries': band.timeline.value.length,
-          'runId': runId,
-        },
-      );
-      continue;
-    }
-    if (placed[target] != null) {
-      logger.warning(
-        'Execution band $key would be the second on tile '
-        '${tiles[target].id}; dropping it '
-        '(${band.timeline.value.length} entries, run ${runId ?? "unknown"})',
-        attributes: {
-          'band': key,
-          'tile': tiles[target].id,
-          'entries': band.timeline.value.length,
-          'runId': runId,
-        },
-      );
+    if (target < 0 || placed[target] != null) {
+      dropped.add((
+        band: key,
+        runId: runId,
+        entries: band.timeline.value.length,
+        tile: target < 0 ? null : tiles[target].id,
+      ));
       continue;
     }
     placed[target] = band;
   }
 
-  return [
-    for (var i = 0; i < tiles.length; i++) (message: tiles[i], band: placed[i]),
-  ];
+  return (
+    tiles: [
+      for (var i = 0; i < tiles.length; i++)
+        (message: tiles[i], band: placed[i]),
+    ],
+    dropped: dropped,
+  );
 }
 
 /// The index of the first tile of [inRun] at or after [from] that can host a

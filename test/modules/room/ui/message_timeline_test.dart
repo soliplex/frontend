@@ -83,9 +83,10 @@ void main() {
     );
   });
 
-  testWidgets('an update lays the timeline out once', (tester) async {
-    // A band with no tile to render on is reported each time the timeline is
-    // laid out, so the reports per update count the layouts.
+  testWidgets('a band that stays dropped is reported once, not per update',
+      (tester) async {
+    // Every streaming delta rebuilds the timeline. A report per rebuild would
+    // bury the one record that says a run's work vanished.
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
@@ -127,15 +128,15 @@ void main() {
     );
 
     await tester.pumpWidget(timeline(const [ask]));
-    final before = sink.records.length;
     await tester.pumpWidget(timeline(const [ask, answer]));
+    await tester.pumpWidget(timeline(const [answer, ask]));
 
     expect(
-      sink.records.skip(before).where(
-            (r) =>
-                r.loggerName == 'soliplex_frontend.message_timeline' &&
-                r.message.contains('Execution band gone has no tile'),
-          ),
+      sink.records.where(
+        (r) =>
+            r.loggerName == 'soliplex_frontend.message_timeline' &&
+            r.message.contains('Execution band gone has no tile'),
+      ),
       hasLength(1),
     );
   });

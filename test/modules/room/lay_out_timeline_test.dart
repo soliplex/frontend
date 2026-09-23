@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
@@ -41,18 +40,9 @@ NoResponseTile outcome(String run) =>
 List<String> idsOf(List<RenderedTile> tiles) =>
     [for (final tile in tiles) tile.message.id];
 
-const _loggerName = 'lay_out_timeline_test';
-
 void main() {
-  late Logger logger;
-  late _RecordingSink sink;
-
-  setUp(() {
-    sink = _RecordingSink(_loggerName);
-    LogManager.instance.addSink(sink);
-    addTearDown(() => LogManager.instance.removeSink(sink));
-    logger = testLogger(_loggerName);
-  });
+  // The bands the last layOut left out.
+  var dropped = <DroppedBand>[];
 
   List<RenderedTile> layOut({
     List<ChatMessage> messages = const [],
@@ -60,15 +50,17 @@ void main() {
     Map<String, NoResponseTile> outcomes = const {},
     StreamingState? streaming,
     String? activeRunId,
-  }) =>
-      layOutTimeline(
-        messages: messages,
-        bands: bands,
-        outcomes: outcomes,
-        streaming: streaming,
-        activeRunId: activeRunId,
-        logger: logger,
-      );
+  }) {
+    final layout = layOutTimeline(
+      messages: messages,
+      bands: bands,
+      outcomes: outcomes,
+      streaming: streaming,
+      activeRunId: activeRunId,
+    );
+    dropped = layout.dropped;
+    return layout.tiles;
+  }
 
   group('projecting the streaming reply', () {
     test('a thread at rest shows the messages it holds', () {
@@ -352,7 +344,7 @@ void main() {
         ],
         origin: null,
         activities: const [],
-        logger: logger,
+        logger: testLogger(),
       );
       addTearDown(trailing.dispose);
 
@@ -557,7 +549,7 @@ void main() {
         events: const [],
         origin: null,
         activities: const [],
-        logger: logger,
+        logger: testLogger(),
       );
       addTearDown(tracker.dispose);
       return tracker;
@@ -646,7 +638,7 @@ void main() {
       );
 
       expect(bandsOf(tiles), equals({'m1': reply, loadingMessageId: open}));
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
 
     test("a later response's band renders on the reply streaming for it", () {
@@ -668,7 +660,7 @@ void main() {
       );
 
       expect(bandsOf(tiles), equals({'m1': reply, 'm2': open}));
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
 
     test('an unclaimed band never crosses into the next run', () {
@@ -764,12 +756,12 @@ void main() {
       expect(idsOf(tiles), equals(['u1', 'e1', 'm2']));
       expect(bandsOf(tiles), isEmpty);
       expect(
-        sink.warnings.single.attributes['band'],
+        dropped.single.band,
         equals(noResponseMessageId('run-0')),
       );
     });
 
-    test('a band keyed to no shown tile is reported and dropped', () {
+    test('a band keyed to no shown tile is dropped', () {
       final b = band();
 
       final tiles = layOut(
@@ -778,14 +770,11 @@ void main() {
       );
 
       expect(bandsOf(tiles), isEmpty);
-      expect(
-        sink.warnings.single.message,
-        contains('no tile to render on'),
-      );
-      expect(sink.warnings.single.attributes['band'], equals('gone'));
+      expect(dropped.single.tile, isNull);
+      expect(dropped.single.band, equals('gone'));
     });
 
-    test('a second band for one tile is reported and dropped', () {
+    test('a second band for one tile is dropped', () {
       // Only one band renders per tile, so a second arriving for the same one
       // is a defect upstream rather than something to silently overwrite.
       final claimed = band();
@@ -798,13 +787,13 @@ void main() {
 
       expect(bandsOf(tiles), equals({'m1': claimed}));
       expect(
-        sink.warnings.single.attributes['band'],
+        dropped.single.band,
         equals(noResponseMessageId('run-0')),
       );
-      expect(sink.warnings.single.attributes['tile'], equals('m1'));
+      expect(dropped.single.tile, equals('m1'));
     });
 
-    test('a run laid out normally reports nothing', () {
+    test('a run laid out normally drops nothing', () {
       layOut(
         messages: [
           user('u1'),
@@ -814,30 +803,7 @@ void main() {
         bands: {noResponseMessageId('run-0'): band()},
       );
 
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
   });
-}
-
-/// Captures records from this file's logger, ignoring the other traffic the
-/// shared `LogManager` sees so assertions stay strict.
-class _RecordingSink implements LogSink {
-  _RecordingSink(this.loggerName);
-
-  final String loggerName;
-  final List<LogRecord> records = [];
-
-  List<LogRecord> get warnings =>
-      records.where((r) => r.level == LogLevel.warning).toList();
-
-  @override
-  void write(LogRecord record) {
-    if (record.loggerName == loggerName) records.add(record);
-  }
-
-  @override
-  Future<void> flush() async {}
-
-  @override
-  Future<void> close() async {}
 }
