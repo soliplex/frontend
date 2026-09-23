@@ -378,7 +378,12 @@ class ThreadViewState {
       case CompletedState(:final conversation):
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
-      case FailedState(:final conversation, :final reason, :final error):
+      case FailedState(
+          :final conversation,
+          :final reason,
+          :final error,
+          :final runId,
+        ):
         _detachSession();
         if (reason == FailureReason.authExpired) {
           // Funnel to the per-server auth funnel so the route guard
@@ -388,12 +393,12 @@ class ThreadViewState {
         }
         if (reason == FailureReason.internalError ||
             reason == FailureReason.serverError) {
-          // Both reasons surface to the user only as a friendly string.
-          // Without this log, the underlying error and stack are
-          // unrecoverable for diagnosis.
+          // Both reasons surface to the user only as a friendly string, so
+          // this record is what ties the failure to a run. `error` is left
+          // off: for a server error it is the backend's own text.
           _logger.error(
             'Thread run failed: ${reason.name}',
-            error: error,
+            attributes: {'runId': runId},
           );
         }
         _lastSendError.value = SendError(_friendlyMessage(reason, error));
