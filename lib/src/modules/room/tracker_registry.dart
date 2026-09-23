@@ -4,20 +4,21 @@ import 'execution_step.dart';
 import 'execution_tracker.dart';
 import 'response_segmenter.dart';
 
-/// The run whose work is being collected: the key its band is open under, and
-/// what decides when each of its responses ends.
+/// The run whose work is being collected: the key its band is open under until
+/// a message speaks, and what decides when each of its responses ends.
 ///
-/// The band is always open under [unclaimed]. When a response ends, its band
-/// moves to the message that spoke for it and a new one opens under the same
-/// key, so nothing else needs to remember which band is open.
+/// The band is open under the message that has spoken in its response, as the
+/// segmenter names it, or under [unclaimed] while none has ([_openKey]). When a
+/// response ends its band stays where it is and the next one opens under
+/// [unclaimed], so nothing else needs to remember which band is open.
 typedef _OpenRun = ({String unclaimed, ResponseSegmenter segmenter});
 
 /// Manages execution trackers, keyed by the message that owns the work or —
 /// until one speaks — by the run doing it.
 ///
 /// Handles the tracker lifecycle: creation on the first streaming event,
-/// handing a band to the message that spoke in its response when that response
-/// ends, and freezing when a run terminates.
+/// handing a band to the message that speaks in its response as soon as it
+/// speaks, and freezing when its response ends or its run terminates.
 class TrackerRegistry {
   /// Routes [events], the session's execution events, to the open band.
   /// [activities] is the live `Conversation.activities` signal each band
@@ -69,6 +70,7 @@ class TrackerRegistry {
         if (user != ChatUser.assistant) return;
         // A reply arriving after a tool result is the next response opening.
         _handOver(open, open.segmenter.speaks(messageId));
+        _keyBySpeaker(open);
       case AwaitingText():
         if (_open == null) _openRun(runId);
     }
@@ -95,7 +97,7 @@ class TrackerRegistry {
     );
   }
 
-  /// Hands the band of a response that ended to [takes], the message that
+  /// Freezes the band of a response that ended under [takes], the message that
   /// spoke in it, and opens the next response's band.
   ///
   /// Asked of the segmenter from the event stream and from the streaming
@@ -105,9 +107,21 @@ class TrackerRegistry {
   /// next response to speak takes that too.
   void _handOver(_OpenRun open, String? takes) {
     if (takes == null) return;
-    _claim(open, takes, StepStatus.completed);
+    _trackers[takes]?.freeze(StepStatus.completed);
     _openBand(open);
   }
+
+  /// Hands the open band to the message that has spoken for it, the moment it
+  /// speaks, so that layout places it on that message's tile rather than on
+  /// whichever tile of the run happens to be last.
+  void _keyBySpeaker(_OpenRun open) {
+    final owner = open.segmenter.owner;
+    if (owner == null) return;
+    final tracker = _trackers.remove(open.unclaimed);
+    if (tracker != null) _trackers[owner] = tracker;
+  }
+
+  String _openKey(_OpenRun open) => open.segmenter.owner ?? open.unclaimed;
 
   /// Routes each execution event to the open band, then ends the response if
   /// that event ended it.
@@ -124,30 +138,19 @@ class TrackerRegistry {
       // parallel stay in it, and what arrives between a result and the next
       // response — state the tool wrote, the run ending — stays with it too.
       _handOver(open, open.segmenter.arrives(event));
-      _trackers[open.unclaimed]?.observe(event);
+      _trackers[_openKey(open)]?.observe(event);
     });
-  }
-
-  /// Hands the open band to [takes], the message that spoke for it.
-  void _claim(_OpenRun open, String takes, StepStatus unfinishedAs) {
-    final tracker = _trackers.remove(open.unclaimed);
-    if (tracker != null) _trackers[takes] = tracker..freeze(unfinishedAs);
   }
 
   /// Freeze the open band when a run reaches a terminal state.
   ///
-  /// The run ending ends the response being collected, so whoever spoke in it
-  /// takes the band — the last response of a run has no tool result to end it.
+  /// The run ending ends the response being collected — the last response of
+  /// a run has no tool result to end it.
   void onRunTerminated(StepStatus unfinishedAs) {
     final open = _open;
     if (open == null) return;
     _open = null;
-    final takes = open.segmenter.ends();
-    if (takes != null) {
-      _claim(open, takes, unfinishedAs);
-      return;
-    }
-    _trackers[open.unclaimed]?.freeze(unfinishedAs);
+    _trackers[_openKey(open)]?.freeze(unfinishedAs);
   }
 
   void dispose() {
