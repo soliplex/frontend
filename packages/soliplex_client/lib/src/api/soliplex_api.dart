@@ -23,6 +23,7 @@ import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
+import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
@@ -701,6 +702,46 @@ class SoliplexApi {
     );
   }
 
+  /// Returns what [runId] cost, or null when the backend holds no usage
+  /// record for it.
+  ///
+  /// The same record the thread listing carries per run, fetched alone for
+  /// the run just driven — the listing is not re-read after a run, and the
+  /// full run detail would bring every event with it. Null is an answer,
+  /// not a failure: a run that errored before its first request recorded
+  /// nothing, and the previous run's reading still stands. A run that did
+  /// reach the model answers with a record instead, whose
+  /// [RunUsage.finalInputTokens] is null when no request completed.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any ID is empty
+  /// - [NotFoundException] if the room, thread or run is not found (404)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the room is not permitted (403)
+  /// - [MalformedResponseException] if the body is not a usage record
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<RunUsage?> getRunUsage(
+    String roomId,
+    String threadId,
+    String runId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+    _requireNonEmpty(runId, 'runId');
+
+    return _transport.request<RunUsage?>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'agui', threadId, runId, 'usage'],
+      ),
+      cancelToken: cancelToken,
+      fromJson: (json) => runUsageFromJson(runId, json),
+    );
+  }
+
   // ============================================================
   // Feedback
   // ============================================================
@@ -859,6 +900,7 @@ class SoliplexApi {
         rawRuns is Map<String, dynamic> ? rawRuns : const <String, dynamic>{};
     if (runs.isEmpty) return ThreadHistory(messages: const []);
     final documentFilter = _extractLatestDocumentFilter(runs);
+    final latestUsage = _extractLatestUsage(runs);
 
     // 2. Walk runs in creation order, collecting:
     //    - completed run ids → fetched in parallel below
@@ -905,7 +947,11 @@ class SoliplexApi {
     }
 
     if (completedRunIds.isEmpty && preFetchDrops.isEmpty) {
-      return ThreadHistory(messages: const [], documentFilter: documentFilter);
+      return ThreadHistory(
+        messages: const [],
+        documentFilter: documentFilter,
+        latestUsage: latestUsage,
+      );
     }
 
     // 3. Fetch all run events in parallel (cache handles duplicates)
@@ -993,7 +1039,12 @@ class SoliplexApi {
     }
 
     // 5. Replay events to reconstruct history (messages + AG-UI state)
-    return _replayEventsToHistory(runsToReplay, threadId, documentFilter);
+    return _replayEventsToHistory(
+      runsToReplay,
+      threadId,
+      documentFilter,
+      latestUsage,
+    );
   }
 
   /// Fetches events for a single run, using cache for completed runs.
@@ -1202,6 +1253,50 @@ class SoliplexApi {
     return null;
   }
 
+  /// The newest run's usage that measured the context, or null.
+  ///
+  /// Walks runs newest-first and stops at the first with a
+  /// `final_input_tokens`, so a run that errored before reaching the model
+  /// — which records no usage, or one with no measurement — is skipped in
+  /// favour of the one before it.
+  ///
+  /// A run with no `created` is passed over rather than read. The sort
+  /// puts it at the end, so this walk would otherwise meet it first —
+  /// and without a time there is nothing to call it the newest by. An
+  /// unfinished run is read: its usage is written once, when the stream
+  /// completes, so a row that exists is a whole measurement.
+  ///
+  /// A record that cannot be parsed ends the walk instead of continuing
+  /// it. The thread's messages must not fail to load over an indicator,
+  /// but the run before it is a different exchange — reporting its count
+  /// here would present a stale number as the current one, and as an
+  /// exact one.
+  RunUsage? _extractLatestUsage(Map<String, dynamic> runs) {
+    for (final entry in _sortRunsByCreationTime(runs).reversed) {
+      final value = entry.value;
+      if (value is! Map<String, dynamic>) continue;
+      if (value['created'] is! String) continue;
+      final usage = value['usage'];
+      if (usage is! Map<String, dynamic>) continue;
+      if (usage['final_input_tokens'] is! int) continue;
+      final runId = value['run_id'];
+      if (runId is! String || runId.isEmpty) continue;
+      try {
+        return runUsageFromJson(runId, usage);
+      } on FormatException catch (e) {
+        // The thread reports no measurement from here, which on its own
+        // reads as a thread nobody has counted. This says the record was
+        // there and could not be read, and names which one.
+        _logger.warning(
+          'Usage record could not be read; the thread reports none',
+          attributes: {'runId': runId, 'failure': describeFailure(e)},
+        );
+        return null;
+      }
+    }
+    return null;
+  }
+
   /// Replays events to reconstruct thread history (messages + AG-UI state).
   ///
   /// Processes events per-run to properly correlate citations with user
@@ -1211,9 +1306,14 @@ class SoliplexApi {
     List<_ReplayRun> runsToReplay,
     String threadId,
     String? documentFilter,
+    RunUsage? latestUsage,
   ) {
     if (runsToReplay.isEmpty) {
-      return ThreadHistory(messages: const [], documentFilter: documentFilter);
+      return ThreadHistory(
+        messages: const [],
+        documentFilter: documentFilter,
+        latestUsage: latestUsage,
+      );
     }
 
     var conversation = Conversation.empty(threadId: threadId);
@@ -1574,6 +1674,7 @@ class SoliplexApi {
       runs: runs,
       runOutcomes: conversation.runOutcomes,
       documentFilter: documentFilter,
+      latestUsage: latestUsage,
     );
   }
 

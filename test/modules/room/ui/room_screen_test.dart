@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/context_gauge.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -476,6 +477,171 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('https://prod (legacy)'), findsOneWidget);
+  });
+
+  group('the context warning banner', () {
+    Future<void> openThread(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    const banner = 'context window is in use';
+
+    /// The window rides on the room; the measurement on the thread's
+    /// history. Neither is fetched on its own.
+    void measure({required int? window, required int tokens}) {
+      api.nextRoom = Room(
+        id: 'room-1',
+        name: 'General',
+        agent: DefaultRoomAgent(
+          id: 'room-room-1',
+          providerType: 'ollama',
+          contextWindow: window,
+        ),
+      );
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        latestUsage: RunUsage(
+          runId: 'run-1',
+          inputTokens: tokens,
+          outputTokens: 1,
+          requests: 1,
+          toolCalls: 0,
+          finalInputTokens: tokens,
+        ),
+      );
+    }
+
+    testWidgets('stays away while there is room', (tester) async {
+      measure(window: 32768, tokens: 1000);
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('appears once a small window passes 80%', (tester) async {
+      measure(window: 32768, tokens: 27000);
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsOneWidget);
+      expect(
+          find.text('82% of the context window is in use. Older messages '
+              'may start dropping out of the conversation.'),
+          findsOneWidget);
+    });
+
+    testWidgets('stays away when no window is reported', (tester) async {
+      // Ollama and the OpenAI API report none. Without a denominator
+      // there is no occupancy to warn about.
+      measure(window: null, tokens: 999999);
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('reads the run a restored thread already finished',
+        (tester) async {
+      // Re-entering a thread that ran this session restores it from the
+      // registry, which skips the history fetch the reading would
+      // otherwise arrive with. The ended run is the only source left.
+      measure(window: 32768, tokens: 1);
+      api.nextRunUsage = RunUsage(
+        runId: 'run-restored',
+        inputTokens: 27000,
+        outputTokens: 1,
+        requests: 1,
+        toolCalls: 0,
+        finalInputTokens: 27000,
+      );
+      final key = (
+        serverId: entry.serverId,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final session = ManualAgentSession(key);
+      registry.register(key, session);
+      session.completeAsCompleted(runId: 'run-restored');
+      await tester.pump();
+
+      await openThread(tester);
+
+      expect(find.textContaining(banner), findsOneWidget);
+    });
+
+    testWidgets('drops the estimate when a send never starts a run',
+        (tester) async {
+      // The run fails before the backend names one, so no usage will ever
+      // be reported for it. Held, the estimate keeps the reading high by a
+      // whole message for as long as the screen lives.
+      measure(window: 32768, tokens: 20000);
+
+      await openThread(tester);
+
+      int? reading() =>
+          tester.widget<ContextGauge>(find.byType(ContextGauge)).usage.tokens;
+
+      expect(reading(), 20000);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'a draft long enough to move the reading on its own. ' * 40,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        reading(),
+        greaterThan(20000),
+        reason: 'the draft has to register before the send can drop it',
+      );
+
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(reading(), 20000);
+    });
+
+    testWidgets('can be dismissed', (tester) async {
+      measure(window: 32768, tokens: 27000);
+      await openThread(tester);
+      expect(find.textContaining(banner), findsOneWidget);
+
+      await tester.tap(
+        find.descendant(
+          of: find
+              .ancestor(
+                of: find.textContaining(banner),
+                matching: find.byType(Row),
+              )
+              .first,
+          matching: find.byIcon(Icons.close),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining(banner), findsNothing);
+    });
   });
 
   testWidgets('narrow layout shows AppBar', (tester) async {

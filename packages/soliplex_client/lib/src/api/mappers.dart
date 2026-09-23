@@ -10,6 +10,7 @@ import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
+import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
@@ -146,6 +147,7 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
       retries: intOrNull(json['retries'], 'retries'),
       systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
       providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
+      contextWindow: intOrNull(json['context_window'], 'context_window'),
       aguiFeatureNames: aguiFeatureNames,
     );
   }
@@ -572,6 +574,39 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
         ? _tryParseTimestamp(rawActivity, subsystem: 'soliplex_client.api')
         : null,
   );
+}
+
+// ============================================================
+// RunUsage mappers
+// ============================================================
+
+/// Creates a [RunUsage] for [runId] from the backend's `usage` record.
+///
+/// The run id is not on the usage record: it is nested under its run in
+/// the thread listing, and addressed by run in the usage endpoint, so the
+/// caller always knows it. `final_input_tokens`, `resolved_model_name`
+/// and `final_output_tokens` are nullable on the wire and absent from a
+/// backend that predates them.
+RunUsage runUsageFromJson(String runId, Map<String, dynamic> json) {
+  return RunUsage(
+    runId: runId,
+    inputTokens: _requireInt(json, 'input_tokens', 'usage'),
+    outputTokens: _requireInt(json, 'output_tokens', 'usage'),
+    requests: _requireInt(json, 'requests', 'usage'),
+    toolCalls: _requireInt(json, 'tool_calls', 'usage'),
+    finalInputTokens:
+        intOrNull(json['final_input_tokens'], 'final_input_tokens'),
+    resolvedModelName:
+        stringOrNull(json['resolved_model_name'], 'resolved_model_name'),
+    finalOutputTokens:
+        intOrNull(json['final_output_tokens'], 'final_output_tokens'),
+  );
+}
+
+int _requireInt(Map<String, dynamic> json, String key, String what) {
+  final value = json[key];
+  if (value is int) return value;
+  throw FormatException('$what missing required "$key"');
 }
 
 // ============================================================

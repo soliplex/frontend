@@ -279,6 +279,19 @@ class FakeSoliplexApi extends SoliplexApi {
   String? nextMcpToken;
   Exception? nextMcpTokenError;
 
+  /// The record [getRunUsage] answers with. Null means the run recorded
+  /// none, which is what a run that never reached the model produces.
+  RunUsage? nextRunUsage;
+
+  @override
+  Future<RunUsage?> getRunUsage(
+    String roomId,
+    String threadId,
+    String runId, {
+    CancelToken? cancelToken,
+  }) async =>
+      nextRunUsage;
+
   List<ThreadInfo>? nextThreads;
   Exception? nextThreadsError;
 
@@ -618,6 +631,26 @@ class ManualAgentSession implements AgentSession {
       threadKey: threadKey,
       reason: reason,
       error: error,
+    ));
+  }
+
+  /// Drives [runState] to completion and resolves [result] to match, in the
+  /// same order `AgentSession` does.
+  void completeAsCompleted({
+    required String runId,
+    Conversation? conversation,
+    String output = 'done',
+  }) {
+    _runState.value = CompletedState(
+      threadKey: threadKey,
+      runId: runId,
+      conversation:
+          conversation ?? Conversation.empty(threadId: threadKey.threadId),
+    );
+    _resultCompleter.complete(AgentSuccess(
+      threadKey: threadKey,
+      output: output,
+      runId: runId,
     ));
   }
 
