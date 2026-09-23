@@ -14,6 +14,7 @@ import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/composer_draft.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/human_approval_extension.dart';
+import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_view_state.dart';
 
@@ -138,6 +139,8 @@ class _FakeAgentSession implements AgentSession {
   }
 
   void emit(RunState state) => _runState.value = state;
+
+  void emitExecution(ExecutionEvent event) => _lastExecutionEvent.value = event;
 
   void emitReconnect(ReconnectStatus? status) =>
       _reconnectStatus.value = status;
@@ -1765,10 +1768,128 @@ void main() {
           thinkingText: 'weighing it',
         );
 
-    test('a refresh keeps a run the backend cannot replay', () async {
-      // A run the user stopped is recorded nowhere the backend has, so a
-      // refresh that replaces rather than merges loses it — and with it the
-      // only tile the work that run did has to render on.
+    test('a refresh shows how the backend finished a run the user stopped',
+        () async {
+      // Stop closes the connection and the backend completes the run anyway,
+      // so the stored run carries the answer the user did not wait for. What
+      // the view held for it — a stopped tile and part of the work — is only
+      // what it saw before it looked away.
+      const key = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      addTearDown(state.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      final ext = ExecutionTrackerExtension(logger: testLogger());
+      addTearDown(ext.onDispose);
+      final session = _FakeAgentSession(extensions: [ext]);
+      await ext.onAttach(session);
+      registry.register(key, session);
+      state.attachSession(session);
+      session.emit(
+        RunningState(
+          threadKey: key,
+          runId: 'run-0',
+          conversation: Conversation(threadId: 'thread-1'),
+          streaming: const AwaitingText(),
+        ),
+      );
+      session.emitExecution(
+        const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search'),
+      );
+      session.emit(
+        CancelledState.duringRun(
+          threadKey: key,
+          runId: 'run-0',
+          conversation: Conversation(
+            threadId: 'thread-1',
+            runOutcomes: {'run-0': parked('run-0')},
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [
+          TextMessage(
+            id: 'u0',
+            user: ChatUser.user,
+            createdAt: null,
+            text: 'ask',
+            runId: 'run-0',
+          ),
+          TextMessage(
+            id: 'm1',
+            user: ChatUser.assistant,
+            createdAt: null,
+            text: 'Found it.',
+            runId: 'run-0',
+          ),
+        ],
+        runOutcomes: {
+          'run-0': NoResponseTile.finished(runId: 'run-0', thinkingText: ''),
+        },
+        runs: [
+          RunEventBundle(
+            runId: 'run-0',
+            events: [
+              RunStartedEvent(threadId: 'thread-1', runId: 'run-0'),
+              const TextMessageStartEvent(messageId: 'm1'),
+              const TextMessageContentEvent(
+                messageId: 'm1',
+                delta: 'Found it.',
+              ),
+              const TextMessageEndEvent(messageId: 'm1'),
+              const ToolCallStartEvent(
+                toolCallId: 'c1',
+                toolCallName: 'search',
+                parentMessageId: 'm1',
+              ),
+              const ToolCallEndEvent(toolCallId: 'c1'),
+              const ToolCallResultEvent(
+                messageId: 'tr-c1',
+                toolCallId: 'c1',
+                content: 'ok',
+              ),
+              RunFinishedEvent(threadId: 'thread-1', runId: 'run-0'),
+            ],
+          ),
+        ],
+      );
+      await state.refresh();
+
+      final loaded = state.messages.value as MessagesLoaded;
+      final layout = layOutTimeline(
+        messages: loaded.messages,
+        bands: state.executionTrackers,
+        outcomes: loaded.runOutcomes,
+        streaming: null,
+        activeRunId: null,
+      );
+      expect(
+        [for (final tile in layout.tiles) tile.message.id],
+        equals(['u0', 'm1']),
+        reason: 'the answer stands for the run; no stopped tile beside it',
+      );
+      expect(layout.tiles.last.band, isNotNull);
+      expect(layout.dropped, isEmpty);
+    });
+
+    test('a refresh keeps, after the runs it recorded, a run it has not',
+        () async {
+      // A run the backend has not finished is not in its history yet, so the
+      // view's record is the only one. It ended after every run the history
+      // holds, and the order is what places a run that committed nothing.
       const key = (
         serverId: 'test-server',
         roomId: 'room-1',
@@ -1791,31 +1912,26 @@ void main() {
       session.emit(
         CancelledState.duringRun(
           threadKey: key,
-          runId: 'run-0',
+          runId: 'run-1',
           conversation: Conversation(
             threadId: 'thread-1',
-            runOutcomes: {'run-0': parked('run-0')},
+            runOutcomes: {'run-1': parked('run-1')},
           ),
         ),
       );
       await Future<void>.delayed(Duration.zero);
 
-      // Replay of the same run sees only that its events ran out.
       api.nextThreadHistory = ThreadHistory(
         messages: const [],
         runOutcomes: {
-          'run-0': NoResponseTile.finished(
-            runId: 'run-0',
-            thinkingText: 'weighing it',
-          ),
+          'run-0': NoResponseTile.finished(runId: 'run-0', thinkingText: ''),
         },
       );
       await state.refresh();
-      await Future<void>.delayed(Duration.zero);
 
       final loaded = state.messages.value as MessagesLoaded;
-      expect(loaded.runOutcomes['run-0'], isNotNull);
-      expect(loaded.runOutcomes['run-0']!.reason, TerminalReason.cancelled);
+      expect(loaded.runOutcomes.keys, equals(['run-0', 'run-1']));
+      expect(loaded.runOutcomes['run-1']!.reason, TerminalReason.cancelled);
     });
 
     test('a reloaded thread carries how its stored runs ended', () async {

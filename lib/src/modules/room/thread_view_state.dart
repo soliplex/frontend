@@ -517,25 +517,45 @@ class ThreadViewState {
           .getThreadHistory(_roomId, threadId, cancelToken: token);
       if (token.isCancelled) return;
       _cancelToken = null;
-      // putIfAbsent (not []=) on refresh: server replay must not overwrite a
-      // tracker already absorbed from a live session (`_detachSession`), which
-      // captured the full client-side event stream.
-      for (final entry in replayToTrackers(history.runs).entries) {
-        _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
-      }
-      final kept = switch (_messages.value) {
-        MessagesLoaded(:final runOutcomes) => runOutcomes,
-        _ => const <String, NoResponseTile>{},
+      // The history is authoritative for every run it read, and what the view
+      // holds only fills the runs it has not: the ones the backend has yet to
+      // finish. A run the user stopped or whose stream dropped is still
+      // completed and stored by the backend, so what the view saw of it is
+      // replaced by how it actually ended. Every run whose events were read
+      // records an outcome, and a run that could not be fetched records none.
+      final read = history.runOutcomes.keys.toSet();
+      final (heldMessages, heldOutcomes) = switch (_messages.value) {
+        MessagesLoaded(:final messages, :final runOutcomes) => (
+            messages,
+            runOutcomes,
+          ),
+        _ => (const <ChatMessage>[], const <String, NoResponseTile>{}),
       };
+      final runOfHeldMessage = {
+        for (final message in heldMessages)
+          if (message.runId case final runId?) message.id: runId,
+      };
+      final keysOfReadRuns = {
+        for (final runId in read) noResponseMessageId(runId)
+      };
+      _historicalTrackers
+        ..removeWhere(
+          (key, _) =>
+              keysOfReadRuns.contains(key) ||
+              read.contains(runOfHeldMessage[key]),
+        )
+        ..addAll(replayToTrackers(history.runs));
       _messages.value = MessagesLoaded(
         messages: history.messages,
         messageStates: history.messageStates,
-        // Same rule as the trackers above, for the same reason: a run the user
-        // stopped, or one whose stream dropped, is recorded nowhere the
-        // backend has. Replay sees only that such a run's events ran out and
-        // records it as finished, so letting it win would tell the user a run
-        // completed that they stopped.
-        runOutcomes: {...history.runOutcomes, ...kept},
+        // In the order the runs ended: the history's first, then the view's
+        // own, which ended after every run the backend has finished.
+        runOutcomes: {
+          ...history.runOutcomes,
+          for (final MapEntry(key: runId, value: outcome)
+              in heldOutcomes.entries)
+            if (!read.contains(runId)) runId: outcome,
+        },
       );
       onHistoryLoaded?.call(threadId, history);
     } on PermissionDeniedException catch (error) {
