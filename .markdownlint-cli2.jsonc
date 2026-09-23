@@ -1,4 +1,5 @@
 {
+  "gitignore": true,
   "ignores": [
     ".dart_tool/**",
     ".fvm/**",
