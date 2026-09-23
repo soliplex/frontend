@@ -13,7 +13,7 @@ import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/activity_events.dart';
 import 'package:soliplex_client/src/application/json_patch.dart';
-import 'package:soliplex_client/src/application/no_response_synthesis.dart';
+import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/run_phase.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -376,7 +376,7 @@ EventProcessingResult _processTextContent(
 /// The run [conversation] is in, or null when it is in none.
 ///
 /// What a message minted now belongs to. `Running` is the only status that
-/// names a run, and an event arriving under any other has none to claim.
+/// names a run, and an event arriving under any other belongs to none.
 String? _runInFlight(Conversation conversation) =>
     switch (conversation.status) {
       Running(:final runId) => runId,
@@ -823,11 +823,11 @@ EventProcessingResult _processActivityDelta(
 ///
 /// Only a committed message can be marked. pydantic-ai ends a text part before
 /// it starts the next, so the message a call names has always committed by
-/// then; nothing here holds a claim for a message still streaming. A producer
-/// that names one before its end loses the claim, and if that message ends
-/// with no text it renders as the "no text" notice, so that case is reported.
-/// A parent that was never opened is left alone and unreported: there is no
-/// message to mark and nothing renders wrong.
+/// then; nothing here remembers a name given to a message still streaming. A
+/// producer that names one before its end loses the mark, and if that message
+/// ends with no text it renders as the "no text" notice, so that case is
+/// reported. A parent that was never opened is left alone and unreported:
+/// there is no message to mark and nothing renders wrong.
 Conversation _nameToolCallParent(
   Conversation conversation,
   StreamingState streaming,
@@ -837,7 +837,7 @@ Conversation _nameToolCallParent(
   if (streaming case TextStreaming(:final messageId)
       when messageId == parentMessageId) {
     _logger.warning(
-      'A tool call names the message still streaming; the claim is lost, so '
+      'A tool call names the message still streaming; the mark is lost, so '
       'if the message ends with no text it renders as having none.',
       attributes: {'messageId': parentMessageId},
     );

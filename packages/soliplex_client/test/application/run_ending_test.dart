@@ -1,4 +1,4 @@
-import 'package:soliplex_client/src/application/no_response_synthesis.dart';
+import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';

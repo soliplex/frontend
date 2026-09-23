@@ -193,7 +193,8 @@ class Conversation {
   ///
   /// Insertion-ordered, and read that way: the order runs were recorded is the
   /// order they ended, which is what places a run that committed no message.
-  /// One entry per terminal run in the thread; nothing evicts from it.
+  /// One entry per terminal run in the thread. Only [withoutRunOutcome]
+  /// removes one, for a run that yielded to a client tool rather than ending.
   final Map<String, NoResponseTile> runOutcomes;
 
   /// Whether a run is currently active.

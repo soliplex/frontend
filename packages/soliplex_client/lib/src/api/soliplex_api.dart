@@ -8,7 +8,7 @@ import 'package:soliplex_client/src/api/mappers.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
-import 'package:soliplex_client/src/application/no_response_synthesis.dart';
+import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';

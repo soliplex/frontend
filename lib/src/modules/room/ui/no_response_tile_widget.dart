@@ -91,9 +91,9 @@ class NoResponseTileWidget extends StatelessWidget {
 /// tile being scrolled out of the sliver's cache extent, a thread switch, a
 /// history reload and a restart.
 ///
-/// A `failed` tile is only ever parked from a `RunErrorEvent`, which the
-/// registry attempts to auto-file, so a note usually exists — but the POST is
-/// best-effort and a tile replayed from history may predate any attempt, so
+/// A `failed` tile belongs to a run that failed, and the registry attempts to
+/// auto-file a failed run for the reasons it files, so a note often exists —
+/// but the POST is best-effort and a tile replayed from history may predate any attempt, so
 /// the label describes the affordance rather than a stored record, and the
 /// dialog copes with finding nothing. Nothing is filed for `finished` at
 /// all — but a run that ends saying nothing is a failure from the user's point

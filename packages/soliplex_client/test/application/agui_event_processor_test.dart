@@ -5,7 +5,7 @@
 
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
-import 'package:soliplex_client/src/application/no_response_synthesis.dart';
+import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/run_phase.dart'
     as app_streaming;
 import 'package:soliplex_client/src/application/streaming_state.dart'
@@ -2034,8 +2034,8 @@ void main() {
             );
 
         test('is reported when it is the message still streaming', () {
-          // The claim is applied to committed messages only, so naming a
-          // message before its end loses the claim and it renders as the
+          // Only a committed message can be marked, so naming a message
+          // before its end loses the mark and it renders as the
           // "no text" notice once it commits.
           final opened = processEvent(
             Conversation.empty(threadId: 'thread-1')
