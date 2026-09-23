@@ -209,10 +209,10 @@ sealed class ChatMessage {
 
   /// The run this message belongs to, or null when no run does.
   ///
-  /// Null for a message minted outside a run — the optimistic user echo, which
-  /// exists before the run it starts, and a dropped event caught before any run
-  /// is in flight — and for one restored from a thread stored before this field
-  /// existed.
+  /// Null for a message minted outside a run — the optimistic user echo until
+  /// `RUN_STARTED` names the run it starts, and a dropped event caught before
+  /// any run is in flight — and for one restored from a thread stored before
+  /// this field existed.
   final String? runId;
 
   @override
@@ -797,8 +797,8 @@ class ToolCallInfo {
 ///
 /// An empty assistant message no tool call named is a reply that genuinely
 /// carried no text. That is an anomaly worth surfacing rather than hiding, so
-/// it keeps its notice — which is why this asks about the claim and not only
-/// about the text.
+/// it keeps its notice — which is why this asks whether a tool call named it
+/// and not only about the text.
 ///
 /// Whitespace is not text: the producer drops an empty text part on a plain
 /// truthiness check, which a space or a newline passes, so a model that opens

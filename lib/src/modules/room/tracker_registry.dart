@@ -7,8 +7,8 @@ import 'execution_tracker.dart';
 /// until one speaks — by the run doing it.
 ///
 /// Handles the tracker lifecycle: creation on the first streaming event,
-/// re-keying to a message once that message says something, and freezing when
-/// a run terminates.
+/// handing a band to the message that spoke in its response when that response
+/// ends, and freezing when a run terminates.
 class TrackerRegistry {
   TrackerRegistry({required Logger logger}) : _logger = logger;
 

@@ -324,7 +324,7 @@ bool _standsInForItsRun(ChatMessage message) => switch (message) {
 /// A reply that has yet to say anything renders as the loading sentinel rather
 /// than as an empty bubble. That is the window between `TEXT_MESSAGE_START` and
 /// the first delta — the window a message opened only to name a tool call never
-/// leaves — and no claim has arrived yet to tell the two apart. Which it turns
+/// leaves — and no tool call has named it yet to tell the two apart. Which it turns
 /// out to be is settled when it commits.
 List<ChatMessage> _project(
   List<ChatMessage> messages,

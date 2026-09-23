@@ -4,7 +4,7 @@ import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _logger =
-    LogManager.instance.getLogger('soliplex_client.no_response_synthesis');
+    LogManager.instance.getLogger('soliplex_client.run_ending');
 
 /// Id of the row that reports a failed run which has something else to show
 /// for itself, and so shows no outcome tile of its own to carry the failure.
