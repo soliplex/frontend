@@ -7,7 +7,6 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
@@ -35,27 +34,6 @@ class _FakeCancelToken extends Fake implements CancelToken {}
 
 const _key = (serverId: 's', roomId: 'r', threadId: 't');
 const _runId = 'run-abc';
-const _loggerName = 'derived_timeline_integration';
-
-/// Captures this file's own log records so an unexpected report is a test
-/// failure rather than a line nobody reads.
-class _RecordingSink implements LogSink {
-  final List<LogRecord> records = [];
-
-  List<LogRecord> get warnings =>
-      records.where((r) => r.level == LogLevel.warning).toList();
-
-  @override
-  void write(LogRecord record) {
-    if (record.loggerName == _loggerName) records.add(record);
-  }
-
-  @override
-  Future<void> flush() async {}
-
-  @override
-  Future<void> close() async {}
-}
 
 void main() {
   setUpAll(() {
@@ -70,15 +48,10 @@ void main() {
   late AgentSession session;
   late ExecutionTrackerExtension ext;
   late StreamController<BaseEvent> events;
-  late _RecordingSink sink;
-  late Logger logger;
+  // The bands the last render left out.
+  var dropped = <DroppedBand>[];
 
   setUp(() async {
-    sink = _RecordingSink();
-    LogManager.instance.addSink(sink);
-    addTearDown(() => LogManager.instance.removeSink(sink));
-    logger = testLogger(_loggerName);
-
     api = _MockApi();
     streamClient = _MockStreamClient();
     events = StreamController<BaseEvent>();
@@ -151,14 +124,15 @@ void main() {
       _ => (null, null, null),
     };
     if (conversation == null) return const [];
-    return layOutTimeline(
+    final layout = layOutTimeline(
       messages: conversation.messages,
       bands: ext.trackers,
       outcomes: conversation.runOutcomes,
       streaming: streaming,
       activeRunId: activeRunId,
-      logger: logger,
     );
+    dropped = layout.dropped;
+    return layout.tiles;
   }
 
   List<String> idsOf(List<RenderedTile> tiles) =>
@@ -192,7 +166,7 @@ void main() {
         reason: 'the steps already on screen must have somewhere to render',
       );
       expect(tiles.last.message.runId, equals(_runId));
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
 
     test('CONTENT shows the partial reply, still carrying the band', () async {
@@ -216,7 +190,7 @@ void main() {
       expect((reply.message as TextMessage).text, equals('Half an ans'));
       expect(reply.band, isNotNull);
       expect(reply.message.runId, equals(_runId));
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
 
     test('END leaves one committed reply and no duplicate of it', () async {
@@ -237,7 +211,7 @@ void main() {
         isNot(contains(noResponseMessageId(_runId))),
         reason: 'the reply stands for the run; it is not owed a tile too',
       );
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
 
     test('a failure after the reply committed keeps it and reports once',
@@ -267,7 +241,7 @@ void main() {
         hasLength(1),
         reason: 'one failure, one row, beside the reply that survived',
       );
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
 
     test('a failure mid-reply keeps the partial text and reports once',
@@ -288,7 +262,7 @@ void main() {
         hasLength(1),
         reason: 'one failure, one row',
       );
-      expect(sink.warnings, isEmpty);
+      expect(dropped, isEmpty);
     });
   });
 
@@ -338,7 +312,7 @@ void main() {
     expect(answer.band!.steps.value, isNotEmpty);
     expect(answer.message.runId, equals(_runId));
     expect(
-      sink.warnings,
+      dropped,
       isEmpty,
       reason: 'a band with no tile is a defect report, not routine',
     );
@@ -372,6 +346,6 @@ void main() {
       reason: 'the run is over and its steps still have to render somewhere',
     );
     expect(outcome.band!.steps.value, isNotEmpty);
-    expect(sink.warnings, isEmpty);
+    expect(dropped, isEmpty);
   });
 }

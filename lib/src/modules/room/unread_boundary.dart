@@ -88,7 +88,6 @@ String? lastShownMessageId({
   required Map<String, ExecutionTracker> bands,
   required StreamingState? streaming,
   required String? activeRunId,
-  required Logger logger,
 }) {
   final streamingId = switch (streaming) {
     TextStreaming(:final messageId) => messageId,
@@ -100,9 +99,8 @@ String? lastShownMessageId({
     outcomes: outcomes,
     streaming: streaming,
     activeRunId: activeRunId,
-    logger: logger,
   );
-  for (final tile in shown.reversed) {
+  for (final tile in shown.tiles.reversed) {
     final message = tile.message;
     if (message is LoadingMessage || message.id == streamingId) continue;
     return message.id;

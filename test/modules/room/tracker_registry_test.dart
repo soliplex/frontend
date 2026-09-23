@@ -451,8 +451,7 @@ void main() {
       outcomes: const {},
       streaming: answering,
       activeRunId: run,
-      logger: testLogger(),
-    );
+    ).tiles;
     final answer = tiles.singleWhere((t) => t.message.id == 'm2');
 
     expect(answer.band, isNotNull, reason: "the answer's reasoning renders");

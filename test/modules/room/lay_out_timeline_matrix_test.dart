@@ -350,8 +350,7 @@ void main() {
         outcomes: row.outcomes,
         streaming: row.streaming,
         activeRunId: row.activeRunId,
-        logger: logger,
-      ),
+      ).tiles,
       bands: bands,
     );
   }
