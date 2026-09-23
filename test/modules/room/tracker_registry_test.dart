@@ -24,6 +24,46 @@ void main() {
 
   tearDown(() => registry.dispose());
 
+  test('only an assistant message speaks for a response', () {
+    // Layout hosts a band only on an assistant reply, and history replay lets
+    // only an assistant message speak; a system message taking the band here
+    // would leave it on a tile that renders none.
+    registry.onStreaming(const AwaitingText(), 'run-0');
+    events.value = const ThinkingStarted();
+    registry.onStreaming(
+      const TextStreaming(
+        messageId: 'sys-1',
+        user: ChatUser.system,
+        text: 'Context refreshed.',
+      ),
+      'run-0',
+    );
+    registry.onRunTerminated(StepStatus.completed);
+
+    expect(registry.trackers.containsKey('sys-1'), isFalse);
+    expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
+  });
+
+  test('a system message opens its run\'s band without speaking for it', () {
+    // The run's work still needs somewhere to collect when a system message
+    // is the first thing it streams.
+    registry.onStreaming(
+      const TextStreaming(
+        messageId: 'sys-1',
+        user: ChatUser.system,
+        text: 'Context refreshed.',
+      ),
+      'run-0',
+    );
+    events.value = const ThinkingStarted();
+    registry.onRunTerminated(StepStatus.completed);
+
+    expect(
+      registry.trackers[noResponseMessageId('run-0')]!.timeline.value,
+      hasLength(1),
+    );
+  });
+
   group("work stays with the run that did it", () {
     void awaiting() => registry.onStreaming(
         const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
