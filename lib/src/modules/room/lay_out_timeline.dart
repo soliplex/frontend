@@ -79,15 +79,7 @@ TimelineLayout layOutTimeline({
         if (bands[noResponseMessageId(runId)]?.hasWork ?? false) runId,
     },
   );
-  return _placeBands(
-    tiles: shown,
-    bands: bands,
-    knownRuns: {
-      for (final tile in shown)
-        if (tile.runId case final runId?) runId,
-      ...outcomes.keys,
-    },
-  );
+  return _placeBands(tiles: shown, bands: bands);
 }
 
 /// [tiles] with each band handed to a band-capable assistant tile of its own
@@ -107,12 +99,12 @@ TimelineLayout layOutTimeline({
 TimelineLayout _placeBands({
   required List<ChatMessage> tiles,
   required Map<String, ExecutionTracker> bands,
-  required Set<String> knownRuns,
 }) {
   final placed = List<ExecutionTracker?>.filled(tiles.length, null);
   final dropped = <DroppedBand>[];
   final runOfUnclaimedBand = {
-    for (final runId in knownRuns) noResponseMessageId(runId): runId,
+    for (final tile in tiles)
+      if (tile.runId case final runId?) noResponseMessageId(runId): runId,
   };
 
   for (final MapEntry(key: key, value: band) in bands.entries) {
