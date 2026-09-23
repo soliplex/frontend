@@ -51,7 +51,7 @@ class TrackerRegistry {
   /// Update tracker state based on the current streaming state.
   void onStreaming(StreamingState streaming, String runId) {
     switch (streaming) {
-      case TextStreaming(:final messageId, :final text):
+      case TextStreaming(:final messageId, :final text, :final user):
         // A message speaks for the response it was emitted in. A response that
         // begins with a tool call opens a message with nothing in it, purely to
         // give that call's `parentMessageId` something to refer to, and says
@@ -62,6 +62,11 @@ class TrackerRegistry {
         // key, not whatever the last one left behind, or its work would open a
         // band belonging to a run that did not do it.
         final open = _open ?? _openRun(runId);
+        // Only an assistant reply hosts a band, in layout's
+        // `_standsInForItsRun`, and only an assistant message speaks on reload
+        // too. Letting a system reply host one means changing all three, and
+        // the tile that renders it, together.
+        if (user != ChatUser.assistant) return;
         // A reply arriving after a tool result is the next response opening.
         _handOver(open, open.segmenter.speaks(messageId));
       case AwaitingText():
