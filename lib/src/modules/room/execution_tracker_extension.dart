@@ -17,16 +17,15 @@ import 'tracker_registry.dart';
 /// registry on detach, so execution data persists after the session ends.
 class ExecutionTrackerExtension extends SessionExtension
     with StatefulSessionExtension<Map<String, ExecutionTracker>> {
-  ExecutionTrackerExtension({required Logger logger})
-      : _logger = logger,
-        _registry = TrackerRegistry(logger: logger) {
+  ExecutionTrackerExtension({required Logger logger}) : _logger = logger {
     setInitialState(const <String, ExecutionTracker>{});
   }
 
   final Logger _logger;
-  final TrackerRegistry _registry;
+
+  /// Built on attach, from the session whose events it routes; null before.
+  TrackerRegistry? _registry;
   void Function()? _runStateUnsub;
-  AgentSession? _session;
 
   @override
   String get namespace => 'execution_tracker';
@@ -38,22 +37,26 @@ class ExecutionTrackerExtension extends SessionExtension
   List<ClientTool> get tools => const [];
 
   /// Current tracker map (historical + live for this session).
-  Map<String, ExecutionTracker> get trackers => _registry.trackers;
+  Map<String, ExecutionTracker> get trackers => _registry?.trackers ?? const {};
 
   @override
   Future<void> onAttach(AgentSession session) async {
-    _session = session;
+    _registry = TrackerRegistry(
+      events: session.lastExecutionEvent,
+      activities: session.conversationActivities,
+      logger: _logger,
+    );
     _runStateUnsub = session.runState.subscribe(_onRunState);
   }
 
   @override
   void onDispose() {
-    // Order is load-bearing: unsubscribe must precede clearing _session, so
-    // _onRunState can rely on _session being non-null while subscribed.
+    // Order is load-bearing: unsubscribe must precede clearing _registry, so
+    // _onRunState can rely on _registry being non-null while subscribed.
     _runStateUnsub?.call();
     _runStateUnsub = null;
-    _session = null;
-    _registry.dispose();
+    _registry?.dispose();
+    _registry = null;
     super.onDispose();
   }
 
@@ -64,8 +67,8 @@ class ExecutionTrackerExtension extends SessionExtension
   void debugPushRunState(RunState runState) => _onRunState(runState);
 
   void _onRunState(RunState runState) {
-    final session = _session;
-    if (session == null) {
+    final registry = _registry;
+    if (registry == null) {
       // signals teardown is assumed synchronous w.r.t. onDispose, but
       // that's a fragile invariant across signals upgrades. Reaching
       // here means the invariant broke — `error`-level so Sentry can
@@ -80,25 +83,20 @@ class ExecutionTrackerExtension extends SessionExtension
     }
     switch (runState) {
       case RunningState(:final runId, :final streaming):
-        _registry.onStreaming(
-          streaming,
-          runId,
-          session.lastExecutionEvent,
-          session.conversationActivities,
-        );
-        _sync();
+        registry.onStreaming(streaming, runId);
+        _sync(registry);
       case CompletedState():
-        _registry.onRunTerminated(StepStatus.completed);
-        _sync();
+        registry.onRunTerminated(StepStatus.completed);
+        _sync(registry);
       // A step still running when the user stops the run, or when the run
       // fails, did not finish. Reporting it green would say the work landed.
       case FailedState() || CancelledState():
-        _registry.onRunTerminated(StepStatus.failed);
-        _sync();
+        registry.onRunTerminated(StepStatus.failed);
+        _sync(registry);
       case IdleState() || ToolYieldingState():
         break;
     }
   }
 
-  void _sync() => state = _registry.trackers;
+  void _sync(TrackerRegistry registry) => state = registry.trackers;
 }

@@ -4,6 +4,14 @@ import 'execution_step.dart';
 import 'execution_tracker.dart';
 import 'response_segmenter.dart';
 
+/// The run whose work is being collected: the key its band is open under, and
+/// what decides when each of its responses ends.
+///
+/// The band is always open under [unclaimed]. When a response ends, its band
+/// moves to the message that spoke for it and a new one opens under the same
+/// key, so nothing else needs to remember which band is open.
+typedef _OpenRun = ({String unclaimed, ResponseSegmenter segmenter});
+
 /// Manages execution trackers, keyed by the message that owns the work or —
 /// until one speaks — by the run doing it.
 ///
@@ -11,15 +19,25 @@ import 'response_segmenter.dart';
 /// handing a band to the message that spoke in its response when that response
 /// ends, and freezing when a run terminates.
 class TrackerRegistry {
-  TrackerRegistry({required Logger logger}) : _logger = logger;
+  /// Routes [events], the session's execution events, to the open band.
+  /// [activities] is the live `Conversation.activities` signal each band
+  /// mirrors into a local copy, so that freezing it pins the records it had at
+  /// that moment.
+  TrackerRegistry({
+    required ReadonlySignal<ExecutionEvent?> events,
+    required ReadonlySignal<List<ActivityRecord>> activities,
+    required Logger logger,
+  })  : _activities = activities,
+        _logger = logger {
+    _sessionUnsub = _routeEvents(events);
+  }
 
   final Map<String, ExecutionTracker> _trackers = {};
-  String? _activeId;
+  final ReadonlySignal<List<ActivityRecord>> _activities;
   final Logger _logger;
 
-  /// Decides, for the run whose band is open, when a response ends and which
-  /// message takes its band.
-  ResponseSegmenter? _segmenter;
+  /// The run being collected, or null between runs.
+  _OpenRun? _open;
 
   /// The registry reads the session's events and hands each to the open band
   /// itself, so recording an event and acting on it happen in one place, in a
@@ -28,30 +46,10 @@ class TrackerRegistry {
   /// response boundary always subscribes last.
   void Function()? _sessionUnsub;
 
-  /// Kept from the first band so a response boundary can open the next one
-  /// without waiting for another streaming state.
-  ReadonlySignal<List<ActivityRecord>>? _activities;
-  String? _unclaimed;
-
   Map<String, ExecutionTracker> get trackers => Map.unmodifiable(_trackers);
 
   /// Update tracker state based on the current streaming state.
-  ///
-  /// [events] is the session's execution event signal, read once so the
-  /// registry can route each event to the open band. [activities] is the live
-  /// `Conversation.activities` signal each band mirrors into a local copy, so
-  /// that freezing it pins the records it had at that moment.
-  void onStreaming(
-    StreamingState streaming,
-    String runId,
-    ReadonlySignal<ExecutionEvent?> events,
-    ReadonlySignal<List<ActivityRecord>> activities,
-  ) {
-    // Until a message speaks, the run owns the band. Keying it by run rather
-    // than by a slot shared across runs is what lets two runs that both go
-    // quiet each keep their own work, and it names the tile such a run will be
-    // given if it never speaks at all.
-    final unclaimed = noResponseMessageId(runId);
+  void onStreaming(StreamingState streaming, String runId) {
     switch (streaming) {
       case TextStreaming(:final messageId, :final text):
         // A message speaks for the response it was emitted in. A response that
@@ -63,23 +61,33 @@ class TrackerRegistry {
         // still needs somewhere to put the work that follows. Read this run's
         // key, not whatever the last one left behind, or its work would open a
         // band belonging to a run that did not do it.
-        if (_activeId == null) {
-          _activities = activities;
-          _unclaimed = unclaimed;
-          _segmenter = ResponseSegmenter();
-          _openBand(unclaimed);
-          _sessionUnsub ??= _routeEvents(events);
-        }
+        final open = _open ?? _openRun(runId);
         // A reply arriving after a tool result is the next response opening.
-        _handOver(_segmenter!.speaks(messageId));
+        _handOver(open, open.segmenter.speaks(messageId));
       case AwaitingText():
-        if (_activeId != null) return;
-        _activities = activities;
-        _unclaimed = unclaimed;
-        _segmenter = ResponseSegmenter();
-        _openBand(unclaimed);
-        _sessionUnsub ??= _routeEvents(events);
+        if (_open == null) _openRun(runId);
     }
+  }
+
+  _OpenRun _openRun(String runId) {
+    // Until a message speaks, the run owns the band. Keying it by run rather
+    // than by a slot shared across runs is what lets two runs that both go
+    // quiet each keep their own work, and it names the tile such a run will be
+    // given if it never speaks at all.
+    final open = (
+      unclaimed: noResponseMessageId(runId),
+      segmenter: ResponseSegmenter(),
+    );
+    _open = open;
+    _openBand(open);
+    return open;
+  }
+
+  void _openBand(_OpenRun open) {
+    _trackers[open.unclaimed] = ExecutionTracker(
+      activities: _activities,
+      logger: _logger,
+    );
   }
 
   /// Hands the band of a response that ended to [takes], the message that
@@ -90,18 +98,10 @@ class TrackerRegistry {
   /// to an execution event, and a tool result does not change the streaming
   /// state. A response that said nothing leaves its work where it is, so the
   /// next response to speak takes that too.
-  void _handOver(String? takes) {
+  void _handOver(_OpenRun open, String? takes) {
     if (takes == null) return;
-    _claim(takes, StepStatus.completed);
-    _openBand(_unclaimed!);
-  }
-
-  void _openBand(String key) {
-    _activeId = key;
-    _trackers[key] = ExecutionTracker(
-      activities: _activities!,
-      logger: _logger,
-    );
+    _claim(open, takes, StepStatus.completed);
+    _openBand(open);
   }
 
   /// Routes each execution event to the open band, then ends the response if
@@ -113,21 +113,20 @@ class TrackerRegistry {
   /// a result leaves it untouched — so this is the only place live can see it.
   void Function() _routeEvents(ReadonlySignal<ExecutionEvent?> events) {
     return events.subscribe((event) {
+      final open = _open;
+      if (open == null || event == null) return;
       // Closed only once the next response starts, so calls a response made in
       // parallel stay in it, and what arrives between a result and the next
       // response — state the tool wrote, the run ending — stays with it too.
-      if (event != null) _handOver(_segmenter?.arrives(event));
-      _trackers[_activeId]?.observe(event);
+      _handOver(open, open.segmenter.arrives(event));
+      _trackers[open.unclaimed]?.observe(event);
     });
   }
 
   /// Hands the open band to [takes], the message that spoke for it.
-  void _claim(String takes, StepStatus unfinishedAs) {
-    final from = _activeId;
-    if (from == null) return;
-    final tracker = _trackers.remove(from);
+  void _claim(_OpenRun open, String takes, StepStatus unfinishedAs) {
+    final tracker = _trackers.remove(open.unclaimed);
     if (tracker != null) _trackers[takes] = tracker..freeze(unfinishedAs);
-    _activeId = null;
   }
 
   /// Freeze the open band when a run reaches a terminal state.
@@ -135,29 +134,15 @@ class TrackerRegistry {
   /// The run ending ends the response being collected, so whoever spoke in it
   /// takes the band — the last response of a run has no tool result to end it.
   void onRunTerminated(StepStatus unfinishedAs) {
-    final takes = _segmenter?.ends();
-    _segmenter = null;
+    final open = _open;
+    if (open == null) return;
+    _open = null;
+    final takes = open.segmenter.ends();
     if (takes != null) {
-      _claim(takes, unfinishedAs);
+      _claim(open, takes, unfinishedAs);
       return;
     }
-    _freezeActive(unfinishedAs);
-  }
-
-  /// Bulk-inserts already-frozen trackers produced from a loaded thread's
-  /// history. Existing entries with the same key are not overwritten —
-  /// a live tracker always wins over a historical one.
-  void seedHistorical(Map<String, ExecutionTracker> historical) {
-    for (final entry in historical.entries) {
-      _trackers.putIfAbsent(entry.key, () => entry.value);
-    }
-  }
-
-  void _freezeActive(StepStatus unfinishedAs) {
-    if (_activeId != null) {
-      _trackers[_activeId!]?.freeze(unfinishedAs);
-      _activeId = null;
-    }
+    _trackers[open.unclaimed]?.freeze(unfinishedAs);
   }
 
   void dispose() {
