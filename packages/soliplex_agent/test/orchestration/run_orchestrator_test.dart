@@ -991,7 +991,7 @@ void main() {
             text: 'q',
           ),
           NoResponseTile.cancelled(
-            id: noResponseMessageId('prior-run'),
+            runId: 'prior-run',
             thinkingText: 'thinking',
           ),
           ErrorMessage.create(id: 'run-error-prior', message: 'boom'),
@@ -1577,9 +1577,8 @@ void main() {
       // Every send builds a fresh Conversation from the cached history. A run
       // that ended two turns ago still has to be able to say so.
       final parked = NoResponseTile.cancelled(
-        id: noResponseMessageId('run-earlier'),
-        thinkingText: 'weighing it',
         runId: 'run-earlier',
+        thinkingText: 'weighing it',
       );
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));

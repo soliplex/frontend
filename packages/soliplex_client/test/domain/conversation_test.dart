@@ -551,64 +551,50 @@ void main() {
 
   group('run outcomes', () {
     NoResponseTile parked(String run) => NoResponseTile.finished(
-          id: noResponseMessageId(run),
-          thinkingText: 'weighing it',
           runId: run,
+          thinkingText: 'weighing it',
         );
-
-    test('a run cannot be filed under a slot belonging to another', () {
-      // The key decides which slot the thread reads the outcome from; the
-      // tile's own `runId` decides which run a bug report about it is filed
-      // against. They are read in different files, so a disagreement misfiles
-      // the report against a run that did not produce it.
-      expect(
-        () => Conversation.empty(threadId: 't')
-            .withRunOutcome('run-0', parked('run-1')),
-        throwsA(isA<ArgumentError>()),
-      );
-    });
 
     test('parking one keeps the runs already parked', () {
       final conversation = Conversation.empty(threadId: 't')
-          .withRunOutcome('run-0', parked('run-0'))
-          .withRunOutcome('run-1', parked('run-1'));
+          .withRunOutcome(parked('run-0'))
+          .withRunOutcome(parked('run-1'));
 
       expect(conversation.runOutcomes.keys, equals(['run-0', 'run-1']));
     });
 
     test('parking the same run again replaces it', () {
       final failed = NoResponseTile.failed(
-        id: noResponseMessageId('run-0'),
+        runId: 'run-0',
         thinkingText: '',
         errorDetail: 'boom',
-        runId: 'run-0',
       );
       final conversation = Conversation.empty(threadId: 't')
-          .withRunOutcome('run-0', parked('run-0'))
-          .withRunOutcome('run-0', failed);
+          .withRunOutcome(parked('run-0'))
+          .withRunOutcome(failed);
 
       expect(conversation.runOutcomes['run-0'], same(failed));
     });
 
     test('withdrawing one leaves the others', () {
       final conversation = Conversation.empty(threadId: 't')
-          .withRunOutcome('run-0', parked('run-0'))
-          .withRunOutcome('run-1', parked('run-1'))
+          .withRunOutcome(parked('run-0'))
+          .withRunOutcome(parked('run-1'))
           .withoutRunOutcome('run-0');
 
       expect(conversation.runOutcomes.keys, equals(['run-1']));
     });
 
     test('withdrawing a run that parked nothing changes nothing', () {
-      final conversation = Conversation.empty(threadId: 't')
-          .withRunOutcome('run-0', parked('run-0'));
+      final conversation =
+          Conversation.empty(threadId: 't').withRunOutcome(parked('run-0'));
 
       expect(conversation.withoutRunOutcome('run-9'), equals(conversation));
     });
 
     test('copyWith carries them', () {
-      final conversation = Conversation.empty(threadId: 't')
-          .withRunOutcome('run-0', parked('run-0'));
+      final conversation =
+          Conversation.empty(threadId: 't').withRunOutcome(parked('run-0'));
 
       expect(conversation.copyWith(threadId: 'u').runOutcomes, hasLength(1));
     });
@@ -619,7 +605,7 @@ void main() {
       final base = Conversation.empty(threadId: 't');
 
       expect(
-        base.withRunOutcome('run-0', parked('run-0')),
+        base.withRunOutcome(parked('run-0')),
         isNot(equals(base)),
       );
     });

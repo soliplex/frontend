@@ -191,7 +191,7 @@ void main() {
         isNotNull,
         reason: 'the steps already on screen must have somewhere to render',
       );
-      expect(tiles.last.runId, equals(_runId));
+      expect(tiles.last.message.runId, equals(_runId));
       expect(sink.warnings, isEmpty);
     });
 
@@ -215,7 +215,7 @@ void main() {
       expect(reply.message.id, equals('m1'));
       expect((reply.message as TextMessage).text, equals('Half an ans'));
       expect(reply.band, isNotNull);
-      expect(reply.runId, equals(_runId));
+      expect(reply.message.runId, equals(_runId));
       expect(sink.warnings, isEmpty);
     });
 
@@ -336,7 +336,7 @@ void main() {
       reason: "the tool round's steps belong to the answer, not to nowhere",
     );
     expect(answer.band!.steps.value, isNotEmpty);
-    expect(answer.runId, equals(_runId));
+    expect(answer.message.runId, equals(_runId));
     expect(
       sink.warnings,
       isEmpty,

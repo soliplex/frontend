@@ -2155,9 +2155,8 @@ void main() {
         ],
         runOutcomes: {
           'run-1': NoResponseTile.finished(
-            id: noResponseMessageId('run-1'),
-            thinkingText: 'weighing it',
             runId: 'run-1',
+            thinkingText: 'weighing it',
           ),
         },
       );
@@ -3729,11 +3728,10 @@ void main() {
             text: 'summarise the report',
           ),
           NoResponseTile.failed(
-            id: 'no-response-run-9',
+            runId: 'run-9',
             createdAt: DateTime(2026, 3, 1),
             thinkingText: 'thinking',
             errorDetail: 'upstream exploded',
-            runId: 'run-9',
           ),
         ],
         messageStates: {
@@ -3769,11 +3767,10 @@ void main() {
         },
         runOutcomes: {
           'run-9': NoResponseTile.failed(
-            id: noResponseMessageId('run-9'),
+            runId: 'run-9',
             createdAt: DateTime(2026, 3, 1),
             thinkingText: 'thinking',
             errorDetail: 'upstream exploded',
-            runId: 'run-9',
           ),
         },
       );

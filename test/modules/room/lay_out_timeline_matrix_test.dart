@@ -66,22 +66,19 @@ TextMessage _user(String id, {String text = 'ask'}) => TextMessage(
     );
 
 NoResponseTile _finished(String run) => NoResponseTile.finished(
-      id: noResponseMessageId(run),
-      thinkingText: '',
       runId: run,
+      thinkingText: '',
     );
 
 NoResponseTile _failed(String run) => NoResponseTile.failed(
-      id: noResponseMessageId(run),
+      runId: run,
       thinkingText: '',
       errorDetail: 'boom',
-      runId: run,
     );
 
 NoResponseTile _cancelled(String run) => NoResponseTile.cancelled(
-      id: noResponseMessageId(run),
-      thinkingText: 'weighing it',
       runId: run,
+      thinkingText: 'weighing it',
     );
 
 /// The unclaimed band of [run] — the one that collected while no message had
@@ -413,7 +410,7 @@ void main() {
         for (final tile in tiles) {
           if (tile.band case final band?) {
             expect(
-              tile.runId,
+              tile.message.runId,
               equals(runOf[band]),
               reason: "${row.case_} put a band on another run's tile",
             );
@@ -444,7 +441,7 @@ void main() {
     test('every run that ended reaches a tile', () {
       for (final row in rows) {
         final (:tiles, bands: _) = run(row);
-        final shown = {for (final tile in tiles) tile.runId};
+        final shown = {for (final tile in tiles) tile.message.runId};
 
         for (final runId in row.outcomes.keys) {
           if (runId == row.activeRunId) continue;

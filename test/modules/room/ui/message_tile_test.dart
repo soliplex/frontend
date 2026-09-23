@@ -262,7 +262,7 @@ void main() {
         isStreaming: false,
         roomId: 'r',
         message: NoResponseTile.failed(
-          id: 'no-response-run-4',
+          runId: 'run-4',
           createdAt: DateTime(2026, 3, 1),
           thinkingText: 'reasoning',
           errorDetail: 'upstream exploded',

@@ -376,6 +376,14 @@ class TextMessage extends ChatMessage {
   String toString() => 'TextMessage(id: $id, user: $user)';
 }
 
+/// Single source of truth for the id of a run's parked outcome. It doubles as
+/// the key of a band that collected while no message had spoken, so parking,
+/// band keying on both paths, and placement all have to derive it here for the
+/// three to agree about the same run.
+String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
+
+const _noResponseIdPrefix = 'no-response-';
+
 /// Synthesized assistant tile shown when a run reached a terminal state
 /// without producing a `TextMessageStart`/`Content`/`End` reply.
 ///
@@ -386,20 +394,20 @@ class TextMessage extends ChatMessage {
 ///
 /// Construct via the named factories ([NoResponseTile.failed],
 /// [NoResponseTile.cancelled], [NoResponseTile.finished]); the link between
-/// `reason` and `errorDetail` is enforced at the type level.
+/// `reason` and `errorDetail` is enforced at the type level, and so is the
+/// link between the run and the tile's [id], which is derived from it.
 @immutable
 class NoResponseTile extends ChatMessage {
   /// Run failed (`RunErrorEvent`). [errorDetail] is the backend message so
   /// the tile renders "Run failed: <detail>" rather than the generic copy.
   factory NoResponseTile.failed({
-    required String id,
+    required String runId,
     required String thinkingText,
     required String errorDetail,
     DateTime? createdAt,
-    String? runId,
   }) =>
       NoResponseTile._(
-        id: id,
+        id: noResponseMessageId(runId),
         createdAt: createdAt,
         runId: runId,
         thinkingText: thinkingText,
@@ -409,13 +417,12 @@ class NoResponseTile extends ChatMessage {
 
   /// Run was cancelled (`cancelRun`).
   factory NoResponseTile.cancelled({
-    required String id,
+    required String runId,
     required String thinkingText,
     DateTime? createdAt,
-    String? runId,
   }) =>
       NoResponseTile._(
-        id: id,
+        id: noResponseMessageId(runId),
         createdAt: createdAt,
         runId: runId,
         thinkingText: thinkingText,
@@ -425,13 +432,12 @@ class NoResponseTile extends ChatMessage {
 
   /// Run completed normally (`RunFinishedEvent`).
   factory NoResponseTile.finished({
-    required String id,
+    required String runId,
     required String thinkingText,
     DateTime? createdAt,
-    String? runId,
   }) =>
       NoResponseTile._(
-        id: id,
+        id: noResponseMessageId(runId),
         createdAt: createdAt,
         runId: runId,
         thinkingText: thinkingText,
@@ -442,11 +448,15 @@ class NoResponseTile extends ChatMessage {
   const NoResponseTile._({
     required super.id,
     required super.createdAt,
-    required super.runId,
+    required String super.runId,
     required this.thinkingText,
     required this.reason,
     required this.errorDetail,
   }) : super(user: ChatUser.assistant);
+
+  /// The run whose ending this tile records.
+  @override
+  String get runId => super.runId!;
 
   /// Buffered thinking captured before the run terminated. May be empty.
   final String thinkingText;

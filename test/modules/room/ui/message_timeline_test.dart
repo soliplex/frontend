@@ -139,4 +139,44 @@ void main() {
       hasLength(1),
     );
   });
+
+  testWidgets(
+      "a user tile's actions reach the last segment of its turn, not the "
+      'run that opened it', (tester) async {
+    // A turn that runs a client tool spans runs. The user message carries the
+    // run it opened, and its message state follows the turn to its last run.
+    const ask = TextMessage(
+      id: 'u1',
+      user: ChatUser.user,
+      createdAt: null,
+      text: 'ask',
+      runId: 'segment-1',
+    );
+    String? inspected;
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: MessageTimeline(
+            roomId: 'r',
+            messages: const [ask],
+            messageStates: {
+              'u1': MessageState(
+                userMessageId: 'u1',
+                sourceReferences: const [],
+                runId: 'segment-2',
+              ),
+            },
+            onInspect: (runId) => inspected = runId,
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.byTooltip('Inspect HTTP traffic'));
+
+    expect(inspected, 'segment-2');
+  });
 }

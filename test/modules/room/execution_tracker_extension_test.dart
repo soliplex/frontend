@@ -35,7 +35,7 @@ Conversation _conversationWith(List<ChatMessage> messages) =>
     Conversation.empty(threadId: _threadId).copyWith(messages: messages);
 
 NoResponseTile _synthesized(String runId) => NoResponseTile.cancelled(
-      id: noResponseMessageId(runId),
+      runId: runId,
       thinkingText: 'reasoning',
     );
 

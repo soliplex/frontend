@@ -1761,9 +1761,8 @@ void main() {
 
   group('run outcomes reaching the view', () {
     NoResponseTile parked(String run) => NoResponseTile.cancelled(
-          id: noResponseMessageId(run),
-          thinkingText: 'weighing it',
           runId: run,
+          thinkingText: 'weighing it',
         );
 
     test('a refresh keeps a run the backend cannot replay', () async {
@@ -1806,9 +1805,8 @@ void main() {
         messages: const [],
         runOutcomes: {
           'run-0': NoResponseTile.finished(
-            id: noResponseMessageId('run-0'),
-            thinkingText: 'weighing it',
             runId: 'run-0',
+            thinkingText: 'weighing it',
           ),
         },
       );
@@ -1931,9 +1929,8 @@ void main() {
         threadId: 'thread-1',
       );
       final parked = NoResponseTile.cancelled(
-        id: noResponseMessageId('run-0'),
-        thinkingText: 'weighing it',
         runId: 'run-0',
+        thinkingText: 'weighing it',
       );
 
       final session = _FakeAgentSession();
