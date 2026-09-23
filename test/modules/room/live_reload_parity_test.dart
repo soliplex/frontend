@@ -1,22 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-// ignore: implementation_imports
-import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
-import 'package:soliplex_client/soliplex_client.dart'
-    show AgUiStreamClient, HttpTransport, SoliplexApi, UrlBuilder;
 
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
-import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/historical_replay.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/run_id_resolver.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
-import '../../helpers/test_logger.dart';
+import '../../helpers/live_session.dart';
 
 /// One event sequence, both paths, compared at the inputs to `layOutTimeline`.
 ///
@@ -30,18 +22,6 @@ import '../../helpers/test_logger.dart';
 ///
 /// Narrow on purpose: the message list, the band map and the parked outcomes.
 /// There is nothing else left that can diverge.
-
-class _MockApi extends Mock implements SoliplexApi {}
-
-class _MockStreamClient extends Mock implements AgUiStreamClient {}
-
-class _MockRuntime extends Mock implements AgentRuntime {}
-
-class _MockHttpTransport extends Mock implements HttpTransport {}
-
-class _FakeInput extends Fake implements SimpleRunAgentInput {}
-
-class _FakeCancelToken extends Fake implements CancelToken {}
 
 const _key = (serverId: 's', roomId: 'r', threadId: 't');
 const _runId = 'run-abc';
@@ -124,53 +104,9 @@ class _BandWatch {
 }
 
 Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
-  final api = _MockApi();
-  final streamClient = _MockStreamClient();
-  final events = StreamController<BaseEvent>();
-  when(() => api.createRun(any(), any())).thenAnswer(
-    (_) async => RunInfo(
-      id: _runId,
-      threadId: 't',
-      createdAt: DateTime.utc(2026),
-    ),
-  );
-  when(
-    () => streamClient.runAgent(
-      any(),
-      any(),
-      cancelToken: any(named: 'cancelToken'),
-      resumePolicy: any(named: 'resumePolicy'),
-      onReconnectStatus: any(named: 'onReconnectStatus'),
-    ),
-  ).thenAnswer(
-    (_) => events.stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
-  );
-
-  final orchestrator = RunOrchestrator(
-    llmProvider: AgUiLlmProvider(api: api, agUiStreamClient: streamClient),
-    toolRegistry: const ToolRegistry(),
-    logger: testLogger('orchestrator'),
-  );
-  final ext = ExecutionTrackerExtension(logger: testLogger('ext'));
-  final runtime = _MockRuntime();
-  when(() => runtime.ensureThreadState(any())).thenReturn(ThreadState());
-  // Built directly rather than through `AgentRuntime.spawn`, as the derived
-  // timeline integration test does: every mock between the events and the
-  // inputs is fidelity this test exists to avoid spending.
-  // ignore: invalid_use_of_internal_member
-  final session = AgentSession(
-    threadKey: _key,
-    ephemeral: false,
-    depth: 0,
-    runtime: runtime,
-    orchestrator: orchestrator,
-    toolRegistry: const ToolRegistry(),
-    coordinator: SessionCoordinator([ext], logger: testLogger('coord')),
-    logger: testLogger('session'),
-  );
-
+  final (session: _, :orchestrator, trackers: ext, :events) =
+      startLiveSession(key: _key, runId: _runId);
   final watch = _BandWatch();
-  unawaited(session.start(userMessage: [const TextPart('Q')]));
   await Future<void>.delayed(Duration.zero);
   for (final (index, event) in sequence.indexed) {
     events.add(event);
@@ -211,52 +147,14 @@ Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
 }
 
 Future<_Inputs> _reloaded(List<BaseEvent> sequence) async {
-  final transport = _MockHttpTransport();
-  final api = SoliplexApi(
-    transport: transport,
-    urlBuilder: UrlBuilder('https://api.example.com/api/v1'),
-  );
-  addTearDown(api.close);
-  when(() => transport.close()).thenReturn(null);
-
-  void stub(String path, Map<String, dynamic> body) {
-    when(
-      () => transport.request<Map<String, dynamic>>(
-        'GET',
-        Uri.parse('https://api.example.com/api/v1$path'),
-        cancelToken: any(named: 'cancelToken'),
-        fromJson: any(named: 'fromJson'),
-        body: any(named: 'body'),
-        headers: any(named: 'headers'),
-        timeout: any(named: 'timeout'),
-      ),
-    ).thenAnswer((_) async => body);
-  }
-
-  stub('/rooms/r/agui/t', {
-    'room_id': 'r',
-    'thread_id': 't',
-    'runs': {
-      _runId: {
-        'run_id': _runId,
-        'created': '2026-01-07T01:00:00.000Z',
-        'finished': '2026-01-07T01:01:00.000Z',
-      },
-    },
-  });
-  // The backend stores the turn's user message as run input, not as text
-  // events — so it reaches replay with an id the live path never sees.
-  stub('/rooms/r/agui/t/$_runId', {
-    'run_id': _runId,
-    'run_input': {
-      'messages': [
-        {'role': 'user', 'id': _storedUserMessageId, 'content': 'Q'},
-      ],
-    },
-    'events': [for (final event in sequence) event.toJson()],
-  });
-
-  final history = await api.getThreadHistory('r', 't');
+  final history = await storedHistory([
+    (
+      runId: _runId,
+      userMessageId: _storedUserMessageId,
+      prompt: 'Q',
+      events: sequence,
+    ),
+  ]);
   return (
     messages: history.messages,
     messageStates: history.messageStates,
@@ -416,13 +314,7 @@ List<BaseEvent> _says(String messageId, String text) => [
     ];
 
 void main() {
-  setUpAll(() {
-    registerFallbackValue(_FakeInput());
-    registerFallbackValue(_FakeCancelToken());
-    registerFallbackValue(const (serverId: 'f', roomId: 'f', threadId: 'f'));
-    registerFallbackValue(Uri.parse('https://example.com'));
-    registerFallbackValue(CancelToken());
-  });
+  setUpAll(registerLiveSessionFallbacks);
 
   test('a run that thinks, declares a tool call, then answers', () async {
     await _expectParity([
