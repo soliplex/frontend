@@ -8,3 +8,4 @@ export 'rag_snapshot.dart';
 export 'run_phase.dart';
 export 'state_bus.dart';
 export 'streaming_state.dart';
+export 'thinking_state.dart';

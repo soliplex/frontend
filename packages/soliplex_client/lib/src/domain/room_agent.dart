@@ -24,6 +24,35 @@ sealed class RoomAgent {
   final List<String> aguiFeatureNames;
 }
 
+/// What a room's model offers for how hard it thinks.
+///
+/// Absent from an agent whose model is not known to reason, which is what
+/// keeps a control off screens where it would do nothing: a level sent to a
+/// model that reports no support is discarded before it reaches the wire, and
+/// nothing comes back to say so.
+@immutable
+class AgentThinking {
+  /// Creates the reasoning capability a room reports.
+  const AgentThinking({required this.levels, this.defaultLevel});
+
+  /// Offerable levels, lowest first, and the complete set.
+  ///
+  /// Offer these and nothing else. Which levels a model accepts belongs to
+  /// its chat template rather than to any catalogue the client could consult,
+  /// so a level absent here is one that would fail the run. `off` is absent
+  /// for a model that cannot stop reasoning.
+  final List<String> levels;
+
+  /// What the room asks for when a run asks for nothing.
+  ///
+  /// Named around `default` being a Dart keyword; the wire field is
+  /// `default`.
+  final String? defaultLevel;
+
+  @override
+  String toString() => 'AgentThinking(levels: $levels, default: $defaultLevel)';
+}
+
 /// Standard LLM agent with model configuration.
 @immutable
 class DefaultRoomAgent extends RoomAgent {
@@ -34,6 +63,7 @@ class DefaultRoomAgent extends RoomAgent {
     this.retries,
     this.modelName,
     this.systemPrompt,
+    this.thinking,
     super.aguiFeatureNames,
   });
 
@@ -49,6 +79,11 @@ class DefaultRoomAgent extends RoomAgent {
 
   /// LLM provider type (e.g., 'openai', 'ollama').
   final String providerType;
+
+  /// How hard this model may be asked to think, or null where it offers no
+  /// control. Resolved by the backend from the model itself and fixed for the
+  /// life of the room, so it is read once here rather than per thread.
+  final AgentThinking? thinking;
 
   @override
   String toString() => 'DefaultRoomAgent(id: $id, model: $modelName)';

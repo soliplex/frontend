@@ -146,6 +146,7 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
       retries: intOrNull(json['retries'], 'retries'),
       systemPrompt: stringOrNull(json['system_prompt'], 'system_prompt'),
       providerType: stringOrNull(json['provider_type'], 'provider_type') ?? '',
+      thinking: agentThinkingFromJson(json['thinking']),
       aguiFeatureNames: aguiFeatureNames,
     );
   }
@@ -161,6 +162,22 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   }
 
   return OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames);
+}
+
+/// Reads an agent's `thinking` block, or null where it carries none.
+///
+/// Null covers both a backend too old to send the field and a model that
+/// offers no control; the client treats them alike, because it has nothing to
+/// offer in either case. An empty `levels` is also null: a control with no
+/// levels in it is a control that cannot be used.
+AgentThinking? agentThinkingFromJson(Object? raw) {
+  if (raw is! Map<String, dynamic>) return null;
+  final levels = stringList(raw['levels'], 'levels');
+  if (levels.isEmpty) return null;
+  return AgentThinking(
+    levels: List.unmodifiable(levels),
+    defaultLevel: stringOrNull(raw['default'], 'default'),
+  );
 }
 
 /// Extracts a required string field, throwing [FormatException] if missing

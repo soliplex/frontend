@@ -1342,4 +1342,116 @@ void main() {
       expect(tester.getSize(find.byType(TextField)).width, before);
     });
   });
+
+  group('reasoning effort control', () {
+    Future<void> pumpComposer(
+      WidgetTester tester, {
+      AgentThinking? thinking,
+      String? level,
+      void Function(String?)? onChanged,
+      double width = 900,
+    }) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: width,
+            child: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+              thinking: thinking,
+              thinkingLevel: level,
+              onThinkingLevelChanged: onChanged,
+            ),
+          ),
+        ),
+      ));
+    }
+
+    testWidgets('is absent where the room offers no control', (tester) async {
+      // A level sent to a model that reports no support is discarded before it
+      // reaches the wire, so a control here would promise what does not happen.
+      await pumpComposer(tester);
+
+      expect(find.byIcon(Icons.psychology_outlined), findsNothing);
+    });
+
+    testWidgets('offers exactly the levels the room reports', (tester) async {
+      // Which levels a model accepts belongs to its chat template, so the set
+      // is read from the room rather than assumed: a level not offered here
+      // would fail the run it was sent on.
+      await pumpComposer(
+        tester,
+        thinking: const AgentThinking(levels: ['low', 'medium', 'xhigh']),
+      );
+
+      await tester.tap(find.byIcon(Icons.psychology_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Room default'), findsOneWidget);
+      expect(find.text('Low'), findsOneWidget);
+      expect(find.text('Medium'), findsOneWidget);
+      expect(find.text('Extra high'), findsOneWidget);
+      // Offered by no room here, and so shown by no menu.
+      expect(find.text('High'), findsNothing);
+      expect(find.text('Off'), findsNothing);
+    });
+
+    testWidgets('reports a chosen level', (tester) async {
+      String? chosen;
+      var called = false;
+      await pumpComposer(
+        tester,
+        thinking: const AgentThinking(levels: ['low', 'high']),
+        onChanged: (level) {
+          chosen = level;
+          called = true;
+        },
+      );
+
+      await tester.tap(find.byIcon(Icons.psychology_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('High'));
+      await tester.pumpAndSettle();
+
+      expect(called, isTrue);
+      expect(chosen, equals('high'));
+    });
+
+    testWidgets('reports the room default as no level', (tester) async {
+      String? chosen = 'high';
+      var called = false;
+      await pumpComposer(
+        tester,
+        thinking: const AgentThinking(levels: ['low', 'high']),
+        level: 'high',
+        onChanged: (level) {
+          chosen = level;
+          called = true;
+        },
+      );
+
+      await tester.tap(find.byIcon(Icons.psychology_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Room default'));
+      await tester.pumpAndSettle();
+
+      expect(called, isTrue);
+      expect(chosen, isNull);
+    });
+
+    testWidgets('shows an unknown level rather than dropping it',
+        (tester) async {
+      // The backend publishes the set, so a level added there should appear
+      // rather than vanish from a client that has not been rebuilt for it.
+      await pumpComposer(
+        tester,
+        thinking: const AgentThinking(levels: ['ludicrous']),
+      );
+
+      await tester.tap(find.byIcon(Icons.psychology_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ludicrous'), findsOneWidget);
+    });
+  });
 }

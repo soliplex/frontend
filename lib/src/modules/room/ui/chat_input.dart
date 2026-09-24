@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +60,9 @@ class ChatInput extends StatefulWidget {
     this.onFilterTap,
     this.onDocumentRemoved,
     this.onAttachFile,
+    this.thinking,
+    this.thinkingLevel,
+    this.onThinkingLevelChanged,
     this.onAttachFolder,
     this.openImagePicker,
     this.composerScope,
@@ -77,6 +82,19 @@ class ChatInput extends StatefulWidget {
   final Set<RagDocument> selectedDocuments;
   final VoidCallback? onFilterTap;
   final void Function(RagDocument doc)? onDocumentRemoved;
+
+  /// What the room's model offers for how hard it thinks, or null where it
+  /// offers no control — in which case no control is shown. Which levels a
+  /// model accepts belongs to its chat template, so the set is read from the
+  /// room rather than assumed here.
+  final AgentThinking? thinking;
+
+  /// The level the thread currently asserts, or null for the room's default.
+  final String? thinkingLevel;
+
+  /// Called with the chosen level, or null to go back to the room's default.
+  final ValueChanged<String?>? onThinkingLevelChanged;
+
   final VoidCallback? onAttachFile;
 
   /// Optional folder-pick callback. When both [onAttachFile] and
@@ -113,7 +131,28 @@ enum _AttachChoice { files, folder }
 
 /// The optional room actions, which collapse into one menu on a narrow
 /// composer.
-enum _RoomActionChoice { filter, uploadFiles, uploadFolder }
+/// Stands for 'no level asserted' in the menus, which cannot carry null.
+const String _roomDefaultChoice = '';
+
+enum _RoomActionChoice { filter, uploadFiles, uploadFolder, thinking }
+
+/// Display names for the reasoning levels a room can offer.
+///
+/// Unknown levels are shown as they arrive, capitalised: the set is published
+/// by the backend, so a level added there should appear rather than vanish
+/// from a menu this client has not been rebuilt for.
+const Map<String, String> _thinkingLabels = {
+  'off': 'Off',
+  'minimal': 'Minimal',
+  'low': 'Low',
+  'medium': 'Medium',
+  'high': 'High',
+  'xhigh': 'Extra high',
+};
+
+String _thinkingLabel(String level) =>
+    _thinkingLabels[level] ??
+    (level.isEmpty ? level : level[0].toUpperCase() + level.substring(1));
 
 class _ChatInputState extends State<ChatInput> {
   late InlineImageComposerController _controller;
@@ -389,7 +428,74 @@ class _ChatInputState extends State<ChatInput> {
         widget.onAttachFile?.call();
       case _RoomActionChoice.uploadFolder:
         widget.onAttachFolder?.call();
+      case _RoomActionChoice.thinking:
+        unawaited(_openThinkingPicker());
     }
+  }
+
+  /// The reasoning control's compact form.
+  ///
+  /// Below [SoliplexBreakpoints.tablet] the composer's optional controls
+  /// collapse into one menu, and a menu inside a menu reads poorly, so the
+  /// levels are offered as a dialog instead of a submenu.
+  Future<void> _openThinkingPicker() async {
+    final offered = widget.thinking;
+    if (offered == null) return;
+
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Reasoning effort'),
+        children: [
+          for (final level in [_roomDefaultChoice, ...offered.levels])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, level),
+              child: Text(
+                level == _roomDefaultChoice
+                    ? 'Room default'
+                    : _thinkingLabel(level),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    if (chosen == null || !mounted) return;
+    widget.onThinkingLevelChanged?.call(
+      chosen == _roomDefaultChoice ? null : chosen,
+    );
+  }
+
+  /// The reasoning control as its own button, where the row has the room.
+  Widget _buildThinkingButton(BuildContext context, bool disabled) {
+    final offered = widget.thinking!;
+    final chosen = widget.thinkingLevel;
+
+    return PopupMenuButton<String>(
+      icon: Icon(
+        Icons.psychology_outlined,
+        color: chosen != null && !disabled
+            ? Theme.of(context).colorScheme.primary
+            : null,
+      ),
+      tooltip: 'Reasoning effort',
+      enabled: !disabled,
+      initialValue: chosen ?? _roomDefaultChoice,
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: _roomDefaultChoice,
+          child: Text('Room default'),
+        ),
+        for (final level in offered.levels)
+          PopupMenuItem(value: level, child: Text(_thinkingLabel(level))),
+      ],
+      onSelected: (level) {
+        if (!_acceptsInput) return;
+        widget.onThinkingLevelChanged?.call(
+          level == _roomDefaultChoice ? null : level,
+        );
+      },
+    );
   }
 
   /// Runs a choice from the attach menu, on the same terms as [_onRoomAction].
@@ -454,6 +560,11 @@ class _ChatInputState extends State<ChatInput> {
               value: _RoomActionChoice.filter,
               child: Text('Filter documents'),
             ),
+            if (widget.thinking != null)
+              const PopupMenuItem(
+                value: _RoomActionChoice.thinking,
+                child: Text('Reasoning effort…'),
+              ),
             const PopupMenuItem(
               value: _RoomActionChoice.uploadFiles,
               child: Text('Upload files…'),
@@ -467,6 +578,7 @@ class _ChatInputState extends State<ChatInput> {
           onSelected: _onRoomAction,
         )
       else ...[
+        if (widget.thinking != null) _buildThinkingButton(context, disabled),
         if (hasFilter)
           IconButton(
             icon: Icon(

@@ -17,6 +17,7 @@ class ThreadHistory {
     List<RunEventBundle> runs = const [],
     Map<String, NoResponseTile> runOutcomes = const {},
     this.documentFilter,
+    this.thinkingLevel,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -62,6 +63,15 @@ class ThreadHistory {
   /// when no run carries one. The backend keeps no merged filter state, so this
   /// (not any state event) is the only record of the thread's active filter.
   final String? documentFilter;
+
+  /// The reasoning level the client last asserted for this thread, read from
+  /// the newest run's `run_input.state.thinking.level`. `null` when no run
+  /// carries one, which is also what leaves the room's own default in force.
+  ///
+  /// Read from the run input for the same reason [documentFilter] is: the
+  /// backend keeps no merged state for a client-owned feature, so the run that
+  /// carried it is the only record of it.
+  final String? thinkingLevel;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.
