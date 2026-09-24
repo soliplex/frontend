@@ -59,8 +59,9 @@ class CitationGroup {
 }
 
 /// Groups [refs] by the database they came from, in first-seen order, with
-/// the citations naming none last. A list where none names a database is one
-/// unnamed group — the flat list, for the section to render without headings.
+/// the citations naming none last, in at most one unnamed group. A non-empty
+/// list where none names a database is that group alone — the flat list, for
+/// the section to render without headings.
 @visibleForTesting
 List<CitationGroup> groupCitationsByDatabase(List<SourceReference> refs) {
   final named = <String, List<({int index, SourceReference ref})>>{};
