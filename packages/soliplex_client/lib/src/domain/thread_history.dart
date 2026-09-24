@@ -17,12 +17,14 @@ class ThreadHistory {
     List<RunEventBundle> runs = const [],
     Map<String, NoResponseTile> runOutcomes = const {},
     this.documentFilter,
-    this.databaseSources,
+    List<String>? databaseSources,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
         runs = List.unmodifiable(runs),
-        runOutcomes = Map.unmodifiable(runOutcomes);
+        runOutcomes = Map.unmodifiable(runOutcomes),
+        databaseSources =
+            databaseSources == null ? null : List.unmodifiable(databaseSources);
 
   /// Messages in the thread, ordered chronologically.
   final List<ChatMessage> messages;

@@ -130,6 +130,20 @@ void main() {
       expect(history.runs, hasLength(1));
     });
 
+    test('is immutable - databaseSources cannot be modified externally', () {
+      final sources = ['wiki'];
+      final history =
+          ThreadHistory(messages: const [], databaseSources: sources);
+
+      sources.add('papers');
+
+      expect(history.databaseSources, ['wiki']);
+      expect(
+        () => history.databaseSources!.add('notes'),
+        throwsUnsupportedError,
+      );
+    });
+
     test('documentFilter defaults to null and carries a provided value', () {
       expect(ThreadHistory(messages: const []).documentFilter, isNull);
       expect(
