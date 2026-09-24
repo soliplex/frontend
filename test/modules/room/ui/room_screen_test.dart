@@ -1787,10 +1787,11 @@ void main() {
           },
         );
 
-    Future<void> pumpRoom(WidgetTester tester) async {
+    Future<void> pumpRoom(WidgetTester tester, {String? threadId}) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(MaterialApp(
         theme: soliplexLightTheme(),
@@ -1798,7 +1799,7 @@ void main() {
           appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
-          threadId: null,
+          threadId: threadId,
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
@@ -1857,24 +1858,7 @@ void main() {
         databaseSources: const ['wiki'],
       );
 
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(MaterialApp(
-        theme: soliplexLightTheme(),
-        home: RoomScreen(
-          appName: 'Test App',
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpRoom(tester, threadId: 'thread-1');
 
       expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
     });
@@ -1887,24 +1871,7 @@ void main() {
         databaseSources: const ['wiki', 'papers'],
       );
 
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(MaterialApp(
-        theme: soliplexLightTheme(),
-        home: RoomScreen(
-          appName: 'Test App',
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpRoom(tester, threadId: 'thread-1');
 
       expect(find.text('Searching all 2 databases'), findsOneWidget);
     });
