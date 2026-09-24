@@ -109,6 +109,25 @@ void main() {
     expect(find.text('Other sources'), findsNothing);
   });
 
+  testWidgets(
+      'a long database name stays on one line with its full name '
+      'in a tooltip', (tester) async {
+    const name = 'ancient-trade-routes-and-early-printing-archive';
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [_ref(index: 1, database: name)],
+      ),
+    ));
+
+    expect(tester.takeException(), isNull);
+    expect(find.byTooltip(name), findsOneWidget);
+  });
+
   testWidgets('a single named database still shows its name', (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(

@@ -214,6 +214,7 @@ class _DatabaseHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = theme.colorScheme.onSurfaceVariant;
+    final label = database ?? _unattributedCitationsLabel;
     return Padding(
       padding: const EdgeInsets.only(
         top: SoliplexSpacing.s1,
@@ -223,11 +224,20 @@ class _DatabaseHeading extends StatelessWidget {
         children: [
           Icon(Icons.storage_outlined, size: 14, color: color),
           const SizedBox(width: SoliplexSpacing.s1),
-          Text(
-            database ?? _unattributedCitationsLabel,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
+          // A database name has no length limit; a long one is cut to the
+          // line, with the whole name on hover.
+          Expanded(
+            child: Tooltip(
+              message: label,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
