@@ -1,6 +1,6 @@
 /// Persists per-thread RAG database selections across navigation.
 ///
-/// The document-side twin of `DocumentSelections`, keyed the same way
+/// The database twin of `DocumentSelections`, keyed the same way
 /// (serverId, roomId, threadId) for the same reasons: selections survive room
 /// switches and stay isolated per server. A selection is the set of database
 /// names a thread's searches cover; an absent entry means every database, which

@@ -66,11 +66,12 @@ class ThreadHistory {
   /// (not any state event) is the only record of the thread's active filter.
   final String? documentFilter;
 
-  /// The RAG database names the client last asserted for this thread, read
-  /// from the newest run's `run_input.state.rag.sources`. `null` when no run
-  /// carries one, or the newest carrying one asserted every database (the
-  /// backend's `null`). Like [documentFilter], the run input is the only
-  /// record of it.
+  /// The RAG database names the client last asserted for this thread: the
+  /// `sources` of the newest run whose input state carries one, under `rag`
+  /// first, else any other namespace. `null` when no run carries one, or the
+  /// newest carrying one asserted every database (the backend's `null`), or
+  /// its value is empty or not a list of names. Like [documentFilter], the run
+  /// input is the only record of it.
   final List<String>? databaseSources;
 }
 

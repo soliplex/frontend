@@ -44,15 +44,14 @@ const String _figureSemanticLabel = 'Cited figure';
 /// that do — a list where none does carries no headings at all.
 const String _unattributedCitationsLabel = 'Other sources';
 
-/// A run of citations from one RAG database, keeping each citation's position
-/// in the original list so its badge and expansion state stay its own.
+/// The citations from one RAG database, keeping each citation's position in
+/// the original list so its badge and expansion state stay its own.
 @immutable
 class CitationGroup {
   const CitationGroup({required this.database, required this.entries});
 
-  /// The database name the backend reports, or null for citations that carry
-  /// none — a capability that reports no source, or a run from before
-  /// databases were named.
+  /// The database name the backend reports, or null for citations whose
+  /// capability reports no `source`.
   final String? database;
 
   /// Citations in list order, each with its index in the original list.

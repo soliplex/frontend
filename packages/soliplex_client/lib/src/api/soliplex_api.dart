@@ -1205,10 +1205,11 @@ class SoliplexApi {
   /// The `sources` from the newest run whose input state carries one, or
   /// null.
   ///
-  /// Every haiku.rag capability namespace carries the key and the client
-  /// writes one selection to all of them, so the first namespace found
-  /// speaks for the run — `rag` first, for a room with several. A room with
-  /// only the analysis skill has it under `analysis` alone.
+  /// Each namespace a selection is written to is sent the part of it that
+  /// namespace lists. A room's skills cover one database set, so each carries
+  /// the same list and the first found speaks for the run — `rag` first, for a
+  /// room with several. A room with only the analysis skill has it under
+  /// `analysis` alone.
   ///
   /// A list with a non-string entry reads as null: the selector cannot have
   /// sent it, and "every database" is the reading that loses nothing.
