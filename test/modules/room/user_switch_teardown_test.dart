@@ -360,8 +360,8 @@ void main() {
       final w = wire(initialSub: 'alice');
       // Wire a runtime manager whose evictServer throws. It is the first of the
       // steps, so a guard that wrapped the whole sequence — rather than
-      // each step — would strand runs, uploads, and filters and unwind the
-      // sign-in that recorded the switch.
+      // each step — would strand every later step and unwind the sign-in that
+      // recorded the switch.
       final throwingRuntime = _ThrowingRuntimeManager(
         platform: TestPlatformConstraints(),
         toolRegistryResolver: (_) async => const ToolRegistry(),
@@ -384,6 +384,8 @@ void main() {
           w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room');
       w.docs.set(
           serverId: 's1', roomId: 'room', threadId: 'thread', docs: {_doc});
+      w.databases.set(
+          serverId: 's1', roomId: 'room', threadId: 'thread', names: {'wiki'});
 
       expect(() {
         w.entry.auth.logout();
@@ -402,6 +404,10 @@ void main() {
       expect(w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
           isEmpty,
           reason: 'document selections should be cleared despite the throw');
+      expect(
+          w.databases.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
+          isEmpty,
+          reason: 'database selections should be cleared despite the throw');
     });
   });
 }

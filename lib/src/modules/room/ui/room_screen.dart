@@ -955,10 +955,11 @@ class _RoomScreenState extends State<RoomScreen> {
     _filterHydrator.setFilter(threadId, history.documentFilter);
   }
 
-  /// Seeds the thread's database selection from its newest run — but only if
-  /// the user hasn't already made one for it during the async load (local
-  /// edit wins). A history asserting every database seeds nothing: that is
-  /// the default, and a local selection is left as it is.
+  /// Seeds the thread's database selection from its newest run, through
+  /// [DatabaseSelections.seed]: an entry the thread already has — a tap during
+  /// the async load, a selection moved over from no thread, or one from an
+  /// earlier visit — wins. A history whose [ThreadHistory.databaseSources] is
+  /// null seeds nothing.
   void _applyHydratedDatabases(String threadId, List<String>? sources) {
     if (sources == null) return;
     setState(() {
