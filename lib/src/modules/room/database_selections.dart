@@ -64,8 +64,9 @@ class DatabaseSelections {
 
   /// Moves the selection from the null-thread key to [threadId].
   ///
-  /// Used when a user picks databases before a thread exists, then a thread
-  /// is created implicitly by sending a message.
+  /// Called when the room screen goes from no thread to a thread — normally
+  /// the one the first send creates, but also one opened by auto-select, so a
+  /// pick left unsent replaces that thread's own entry.
   void migrateToThread({
     required String serverId,
     required String roomId,
