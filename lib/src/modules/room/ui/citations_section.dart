@@ -182,7 +182,7 @@ class _CitationsSectionState extends State<CitationsSection> {
   /// group, so an inline marker still points at its row.
   List<Widget> _groupedRows(BuildContext context) {
     final groups = groupCitationsByDatabase(widget.sourceReferences);
-    final headed = groups.length > 1 || groups.single.database != null;
+    final headed = groups.any((group) => group.database != null);
     return [
       for (final group in groups) ...[
         if (headed) _DatabaseHeading(database: group.database),

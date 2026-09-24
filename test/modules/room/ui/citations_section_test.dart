@@ -99,6 +99,16 @@ void main() {
     expect(find.text('2'), findsOneWidget);
   });
 
+  testWidgets('an empty list renders the header and no rows', (tester) async {
+    await tester.pumpWidget(_wrap(
+      const CitationsSection(sourceReferences: []),
+    ));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('0 sources'), findsOneWidget);
+    expect(find.text('Other sources'), findsNothing);
+  });
+
   testWidgets('a single named database still shows its name', (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(
