@@ -6,6 +6,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
+import 'package:soliplex_frontend/src/modules/room/database_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
@@ -27,6 +28,7 @@ void main() {
     RoomReadMarkers room,
     ServerReadMarkers server,
     DocumentSelections docs,
+    DatabaseSelections databases,
     RemovedServerCleanup cleanup,
   }) wire() {
     final manager = _createManager();
@@ -43,11 +45,13 @@ void main() {
     final room = RoomReadMarkers();
     final server = ServerReadMarkers();
     final docs = DocumentSelections();
+    final databases = DatabaseSelections();
     final cleanup = RemovedServerCleanup(
       serverManager: manager,
       roomReadMarkers: room,
       serverReadMarkers: server,
       documentSelections: docs,
+      databaseSelections: databases,
     );
     addTearDown(cleanup.dispose);
     return (
@@ -55,6 +59,7 @@ void main() {
       room: room,
       server: server,
       docs: docs,
+      databases: databases,
       cleanup: cleanup
     );
   }
@@ -151,6 +156,23 @@ void main() {
       expect(
           wired.docs.get(serverId: 's1', roomId: 'r', threadId: 't'), isEmpty);
       expect(wired.docs.get(serverId: 's2', roomId: 'r', threadId: 't'), {doc});
+    });
+
+    test('clears the removed server\'s database selections, keeping others\'',
+        () async {
+      final wired = wire();
+      wired.databases
+          .set(serverId: 's1', roomId: 'r', threadId: 't', names: {'wiki'});
+      wired.databases
+          .set(serverId: 's2', roomId: 'r', threadId: 't', names: {'wiki'});
+
+      wired.manager.removeServer('s1');
+      await pumpEventQueue();
+
+      expect(wired.databases.get(serverId: 's1', roomId: 'r', threadId: 't'),
+          isEmpty);
+      expect(wired.databases.get(serverId: 's2', roomId: 'r', threadId: 't'),
+          {'wiki'});
     });
 
     // A signal empty-out is not a removal: ServerManager.dispose() empties the

@@ -15,13 +15,14 @@ final Logger _logger =
 /// within the same process.
 ///
 /// Persistent device-local state is partitioned by user identity, so a switch
-/// needs no teardown there. But four in-memory caches would carry the prior
+/// needs no teardown there. But five in-memory caches would carry the prior
 /// user's state into the new session: [AgentRuntimeManager] caches against the
 /// live `ServerConnection`, which re-auth reuses; [RunRegistry] and
 /// [UploadTrackerRegistry] key by the stable `serverId`; and [DocumentSelections]
-/// holds document filters in a single shared map that is not partitioned by
-/// user. Without this the next user would reattach to the prior user's runtime,
-/// runs, uploads, and document filters. A fifth, `AdminStatus`, hangs off the
+/// and [DatabaseSelections] hold document filters and database selections in
+/// shared maps that are not partitioned by user. Without this the next user
+/// would reattach to the prior user's runtime, runs, uploads, document filters
+/// and database selections. A sixth, `AdminStatus`, hangs off the
 /// `ServerEntry` and holds an authorization answer, so it is evicted here too;
 /// `ServerManager` additionally clears it when a session ends, which reaches
 /// the sign-out path on the opaque-token servers this class cannot see. Their
@@ -56,7 +57,7 @@ class UserSwitchTeardown {
     required RunRegistry registry,
     required UploadTrackerRegistry uploadRegistry,
     required DocumentSelections documentSelections,
-    DatabaseSelections? databaseSelections,
+    required DatabaseSelections databaseSelections,
   })  : _runtimeManager = runtimeManager,
         _registry = registry,
         _uploadRegistry = uploadRegistry,
@@ -82,7 +83,7 @@ class UserSwitchTeardown {
   final RunRegistry _registry;
   final UploadTrackerRegistry _uploadRegistry;
   final DocumentSelections _documentSelections;
-  final DatabaseSelections? _databaseSelections;
+  final DatabaseSelections _databaseSelections;
   // Baseline identity per server. An entry for a removed server is left in
   // place: the map is bounded by servers seen this process, and a stale
   // baseline only ever fires a harmless no-op eviction if that id is re-added,
@@ -102,14 +103,11 @@ class UserSwitchTeardown {
     _step(() => _registry.evictServer(serverId), 'runs', serverId);
     _step(() => _uploadRegistry.evictServer(serverId), 'uploads', serverId);
     _step(() => _documentSelections.clearServer(serverId), 'filters', serverId);
-    final databaseSelections = _databaseSelections;
-    if (databaseSelections != null) {
-      _step(
-        () => databaseSelections.clearServer(serverId),
-        'database selections',
-        serverId,
-      );
-    }
+    _step(
+      () => _databaseSelections.clearServer(serverId),
+      'database selections',
+      serverId,
+    );
     _step(() => entry.adminStatus.clear(), 'admin status', serverId);
   }
 
