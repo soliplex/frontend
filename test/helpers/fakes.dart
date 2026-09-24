@@ -10,6 +10,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         Quiz,
         QuizAnswerResult,
         RagDocument,
+        RunInfo,
         SoliplexApi,
         UrlBuilder;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
@@ -367,6 +368,18 @@ class FakeSoliplexApi extends SoliplexApi {
         'FakeSoliplexApi: set nextThreadHistory or nextThreadHistoryError');
   }
 
+  RunInfo? nextCreateRun;
+
+  @override
+  Future<RunInfo> createRun(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    if (nextCreateRun != null) return nextCreateRun!;
+    throw StateError('FakeSoliplexApi: set nextCreateRun');
+  }
+
   @override
   Future<(ThreadInfo, Map<String, dynamic>)> createThread(
     String roomId, {
@@ -546,6 +559,24 @@ class FakeAgUiStreamClient extends AgUiStreamClient {
           httpTransport: HttpTransport(client: FakeHttpClient()),
           urlBuilder: UrlBuilder('https://fake.example.com/api/v1'),
         );
+}
+
+/// AgUiStreamClient that keeps every run's input and answers with a stream
+/// that ends at once, so a test can read what a send put on the wire.
+class RecordingAgUiStreamClient extends FakeAgUiStreamClient {
+  final inputs = <SimpleRunAgentInput>[];
+
+  @override
+  Stream<DecodeOutcome> runAgent(
+    String endpoint,
+    SimpleRunAgentInput input, {
+    CancelToken? cancelToken,
+    ResumePolicy? resumePolicy,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) {
+    inputs.add(input);
+    return const Stream.empty();
+  }
 }
 
 /// AgentSession fake whose terminal state and result future are

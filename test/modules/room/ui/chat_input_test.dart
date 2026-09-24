@@ -371,8 +371,13 @@ void main() {
       expect(find.text('Searching all 3 databases'), findsOneWidget);
       // Every chip reads selected while the selection is the default.
       expect(
-        tester.widgetList<SoliplexChip>(find.byType(SoliplexChip)).length,
-        3,
+        {
+          for (final name in const ['papers', 'wiki', 'notes'])
+            name: tester
+                .widget<FilterChip>(find.widgetWithText(FilterChip, name))
+                .selected,
+        },
+        {'papers': true, 'wiki': true, 'notes': true},
       );
     });
 
@@ -387,6 +392,15 @@ void main() {
       await tester.pumpWidget(host(selected: const {'papers'}));
 
       expect(find.text('Searching 1 of 3 databases'), findsOneWidget);
+      expect(
+        {
+          for (final name in const ['papers', 'wiki', 'notes'])
+            name: tester
+                .widget<FilterChip>(find.widgetWithText(FilterChip, name))
+                .selected,
+        },
+        {'papers': true, 'wiki': false, 'notes': false},
+      );
     });
 
     testWidgets('reports a tap with the chip\'s new state', (tester) async {

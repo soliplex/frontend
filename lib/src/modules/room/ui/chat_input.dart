@@ -82,7 +82,7 @@ class ChatInput extends StatefulWidget {
   final void Function(RagDocument doc)? onDocumentRemoved;
 
   /// The RAG databases the room searches, offered as filter chips above the
-  /// field when there is more than one. Empty hides the row.
+  /// field when there is more than one. Fewer than two hides the row.
   final List<String> databaseNames;
 
   /// The databases the thread's searches are narrowed to. Empty means every

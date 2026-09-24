@@ -20,21 +20,8 @@ class DatabaseSelections {
       _selections[(serverId: serverId, roomId: roomId, threadId: threadId)] ??
       const {};
 
-  /// Whether the thread has a selection of its own, as opposed to the default.
-  ///
-  /// Tells "the user chose every database" apart from "nothing chosen yet":
-  /// both read as empty through [get], but only the latter should be
-  /// overwritten by what a thread's history says.
-  bool has({
-    required String serverId,
-    required String roomId,
-    required String? threadId,
-  }) =>
-      _selections.containsKey(
-          (serverId: serverId, roomId: roomId, threadId: threadId));
-
   /// Records [names] for the thread. An empty set is kept — it is a deliberate
-  /// reset to "every database", which [has] then reports.
+  /// reset to "every database", which [seed] then leaves alone.
   void set({
     required String serverId,
     required String roomId,
@@ -43,6 +30,21 @@ class DatabaseSelections {
   }) {
     _selections[(serverId: serverId, roomId: roomId, threadId: threadId)] =
         Set.unmodifiable(names);
+  }
+
+  /// Records [names], read from the thread's history, only if the thread has
+  /// no entry yet: a selection made while the history loaded — even a
+  /// deliberate "every database", which reads as empty through [get] — wins.
+  void seed({
+    required String serverId,
+    required String roomId,
+    required String? threadId,
+    required Set<String> names,
+  }) {
+    _selections.putIfAbsent(
+      (serverId: serverId, roomId: roomId, threadId: threadId),
+      () => Set.unmodifiable(names),
+    );
   }
 
   /// Drops the selection for a deleted thread.

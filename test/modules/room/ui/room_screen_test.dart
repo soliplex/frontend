@@ -1908,6 +1908,91 @@ void main() {
 
       expect(find.text('Searching all 2 databases'), findsOneWidget);
     });
+
+    /// Opens thread-1 on a stream client that keeps what each send carries.
+    Future<RecordingAgUiStreamClient> pumpThread(WidgetTester tester) async {
+      final stream = RecordingAgUiStreamClient();
+      api.nextCreateRun = RunInfo(
+        id: 'run-1',
+        threadId: 'thread-1',
+        createdAt: DateTime(2026, 3, 1),
+      );
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: soliplexLightTheme(),
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry:
+              createTestServerEntry(api: api, agUiStreamClient: stream),
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      return stream;
+    }
+
+    /// Sends a message and returns the `rag` state the run carried.
+    Future<Map<String, dynamic>> sendAndReadRag(
+      WidgetTester tester,
+      RecordingAgUiStreamClient stream,
+    ) async {
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'Hello',
+      );
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+      final state = stream.inputs.single.state as Map<String, dynamic>;
+      return state['rag'] as Map<String, dynamic>;
+    }
+
+    testWidgets('a send carries the thread\'s selection', (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+
+      final stream = await pumpThread(tester);
+      await tester.tap(find.widgetWithText(FilterChip, 'wiki'));
+      await tester.pumpAndSettle();
+
+      expect(
+        await sendAndReadRag(tester, stream),
+        containsPair('sources', ['papers']),
+      );
+    });
+
+    testWidgets('a send clears a narrowed selection its room no longer offers',
+        (tester) async {
+      // Narrowed to `B` while the room listed it; the room now has only `A`.
+      api.nextRoom = roomWith(['A']);
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': {
+            'sources': ['B'],
+          },
+        },
+        databaseSources: const ['B'],
+      );
+
+      final stream = await pumpThread(tester);
+
+      expect(
+        await sendAndReadRag(tester, stream),
+        containsPair('sources', isNull),
+      );
+    });
   });
 
   group('rail account menu', () {

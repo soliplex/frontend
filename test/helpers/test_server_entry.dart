@@ -15,6 +15,7 @@ ServerEntry createTestServerEntry({
   bool requiresAuth = false,
   AuthSession? auth,
   FakeHttpClient? httpClient,
+  FakeAgUiStreamClient? agUiStreamClient,
   String? name,
 }) {
   final fakeApi = api ?? FakeSoliplexApi();
@@ -27,7 +28,7 @@ ServerEntry createTestServerEntry({
     connection: ServerConnection(
       serverId: serverId,
       api: fakeApi,
-      agUiStreamClient: FakeAgUiStreamClient(),
+      agUiStreamClient: agUiStreamClient ?? FakeAgUiStreamClient(),
     ),
     adminStatus: AdminStatus(api: fakeApi, serverId: serverId),
     requiresAuth: requiresAuth,

@@ -61,3 +61,34 @@ Map<String, dynamic>? buildRagStateOverlay({
   }
   return overlay.isEmpty ? null : overlay;
 }
+
+/// The part of a thread's [stored] selection the room still lists. Empty means
+/// every database — the backend's default — which a selection covering all of
+/// them also reads as, so a history that listed every database shows and sends
+/// the same as a user who selected them all. A name hydrated from an older run,
+/// for a database since dropped from the room, would fail the run if sent.
+Set<String> selectedDatabasesIn(Set<String> stored, RagDatabaseScope scope) {
+  final known = stored.where(scope.names.contains).toSet();
+  return known.length == scope.names.length ? const {} : known;
+}
+
+/// The selection after toggling [name] in [current] (as [selectedDatabasesIn]
+/// reads it), or null for a tap that is refused: the last selected database
+/// cannot be deselected, since an empty selection would read as "every
+/// database", lighting all of them back up under the tap that cleared the last
+/// one. A selection that covers every database comes back as the default.
+Set<String>? toggledDatabases(
+  RagDatabaseScope scope,
+  Set<String> current,
+  String name, {
+  required bool selected,
+}) {
+  final next = {...(current.isEmpty ? scope.names : current)};
+  if (selected) {
+    next.add(name);
+  } else {
+    if (next.length <= 1) return null;
+    next.remove(name);
+  }
+  return next.length == scope.names.length ? const {} : next;
+}
