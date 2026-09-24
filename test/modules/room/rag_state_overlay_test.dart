@@ -22,6 +22,7 @@ void main() {
           selectedDocuments: const {},
           scope: RagDatabaseScope.none,
           selectedDatabases: const {},
+          clearsNarrowedSources: false,
         ),
         isNull,
       );
@@ -33,11 +34,43 @@ void main() {
         selectedDocuments: const {},
         scope: _scope(names: const ['only']),
         selectedDatabases: const {'only'},
+        clearsNarrowedSources: false,
       );
       expect(
           overlay,
           equals({
             'rag': {'document_filter': null},
+          }));
+    });
+
+    test('a single database clears a narrowed selection the thread carries',
+        () {
+      final overlay = buildRagStateOverlay(
+        filterEnabled: false,
+        selectedDocuments: const {},
+        scope: _scope(names: const ['only']),
+        selectedDatabases: const {},
+        clearsNarrowedSources: true,
+      );
+      expect(
+          overlay,
+          equals({
+            'rag': {'sources': null},
+          }));
+    });
+
+    test('a cleared selection merges with the filter under rag', () {
+      final overlay = buildRagStateOverlay(
+        filterEnabled: true,
+        selectedDocuments: const {},
+        scope: _scope(names: const ['only']),
+        selectedDatabases: const {},
+        clearsNarrowedSources: true,
+      );
+      expect(
+          overlay,
+          equals({
+            'rag': {'document_filter': null, 'sources': null},
           }));
     });
 
@@ -47,6 +80,7 @@ void main() {
         selectedDocuments: const {},
         scope: _scope(),
         selectedDatabases: const {},
+        clearsNarrowedSources: false,
       );
       expect(
           overlay,
@@ -61,6 +95,7 @@ void main() {
         selectedDocuments: const {},
         scope: _scope(),
         selectedDatabases: const {'notes', 'gone', 'papers'},
+        clearsNarrowedSources: false,
       );
       expect(
           overlay,
@@ -77,6 +112,7 @@ void main() {
         selectedDocuments: const {},
         scope: _scope(),
         selectedDatabases: const {'gone'},
+        clearsNarrowedSources: false,
       );
       expect((overlay!['rag'] as Map)['sources'], isNull);
     });
@@ -87,6 +123,7 @@ void main() {
         selectedDocuments: {_doc},
         scope: _scope(),
         selectedDatabases: const {'wiki'},
+        clearsNarrowedSources: false,
       );
       final rag = overlay!['rag'] as Map<String, dynamic>;
       expect(rag.keys, unorderedEquals(['document_filter', 'sources']));
@@ -105,6 +142,7 @@ void main() {
           },
         ),
         selectedDatabases: const {'a', 'c'},
+        clearsNarrowedSources: false,
       );
       expect(
           overlay,
@@ -129,6 +167,7 @@ void main() {
           },
         ),
         selectedDatabases: const {'a'},
+        clearsNarrowedSources: false,
       );
       expect((overlay!['analysis'] as Map)['sources'], isNull);
     });
@@ -139,6 +178,7 @@ void main() {
         selectedDocuments: {_doc},
         scope: _scope(namespaces: const ['rag', 'analysis']),
         selectedDatabases: const {'wiki'},
+        clearsNarrowedSources: false,
       );
       expect(overlay!.keys, unorderedEquals(['rag', 'analysis']));
       expect(
