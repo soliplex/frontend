@@ -1025,6 +1025,15 @@ class _RoomScreenState extends State<RoomScreen> {
       selectedDocuments: _selectedDocuments,
       scope: scope,
       selectedDatabases: _selectedDatabasesIn(scope),
+      // A thread narrowed while its room offered a choice keeps that
+      // `sources` in its cached state until a send overwrites it.
+      clearsNarrowedSources: _databaseSelections
+          .get(
+            serverId: _serverId,
+            roomId: widget.roomId,
+            threadId: widget.threadId,
+          )
+          .isNotEmpty,
     );
   }
 
