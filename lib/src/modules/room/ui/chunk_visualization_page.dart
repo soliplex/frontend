@@ -49,7 +49,7 @@ class ChunkVisualizationPage extends StatefulWidget {
     required this.useDialogLayout,
     this.documentTitle,
     this.docItemRefs = const [],
-    this.database,
+    required this.database,
   });
 
   final SoliplexApi api;
@@ -80,7 +80,7 @@ class ChunkVisualizationPage extends StatefulWidget {
     required List<int> pageNumbers,
     String? documentTitle,
     List<String> docItemRefs = const [],
-    String? database,
+    required String? database,
   }) {
     final useDialog =
         MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;

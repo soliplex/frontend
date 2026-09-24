@@ -7,12 +7,10 @@ void main() {
 
   setUp(() => selections = DatabaseSelections());
 
-  group('get, has and set', () {
-    test('returns empty set and no entry for an unknown key', () {
+  group('get and set', () {
+    test('returns empty set for an unknown key', () {
       expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
           isEmpty);
-      expect(selections.has(serverId: 's1', roomId: 'room-1', threadId: 't1'),
-          isFalse);
     });
 
     test('stores and retrieves a selection', () {
@@ -20,17 +18,15 @@ void main() {
           serverId: 's1', roomId: 'room-1', threadId: 't1', names: {'a', 'b'});
       expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
           {'a', 'b'});
-      expect(selections.has(serverId: 's1', roomId: 'room-1', threadId: 't1'),
-          isTrue);
     });
 
     test('an empty set is kept as a deliberate reset', () {
       selections.set(
           serverId: 's1', roomId: 'room-1', threadId: 't1', names: const {});
+      selections
+          .seed(serverId: 's1', roomId: 'room-1', threadId: 't1', names: {'a'});
       expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
           isEmpty);
-      expect(selections.has(serverId: 's1', roomId: 'room-1', threadId: 't1'),
-          isTrue);
     });
 
     test('the stored set is a copy the caller cannot mutate', () {
@@ -61,6 +57,24 @@ void main() {
     });
   });
 
+  group('seed', () {
+    test('records a selection for a thread that has none', () {
+      selections
+          .seed(serverId: 's1', roomId: 'room-1', threadId: 't1', names: {'a'});
+      expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
+          {'a'});
+    });
+
+    test('leaves a selection the thread already has', () {
+      selections
+          .set(serverId: 's1', roomId: 'room-1', threadId: 't1', names: {'b'});
+      selections
+          .seed(serverId: 's1', roomId: 'room-1', threadId: 't1', names: {'a'});
+      expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
+          {'b'});
+    });
+  });
+
   group('clearThread', () {
     test('drops the thread and leaves its siblings', () {
       selections
@@ -70,8 +84,8 @@ void main() {
 
       selections.clearThread(serverId: 's1', roomId: 'room-1', threadId: 't1');
 
-      expect(selections.has(serverId: 's1', roomId: 'room-1', threadId: 't1'),
-          isFalse);
+      expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
+          isEmpty);
       expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't2'),
           {'b'});
     });
@@ -88,10 +102,10 @@ void main() {
 
       selections.clearServer('s1');
 
-      expect(selections.has(serverId: 's1', roomId: 'room-1', threadId: 't1'),
-          isFalse);
-      expect(selections.has(serverId: 's1', roomId: 'room-2', threadId: null),
-          isFalse);
+      expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
+          isEmpty);
+      expect(selections.get(serverId: 's1', roomId: 'room-2', threadId: null),
+          isEmpty);
       expect(selections.get(serverId: 's2', roomId: 'room-1', threadId: 't1'),
           {'c'});
     });
@@ -105,8 +119,8 @@ void main() {
       selections.migrateToThread(
           serverId: 's1', roomId: 'room-1', threadId: 't1');
 
-      expect(selections.has(serverId: 's1', roomId: 'room-1', threadId: null),
-          isFalse);
+      expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: null),
+          isEmpty);
       expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
           {'a'});
     });
@@ -117,9 +131,11 @@ void main() {
 
       selections.migrateToThread(
           serverId: 's1', roomId: 'room-1', threadId: 't1');
+      selections
+          .seed(serverId: 's1', roomId: 'room-1', threadId: 't1', names: {'a'});
 
-      expect(selections.has(serverId: 's1', roomId: 'room-1', threadId: 't1'),
-          isTrue);
+      expect(selections.get(serverId: 's1', roomId: 'room-1', threadId: 't1'),
+          isEmpty);
     });
 
     test('is a no-op with nothing pending', () {

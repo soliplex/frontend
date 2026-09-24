@@ -2533,6 +2533,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             documentTitle: ref.displayTitle,
                             pageNumbers: ref.pageNumbers,
                             docItemRefs: ref.docItemRefs,
+                            database: ref.database,
                           ),
                           onFetchWorkdirFiles: (runId) =>
                               _workdirs.fetchFiles(threadView.threadId, runId),

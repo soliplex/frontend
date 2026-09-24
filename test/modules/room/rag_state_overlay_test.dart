@@ -193,4 +193,73 @@ void main() {
       );
     });
   });
+
+  group('selectedDatabasesIn', () {
+    test('keeps the stored names the room lists', () {
+      expect(
+        selectedDatabasesIn(const {'wiki'}, _scope()),
+        equals({'wiki'}),
+      );
+    });
+
+    test('drops a stored name the room no longer lists', () {
+      expect(
+        selectedDatabasesIn(const {'wiki', 'gone'}, _scope()),
+        equals({'wiki'}),
+      );
+    });
+
+    test('reads stored names covering every database as the default', () {
+      expect(
+        selectedDatabasesIn(const {'notes', 'papers', 'wiki'}, _scope()),
+        isEmpty,
+      );
+    });
+
+    test('reads only names the room no longer lists as the default', () {
+      expect(selectedDatabasesIn(const {'gone'}, _scope()), isEmpty);
+    });
+
+    test('reads a single-database room as the default', () {
+      expect(
+        selectedDatabasesIn(const {'only'}, _scope(names: const ['only'])),
+        isEmpty,
+      );
+    });
+  });
+
+  group('toggledDatabases', () {
+    test('deselecting from the default keeps every other database', () {
+      expect(
+        toggledDatabases(_scope(), const {}, 'wiki', selected: false),
+        equals({'papers', 'notes'}),
+      );
+    });
+
+    test('selecting adds to a narrowed selection', () {
+      expect(
+        toggledDatabases(_scope(), const {'papers'}, 'wiki', selected: true),
+        equals({'papers', 'wiki'}),
+      );
+    });
+
+    test('selecting the last missing database returns to the default', () {
+      expect(
+        toggledDatabases(
+          _scope(),
+          const {'papers', 'wiki'},
+          'notes',
+          selected: true,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('the last selected database cannot be deselected', () {
+      expect(
+        toggledDatabases(_scope(), const {'wiki'}, 'wiki', selected: false),
+        isNull,
+      );
+    });
+  });
 }
