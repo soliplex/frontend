@@ -20,8 +20,8 @@ const String ragMissingDatabasePrefix = 'MISSING: ';
 /// A skill names its databases in the room manifest, under
 /// `extra_parameters.database_names`, and reads a per-thread selection from
 /// `state.<namespace>.sources`. Only skills carrying a state namespace take
-/// part: the legacy `search_documents` tool also lists its databases but reads
-/// no AG-UI state, so a selection would silently not apply to it.
+/// part: the `search_documents` tool also lists its databases but reads no
+/// AG-UI state, so a selection would silently not apply to it.
 @immutable
 class RagDatabaseScope {
   /// Creates a scope from the names each namespace lists, in the order the
@@ -42,9 +42,9 @@ class RagDatabaseScope {
   /// Reads the scope from [room]'s skills.
   ///
   /// A skill whose `database_names` is missing, of the wrong shape, or carries
-  /// non-string entries contributes what can be read and nothing else: the
-  /// manifest is display data here, and understating a room's databases only
-  /// hides the selector.
+  /// non-string entries contributes what can be read and nothing else.
+  /// Understating a room's databases hides the selector, and a namespace left
+  /// with no names is not written to.
   factory RagDatabaseScope.of(Room room) {
     final byNamespace = <String, List<String>>{};
     final missing = <String>[];

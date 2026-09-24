@@ -111,8 +111,7 @@ class SourceReference {
   /// The name of the RAG database the cited chunk came from, as the backend
   /// reports it (`source` on the citation). Chunk ids repeat between copies
   /// of a database, so the visualization endpoint is told which one to ask.
-  /// Null for a citation from before databases were named, or from a
-  /// capability that reports none.
+  /// Null for a citation whose capability reports no `source`.
   final String? database;
 
   /// Formats page numbers for display.
