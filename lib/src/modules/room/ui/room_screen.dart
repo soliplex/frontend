@@ -11,8 +11,10 @@ import 'package:soliplex_agent/soliplex_agent.dart'
     show AgentSessionState, ContextLevel, ContextUsage, ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart'
     show
+        AgentThinking,
         AuthException,
         CancelToken,
+        DefaultRoomAgent,
         FeedbackType,
         MalformedResponseException,
         PermissionDeniedException,
@@ -25,7 +27,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         Room,
         TextPart,
         ThreadHistory,
-        WorkdirFile;
+        WorkdirFile,
+        buildThinkingStateOverlay;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/activity_read.dart' show currentUserRoomMarkers;
@@ -306,6 +309,33 @@ class _RoomScreenState extends State<RoomScreen> {
       Debouncer(const Duration(milliseconds: 300));
 
   bool get _filterEnabled => widget.enableDocumentFilter;
+
+  /// The reasoning level this thread asserts, or null for the room's default.
+  ///
+  /// Held as plain widget state rather than kept per thread on disk: the
+  /// backend records it with the run that carried it, so entering a thread
+  /// re-reads it from there ([_hydrateThinkingLevel]) rather than from
+  /// anything this client remembers.
+  String? _thinkingLevel;
+
+  /// What the room's model offers, or null where it offers no control.
+  ///
+  /// Read off the room as it renders, so it is only as current as the last
+  /// build. [_assertedThinkingLevel] is what a send goes through, rather than
+  /// [_thinkingLevel] directly, so nothing depends on that being in step.
+  AgentThinking? _thinkingOffer;
+
+  /// The level a send asserts: the chosen one, or null when the room does not
+  /// offer it.
+  ///
+  /// A room's model can be changed under a thread that still carries a level,
+  /// and the backend refuses a level its room does not offer. Falling back to
+  /// the room's own default is the answer the user can act on.
+  String? get _assertedThinkingLevel {
+    final level = _thinkingLevel;
+    if (level == null) return null;
+    return (_thinkingOffer?.levels.contains(level) ?? false) ? level : null;
+  }
 
   /// Whether the room exposes any filterable documents/datasets. Resolved
   /// asynchronously by [_refreshFilterableDocuments]; starts `false` so the
@@ -884,6 +914,7 @@ class _RoomScreenState extends State<RoomScreen> {
     if (!mounted) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
     _applyHydratedDatabases(threadId, history.databaseSources);
+    _hydrateThinkingLevel(history.thinkingLevel);
     if (!_filterEnabled) return;
     _filterHydrator.setFilter(threadId, history.documentFilter);
   }
@@ -903,6 +934,18 @@ class _RoomScreenState extends State<RoomScreen> {
         names: sources.toSet(),
       );
     });
+  }
+
+  /// Seeds the thread's reasoning level from its newest run.
+  ///
+  /// The backend keeps no merged state for a client-owned feature, so the run
+  /// that carried the level is the only record of it. A level the room no
+  /// longer offers is dropped rather than shown: the room's model can be
+  /// changed under a thread, and offering a level it would refuse is worse
+  /// than starting from its default.
+  void _hydrateThinkingLevel(String? level) {
+    if (level == _thinkingLevel) return;
+    setState(() => _thinkingLevel = level);
   }
 
   /// Seeds the resolved selection — but only if the thread is still active and
@@ -933,17 +976,27 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  Map<String, dynamic>? _buildStateOverlay() {
+  /// The AG-UI state a send asserts: the thread's RAG scope, and the
+  /// reasoning level.
+  ///
+  /// The level is asserted whether or not one is chosen. `null` is what clears
+  /// a level the thread's cached state may still carry from an earlier turn,
+  /// leaving the room's own default in force; a room whose model offers no
+  /// control ignores the key entirely.
+  Map<String, dynamic> _buildStateOverlay() {
     final scope = _databaseScope;
-    return buildRagStateOverlay(
-      filterEnabled: _filterEnabled,
-      selectedDocuments: _selectedDocuments,
-      scope: scope,
-      selectedDatabases: selectedDatabasesIn(_storedDatabases, scope),
-      // A thread narrowed while its room offered a choice keeps that
-      // `sources` in its cached state until a send overwrites it.
-      clearsNarrowedSources: _storedDatabases.isNotEmpty,
-    );
+    return {
+      ...?buildRagStateOverlay(
+        filterEnabled: _filterEnabled,
+        selectedDocuments: _selectedDocuments,
+        scope: scope,
+        selectedDatabases: selectedDatabasesIn(_storedDatabases, scope),
+        // A thread narrowed while its room offered a choice keeps that
+        // `sources` in its cached state until a send overwrites it.
+        clearsNarrowedSources: _storedDatabases.isNotEmpty,
+      ),
+      ...buildThinkingStateOverlay(_assertedThinkingLevel),
+    };
   }
 
   @override
@@ -2644,6 +2697,8 @@ class _RoomScreenState extends State<RoomScreen> {
     ThreadViewStatus? status,
   ) {
     final attachEnabled = room?.acceptsThreadUploads ?? false;
+    final agent = room?.agent;
+    _thinkingOffer = agent is DefaultRoomAgent ? agent.thinking : null;
     VoidCallback? attachCallback(Future<PickFilesResult?> Function() pick) {
       if (!attachEnabled) return null;
       return threadView != null
@@ -2712,6 +2767,9 @@ class _RoomScreenState extends State<RoomScreen> {
           : null,
       onAttachFile: attachCallback(pickFiles),
       onAttachFolder: attachCallback(pickFolder),
+      thinking: _thinkingOffer,
+      thinkingLevel: _thinkingLevel,
+      onThinkingLevelChanged: (level) => setState(() => _thinkingLevel = level),
     );
   }
 

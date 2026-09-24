@@ -7,6 +7,7 @@ import 'package:soliplex_client/src/application/decode_outcome.dart';
 import 'package:soliplex_client/src/application/rag_snapshot.dart'
     show ragSourcesKey, ragStateKey;
 import 'package:soliplex_client/src/application/run_fold.dart';
+import 'package:soliplex_client/src/application/thinking_state.dart';
 import 'package:soliplex_client/src/application/thread_state_warnings.dart';
 import 'package:soliplex_client/src/application/transcript_events.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -116,6 +117,7 @@ Future<ThreadHistory> assembleThreadHistory(
   if (runs.isEmpty) return ThreadHistory(messages: const []);
   final documentFilter = _extractLatestDocumentFilter(runs);
   final databaseSources = _extractLatestDatabaseSources(runs);
+  final thinkingLevel = _extractLatestThinkingLevel(runs);
   final scopeWarnings = {
     if (_latestScopeUnreadable(runs)) ThreadStateWarning.scopeUnreadable,
   };
@@ -174,6 +176,7 @@ Future<ThreadHistory> assembleThreadHistory(
       documentFilter: documentFilter,
       databaseSources: databaseSources,
       storedStateWarnings: scopeWarnings,
+      thinkingLevel: thinkingLevel,
       // Nothing was replayed, so the transcript is empty and the count
       // covers none of it.
       latestMeasurement: latestUsage == null
@@ -221,6 +224,7 @@ Future<ThreadHistory> assembleThreadHistory(
     databaseSources,
     scopeWarnings,
     latestUsage,
+    thinkingLevel,
   );
 }
 
@@ -236,6 +240,7 @@ ThreadHistory replayThreadHistory(
   List<String>? databaseSources,
   Set<ThreadStateWarning> scopeWarnings,
   RunUsage? latestUsage,
+  String? thinkingLevel,
 ) {
   var conversation = Conversation.empty(threadId: threadId);
   final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
@@ -468,6 +473,7 @@ ThreadHistory replayThreadHistory(
     documentFilter: documentFilter,
     databaseSources: databaseSources,
     storedStateWarnings: storedStateWarnings,
+    thinkingLevel: thinkingLevel,
     transcript: conversation.transcript,
     // Replay never reached the measured run, so where it ended is unknown;
     // it is taken to cover the whole transcript, which estimates nothing
@@ -768,6 +774,27 @@ List<String>? _extractLatestDatabaseSources(Map<String, dynamic> runs) {
     names.add(entry);
   }
   return names;
+}
+
+/// The newest run's asserted reasoning level, or null when none carries
+/// one.
+///
+/// Walks newest-first like [_extractLatestDocumentFilter], and stops at the
+/// first run carrying the namespace at all, so a run that cleared the level
+/// reads as cleared rather than falling through to an older one. Resilient:
+/// malformed entries are skipped.
+String? _extractLatestThinkingLevel(Map<String, dynamic> runs) {
+  for (final entry in runs.entries.toList().reversed) {
+    final value = entry.value;
+    if (value is! Map<String, dynamic>) continue;
+    final runInput = value['run_input'];
+    if (runInput is! Map<String, dynamic>) continue;
+    final state = runInput['state'];
+    if (state is! Map<String, dynamic>) continue;
+    if (!state.containsKey(thinkingStateNamespace)) continue;
+    return thinkingLevelFromState(state);
+  }
+  return null;
 }
 
 /// Whether the newest run's saved `document_filter` or `sources` is one the

@@ -10,5 +10,6 @@ export 'run_fold.dart';
 export 'run_phase.dart';
 export 'state_bus.dart';
 export 'streaming_state.dart';
+export 'thinking_state.dart';
 export 'thread_state_warnings.dart';
 export 'transcript_events.dart' show appendToolResult;
