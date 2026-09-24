@@ -6,6 +6,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/database_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
@@ -40,10 +41,11 @@ typedef _Wired = ({
   RunRegistry registry,
   UploadTrackerRegistry uploadRegistry,
   DocumentSelections docs,
+  DatabaseSelections databases,
 });
 
 void main() {
-  // Builds a server signed in as [initialSub], with the four managers wired to
+  // Builds a server signed in as [initialSub], with the five managers wired to
   // the server signal but NOT yet populated, and NO coordinator yet — so a test
   // controls exactly when the coordinator first sees the identity.
   _Wired wire({String initialSub = 'alice'}) {
@@ -69,6 +71,7 @@ void main() {
     final registry = RunRegistry(servers: manager.servers);
     final uploadRegistry = UploadTrackerRegistry(servers: manager.servers);
     final docs = DocumentSelections();
+    final databases = DatabaseSelections();
 
     addTearDown(() async {
       registry.dispose();
@@ -85,6 +88,7 @@ void main() {
       registry: registry,
       uploadRegistry: uploadRegistry,
       docs: docs,
+      databases: databases,
     );
   }
 
@@ -95,18 +99,21 @@ void main() {
       registry: w.registry,
       uploadRegistry: w.uploadRegistry,
       documentSelections: w.docs,
+      databaseSelections: w.databases,
     );
     addTearDown(teardown.dispose);
     return teardown;
   }
 
-  // Fills all four managers with state attributable to the current user.
+  // Fills all five managers with state attributable to the current user.
   ({AgentRuntime runtime, UploadTracker tracker}) populate(_Wired w) {
     final runtime = w.runtimeManager.getRuntime(w.entry.connection);
     w.registry.register(_key, ManualAgentSession(_key));
     final tracker = w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room');
     w.docs
         .set(serverId: 's1', roomId: 'room', threadId: 'thread', docs: {_doc});
+    w.databases.set(
+        serverId: 's1', roomId: 'room', threadId: 'thread', names: {'wiki'});
     return (runtime: runtime, tracker: tracker);
   }
 
@@ -125,6 +132,9 @@ void main() {
     expect(
         w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'), isEmpty,
         reason: 'document selections should be cleared');
+    expect(w.databases.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
+        isEmpty,
+        reason: 'database selections should be cleared');
   }
 
   void expectRetained(_Wired w, AgentRuntime runtime, UploadTracker tracker) {
@@ -142,6 +152,9 @@ void main() {
     expect(w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
         isNotEmpty,
         reason: 'document selections should be retained');
+    expect(w.databases.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
+        isNotEmpty,
+        reason: 'database selections should be retained');
   }
 
   group('UserSwitchTeardown', () {
@@ -238,13 +251,15 @@ void main() {
           w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
       w.docs.set(
           serverId: 's2', roomId: 'room', threadId: 'thread', docs: {_doc});
+      w.databases.set(
+          serverId: 's2', roomId: 'room', threadId: 'thread', names: {'wiki'});
 
       final captured = populate(w);
       w.entry.auth.logout();
       _login(w.entry, 'bob');
 
       expectEvicted(w, captured.runtime, captured.tracker);
-      // All four caches isolate per server; only s1 is torn down.
+      // All five caches isolate per server; only s1 is torn down.
       expect(
         identical(w.runtimeManager.getRuntime(other.connection), otherRuntime),
         isTrue,
@@ -261,6 +276,10 @@ void main() {
       expect(w.docs.get(serverId: 's2', roomId: 'room', threadId: 'thread'),
           isNotEmpty,
           reason: "other server's document selections should survive");
+      expect(
+          w.databases.get(serverId: 's2', roomId: 'room', threadId: 'thread'),
+          isNotEmpty,
+          reason: "other server's database selections should survive");
     });
 
     test('expiry then a different user signing in evicts the prior state', () {
@@ -340,7 +359,7 @@ void main() {
         () {
       final w = wire(initialSub: 'alice');
       // Wire a runtime manager whose evictServer throws. It is the first of the
-      // four steps, so a guard that wrapped the whole sequence — rather than
+      // steps, so a guard that wrapped the whole sequence — rather than
       // each step — would strand runs, uploads, and filters and unwind the
       // sign-in that recorded the switch.
       final throwingRuntime = _ThrowingRuntimeManager(
@@ -356,6 +375,7 @@ void main() {
         registry: w.registry,
         uploadRegistry: w.uploadRegistry,
         documentSelections: w.docs,
+        databaseSelections: w.databases,
       );
       addTearDown(teardown.dispose);
 

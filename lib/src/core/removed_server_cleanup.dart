@@ -16,8 +16,8 @@ final Logger _logger =
 
 /// Drops a removed server's device-local state so re-adding it under the same
 /// id doesn't resurrect stale read state, a misplaced thread divider, an unsent
-/// draft, or its in-memory document filter selections. Server ids derive from
-/// the URL, so a re-add reuses the id.
+/// draft, or its in-memory document filter and database selections. Server ids
+/// derive from the URL, so a re-add reuses the id.
 ///
 /// Owned by [RoomAppModule] (like [UploadTrackerRegistry]) rather than a screen
 /// because removal fires from surfaces that don't mount the lobby — notably the
@@ -37,7 +37,7 @@ class RemovedServerCleanup {
     required RoomReadMarkers roomReadMarkers,
     required ServerReadMarkers serverReadMarkers,
     required DocumentSelections documentSelections,
-    DatabaseSelections? databaseSelections,
+    required DatabaseSelections databaseSelections,
   })  : _roomReadMarkers = roomReadMarkers,
         _serverReadMarkers = serverReadMarkers,
         _documentSelections = documentSelections,
@@ -48,7 +48,7 @@ class RemovedServerCleanup {
   final RoomReadMarkers _roomReadMarkers;
   final ServerReadMarkers _serverReadMarkers;
   final DocumentSelections _documentSelections;
-  final DatabaseSelections? _databaseSelections;
+  final DatabaseSelections _databaseSelections;
   late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
@@ -67,11 +67,8 @@ class RemovedServerCleanup {
         () => _roomReadMarkers.clearServer(id), 'room read markers', id);
     _clearInMemory(
         () => _documentSelections.clearServer(id), 'document selections', id);
-    final databaseSelections = _databaseSelections;
-    if (databaseSelections != null) {
-      _clearInMemory(
-          () => databaseSelections.clearServer(id), 'database selections', id);
-    }
+    _clearInMemory(
+        () => _databaseSelections.clearServer(id), 'database selections', id);
     unawaited(
       ThreadReadMarkerStorage.clearServer(id)
           .catchError((Object error, StackTrace st) {
