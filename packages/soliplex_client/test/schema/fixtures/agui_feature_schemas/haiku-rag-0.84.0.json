@@ -1,0 +1,1007 @@
+{
+  "haiku_rag": "0.84.0",
+  "backend_commit": "889aea84be5f7fd07a090e82ef561dfe1aa16708",
+  "features": {
+    "rag": {
+      "source": "server",
+      "json_schema": {
+        "$defs": {
+          "CapabilityEvidenceRecord": {
+            "description": "What one evidence capability wrote, in its own state namespace.\n\nHolds no content: ``Citation`` in ``citation_index`` is the canonical record\nand already persists content, document id and picture refs. This is the index\nover it that compaction needs and the transcript cannot provide.\n\nSingle-writer by construction. A record shared between capabilities would be\noverwritten by whichever of them synced its state last; merging happens in the\ntransient views built by ``citation_status`` and the optional capabilities.\n\n``in_progress`` is whether the question this record names is still being\nanswered. It is the only authority on that: a transcript ending in a tool\nreturn is a settled structured answer and a question awaiting its model\nequally, so the shape of the history cannot decide it.\n\n``question`` is the number of messages that existed when the question arrived,\nand ``epoch`` the number when an outcome occurred. Both are derived from the\nconversation rather than counted locally, so every participant computes the\nsame values without sharing a counter. ``question`` is unset until a run\nestablishes it, so a record a host merely created is distinguishable from one\nthat has been through a question.",
+            "properties": {
+              "occurrences": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/EvidenceOccurrence"
+                },
+                "title": "Occurrences",
+                "type": "object"
+              },
+              "question": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Question"
+              },
+              "in_progress": {
+                "default": false,
+                "title": "In Progress",
+                "type": "boolean"
+              },
+              "latest_evidence_epoch": {
+                "default": 0,
+                "title": "Latest Evidence Epoch",
+                "type": "integer"
+              },
+              "declaration": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CitationDeclaration"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "title": "CapabilityEvidenceRecord",
+            "type": "object"
+          },
+          "Citation": {
+            "description": "Resolved citation with full metadata for display/visual grounding.\n\nUsed by the RAG and analysis capabilities and rendered by the CLI / chat\napplication. The optional index field supports UI display ordering.\n\n``picture_refs`` lists the ``self_ref`` values of picture items in the\ncited chunk. Empty for text-only citations. UIs can fetch the picture\nbytes via ``HaikuRAG.get_picture_bytes(document_id, ref, source)`` and\nrender them alongside the text content.\n\n``chunk_ids`` lists the ids of all chunks whose expansion ranges merged\ninto the cited result (always includes ``chunk_id``).\n\n``source`` names the database the cited chunk came from: the name from\n``lancedb.databases`` or a path's stem, never a path or URI. None only on a\ncitation resolved from a hand-built result.\n\n``doc_item_refs`` are the ``self_ref`` values of every item in the cited\ncontent — the exact items the model saw. Visual grounding resolves bounding\nboxes from them so the rendered pages match the citation precisely.\n``picture_refs`` is the picture-labeled subset.\n\n``document_meta`` carries the cited document's metadata for UIs.\n\n``chunk_meta`` is the cited chunk's raw, unparsed ``Chunk.metadata``\ndict — lossless and independent of the typed fields above, so a\nthird-party chunker's own fields survive here even as this schema\nevolves.",
+            "properties": {
+              "index": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Index"
+              },
+              "document_id": {
+                "title": "Document Id",
+                "type": "string"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source"
+              },
+              "chunk_id": {
+                "title": "Chunk Id",
+                "type": "string"
+              },
+              "chunk_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Chunk Ids",
+                "type": "array"
+              },
+              "chunk_meta": {
+                "additionalProperties": true,
+                "title": "Chunk Meta",
+                "type": "object"
+              },
+              "document_uri": {
+                "title": "Document Uri",
+                "type": "string"
+              },
+              "document_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Title"
+              },
+              "document_meta": {
+                "additionalProperties": true,
+                "title": "Document Meta",
+                "type": "object"
+              },
+              "page_numbers": {
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Page Numbers",
+                "type": "array"
+              },
+              "headings": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Headings"
+              },
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "doc_item_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Doc Item Refs",
+                "type": "array"
+              },
+              "picture_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Picture Refs",
+                "type": "array"
+              }
+            },
+            "required": [
+              "document_id",
+              "chunk_id",
+              "document_uri",
+              "content"
+            ],
+            "title": "Citation",
+            "type": "object"
+          },
+          "CitationDeclaration": {
+            "description": "What a question declared as its grounding, and when.\n\nBound to a question *and* an epoch: the epoch outlives a question, so matching\nit alone would let a question that gathered no evidence inherit the previous\ndeclaration and read as compliant having declared nothing.",
+            "properties": {
+              "question": {
+                "title": "Question",
+                "type": "integer"
+              },
+              "epoch": {
+                "title": "Epoch",
+                "type": "integer"
+              },
+              "refs": {
+                "items": {
+                  "$ref": "#/$defs/EvidenceRef"
+                },
+                "title": "Refs",
+                "type": "array"
+              }
+            },
+            "required": [
+              "question",
+              "epoch"
+            ],
+            "title": "CitationDeclaration",
+            "type": "object"
+          },
+          "EvidenceOccurrence": {
+            "description": "Which questions retrieved a piece of evidence, and which cited it.",
+            "properties": {
+              "capability": {
+                "title": "Capability",
+                "type": "string"
+              },
+              "chunk_id": {
+                "title": "Chunk Id",
+                "type": "string"
+              },
+              "retrieved_in_questions": {
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Retrieved In Questions",
+                "type": "array"
+              },
+              "cited_in_questions": {
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Cited In Questions",
+                "type": "array"
+              }
+            },
+            "required": [
+              "capability",
+              "chunk_id"
+            ],
+            "title": "EvidenceOccurrence",
+            "type": "object"
+          },
+          "EvidenceRef": {
+            "description": "One piece of evidence, identified by its owner as well as its chunk.\n\nA chunk id alone is not an identity: the same id can be reported by more than\none capability, and ownership is what tells compaction whose output it may\ntouch.",
+            "properties": {
+              "capability": {
+                "title": "Capability",
+                "type": "string"
+              },
+              "chunk_id": {
+                "title": "Chunk Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "capability",
+              "chunk_id"
+            ],
+            "title": "EvidenceRef",
+            "type": "object"
+          },
+          "SearchResult": {
+            "description": "Search result with optional provenance information for citations.\n\n``image_data`` carries embedded picture bytes (base64-encoded PNG) keyed by\n``self_ref`` for picture-labeled chunks. Empty/None when no pictures or\nwhen the caller asked to omit them via ``include_images=False`` on\n``client.search``. Same shape is used everywhere — MCP, in-process search,\nagent toolsets — so non-vision callers see ``None`` and pay nothing.\n\n``chunk_ids`` lists the ids of all chunks whose expansion ranges merged\ninto this result; empty means just ``chunk_id``. It lets citation\nconsumers (visual grounding) reproduce a merged expansion and is never\npart of ``format_for_agent`` output.\n\n``document_meta`` carries the parent document's metadata for citation\nconsumers (UIs). Never part of ``format_for_agent`` output.\n\n``chunk_meta`` is the anchor chunk's unparsed ``Chunk.metadata`` and does not\ninclude the metadata of any other chunks merged with it. Left out of\n``format_for_agent`` output unless ``include_chunk_meta`` asks for its custom\nkeys.\n\n``source`` names the database a result came from: the name from\n``lancedb.databases`` or a path's stem, never a path or URI, so a location\ncannot travel in a result, a citation or a log. Every result a search\nproduces carries it; None only on a result built by hand.",
+            "properties": {
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "score": {
+                "title": "Score",
+                "type": "number"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source"
+              },
+              "chunk_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Chunk Id"
+              },
+              "chunk_ids": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Chunk Ids",
+                "type": "array"
+              },
+              "chunk_meta": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Chunk Meta",
+                "type": "object"
+              },
+              "document_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Id"
+              },
+              "document_uri": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Uri"
+              },
+              "document_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Title"
+              },
+              "document_meta": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Document Meta",
+                "type": "object"
+              },
+              "order": {
+                "default": 0,
+                "title": "Order",
+                "type": "integer"
+              },
+              "doc_item_refs": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Doc Item Refs",
+                "type": "array"
+              },
+              "page_numbers": {
+                "default": [],
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Page Numbers",
+                "type": "array"
+              },
+              "headings": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Headings"
+              },
+              "labels": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Labels",
+                "type": "array"
+              },
+              "image_data": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Image Data"
+              },
+              "picture_captions": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {},
+                "title": "Picture Captions",
+                "type": "object"
+              }
+            },
+            "required": [
+              "content",
+              "score"
+            ],
+            "title": "SearchResult",
+            "type": "object"
+          }
+        },
+        "description": "The RAG capability carries nothing beyond the shared evidence fields.",
+        "properties": {
+          "citation_index": {
+            "additionalProperties": {
+              "$ref": "#/$defs/Citation"
+            },
+            "title": "Citation Index",
+            "type": "object"
+          },
+          "citations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "evidence": {
+            "$ref": "#/$defs/CapabilityEvidenceRecord"
+          },
+          "document_filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Document Filter"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sources"
+          },
+          "searches": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/$defs/SearchResult"
+              },
+              "type": "array"
+            },
+            "title": "Searches",
+            "type": "object"
+          }
+        },
+        "title": "RAGState",
+        "type": "object"
+      }
+    },
+    "analysis": {
+      "source": "server",
+      "json_schema": {
+        "$defs": {
+          "CapabilityEvidenceRecord": {
+            "description": "What one evidence capability wrote, in its own state namespace.\n\nHolds no content: ``Citation`` in ``citation_index`` is the canonical record\nand already persists content, document id and picture refs. This is the index\nover it that compaction needs and the transcript cannot provide.\n\nSingle-writer by construction. A record shared between capabilities would be\noverwritten by whichever of them synced its state last; merging happens in the\ntransient views built by ``citation_status`` and the optional capabilities.\n\n``in_progress`` is whether the question this record names is still being\nanswered. It is the only authority on that: a transcript ending in a tool\nreturn is a settled structured answer and a question awaiting its model\nequally, so the shape of the history cannot decide it.\n\n``question`` is the number of messages that existed when the question arrived,\nand ``epoch`` the number when an outcome occurred. Both are derived from the\nconversation rather than counted locally, so every participant computes the\nsame values without sharing a counter. ``question`` is unset until a run\nestablishes it, so a record a host merely created is distinguishable from one\nthat has been through a question.",
+            "properties": {
+              "occurrences": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/EvidenceOccurrence"
+                },
+                "title": "Occurrences",
+                "type": "object"
+              },
+              "question": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Question"
+              },
+              "in_progress": {
+                "default": false,
+                "title": "In Progress",
+                "type": "boolean"
+              },
+              "latest_evidence_epoch": {
+                "default": 0,
+                "title": "Latest Evidence Epoch",
+                "type": "integer"
+              },
+              "declaration": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CitationDeclaration"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "title": "CapabilityEvidenceRecord",
+            "type": "object"
+          },
+          "Citation": {
+            "description": "Resolved citation with full metadata for display/visual grounding.\n\nUsed by the RAG and analysis capabilities and rendered by the CLI / chat\napplication. The optional index field supports UI display ordering.\n\n``picture_refs`` lists the ``self_ref`` values of picture items in the\ncited chunk. Empty for text-only citations. UIs can fetch the picture\nbytes via ``HaikuRAG.get_picture_bytes(document_id, ref, source)`` and\nrender them alongside the text content.\n\n``chunk_ids`` lists the ids of all chunks whose expansion ranges merged\ninto the cited result (always includes ``chunk_id``).\n\n``source`` names the database the cited chunk came from: the name from\n``lancedb.databases`` or a path's stem, never a path or URI. None only on a\ncitation resolved from a hand-built result.\n\n``doc_item_refs`` are the ``self_ref`` values of every item in the cited\ncontent — the exact items the model saw. Visual grounding resolves bounding\nboxes from them so the rendered pages match the citation precisely.\n``picture_refs`` is the picture-labeled subset.\n\n``document_meta`` carries the cited document's metadata for UIs.\n\n``chunk_meta`` is the cited chunk's raw, unparsed ``Chunk.metadata``\ndict — lossless and independent of the typed fields above, so a\nthird-party chunker's own fields survive here even as this schema\nevolves.",
+            "properties": {
+              "index": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Index"
+              },
+              "document_id": {
+                "title": "Document Id",
+                "type": "string"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source"
+              },
+              "chunk_id": {
+                "title": "Chunk Id",
+                "type": "string"
+              },
+              "chunk_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Chunk Ids",
+                "type": "array"
+              },
+              "chunk_meta": {
+                "additionalProperties": true,
+                "title": "Chunk Meta",
+                "type": "object"
+              },
+              "document_uri": {
+                "title": "Document Uri",
+                "type": "string"
+              },
+              "document_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Title"
+              },
+              "document_meta": {
+                "additionalProperties": true,
+                "title": "Document Meta",
+                "type": "object"
+              },
+              "page_numbers": {
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Page Numbers",
+                "type": "array"
+              },
+              "headings": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Headings"
+              },
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "doc_item_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Doc Item Refs",
+                "type": "array"
+              },
+              "picture_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Picture Refs",
+                "type": "array"
+              }
+            },
+            "required": [
+              "document_id",
+              "chunk_id",
+              "document_uri",
+              "content"
+            ],
+            "title": "Citation",
+            "type": "object"
+          },
+          "CitationDeclaration": {
+            "description": "What a question declared as its grounding, and when.\n\nBound to a question *and* an epoch: the epoch outlives a question, so matching\nit alone would let a question that gathered no evidence inherit the previous\ndeclaration and read as compliant having declared nothing.",
+            "properties": {
+              "question": {
+                "title": "Question",
+                "type": "integer"
+              },
+              "epoch": {
+                "title": "Epoch",
+                "type": "integer"
+              },
+              "refs": {
+                "items": {
+                  "$ref": "#/$defs/EvidenceRef"
+                },
+                "title": "Refs",
+                "type": "array"
+              }
+            },
+            "required": [
+              "question",
+              "epoch"
+            ],
+            "title": "CitationDeclaration",
+            "type": "object"
+          },
+          "CodeExecutionEntry": {
+            "properties": {
+              "code": {
+                "title": "Code",
+                "type": "string"
+              },
+              "stdout": {
+                "title": "Stdout",
+                "type": "string"
+              },
+              "stderr": {
+                "default": "",
+                "title": "Stderr",
+                "type": "string"
+              },
+              "success": {
+                "default": true,
+                "title": "Success",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "stdout"
+            ],
+            "title": "CodeExecutionEntry",
+            "type": "object"
+          },
+          "EvidenceOccurrence": {
+            "description": "Which questions retrieved a piece of evidence, and which cited it.",
+            "properties": {
+              "capability": {
+                "title": "Capability",
+                "type": "string"
+              },
+              "chunk_id": {
+                "title": "Chunk Id",
+                "type": "string"
+              },
+              "retrieved_in_questions": {
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Retrieved In Questions",
+                "type": "array"
+              },
+              "cited_in_questions": {
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Cited In Questions",
+                "type": "array"
+              }
+            },
+            "required": [
+              "capability",
+              "chunk_id"
+            ],
+            "title": "EvidenceOccurrence",
+            "type": "object"
+          },
+          "EvidenceRef": {
+            "description": "One piece of evidence, identified by its owner as well as its chunk.\n\nA chunk id alone is not an identity: the same id can be reported by more than\none capability, and ownership is what tells compaction whose output it may\ntouch.",
+            "properties": {
+              "capability": {
+                "title": "Capability",
+                "type": "string"
+              },
+              "chunk_id": {
+                "title": "Chunk Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "capability",
+              "chunk_id"
+            ],
+            "title": "EvidenceRef",
+            "type": "object"
+          },
+          "SearchResult": {
+            "description": "Search result with optional provenance information for citations.\n\n``image_data`` carries embedded picture bytes (base64-encoded PNG) keyed by\n``self_ref`` for picture-labeled chunks. Empty/None when no pictures or\nwhen the caller asked to omit them via ``include_images=False`` on\n``client.search``. Same shape is used everywhere — MCP, in-process search,\nagent toolsets — so non-vision callers see ``None`` and pay nothing.\n\n``chunk_ids`` lists the ids of all chunks whose expansion ranges merged\ninto this result; empty means just ``chunk_id``. It lets citation\nconsumers (visual grounding) reproduce a merged expansion and is never\npart of ``format_for_agent`` output.\n\n``document_meta`` carries the parent document's metadata for citation\nconsumers (UIs). Never part of ``format_for_agent`` output.\n\n``chunk_meta`` is the anchor chunk's unparsed ``Chunk.metadata`` and does not\ninclude the metadata of any other chunks merged with it. Left out of\n``format_for_agent`` output unless ``include_chunk_meta`` asks for its custom\nkeys.\n\n``source`` names the database a result came from: the name from\n``lancedb.databases`` or a path's stem, never a path or URI, so a location\ncannot travel in a result, a citation or a log. Every result a search\nproduces carries it; None only on a result built by hand.",
+            "properties": {
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "score": {
+                "title": "Score",
+                "type": "number"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source"
+              },
+              "chunk_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Chunk Id"
+              },
+              "chunk_ids": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Chunk Ids",
+                "type": "array"
+              },
+              "chunk_meta": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Chunk Meta",
+                "type": "object"
+              },
+              "document_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Id"
+              },
+              "document_uri": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Uri"
+              },
+              "document_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Document Title"
+              },
+              "document_meta": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Document Meta",
+                "type": "object"
+              },
+              "order": {
+                "default": 0,
+                "title": "Order",
+                "type": "integer"
+              },
+              "doc_item_refs": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Doc Item Refs",
+                "type": "array"
+              },
+              "page_numbers": {
+                "default": [],
+                "items": {
+                  "type": "integer"
+                },
+                "title": "Page Numbers",
+                "type": "array"
+              },
+              "headings": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Headings"
+              },
+              "labels": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Labels",
+                "type": "array"
+              },
+              "image_data": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Image Data"
+              },
+              "picture_captions": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {},
+                "title": "Picture Captions",
+                "type": "object"
+              }
+            },
+            "required": [
+              "content",
+              "score"
+            ],
+            "title": "SearchResult",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "citation_index": {
+            "additionalProperties": {
+              "$ref": "#/$defs/Citation"
+            },
+            "title": "Citation Index",
+            "type": "object"
+          },
+          "citations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "evidence": {
+            "$ref": "#/$defs/CapabilityEvidenceRecord"
+          },
+          "document_filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Document Filter"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sources"
+          },
+          "searches": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/$defs/SearchResult"
+              },
+              "type": "array"
+            },
+            "title": "Searches",
+            "type": "object"
+          },
+          "executions": {
+            "items": {
+              "$ref": "#/$defs/CodeExecutionEntry"
+            },
+            "title": "Executions",
+            "type": "array"
+          }
+        },
+        "title": "AnalysisState",
+        "type": "object"
+      }
+    },
+    "citation_policy": {
+      "source": "server",
+      "json_schema": {
+        "description": "What the policy decided, for hosts and evaluations to read.\n\n``violations`` holds the identities of questions that ended undeclared while\nthe cite tool was already gone, so no redirect was possible. It is an\nenforcement outcome, which is why it lives here rather than in an evidence\ncapability's record: nothing the model declared says it.",
+        "properties": {
+          "violations": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "title": "CitationPolicyState",
+        "type": "object"
+      }
+    }
+  }
+}
