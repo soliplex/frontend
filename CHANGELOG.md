@@ -8,6 +8,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- A test checks the RAG state the frontend reads against schema snapshots of
+  the two supported haiku.rag versions: 0.84.0, which `afsoc-rag` deploys, and
+  0.87.0, which backend `main` pins. It fails when a snapshot has a field or
+  type the frontend neither reads nor lists as unread, when a field the
+  frontend reads changes type or is missing from either version, when
+  `Citation`'s required fields stop matching its parser, or when a supported
+  snapshot is missing or has no `rag` namespace. The snapshots are refreshed
+  by hand with `tool/refresh_agui_feature_schemas.dart`, which refuses a
+  backend checkout with uncommitted changes; see
+  `docs/refreshing-backend-schema-snapshots.md`.
+
 ### Removed
 
 - **Library consumers:** `SourceReference.chunkIds`, which nothing rendered.
