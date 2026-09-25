@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/domain/surface.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
+import 'package:soliplex_client/src/utils/parse_utils.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_client.rag_snapshot');
@@ -94,8 +95,8 @@ class CitedFigures {
   /// Builds the figure union from a single `rag` state block's `searches`.
   ///
   /// Reads only the fields it needs — `document_id` (raw), `image_data`, and
-  /// `picture_captions` (via the shared parsers) — rather than building a whole
-  /// [SearchResult], so an unrelated malformed field on a row can't drop that
+  /// `picture_captions` (via the shared parsers) — rather than parsing the
+  /// whole row, so an unrelated malformed field on a row can't drop that
   /// row's figures. A malformed shape is skipped and logged; a row that simply
   /// carries no `image_data` is silently ignored (the normal figure-less case).
   factory CitedFigures.fromSearches(Map<String, dynamic> ragBlock) {
@@ -129,7 +130,7 @@ class CitedFigures {
           );
           continue;
         }
-        final imageData = SearchResult.parseImageData(item['image_data']);
+        final imageData = stringMap(item['image_data'], 'image_data');
         if (imageData.isEmpty) continue;
         final docId = item['document_id'];
         if (docId is! String) {
@@ -140,7 +141,7 @@ class CitedFigures {
           continue;
         }
         final captionData =
-            SearchResult.parsePictureCaptions(item['picture_captions']);
+            stringMap(item['picture_captions'], 'picture_captions');
         imageData.forEach((ref, b64) {
           bytes.putIfAbsent(_pictureKey(docId, ref), () => b64);
         });
@@ -195,12 +196,13 @@ class CitedFigures {
 /// A read-model view of a RAG capability's AG-UI state slice.
 ///
 /// Every RAG-producing capability publishes the same citation shape under its
-/// own namespace — `rag` and `analysis` both carry `citations` as a list
-/// of chunk ids and a `citation_index` map resolving each id to a full
-/// [Citation]. This snapshot exposes only what citation extraction and
-/// figure rendering need: the citation ids, id → [Citation] resolution,
-/// and inline picture bytes / captions. Other fields (e.g. `searches`,
-/// `document_filter`, and `analysis`'s `executions`) are read through a
+/// own namespace — `rag`, and `analysis` on haiku.rag 0.84.0, both carry
+/// `citations` as a list of chunk ids and a `citation_index` map resolving
+/// each id to a full [Citation]. This snapshot exposes only what citation
+/// extraction and figure rendering need: the citation ids, id → [Citation]
+/// resolution, and inline picture bytes / captions. Other fields (e.g.
+/// `searches`, `document_filter`, and `executions`, which haiku.rag 0.84.0
+/// keeps under `analysis` and 0.87.0 under `rag`) are read through a
 /// resilient per-entry reader when a consumer needs them, or ignored.
 ///
 /// [RagSnapshot.fromJson] parses `citations` and `citation_index`
@@ -285,9 +287,11 @@ class RagSnapshot {
   /// Wire keys the backend clears at the start of every run in which the
   /// owning capability loads, so their contents are scoped to a single run: the
   /// cited chunk ids, the retrieval results their inline figures come from, and
-  /// the analysis namespace's code-execution log. A capability that never loads
-  /// never clears, which is why a run is seeded via [withEmptyRunScopedKeys]
-  /// rather than trusting the backend to have cleared.
+  /// the code-execution log. The list is haiku.rag's `begin_invocation`:
+  /// `EvidenceState`'s and `AnalysisState`'s in 0.84.0, `RAGState`'s in 0.87.0.
+  /// A capability that never loads never clears, which is why a run is seeded
+  /// via [withEmptyRunScopedKeys] rather than trusting the backend to have
+  /// cleared.
   static const _citationsKey = 'citations';
   static const _searchesKey = 'searches';
   static const _executionsKey = 'executions';

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Removed
+
+- **Library consumers:** `SourceReference.chunkIds`, which nothing rendered.
+  Passing `chunkIds:` to `SourceReference` no longer compiles, and equality and
+  `hashCode` no longer consider it.
+
 ## [0.106.2+92] - 2026-09-28
 
 ### Changed

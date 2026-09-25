@@ -54,7 +54,6 @@ class SourceReference {
     this.pageNumbers = const [],
     this.docItemRefs = const [],
     this.figures = const [],
-    this.chunkIds = const [],
     this.index,
     this.database,
   });
@@ -93,17 +92,6 @@ class SourceReference {
   /// in-state bytes appear here; refs without bytes remain viewable via chunk
   /// visualization. Empty for text-only citations.
   final List<Figure> figures;
-
-  /// Ids of all chunks whose expansion merged into this citation — merge
-  /// provenance from the backend, which typically includes [chunkId] in the
-  /// list. Not enforced or relied on by the frontend.
-  ///
-  /// Parsed and carried through so no backend field is silently dropped, but
-  /// intentionally not shown in the UI: visualization grounds off
-  /// [docItemRefs], which already spans the merged content, so `chunk_ids` is
-  /// redundant for rendering. Kept for a future consumer (e.g. multi-chunk
-  /// visualization).
-  final List<String> chunkIds;
 
   /// Display index for numbered citations.
   final int? index;
@@ -212,7 +200,6 @@ class SourceReference {
         listEquals.equals(pageNumbers, other.pageNumbers) &&
         listEquals.equals(docItemRefs, other.docItemRefs) &&
         const ListEquality<Figure>().equals(figures, other.figures) &&
-        listEquals.equals(chunkIds, other.chunkIds) &&
         index == other.index &&
         database == other.database;
   }
@@ -229,7 +216,6 @@ class SourceReference {
         const ListEquality<int>().hash(pageNumbers),
         const ListEquality<String>().hash(docItemRefs),
         const ListEquality<Figure>().hash(figures),
-        const ListEquality<String>().hash(chunkIds),
         index,
         database,
       );

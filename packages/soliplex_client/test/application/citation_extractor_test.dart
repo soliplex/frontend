@@ -106,7 +106,6 @@ void main() {
         expect(refs[0].pageNumbers, [1, 2]);
         // picture_refs without in-state bytes produce no figures.
         expect(refs[0].figures, isEmpty);
-        expect(refs[0].chunkIds, ['chunk-1', 'chunk-2']);
         expect(refs[0].index, 1);
       });
 
