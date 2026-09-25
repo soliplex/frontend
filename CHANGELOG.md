@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [0.106.1+91] - 2026-09-24
+
+### Added
+
+- A room whose RAG skill searches more than one database shows them as chips
+  above the composer, with a "Searching N of M databases" line. A thread's
+  selection narrows what the agent searches, is remembered per thread, and is
+  restored from the thread's history. The chips are disabled while a run is in
+  progress, the last selected database cannot be deselected, and selecting
+  every one returns to the default. A database the backend reports as missing
+  is never offered or sent. Each RAG namespace is sent only the databases it
+  searches. A single-database room shows no selector, and clears a narrowing
+  left from when it offered a choice.
+- An answer's citations are grouped under a heading per database they came
+  from, with unattributed ones last under "Other sources"; no headings appear
+  when no citation names a database. A long database name stays on one line,
+  with the full name in a tooltip. Opening a cited chunk asks the database it
+  came from, since chunk ids repeat between copies of a database.
+- **Library consumers:** `RagDatabaseScope` reads a room's database names per
+  RAG namespace from its skills. `buildRagSourcesOverlay` and `ragSourcesKey`
+  compose the `sources` state a run sends. `ThreadHistory.databaseSources`
+  carries a thread's latest selection; `SourceReference.database` and the
+  `rag` schema's `Citation.source` name a citation's database, and
+  `SourceReference` equality now includes it.
+  `SoliplexApi.getChunkVisualization` takes an optional `database:`.
+- **Library consumers:** `SoliplexChip.filter` accepts a null `onSelected`,
+  rendering the chip disabled.
+
 ## [0.106.0+90] - 2026-09-23
 
 ### Added
