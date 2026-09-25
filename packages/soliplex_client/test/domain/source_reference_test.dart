@@ -104,7 +104,6 @@ void main() {
 
       SourceReference figureRef({
         List<Figure> figures = const [],
-        List<String> chunkIds = const [],
       }) =>
           SourceReference(
             documentId: 'doc-1',
@@ -112,7 +111,6 @@ void main() {
             content: 'Test content',
             chunkId: 'chunk-1',
             figures: figures,
-            chunkIds: chunkIds,
           );
 
       test('figures differing only in bytes are equal', () {
@@ -149,13 +147,6 @@ void main() {
               ),
             ),
           ),
-        );
-      });
-
-      test('different chunkIds make references unequal', () {
-        expect(
-          figureRef(chunkIds: const ['chunk-1']),
-          isNot(equals(figureRef(chunkIds: const ['chunk-1', 'chunk-2']))),
         );
       });
     });

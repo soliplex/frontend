@@ -204,7 +204,6 @@ class CitationExtractor {
       pageNumbers: c.pageNumbers ?? [],
       docItemRefs: c.docItemRefs ?? [],
       figures: figures,
-      chunkIds: c.chunkIds ?? [],
       index: c.index,
       database: c.source,
     );

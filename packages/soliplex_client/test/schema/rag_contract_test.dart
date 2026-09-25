@@ -1,7 +1,5 @@
 // ignore_for_file: prefer_const_constructors
 
-import 'dart:convert';
-
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:test/test.dart';
@@ -82,7 +80,6 @@ void main() {
 
         final citation = Citation.fromJson(json);
         expect(citation.chunkId, equals('c1'));
-        expect(citation.chunkIds, equals(['c1', 'c2']));
         expect(citation.documentTitle, equals('Title'));
         expect(citation.headings, equals(['H1']));
         expect(citation.index, equals(5));
@@ -111,23 +108,6 @@ void main() {
           'document_uri': 'uri',
         });
         expect(withoutMeta.documentMeta, isEmpty);
-      });
-
-      test('toJson produces expected keys', () {
-        final citation = Citation(
-          chunkId: 'c1',
-          content: 'text',
-          documentId: 'd1',
-          documentUri: 'uri',
-        );
-
-        final json = citation.toJson();
-        expect(json.containsKey('chunk_id'), isTrue);
-        expect(json.containsKey('chunk_ids'), isTrue);
-        expect(json.containsKey('content'), isTrue);
-        expect(json.containsKey('document_id'), isTrue);
-        expect(json.containsKey('document_uri'), isTrue);
-        expect(json.containsKey('picture_refs'), isTrue);
       });
     });
 
@@ -192,59 +172,6 @@ void main() {
           throwsA(isA<MalformedResponseException>()),
         );
       });
-    });
-
-    group('roundtrip serialization', () {
-      test('Citation survives JSON roundtrip', () {
-        final original = Citation(
-          chunkId: 'c1',
-          content: 'content',
-          documentId: 'd1',
-          documentUri: 'https://example.com',
-          documentTitle: 'Test Doc',
-          index: 1,
-          headings: ['Section 1'],
-          pageNumbers: [1, 2],
-          docItemRefs: ['#/texts/1'],
-          pictureRefs: ['#/pictures/0'],
-          chunkIds: ['c1', 'c2'],
-        );
-
-        final jsonString = jsonEncode(original.toJson());
-        final decoded = Citation.fromJson(
-          jsonDecode(jsonString) as Map<String, dynamic>,
-        );
-
-        expect(decoded.chunkId, equals(original.chunkId));
-        expect(decoded.content, equals(original.content));
-        expect(decoded.documentId, equals(original.documentId));
-        expect(decoded.documentUri, equals(original.documentUri));
-        expect(decoded.documentTitle, equals(original.documentTitle));
-        expect(decoded.index, equals(original.index));
-        expect(decoded.headings, equals(original.headings));
-        expect(decoded.pageNumbers, equals(original.pageNumbers));
-        expect(decoded.docItemRefs, equals(original.docItemRefs));
-        expect(decoded.pictureRefs, equals(original.pictureRefs));
-        expect(decoded.chunkIds, equals(original.chunkIds));
-      });
-    });
-  });
-
-  group('SearchResult contract', () {
-    test('content and score are required; rest is optional', () {
-      final result = SearchResult(content: 'found text', score: 0.85);
-
-      expect(result.content, equals('found text'));
-      expect(result.score, equals(0.85));
-      expect(result.chunkId, isNull);
-      expect(result.documentId, isNull);
-      expect(result.documentUri, isNull);
-      expect(result.documentTitle, isNull);
-      expect(result.docItemRefs, isNull);
-      expect(result.headings, isNull);
-      expect(result.labels, isNull);
-      expect(result.pageNumbers, isNull);
-      expect(result.order, equals(0));
     });
   });
 }

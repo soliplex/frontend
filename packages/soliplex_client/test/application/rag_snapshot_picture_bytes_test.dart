@@ -53,9 +53,10 @@ void main() {
       bad['searches'] = {
         'q': [
           {
-            // No 'content'/'score' (required on the full SearchResult) and a
-            // wrong-typed unrelated field: none of this should drop the row's
-            // figures, since the index reads only document_id + image_data.
+            // No 'content'/'score' (required on a backend search result row)
+            // and a wrong-typed unrelated field: none of this should drop
+            // the row's figures, since the index reads only document_id +
+            // image_data.
             'document_id': 'doc-1',
             'doc_item_refs': 'not-a-list',
             'image_data': {'#/pictures/0': 'aGVsbG8='},
