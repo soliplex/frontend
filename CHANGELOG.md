@@ -35,6 +35,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - The diagnostics log no longer records the text of a RAG search when one of
   its results is malformed; the warning names the search by its position.
+- A malformed document or room-stats entry the app skips is now recorded in
+  the diagnostics log, by its id and the type of failure; a room-stats response
+  in which every entry is malformed is recorded as an error. Before, these
+  reached only a debugger.
 
 ## [0.106.2+92] - 2026-09-28
 

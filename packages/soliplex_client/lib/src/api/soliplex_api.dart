@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
@@ -334,11 +333,11 @@ class SoliplexApi {
     for (final entry in documentSet.entries) {
       try {
         docs.add(ragDocumentFromJson(entry.value as Map<String, dynamic>));
-      } catch (e) {
-        developer.log(
-          'Malformed document ignored (${entry.key}): $e',
-          name: 'soliplex_client.api',
-          level: 900,
+      } catch (e, st) {
+        _logger.warning(
+          'Malformed document ignored',
+          attributes: {'documentId': entry.key, 'failure': describeFailure(e)},
+          stackTrace: st,
         );
       }
     }
@@ -433,12 +432,12 @@ class SoliplexApi {
         stats[entry.key] = roomStatsFromJson(
           entry.value as Map<String, dynamic>,
         );
-      } catch (e) {
+      } catch (e, st) {
         skipped++;
-        developer.log(
-          'Malformed room stats ignored (${entry.key}): $e',
-          name: 'soliplex_client.api',
-          level: 900,
+        _logger.warning(
+          'Malformed room stats ignored',
+          attributes: {'roomId': entry.key, 'failure': describeFailure(e)},
+          stackTrace: st,
         );
       }
     }
@@ -447,20 +446,16 @@ class SoliplexApi {
       // payload shape changed), not a single bad room — surface it loudly. The
       // caller can't tell this apart from "no activity", so it would otherwise
       // be invisible.
-      developer.log(
+      _logger.error(
         'All $skipped room stats entries were malformed; '
         'returning no activity',
-        name: 'soliplex_client.api',
-        level: 1000,
       );
     } else if (skipped > 0) {
       // Partial failure: tie the scattered per-entry warnings together so a
       // subset regression (e.g. a renamed field on some rooms) reads as one
       // signal rather than isolated noise.
-      developer.log(
+      _logger.warning(
         '$skipped of ${response.length} room stats entries were malformed',
-        name: 'soliplex_client.api',
-        level: 900,
       );
     }
     return stats;
