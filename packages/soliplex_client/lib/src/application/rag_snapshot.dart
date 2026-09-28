@@ -112,11 +112,12 @@ class CitedFigures {
       }
       return CitedFigures._(bytes, captions);
     }
-    for (final search in raw.entries) {
-      final results = search.value;
+    // An entry is named by its position, never its key: haiku.rag keys
+    // `searches` by the query text, which must not reach the log.
+    for (final (entry, results) in raw.values.indexed) {
       if (results is! List) {
         _logger.warning(
-          'RagSnapshot: skipping searches[${search.key}] with non-List value '
+          'RagSnapshot: skipping searches entry $entry with non-List value '
           '(runtimeType=${results.runtimeType}).',
         );
         continue;
@@ -125,7 +126,7 @@ class CitedFigures {
         final item = results[i];
         if (item is! Map<String, dynamic>) {
           _logger.warning(
-            'RagSnapshot: skipping non-Map searches[${search.key}][$i] '
+            'RagSnapshot: skipping non-Map row $i of searches entry $entry '
             '(runtimeType=${item.runtimeType}).',
           );
           continue;
@@ -135,7 +136,7 @@ class CitedFigures {
         final docId = item['document_id'];
         if (docId is! String) {
           _logger.warning(
-            'RagSnapshot: dropping figures on searches[${search.key}][$i] '
+            'RagSnapshot: dropping figures on row $i of searches entry $entry '
             'with non-String document_id (runtimeType=${docId.runtimeType}).',
           );
           continue;
