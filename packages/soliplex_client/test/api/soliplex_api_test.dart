@@ -31,15 +31,13 @@ void main() {
     when(() => mockTransport.close()).thenReturn(null);
   });
 
-  /// Attaches a sink for the duration of one test and returns the upload
-  /// capability records written into it.
-  List<LogRecord> Function() captureCapabilityRecords() {
+  /// Attaches a sink for the duration of one test and returns the records
+  /// written into it whose message contains [phrase].
+  List<LogRecord> Function() captureRecords(String phrase) {
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
-    return () => sink.records
-        .where((r) => r.message.contains('upload capability'))
-        .toList();
+    return () => sink.records.where((r) => r.message.contains(phrase)).toList();
   }
 
   tearDown(() {
@@ -252,7 +250,7 @@ void main() {
         // Absence withholds every upload control, which looks exactly like an
         // installation that has no upload path. Nothing else survives to say
         // which of the two it was.
-        final capabilityRecords = captureCapabilityRecords();
+        final capabilityRecords = captureRecords('upload capability');
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -279,7 +277,7 @@ void main() {
       });
 
       test('says nothing when the server reported a capability', () async {
-        final capabilityRecords = captureCapabilityRecords();
+        final capabilityRecords = captureRecords('upload capability');
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -430,7 +428,7 @@ void main() {
           () async {
         // A deep link opens a room without ever listing one, so checking only
         // the listing would leave the whole path silent.
-        final capabilityRecords = captureCapabilityRecords();
+        final capabilityRecords = captureRecords('upload capability');
         when(
           () => mockTransport.request<Room>(
             'GET',
@@ -7120,6 +7118,34 @@ void main() {
         expect(docs, hasLength(2));
         expect(docs.any((d) => d.id == 'doc-1'), isTrue);
         expect(docs.any((d) => d.id == 'doc-3'), isTrue);
+      });
+
+      test('logs a skipped document by its id', () async {
+        final records = captureRecords('Malformed document');
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'document_set': {
+              'doc-1': {'id': 'doc-1', 'title': 'Good Doc'},
+              'doc-2': 'not a map',
+            },
+          },
+        );
+
+        await api.getDocuments('room-1');
+
+        final record = records().single;
+        expect(record.level, LogLevel.warning);
+        expect(record.attributes['documentId'], 'doc-2');
       });
     });
 
