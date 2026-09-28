@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [0.106.2+92] - 2026-09-28
+
+### Changed
+
+- A thread's database selection is fixed by its first message, so every turn
+  searches the same databases. Afterwards the chips stay on screen, disabled,
+  as the record of what the thread searches; they are also disabled while the
+  thread's history is loading. A thread not yet created stays editable until
+  its first send.
+
 ## [0.106.1+91] - 2026-09-24
 
 ### Added
