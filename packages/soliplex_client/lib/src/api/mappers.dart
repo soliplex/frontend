@@ -606,28 +606,12 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
   return ThreadInfo(
     id: json['id'] as String? ?? json['thread_id'] as String,
     roomId: json['room_id'] as String? ?? '',
-    initialRunId: (json['initial_run_id'] as String?) ?? '',
     name: name,
     description: description,
     createdAt: createdAt,
     metadata: metadata,
     lastActivity: lastActivity,
   );
-}
-
-/// Converts a [ThreadInfo] to JSON.
-Map<String, dynamic> threadInfoToJson(ThreadInfo thread) {
-  return {
-    'id': thread.id,
-    'room_id': thread.roomId,
-    if (thread.initialRunId.isNotEmpty) 'initial_run_id': thread.initialRunId,
-    if (thread.name.isNotEmpty) 'name': thread.name,
-    if (thread.description.isNotEmpty) 'description': thread.description,
-    'created': formatTimestamp(thread.createdAt),
-    if (thread.lastActivity != null)
-      'last_activity': formatTimestamp(thread.lastActivity!),
-    if (thread.metadata.isNotEmpty) 'metadata': thread.metadata,
-  };
 }
 
 /// Converts thread metadata fields to the backend JSON format.

@@ -30,6 +30,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Library consumers:** `Citation.chunkIds` and `Citation.toJson`, which
   nothing read. They were reachable through the `Citation` that
   `RagSnapshot.resolveCitation` returns; code using either no longer compiles.
+- **Library consumers:** `SoliplexApi.getMontySchemas`, which called a route
+  no supported backend serves. Code calling it no longer compiles.
 
 ### Fixed
 
