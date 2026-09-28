@@ -684,7 +684,8 @@ void main() {
 
         expect(thread.id, equals('thread-1'));
         expect(thread.roomId, equals('room-1'));
-        expect(thread.initialRunId, equals('run-1'));
+        // No backend sends `initial_run_id`, so the mapper does not read it.
+        expect(thread.initialRunId, isEmpty);
         expect(thread.name, equals('Test Thread'));
         expect(thread.description, equals('A test thread'));
         expect(thread.createdAt, equals(DateTime.utc(2025)));
@@ -769,7 +770,6 @@ void main() {
           'id': 'thread-1',
           'room_id': 'room-1',
           'created': '2025-01-15T10:30:00.000',
-          'initial_run_id': null,
           'name': null,
           'description': null,
           'metadata': null,
@@ -777,7 +777,6 @@ void main() {
 
         final thread = threadInfoFromJson(json);
 
-        expect(thread.initialRunId, equals(''));
         expect(thread.name, equals(''));
         expect(thread.description, equals(''));
         expect(thread.metadata, equals(const <String, dynamic>{}));
@@ -834,78 +833,6 @@ void main() {
         expect(thread.name, equals('Top level name'));
         expect(thread.description, equals('Top level description'));
       });
-    });
-
-    group('threadInfoToJson', () {
-      test('serializes correctly with all fields', () {
-        final createdAt = DateTime.utc(2025);
-        final thread = ThreadInfo(
-          id: 'thread-1',
-          roomId: 'room-1',
-          initialRunId: 'run-1',
-          name: 'Test Thread',
-          description: 'A test thread',
-          createdAt: createdAt,
-          metadata: const {'key': 'value'},
-          lastActivity: DateTime.utc(2025, 1, 2, 3, 4),
-        );
-
-        final json = threadInfoToJson(thread);
-
-        expect(json['id'], equals('thread-1'));
-        expect(json['room_id'], equals('room-1'));
-        expect(json['initial_run_id'], equals('run-1'));
-        expect(json['name'], equals('Test Thread'));
-        expect(json['description'], equals('A test thread'));
-        expect(json['created'], equals('2025-01-01T00:00:00.000'));
-        expect(json['last_activity'], equals('2025-01-02T03:04:00.000'));
-        expect(json['metadata'], equals({'key': 'value'}));
-      });
-
-      test('excludes empty fields', () {
-        final thread = ThreadInfo(
-          id: 'thread-1',
-          roomId: 'room-1',
-          createdAt: DateTime.utc(2025),
-        );
-
-        final json = threadInfoToJson(thread);
-
-        expect(json.containsKey('id'), isTrue);
-        expect(json.containsKey('room_id'), isTrue);
-        expect(json.containsKey('created'), isTrue);
-        expect(json.containsKey('initial_run_id'), isFalse);
-        expect(json.containsKey('name'), isFalse);
-        expect(json.containsKey('description'), isFalse);
-        expect(json.containsKey('last_activity'), isFalse);
-        expect(json.containsKey('metadata'), isFalse);
-      });
-    });
-
-    test('roundtrip serialization', () {
-      final createdAt = DateTime.utc(2025);
-      final original = ThreadInfo(
-        id: 'thread-1',
-        roomId: 'room-1',
-        initialRunId: 'run-1',
-        name: 'Test Thread',
-        description: 'A test thread',
-        createdAt: createdAt,
-        metadata: const {'key': 'value'},
-        lastActivity: DateTime.utc(2025, 2, 3, 4, 5),
-      );
-
-      final json = threadInfoToJson(original);
-      final restored = threadInfoFromJson(json);
-
-      expect(restored.id, equals(original.id));
-      expect(restored.roomId, equals(original.roomId));
-      expect(restored.initialRunId, equals(original.initialRunId));
-      expect(restored.name, equals(original.name));
-      expect(restored.description, equals(original.description));
-      expect(restored.createdAt, equals(original.createdAt));
-      expect(restored.lastActivity, equals(original.lastActivity));
-      expect(restored.metadata, equals(original.metadata));
     });
   });
 

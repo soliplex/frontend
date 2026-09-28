@@ -1939,45 +1939,6 @@ class SoliplexApi {
     return isAdmin;
   }
 
-  /// Gets Monty-compatible Python schema validators from the backend.
-  ///
-  /// Returns a map of schema name to Python validator code string.
-  /// Each value is a Monty-safe Python function definition like
-  /// `def validate_tool(raw): ...`.
-  ///
-  /// Throws:
-  /// - [NetworkException] if connection fails
-  /// - [ApiException] for server errors
-  /// - [CancelledException] if cancelled via [cancelToken]
-  Future<Map<String, String>> getMontySchemas({
-    CancelToken? cancelToken,
-  }) async {
-    final response = await _transport.request<Map<String, dynamic>>(
-      'GET',
-      _urlBuilder.build(pathSegments: ['installation', 'schemas', 'monty']),
-      cancelToken: cancelToken,
-    );
-
-    final rawSchemas = response['schemas'];
-    // An absent "schemas" is a legitimate "no schemas configured" — empty map.
-    if (rawSchemas == null) return {};
-    if (rawSchemas is! Map<String, dynamic>) {
-      throw MalformedResponseException(
-        message: 'getMontySchemas: expected a map "schemas", '
-            'got ${rawSchemas.runtimeType}.',
-      );
-    }
-    return rawSchemas.map((k, v) {
-      if (v is! String) {
-        throw MalformedResponseException(
-          message: 'getMontySchemas: expected a String value for "$k", '
-              'got ${v.runtimeType}.',
-        );
-      }
-      return MapEntry(k, v);
-    });
-  }
-
   // ============================================================
   // Uploads
   // ============================================================
