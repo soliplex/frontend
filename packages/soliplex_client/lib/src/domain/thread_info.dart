@@ -24,7 +24,8 @@ class ThreadInfo {
   /// ID of the room this thread belongs to.
   final String roomId;
 
-  /// ID of the initial run created with the thread (empty if none).
+  /// ID of the run the backend creates with the thread. Only the create
+  /// response carries it, so it is empty for a thread read from a listing.
   final String initialRunId;
 
   /// Name of the thread (empty string if not provided).
@@ -46,7 +47,8 @@ class ThreadInfo {
   /// Metadata for the thread (empty map if not provided).
   final Map<String, dynamic> metadata;
 
-  /// Whether the thread has an initial run.
+  /// Whether [initialRunId] is known, which is only the case for a thread
+  /// this client has just created.
   bool get hasInitialRun => initialRunId.isNotEmpty;
 
   /// Whether the thread has a name.
