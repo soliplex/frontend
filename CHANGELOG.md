@@ -31,6 +31,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   nothing read. They were reachable through the `Citation` that
   `RagSnapshot.resolveCitation` returns; code using either no longer compiles.
 
+### Fixed
+
+- The diagnostics log no longer records the text of a RAG search when one of
+  its results is malformed; the warning names the search by its position.
+
 ## [0.106.2+92] - 2026-09-28
 
 ### Changed

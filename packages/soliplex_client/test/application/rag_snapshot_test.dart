@@ -103,6 +103,36 @@ void main() {
       expect(sink.records.single.message, contains('citations'));
     });
 
+    test('never logs the query of a malformed searches entry', () {
+      // haiku.rag keys `searches` by the query text, which the model writes
+      // and which can echo what the user typed.
+      const query = 'what the user typed';
+      final sink = _RecordingSink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      RagSnapshot.fromJson(<String, dynamic>{
+        'citation_index': <String, dynamic>{},
+        'citations': <String>[],
+        'searches': <String, dynamic>{
+          query: 'not a list',
+          '$query, again': <dynamic>[
+            'not a map',
+            <String, dynamic>{
+              'document_id': 7,
+              'image_data': {'#/pictures/0': 'AAAA'},
+            },
+          ],
+        },
+      });
+
+      expect(sink.records, hasLength(3));
+      for (final record in sink.records) {
+        expect(record.message, isNot(contains(query)));
+        expect(record.attributes.values, isNot(contains(contains(query))));
+      }
+    });
+
     test('warns when citation_index is present but not a Map', () {
       final sink = _RecordingSink();
       LogManager.instance.addSink(sink);
