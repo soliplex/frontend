@@ -1,7 +1,8 @@
-// Dart types mirroring the backend haiku.rag `rag` namespace schema. The
+// Dart mirror of haiku.rag's `Citation` schema type, carrying the fields the
+// frontend reads; `agui_feature_schema_drift_test.dart` lists the rest. The
 // lint suppressions below keep the wire-oriented parsing and layout
-// (double-quoted keys, field order, dynamic JSON access) of these schema
-// mirrors intact.
+// (double-quoted keys, field order, dynamic JSON access) of this schema
+// mirror intact.
 // ignore_for_file: sort_constructors_first
 // ignore_for_file: prefer_single_quotes
 // ignore_for_file: always_put_required_named_parameters_first

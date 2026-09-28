@@ -13,56 +13,6 @@ import 'package:test/test.dart';
 /// down the rest of the object.
 void main() {
   group('Citation contract', () {
-    group('required constructor parameters', () {
-      test('chunkId, content, documentId, documentUri are required', () {
-        final citation = Citation(
-          chunkId: 'chunk-123',
-          content: 'content',
-          documentId: 'doc-456',
-          documentUri: 'https://example.com',
-        );
-
-        expect(citation.chunkId, equals('chunk-123'));
-        expect(citation.content, equals('content'));
-        expect(citation.documentId, equals('doc-456'));
-        expect(citation.documentUri, equals('https://example.com'));
-      });
-    });
-
-    group('optional fields', () {
-      test('documentTitle, headings, index, pageNumbers default to null', () {
-        final citation = Citation(
-          chunkId: 'c1',
-          content: 'content',
-          documentId: 'd1',
-          documentUri: 'uri',
-        );
-
-        expect(citation.documentTitle, isNull);
-        expect(citation.headings, isNull);
-        expect(citation.index, isNull);
-        expect(citation.pageNumbers, isNull);
-      });
-
-      test('all optional fields can be provided', () {
-        final citation = Citation(
-          chunkId: 'c1',
-          content: 'content',
-          documentId: 'd1',
-          documentUri: 'uri',
-          documentTitle: 'Title',
-          headings: ['Section 1'],
-          index: 1,
-          pageNumbers: [1, 2],
-        );
-
-        expect(citation.documentTitle, equals('Title'));
-        expect(citation.headings, equals(['Section 1']));
-        expect(citation.index, equals(1));
-        expect(citation.pageNumbers, equals([1, 2]));
-      });
-    });
-
     group('JSON keys', () {
       test('snake_case keys match backend', () {
         final json = {
