@@ -46,8 +46,8 @@ void main(List<String> args) {
   ).trim();
   if (status.isNotEmpty) {
     stderr.writeln(
-      'Error: $backend has uncommitted changes; export from a clean '
-      'worktree.',
+      'Error: $backend has uncommitted changes or untracked files; export '
+      'from a clean worktree.',
     );
     exit(1);
   }
@@ -62,7 +62,7 @@ void main(List<String> args) {
   ).trim();
   final commit = _run('git', ['rev-parse', 'HEAD'], backend).trim();
   // The export builds the installation's config and contacts no model, but
-  // older example configs name OLLAMA_BASE_URL without a default.
+  // example/minimal.yaml names OLLAMA_BASE_URL without a default.
   final environment = {
     if (!Platform.environment.containsKey('OLLAMA_BASE_URL'))
       'OLLAMA_BASE_URL': 'http://localhost:11434',

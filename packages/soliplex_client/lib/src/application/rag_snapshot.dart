@@ -200,10 +200,11 @@ class CitedFigures {
 /// `citations` as a list of chunk ids and a `citation_index` map resolving
 /// each id to a full [Citation]. This snapshot exposes only what citation
 /// extraction and figure rendering need: the citation ids, id → [Citation]
-/// resolution, and inline picture bytes / captions. Other fields (e.g.
-/// `searches`, `document_filter`, and `executions`, which haiku.rag 0.84.0
-/// keeps under `analysis` and 0.87.0 under `rag`) are read through a
-/// resilient per-entry reader when a consumer needs them, or ignored.
+/// resolution, and inline picture bytes / captions, the only part of
+/// `searches` it reads. Other fields (e.g. `document_filter`, and
+/// `executions`, which haiku.rag 0.84.0 keeps under `analysis` and 0.87.0
+/// under `rag`) are read through a resilient per-entry reader when a consumer
+/// needs them, or ignored.
 ///
 /// [RagSnapshot.fromJson] parses `citations` and `citation_index`
 /// entry-by-entry so one malformed entry is logged and skipped rather than
@@ -352,7 +353,8 @@ class RagSnapshot {
   /// arrival.
   ///
   /// A key is only emptied when the namespace already carries it, mirroring the
-  /// backend's per-field lookup — `rag` has no `executions`, and inventing one
+  /// backend's per-field lookup — `rag` on haiku.rag 0.84.0 has no
+  /// `executions`, and inventing one
   /// would make the outbound request misleading to read.
   static Map<String, dynamic> withEmptyRunScopedKeys(
     Map<String, dynamic> state,

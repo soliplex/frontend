@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:collection/collection.dart';
+import 'package:soliplex_client/src/errors/exceptions.dart';
+import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:test/test.dart';
 
 /// One schema type: each property's normalised type, and its required names.
@@ -112,12 +114,20 @@ const _unread = <String, Map<String, String>>{
 };
 
 /// Namespaces checked against another namespace's contract: `analysis`
-/// (haiku.rag 0.84.0) carries `rag`'s fields, plus the `executions` log that
-/// 0.87.0 moved under `rag`.
+/// (haiku.rag 0.84.0) carries `rag`'s fields, plus the `executions` log,
+/// which 0.87.0 carries under `rag`.
 const _sameFieldsAs = {'analysis': 'rag'};
 
+/// Keys the frontend writes on send without reading them, with the normalised
+/// schema type the value it writes must satisfy: `executions` is emptied by
+/// `RagSnapshot.withEmptyRunScopedKeys`. Checked where present, since `rag` on
+/// haiku.rag 0.84.0 has no `executions`.
+const _written = <String, Map<String, String>>{
+  'rag': {'executions': 'list[CodeExecutionEntry]'},
+};
+
 /// Required fields of each type the frontend parses whole, as its parser
-/// requires them (`requireString` in `Citation.fromJson`).
+/// requires them; a test below holds `Citation.fromJson` to this list.
 const _parserRequired = {
   'Citation': {'chunk_id', 'content', 'document_id', 'document_uri'},
 };
@@ -218,8 +228,30 @@ void main() {
     }
   });
 
+  test('Citation.fromJson requires exactly the fields listed as required', () {
+    final required = _parserRequired['Citation']!;
+    final minimal = {for (final key in required) key: 'x'};
+    expect(
+      () => Citation.fromJson(minimal),
+      returnsNormally,
+      reason: 'the parser requires a field _parserRequired does not list',
+    );
+    for (final key in required) {
+      expect(
+        () => Citation.fromJson({...minimal}..remove(key)),
+        throwsA(isA<MalformedResponseException>()),
+        reason: '$key is listed as required but the parser does not require '
+            'it',
+      );
+    }
+  });
+
   test('every key in the table exists in a snapshot', () {
-    for (final entry in [..._read.entries, ..._unread.entries]) {
+    for (final entry in [
+      ..._read.entries,
+      ..._unread.entries,
+      ..._written.entries,
+    ]) {
       for (final property in entry.value.keys) {
         final seen = shapesByFile.values.any(
           (shapes) => shapes.entries.any(
@@ -281,6 +313,19 @@ void main() {
                 reason: '$type.$property is gone from $file; update its '
                     'reader and the table',
               );
+            }
+          });
+        }
+
+        final written = _written[contractType];
+        if (written != null) {
+          test('$type: each written property has the type the frontend writes',
+              () {
+            for (final MapEntry(key: property, value: expected)
+                in written.entries) {
+              final actual = shape.properties[property];
+              if (actual == null) continue;
+              expect(actual, expected, reason: '$type.$property');
             }
           });
         }
