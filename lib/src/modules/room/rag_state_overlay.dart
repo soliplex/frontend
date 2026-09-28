@@ -62,6 +62,28 @@ Map<String, dynamic>? buildRagStateOverlay({
   return overlay.isEmpty ? null : overlay;
 }
 
+/// Whether a thread's database set may still be changed.
+///
+/// The set is chosen before the conversation starts and freezes with its first
+/// message: every later turn then searches what the first one did, so an
+/// answer's evidence stays comparable with the evidence behind the answers
+/// before it, and a citation from an earlier turn still names a database the
+/// thread covers. The chips stay on screen once frozen, disabled, as the
+/// record of what this conversation searches.
+///
+/// [threadIsEmpty] is null while the thread's history is still loading, which
+/// reads as frozen: what is stored is not yet known to be the thread's own, so
+/// a tap then would edit a selection the history is about to replace. A thread
+/// that does not exist yet — the welcome composer's — is open, and its
+/// selection moves onto the thread its first send creates.
+bool databaseSelectionIsOpen({
+  required bool threadExists,
+  required bool? threadIsEmpty,
+}) {
+  if (!threadExists) return true;
+  return threadIsEmpty ?? false;
+}
+
 /// The part of a thread's [stored] selection the room still lists. Empty means
 /// every database — the backend's default — which a selection covering all of
 /// them also reads as, so a history that listed every database shows and sends

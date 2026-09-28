@@ -14,6 +14,36 @@ RagDatabaseScope _scope({
     );
 
 void main() {
+  group('databaseSelectionIsOpen', () {
+    test('a thread that does not exist yet is open', () {
+      expect(
+        databaseSelectionIsOpen(threadExists: false, threadIsEmpty: null),
+        isTrue,
+      );
+    });
+
+    test('an empty thread is open', () {
+      expect(
+        databaseSelectionIsOpen(threadExists: true, threadIsEmpty: true),
+        isTrue,
+      );
+    });
+
+    test('a thread with a message is frozen', () {
+      expect(
+        databaseSelectionIsOpen(threadExists: true, threadIsEmpty: false),
+        isFalse,
+      );
+    });
+
+    test('a thread whose history is still loading is frozen', () {
+      expect(
+        databaseSelectionIsOpen(threadExists: true, threadIsEmpty: null),
+        isFalse,
+      );
+    });
+  });
+
   group('buildRagStateOverlay', () {
     test('is null when nothing applies', () {
       expect(

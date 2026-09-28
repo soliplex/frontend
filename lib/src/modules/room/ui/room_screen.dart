@@ -2607,6 +2607,16 @@ class _RoomScreenState extends State<RoomScreen> {
         room == null ? RagDatabaseScope.none : RagDatabaseScope.of(room);
     final selectedDatabases =
         selectedDatabasesIn(_storedDatabases, databaseScope);
+    // The set is the conversation's, not the turn's: it is chosen before the
+    // first message and frozen by it. The chips stay, disabled, so the thread
+    // still says what it searches.
+    final databasesOpen = databaseSelectionIsOpen(
+      threadExists: threadView != null,
+      threadIsEmpty: switch (status) {
+        MessagesLoaded(:final messages) => messages.isEmpty,
+        _ => null,
+      },
+    );
 
     return ChatInput(
       // The composer's transient state belongs to the thread it is composing
@@ -2639,8 +2649,10 @@ class _RoomScreenState extends State<RoomScreen> {
       onFilterTap: _showDocumentFilter ? _openDocumentPicker : null,
       databaseNames: databaseScope.names,
       selectedDatabases: selectedDatabases,
-      onDatabaseToggled: (name, {required selected}) =>
-          _toggleDatabase(databaseScope, name, selected: selected),
+      onDatabaseToggled: databasesOpen
+          ? (name, {required selected}) =>
+              _toggleDatabase(databaseScope, name, selected: selected)
+          : null,
       onDocumentRemoved: _filterEnabled
           ? (doc) => _updateSelection(Set.of(_selectedDocuments)..remove(doc))
           : null,

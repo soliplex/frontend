@@ -1939,6 +1939,60 @@ void main() {
       );
     });
 
+    testWidgets('the first message freezes the set, and the chips stay',
+        (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+
+      final stream = await pumpThread(tester);
+
+      // Open before the first message: the tap narrows the set.
+      await tester.tap(find.widgetWithText(FilterChip, 'wiki'));
+      await tester.pumpAndSettle();
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+
+      expect(
+        await sendAndReadRag(tester, stream),
+        containsPair('sources', ['papers']),
+      );
+
+      // Frozen afterwards: the chips remain, disabled, still naming the set.
+      expect(find.widgetWithText(FilterChip, 'papers'), findsOneWidget);
+      expect(find.widgetWithText(FilterChip, 'wiki'), findsOneWidget);
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+      for (final chip
+          in tester.widgetList<FilterChip>(find.byType(FilterChip))) {
+        expect(chip.onSelected, isNull, reason: 'renders as disabled');
+      }
+
+      // And a tap on one changes nothing.
+      await tester.tap(find.widgetWithText(FilterChip, 'papers'));
+      await tester.pumpAndSettle();
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+    });
+
+    testWidgets('a thread that already has messages opens frozen',
+        (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          TextMessage.create(
+            id: 'u1',
+            user: ChatUser.user,
+            text: 'Earlier question',
+          ),
+        ],
+        databaseSources: const ['wiki'],
+      );
+
+      await pumpRoom(tester, threadId: 'thread-1');
+
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+      for (final chip
+          in tester.widgetList<FilterChip>(find.byType(FilterChip))) {
+        expect(chip.onSelected, isNull);
+      }
+    });
+
     testWidgets('a send clears a narrowed selection its room no longer offers',
         (tester) async {
       // Narrowed to `B` while the room listed it; the room now has only `A`.
