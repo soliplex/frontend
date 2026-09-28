@@ -672,7 +672,6 @@ void main() {
         final json = <String, dynamic>{
           'id': 'thread-1',
           'room_id': 'room-1',
-          'initial_run_id': 'run-1',
           'name': 'Test Thread',
           'description': 'A test thread',
           'created': '2025-01-01T00:00:00.000',
@@ -684,8 +683,6 @@ void main() {
 
         expect(thread.id, equals('thread-1'));
         expect(thread.roomId, equals('room-1'));
-        // No backend sends `initial_run_id`, so the mapper does not read it.
-        expect(thread.initialRunId, isEmpty);
         expect(thread.name, equals('Test Thread'));
         expect(thread.description, equals('A test thread'));
         expect(thread.createdAt, equals(DateTime.utc(2025)));
@@ -719,7 +716,6 @@ void main() {
 
         expect(thread.id, equals('thread-1'));
         expect(thread.roomId, equals('room-1'));
-        expect(thread.initialRunId, equals(''));
         expect(thread.name, equals(''));
         expect(thread.description, equals(''));
         expect(thread.createdAt, equals(DateTime.utc(2025, 1, 15, 10, 30)));
