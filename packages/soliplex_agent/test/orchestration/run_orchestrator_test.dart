@@ -1073,7 +1073,7 @@ void main() {
         messages: const [],
         aguiState: const {
           'rag': <String, dynamic>{
-            'citations': <int>[1, 2, 3],
+            'sources': <String>['papers', 'notes'],
           },
           'other': 'data',
         },
@@ -1093,7 +1093,7 @@ void main() {
       final completed = result as CompletedState;
       final rag = completed.conversation.aguiState['rag'] as Map;
       expect(rag['document_filter'], "id = 'abc-123'");
-      expect(rag['citations'], [1, 2, 3]);
+      expect(rag['sources'], ['papers', 'notes']);
       expect(completed.conversation.aguiState['other'], 'data');
     });
 
@@ -1262,7 +1262,7 @@ void main() {
         messages: const [],
         aguiState: const {
           'rag': <String, dynamic>{
-            'citations': <int>[1],
+            'sources': <String>['papers'],
           },
         },
       );
@@ -1280,7 +1280,7 @@ void main() {
       expect(
         completed.conversation.aguiState['rag'],
         {
-          'citations': [1],
+          'sources': ['papers'],
         },
       );
     });

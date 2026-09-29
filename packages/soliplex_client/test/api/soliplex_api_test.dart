@@ -4399,6 +4399,172 @@ void main() {
               },
             };
 
+        test('records legacy citations a state delta delivered', () async {
+          // haiku.rag 0.40 published state only as JSON Patch deltas, so a
+          // pre-0.41 answer's citations arrive this way on replay.
+          stubGet('thread-456', twoRunThread());
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citations': [
+                        {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'content': 'x',
+                        },
+                      ],
+                      'document_filter': null,
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'events': [
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(
+            history.storedStateWarnings,
+            {ThreadStateWarning.legacyCitations},
+          );
+        });
+
+        test('records no warning for runs in the current shape', () async {
+          stubGet('thread-456', twoRunThread());
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citations': ['chunk-1'],
+                    'citation_index': {
+                      'chunk-1': {
+                        'document_id': 'doc-1',
+                        'chunk_id': 'chunk-1',
+                        'document_uri': 'file:///doc1.pdf',
+                        'content': 'x',
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'replace',
+                    'path': '/rag/citations',
+                    'value': <String>[],
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(history.storedStateWarnings, isEmpty);
+        });
+
+        test(
+            'records legacy citations from an earlier snapshot that a later '
+            'run replaced', () async {
+          // A legacy thread that continued. A send on a newer backend that
+          // rejected the pre-0.41 block still stored it in a snapshot; the
+          // answers it covers have no sources, though the newest state is
+          // clean.
+          stubGet('thread-456', twoRunThread());
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citations': [
+                      {
+                        'document_id': 'doc-1',
+                        'chunk_id': 'chunk-1',
+                        'content': 'x',
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citations': <String>[],
+                    'citation_index': <String, dynamic>{},
+                  },
+                },
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(
+            history.storedStateWarnings,
+            {ThreadStateWarning.legacyCitations},
+          );
+        });
+
         test(
             'resolves citations from a run whose only state event is a '
             'terminal snapshot', () async {

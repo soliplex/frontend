@@ -21,6 +21,22 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `tool/refresh_agui_feature_schemas.dart`, which refuses a backend checkout
   with uncommitted changes or untracked files; see
   `docs/refreshing-backend-schema-snapshots.md`.
+- A banner above the composer says when a thread's stored state cannot be
+  fully used. Its first reason: a thread saved by haiku.rag 0.33 to 0.40, whose
+  earlier answers show no sources. Dismissing it keeps it hidden across history
+  refreshes; a send whose state still carries the reason brings it back, and
+  reopening the thread shows it again.
+- **Library consumers:** `ThreadStateWarning`, `ThreadHistory.storedStateWarnings`,
+  `threadStateWarnings`, `outgoingStateWarnings`, `citationStateWarnings` and
+  `RagSnapshot.carriesNonIdCitations`.
+
+### Changed
+
+- **Library consumers:** `RagSnapshot.withEmptyRunScopedKeys` and
+  `RagSnapshot.extractAll` also treat a `rag` block that carries `citations`
+  without a `citation_index` as citation-bearing: the first empties its
+  `citations`, `searches` and `executions`, and the second reads it as citing
+  nothing. Blocks in other namespaces still need a `citation_index`.
 
 ### Removed
 
@@ -41,6 +57,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   the diagnostics log, by its id and the type of failure; a room-stats response
   in which every entry is malformed is recorded as an error. Before, these
   reached only a debugger.
+- A thread last saved by haiku.rag 0.33 to 0.40 can be sent to again in a
+  room without evidence compaction. Its stored `citations` held whole citation
+  objects, which every supported backend rejects; a send now empties them, as
+  it already did for current threads. In a room with evidence compaction and an
+  earlier search, the backend still refuses such a thread.
 
 ## [0.106.2+92] - 2026-09-28
 

@@ -194,23 +194,74 @@ void main() {
       expect(analysis['document_filter'], equals('id IN (1)'));
     });
 
-    test('leaves non-citation namespaces untouched', () {
-      // A namespace without a `citation_index` is not citation-bearing, so it
-      // is copied through whole — even when it happens to carry a key name the
-      // run-scoped clear would otherwise empty.
-      final cleared = RagSnapshot.withEmptyRunScopedKeys({
-        'bubble-sandbox': {
-          'anything': 1,
-          'citations': ['not-a-citation'],
+    // The pre-0.41 shape (haiku.rag 0.33.0–0.40.1): whole citations in
+    // `citations`, no `citation_index`. Field order as that version dumped it.
+    Map<String, dynamic> legacyCitation() => {
+          'index': 1,
+          'document_id': 'doc-1',
+          'chunk_id': 'chunk-1',
+          'document_uri': 'file:///x.pdf',
+          'document_title': 'T',
+          'page_numbers': [3],
+          'headings': ['H'],
+          'content': '...cted and edge devices.',
+        };
+
+    test('empties a pre-0.41 block that has citations but no citation_index',
+        () {
+      final state = <String, dynamic>{
+        'rag': <String, dynamic>{
+          'citations': [legacyCitation()],
+          'searches': {
+            'q': [
+              {'content': 'c', 'score': 0.5},
+            ],
+          },
+          'document_filter': "id = 'doc-1'",
+          'qa_history': [
+            {'question': 'q'},
+          ],
         },
-      });
-      expect(
-        cleared['bubble-sandbox'],
-        equals({
-          'anything': 1,
-          'citations': ['not-a-citation'],
-        }),
-      );
+      };
+
+      final rag = RagSnapshot.withEmptyRunScopedKeys(state)['rag']
+          as Map<String, dynamic>;
+
+      expect(rag['citations'], isEmpty);
+      expect(rag['searches'], isEmpty);
+      expect(rag['document_filter'], "id = 'doc-1'");
+      expect(rag['qa_history'], [
+        {'question': 'q'},
+      ]);
+    });
+
+    test('empties a citations value that is null', () {
+      final rag = RagSnapshot.withEmptyRunScopedKeys({
+        'rag': <String, dynamic>{'citations': null},
+      })['rag'] as Map<String, dynamic>;
+
+      expect(rag['citations'], isEmpty);
+    });
+
+    test('leaves a block without a citation_index untouched outside rag', () {
+      // A capability entry point may name its own namespace and keys; only
+      // `rag` ever stored the pre-0.41 shape.
+      final state = <String, dynamic>{
+        'citation_policy': <String, dynamic>{
+          'violations': [1],
+        },
+        'some-plugin': <String, dynamic>{
+          'citations': [
+            {'title': 'not a haiku.rag citation'},
+          ],
+          'searches': {
+            'q': ['kept'],
+          },
+        },
+      };
+
+      expect(RagSnapshot.withEmptyRunScopedKeys(state), state);
+      expect(RagSnapshot.carriesNonIdCitations(state), isFalse);
     });
 
     test('does not add a key the namespace does not carry', () {

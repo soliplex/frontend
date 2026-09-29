@@ -36,6 +36,15 @@ String _jwt(String iss, String sub) {
 
 const _testUserId = 'iss-test#user';
 
+/// A `rag` block in the pre-0.41 shape: whole citations, no `citation_index`.
+Map<String, dynamic> _legacyRagState() => {
+      'rag': <String, dynamic>{
+        'citations': [
+          {'document_id': 'doc-1', 'chunk_id': 'chunk-1', 'content': 'x'},
+        ],
+      },
+    };
+
 /// FakeSoliplexApi variant that holds getThreadHistory open until the
 /// test resolves it. Used to assert observable behavior on an in-flight
 /// request (notably cancel-token cancellation on auth flip).
@@ -172,6 +181,27 @@ void main() {
 
   tearDown(() {
     registry.dispose();
+  });
+
+  group('state warnings', () {
+    test('a history refresh does not bring back a dismissed warning', () async {
+      api.nextThreadHistory =
+          ThreadHistory(messages: const [], aguiState: _legacyRagState());
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+      state.dismissStateWarnings();
+
+      await state.refresh();
+
+      expect(state.stateWarnings.value, isEmpty);
+      state.dispose();
+    });
   });
 
   test('fetches thread history and exposes messages', () async {
@@ -477,6 +507,86 @@ void main() {
 
     tearDown(() async {
       await runtimeManager.dispose();
+    });
+
+    test(
+        'a send whose cached state still has the reason brings back a '
+        'dismissed warning', () async {
+      final legacy =
+          ThreadHistory(messages: const [], aguiState: _legacyRagState());
+      api.nextThreadHistory = legacy;
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+      runtime.seedThreadHistory(state.threadKey, legacy);
+      state.dismissStateWarnings();
+
+      await state.sendMessage([TextPart('Hello')], runtime);
+
+      expect(state.stateWarnings.value, {ThreadStateWarning.legacyCitations});
+      state.dispose();
+    });
+
+    test('a send that lands before the first load keeps its warning', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      runtime.seedThreadHistory(
+        state.threadKey,
+        ThreadHistory(messages: const [], aguiState: _legacyRagState()),
+      );
+
+      // Sent before the constructor's history fetch has completed.
+      final send = state.sendMessage([TextPart('Hello')], runtime);
+      await Future<void>.delayed(Duration.zero);
+      await send;
+
+      expect(state.stateWarnings.value, {ThreadStateWarning.legacyCitations});
+      state.dispose();
+    });
+
+    test(
+        'a send does not bring back a warning only an earlier run gave '
+        'rise to', () async {
+      // A legacy thread that continued: loading warns about the earlier
+      // answers, but the state the send carries is clean.
+      final continued = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'citations': <String>[],
+            'citation_index': <String, dynamic>{},
+          },
+        },
+        storedStateWarnings: const {ThreadStateWarning.legacyCitations},
+      );
+      api.nextThreadHistory = continued;
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(state.stateWarnings.value, {ThreadStateWarning.legacyCitations});
+      runtime.seedThreadHistory(state.threadKey, continued);
+      state.dismissStateWarnings();
+
+      await state.sendMessage([TextPart('Hello')], runtime);
+
+      expect(state.stateWarnings.value, isEmpty);
+      state.dispose();
     });
 
     test('run failure without conversation preserves existing messages',

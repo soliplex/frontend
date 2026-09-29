@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
+import 'package:soliplex_client/src/domain/thread_state_warning.dart';
 
 /// Result of loading thread history from the backend.
 ///
@@ -18,13 +19,15 @@ class ThreadHistory {
     Map<String, NoResponseTile> runOutcomes = const {},
     this.documentFilter,
     List<String>? databaseSources,
+    Set<ThreadStateWarning> storedStateWarnings = const {},
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
         runs = List.unmodifiable(runs),
         runOutcomes = Map.unmodifiable(runOutcomes),
         databaseSources =
-            databaseSources == null ? null : List.unmodifiable(databaseSources);
+            databaseSources == null ? null : List.unmodifiable(databaseSources),
+        storedStateWarnings = Set.unmodifiable(storedStateWarnings);
 
   /// Messages in the thread, ordered chronologically.
   final List<ChatMessage> messages;
@@ -73,6 +76,13 @@ class ThreadHistory {
   /// its value is empty or not a list of names. Like [documentFilter], the run
   /// input is the only record of it.
   final List<String>? databaseSources;
+
+  /// What reading this thread's stored runs found it cannot use as stored.
+  ///
+  /// Collected from every run, not read off [aguiState]: an answer's sources
+  /// come from the state its own run ended with, so a later run replacing that
+  /// state does not restore them.
+  final Set<ThreadStateWarning> storedStateWarnings;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.

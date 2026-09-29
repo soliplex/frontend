@@ -69,6 +69,7 @@ import 'async_action_dialog.dart';
 import 'room_rail.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
+import 'thread_state_warning_banner.dart';
 import '../../auth/auth_tokens.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
@@ -2457,6 +2458,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final activeRunId = threadView.activeRunId.watch(context);
     final sendError = threadView.lastSendError.watch(context);
     final reconnectStatus = threadView.reconnectStatus.watch(context);
+    final stateWarnings = threadView.stateWarnings.watch(context);
     _restoreUnsentText(sendError?.unsentText);
 
     return Stack(
@@ -2563,6 +2565,11 @@ class _RoomScreenState extends State<RoomScreen> {
               _SendErrorBanner(
                 error: sendError,
                 onDismiss: () => threadView.clearSendError(),
+              ),
+            if (stateWarnings.isNotEmpty)
+              ThreadStateWarningBanner(
+                warnings: stateWarnings,
+                onDismiss: threadView.dismissStateWarnings,
               ),
             // Both scopes, unlike the welcome view's banner: every banner
             // watches the room scope, and this one carries a thread id, which
