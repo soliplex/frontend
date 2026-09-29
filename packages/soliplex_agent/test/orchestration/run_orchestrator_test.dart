@@ -1123,6 +1123,32 @@ void main() {
       expect(rag['sources'], isNull);
     });
 
+    test('a cached citation entry no backend accepts is not sent', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'citations': <String>[],
+            'citation_index': <String, dynamic>{'a': 7},
+          },
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('test')],
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+      );
+
+      final completed = result as CompletedState;
+      final rag = completed.conversation.aguiState['rag'] as Map;
+      expect(rag['citation_index'], isEmpty);
+    });
+
     test('deep-merges nested maps recursively', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));

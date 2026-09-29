@@ -15,4 +15,10 @@ enum ThreadStateWarning {
   /// the state since, so the state the thread shows and a send carries may be
   /// missing changes its runs made.
   stateIncomplete,
+
+  /// A stored `citation_index` entry is not an object or lacks or mistypes a
+  /// required field, or a `rag` `citation_index` beside its `citations` is not
+  /// a map, so an earlier answer shows fewer sources than it cited. A send
+  /// drops those, which the backend rejects too; the sources stay lost.
+  sourcesSkipped,
 }

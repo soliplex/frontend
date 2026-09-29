@@ -7,6 +7,8 @@ import 'package:soliplex_client/src/domain/thread_state_warning.dart';
 Set<ThreadStateWarning> citationStateWarnings(Map<String, dynamic> state) => {
       if (RagSnapshot.carriesNonIdCitations(state))
         ThreadStateWarning.legacyCitations,
+      if (RagSnapshot.carriesUnreadableCitations(state))
+        ThreadStateWarning.sourcesSkipped,
     };
 
 /// The warnings a send from [history] gives rise to. Citations are judged on
@@ -19,6 +21,8 @@ Set<ThreadStateWarning> citationStateWarnings(Map<String, dynamic> state) => {
 Set<ThreadStateWarning> outgoingStateWarnings(ThreadHistory history) => {
       if (RagSnapshot.carriesNonIdCitations(history.aguiState))
         ThreadStateWarning.legacyCitations,
+      if (RagSnapshot.carriesUnreadableCitations(history.aguiState))
+        ThreadStateWarning.sourcesSkipped,
       if (history.storedStateWarnings
           .contains(ThreadStateWarning.scopeUnreadable))
         ThreadStateWarning.scopeUnreadable,

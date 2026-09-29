@@ -77,6 +77,20 @@ void main() {
       );
     });
 
+    test('an unreadable citation entry is sources-skipped on send', () {
+      expect(
+        outgoingStateWarnings(
+          _history({
+            'rag': <String, dynamic>{
+              'citations': <String>[],
+              'citation_index': <String, dynamic>{'a': 7},
+            },
+          }),
+        ),
+        {ThreadStateWarning.sourcesSkipped},
+      );
+    });
+
     test('an incomplete state is a state-incomplete warning', () {
       expect(
         outgoingStateWarnings(
@@ -94,6 +108,41 @@ void main() {
           ThreadHistory(messages: const [], aguiStateIncomplete: true),
         ),
         {ThreadStateWarning.stateIncomplete},
+      );
+    });
+  });
+
+  group('citationStateWarnings', () {
+    test('a citation_index that is not a map is sources-skipped', () {
+      expect(
+        citationStateWarnings({
+          'rag': <String, dynamic>{
+            'citations': ['a'],
+            'citation_index': 'nope',
+          },
+        }),
+        {ThreadStateWarning.sourcesSkipped},
+      );
+    });
+
+    test('a citation_index entry that is not an object is sources-skipped', () {
+      expect(
+        citationStateWarnings({
+          'analysis': <String, dynamic>{
+            'citations': ['a'],
+            'citation_index': <String, dynamic>{'a': 7},
+          },
+        }),
+        {ThreadStateWarning.sourcesSkipped},
+      );
+    });
+
+    test('a block that is not citation-bearing gives no sources-skipped', () {
+      expect(
+        citationStateWarnings({
+          'other': <String, dynamic>{'citation_index': 'x'},
+        }),
+        isEmpty,
       );
     });
   });

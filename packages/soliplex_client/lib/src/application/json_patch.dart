@@ -23,13 +23,17 @@ class _Unappliable implements Exception {
 /// skipped. An operation that cannot be applied is logged via [logger] and
 /// skipped so the rest of the patch can land, and the result is marked
 /// incomplete. Supports `add`, `replace` and `remove`; `move`, `copy` and
-/// `test` are skipped, because no supported backend sends them.
+/// `test` are skipped. The supported backends' delta producers use
+/// `jsonpatch.make_patch`, which emits `move` only for a value that moves
+/// unchanged, and on backend `main` every run ends with a snapshot that
+/// replaces the state, so such a skip does not outlast its run.
 ///
 /// Some operations RFC 6902 treats as errors are applied instead: removing an
 /// absent map key, or a map key under an absent one, which leaves it absent;
 /// `replace` of an absent map key, which sets it; and `add` or `replace` under
-/// absent containers, which are created. A list position under an absent
-/// container is skipped: the producer's list shifted, and this state has none.
+/// absent containers, which are created. A `replace` or `remove` of a list
+/// position under an absent container is skipped: the producer's list
+/// shifted, and this state has none. An `add` there creates the list.
 ///
 /// A skip with a path is logged by the path's first segment and depth only: a
 /// path can carry values, such as the search queries `rag.searches` is keyed

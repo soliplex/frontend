@@ -14,6 +14,8 @@ String threadStateWarningText(ThreadStateWarning warning) => switch (warning) {
       ThreadStateWarning.stateIncomplete =>
         "Some of this thread's earlier results couldn't be restored, so later "
             'answers may miss them. Starting a new thread avoids this.',
+      ThreadStateWarning.sourcesSkipped =>
+        "Some sources for earlier answers couldn't be shown.",
     };
 
 /// Tells the user part of this thread's stored state could not be used as
@@ -37,6 +39,11 @@ class ThreadStateWarningBanner extends StatelessWidget {
         ?.copyWith(color: colors.onWarningContainer);
     return Container(
       width: double.infinity,
+      // Several lines on a short screen (keyboard up, landscape, large text)
+      // would otherwise leave the timeline above it no height; they scroll.
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height / 3,
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s3,
         vertical: SoliplexSpacing.s2,
@@ -52,13 +59,15 @@ class ThreadStateWarningBanner extends StatelessWidget {
           ),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final warning in ThreadStateWarning.values)
-                  if (warnings.contains(warning))
-                    Text(threadStateWarningText(warning), style: style),
-              ],
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final warning in ThreadStateWarning.values)
+                    if (warnings.contains(warning))
+                      Text(threadStateWarningText(warning), style: style),
+                ],
+              ),
             ),
           ),
           IconButton(

@@ -1503,13 +1503,6 @@ class SoliplexApi {
               );
               conversation = result.conversation;
               streaming = result.streaming;
-              // Every state event, not only the thread's final state: each
-              // turn's sources come from its own run's state, which a later
-              // run replaces.
-              if (event is StateSnapshotEvent || event is StateDeltaEvent) {
-                storedStateWarnings
-                    .addAll(citationStateWarnings(conversation.aguiState));
-              }
               // Accumulate this run's cited ids and inline figures into the
               // turn's accumulator, from whichever carrier the run recorded:
               // a terminal snapshot holds the run's complete cited set, having
@@ -1588,6 +1581,22 @@ class SoliplexApi {
       }
 
       runs.add(RunEventBundle(runId: runId, events: decodedEvents));
+
+      // Every run's end state, not only the thread's final one: each turn's
+      // sources resolve against the state its own run ended with (below),
+      // which a later run replaces. Fail-soft like that resolution: a warning
+      // is a derived projection and must not abort the history load.
+      try {
+        storedStateWarnings
+            .addAll(citationStateWarnings(conversation.aguiState));
+      } on Object catch (error, stackTrace) {
+        _logger.error(
+          'replay: thread state warnings failed for run $runId in thread '
+          '$threadId',
+          stackTrace: stackTrace,
+          attributes: {'failure': describeFailure(error)},
+        );
+      }
 
       // Resolve the turn's accumulated ids against this run's end-of-turn state
       // and (re)emit its MessageState — the turn's last run wins, mirroring the
