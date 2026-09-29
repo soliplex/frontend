@@ -474,6 +474,7 @@ class AgentRuntime {
     final history = ThreadHistory(
       messages: conversation.messages,
       aguiState: conversation.aguiState,
+      aguiStateIncomplete: conversation.aguiStateIncomplete,
       messageStates: conversation.messageStates,
       // How each run ended lives only here: no message carries it, and the
       // backend has nothing to replay it from. Dropping it loses the tile

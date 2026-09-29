@@ -36,6 +36,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   is judged on the newest run's input; a send brings it back only while the
   thread's loaded history is still what the send starts from.
 - **Library consumers:** `ThreadStateWarning.scopeUnreadable`.
+- The banner also says when some of a thread's earlier results couldn't be
+  restored: a state delta that could not be fully applied, with no later
+  snapshot to replace the state. Threads written before the backend closed
+  every run with a snapshot are where this is expected; a run whose stream
+  breaks off after such a delta also raises it. Once a later run's snapshot
+  replaces the state, reopening the thread no longer shows it.
+- **Library consumers:** `ThreadStateWarning.stateIncomplete`,
+  `Conversation.aguiStateIncomplete` and `ThreadHistory.aguiStateIncomplete`.
 
 ### Changed
 
@@ -44,6 +52,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   without a `citation_index` as citation-bearing: the first empties its
   `citations`, `searches` and `executions`, and the second reads it as citing
   nothing. Blocks in other namespaces still need a `citation_index`.
+- **Library consumers (breaking):** `applyJsonPatch` returns a
+  `JsonPatchResult`, the patched `state` and whether no operation was skipped
+  (`complete`), instead of the patched map. Read `.state` for the map. A
+  skipped operation, including any `move`, `copy` or `test`, makes it
+  incomplete.
 
 ### Removed
 
@@ -76,6 +89,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   unchanged on every retry; a send now clears it, to no document filter and
   every database.
 - **Library consumers:** `withRejectedScopeCleared`.
+- A state delta operation the app skips is logged without its value or full
+  path, at most by its namespace and path depth, and so is one citation
+  extraction skips: a path can carry a search query. A delta that leaves the
+  state incomplete is also recorded with its thread and run ids, and an
+  activity patch with its message id.
+- A state delta whose path escapes `/` or `~` in a key (as `~1` and `~0`, for
+  a search query with a slash), or names the key `""` with an empty segment,
+  lands under the key it names.
 
 ## [0.106.2+92] - 2026-09-28
 

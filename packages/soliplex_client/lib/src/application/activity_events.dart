@@ -144,10 +144,21 @@ List<ActivityRecord> _applyDelta(
     return current;
   }
   final patched = applyJsonPatch(existing.content, event.patch, logger: log);
+  if (!patched.complete) {
+    // applyJsonPatch logs each skip without its full path; this names the
+    // activity it belongs to.
+    log.warning(
+      'ActivityDeltaEvent left the activity content incomplete',
+      attributes: {
+        'messageId': event.messageId,
+        'activityType': event.activityType,
+      },
+    );
+  }
   return [...current]..[idx] = ActivityRecord(
       messageId: event.messageId,
       activityType: event.activityType,
-      content: patched,
+      content: patched.state,
       timestamp: event.timestamp ?? existing.timestamp,
     );
 }

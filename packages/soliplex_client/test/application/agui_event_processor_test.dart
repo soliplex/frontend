@@ -2113,5 +2113,86 @@ void main() {
         );
       });
     });
+
+    group('aguiStateIncomplete', () {
+      const unappliable = StateDeltaEvent(
+        delta: [
+          {'op': 'replace', 'path': '/items/5', 'value': 'x'},
+        ],
+      );
+      const appliable = StateDeltaEvent(
+        delta: [
+          {'op': 'replace', 'path': '/a', 'value': 2},
+        ],
+      );
+      Conversation start() => conversation.copyWith(
+            aguiState: {
+              'a': 1,
+              'items': ['x'],
+            },
+          );
+
+      test('a later delta that applies keeps the mark', () {
+        final marked =
+            processEvent(start(), streaming, unappliable).conversation;
+
+        final result = processEvent(marked, streaming, appliable);
+
+        expect(result.conversation.aguiStateIncomplete, isTrue);
+      });
+
+      test('a later snapshot clears the mark', () {
+        final marked =
+            processEvent(start(), streaming, unappliable).conversation;
+
+        final result = processEvent(
+          marked,
+          streaming,
+          const StateSnapshotEvent(snapshot: {'a': 2}),
+        );
+
+        expect(result.conversation.aguiStateIncomplete, isFalse);
+      });
+
+      test('logs the thread and run whose delta left the state incomplete', () {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        processEvent(
+          start().withStatus(const Running(runId: 'run-1')),
+          streaming,
+          unappliable,
+        );
+
+        final record = sink.records.singleWhere(
+          (r) => r.message.contains('incomplete'),
+        );
+        expect(record.attributes, {'threadId': 'thread-1', 'runId': 'run-1'});
+      });
+
+      test('a delta that applies logs nothing about incompleteness', () {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        processEvent(
+          start().withStatus(const Running(runId: 'run-1')),
+          streaming,
+          appliable,
+        );
+
+        expect(
+          sink.records.where((r) => r.message.contains('incomplete')),
+          isEmpty,
+        );
+      });
+
+      test('a delta that applies keeps a complete state complete', () {
+        final result = processEvent(start(), streaming, appliable);
+
+        expect(result.conversation.aguiStateIncomplete, isFalse);
+      });
+    });
   });
 }

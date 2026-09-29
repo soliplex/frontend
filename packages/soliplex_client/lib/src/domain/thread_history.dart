@@ -14,6 +14,7 @@ class ThreadHistory {
   ThreadHistory({
     required List<ChatMessage> messages,
     Map<String, dynamic> aguiState = const {},
+    this.aguiStateIncomplete = false,
     Map<String, MessageState> messageStates = const {},
     List<RunEventBundle> runs = const [],
     Map<String, NoResponseTile> runOutcomes = const {},
@@ -37,6 +38,11 @@ class ThreadHistory {
   /// Contains application-specific state like citation history from RAG
   /// queries. Empty map if no state events were recorded.
   final Map<String, dynamic> aguiState;
+
+  /// Whether [aguiState] may be missing changes a `STATE_DELTA` carried: one
+  /// could not be fully applied, and no later `STATE_SNAPSHOT` replaced the
+  /// state.
+  final bool aguiStateIncomplete;
 
   /// Per-message state keyed by user message ID.
   ///

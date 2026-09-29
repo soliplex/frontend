@@ -13,13 +13,16 @@ Set<ThreadStateWarning> citationStateWarnings(Map<String, dynamic> state) => {
 /// the cached state, which is what the next run is seeded from. The saved
 /// search scope keeps the verdict the loaded history's run-input readers
 /// reached ([ThreadHistory.storedStateWarnings]): the replayed state can be an
-/// older run's. A history captured from a finished run carries no verdict.
+/// older run's. A history captured from a finished run carries no scope
+/// verdict. Whether the state is incomplete is the history's own
+/// [ThreadHistory.aguiStateIncomplete], which a captured history carries too.
 Set<ThreadStateWarning> outgoingStateWarnings(ThreadHistory history) => {
       if (RagSnapshot.carriesNonIdCitations(history.aguiState))
         ThreadStateWarning.legacyCitations,
       if (history.storedStateWarnings
           .contains(ThreadStateWarning.scopeUnreadable))
         ThreadStateWarning.scopeUnreadable,
+      if (history.aguiStateIncomplete) ThreadStateWarning.stateIncomplete,
     };
 
 /// The warnings a thread opened with [history] shows. Its saved search scope
@@ -29,4 +32,5 @@ Set<ThreadStateWarning> outgoingStateWarnings(ThreadHistory history) => {
 Set<ThreadStateWarning> threadStateWarnings(ThreadHistory history) => {
       ...history.storedStateWarnings,
       ...citationStateWarnings(history.aguiState),
+      if (history.aguiStateIncomplete) ThreadStateWarning.stateIncomplete,
     };

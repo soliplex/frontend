@@ -11,6 +11,9 @@ String threadStateWarningText(ThreadStateWarning warning) => switch (warning) {
         "This thread's saved document or database selection couldn't be "
             'read, so answers from now on may search more than earlier '
             'answers did.',
+      ThreadStateWarning.stateIncomplete =>
+        "Some of this thread's earlier results couldn't be restored, so later "
+            'answers may miss them. Starting a new thread avoids this.',
     };
 
 /// Tells the user part of this thread's stored state could not be used as

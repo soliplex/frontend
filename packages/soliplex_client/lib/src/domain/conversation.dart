@@ -138,6 +138,7 @@ class Conversation {
     this.toolCalls = const [],
     this.status = const Idle(),
     this.aguiState = const {},
+    this.aguiStateIncomplete = false,
     this.messageStates = const {},
     this.activities = const [],
     this.runOutcomes = const {},
@@ -165,6 +166,11 @@ class Conversation {
   /// Contains application-specific state like citation history from RAG
   /// queries.
   final Map<String, dynamic> aguiState;
+
+  /// Whether [aguiState] may be missing changes a `STATE_DELTA` carried: one
+  /// could not be fully applied, and no `STATE_SNAPSHOT` has replaced the
+  /// state since.
+  final bool aguiStateIncomplete;
 
   /// Per-message state keyed by user message ID.
   ///
@@ -282,6 +288,7 @@ class Conversation {
     List<ToolCallInfo>? toolCalls,
     ConversationStatus? status,
     Map<String, dynamic>? aguiState,
+    bool? aguiStateIncomplete,
     Map<String, MessageState>? messageStates,
     List<ActivityRecord>? activities,
     Map<String, NoResponseTile>? runOutcomes,
@@ -292,6 +299,7 @@ class Conversation {
       toolCalls: toolCalls ?? this.toolCalls,
       status: status ?? this.status,
       aguiState: aguiState ?? this.aguiState,
+      aguiStateIncomplete: aguiStateIncomplete ?? this.aguiStateIncomplete,
       messageStates: messageStates ?? this.messageStates,
       activities: activities ?? this.activities,
       runOutcomes: runOutcomes ?? this.runOutcomes,
@@ -313,6 +321,7 @@ class Conversation {
         toolCallListEquals.equals(toolCalls, other.toolCalls) &&
         status == other.status &&
         mapEquals.equals(aguiState, other.aguiState) &&
+        aguiStateIncomplete == other.aguiStateIncomplete &&
         messageStateMapEquals.equals(messageStates, other.messageStates) &&
         activityListEquals.equals(activities, other.activities) &&
         runOutcomeMapEquals.equals(runOutcomes, other.runOutcomes);
@@ -325,6 +334,7 @@ class Conversation {
         const ListEquality<ToolCallInfo>().hash(toolCalls),
         status,
         const DeepCollectionEquality().hash(aguiState),
+        aguiStateIncomplete,
         const MapEquality<String, MessageState>().hash(messageStates),
         const ListEquality<ActivityRecord>().hash(activities),
         const MapEquality<String, NoResponseTile>().hash(runOutcomes),

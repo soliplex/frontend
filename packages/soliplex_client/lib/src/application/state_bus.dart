@@ -46,7 +46,7 @@ class StateBus {
   /// one step:
   ///
   /// ```dart
-  /// bus.update((current) => applyJsonPatch(current, deltaOps));
+  /// bus.update((current) => applyJsonPatch(current, deltaOps).state);
   /// ```
   void update(
     Map<String, dynamic> Function(Map<String, dynamic> current) transform,
