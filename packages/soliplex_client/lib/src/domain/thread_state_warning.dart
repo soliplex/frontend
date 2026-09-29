@@ -5,4 +5,9 @@ enum ThreadStateWarning {
   /// which stored whole citations; in a block with one it is malformed. A send
   /// empties it, and the answers it belonged to show no sources.
   legacyCitations,
+
+  /// A saved `document_filter` or database `sources` the selection UI cannot
+  /// hydrate: it starts from no document or every database, so a send can
+  /// search wider than the thread did.
+  scopeUnreadable,
 }

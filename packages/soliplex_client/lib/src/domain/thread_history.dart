@@ -79,9 +79,11 @@ class ThreadHistory {
 
   /// What reading this thread's stored runs found it cannot use as stored.
   ///
-  /// Collected from every run, not read off [aguiState]: an answer's sources
-  /// come from the state its own run ended with, so a later run replacing that
-  /// state does not restore them.
+  /// Citation warnings are collected from every run's state events, not read
+  /// off [aguiState]: an answer's sources come from the state its own run
+  /// ended with, so a later run replacing that state does not restore them.
+  /// The scope warning is judged on the newest run input, which is what the
+  /// selection UI hydrates from.
   final Set<ThreadStateWarning> storedStateWarnings;
 }
 
