@@ -100,9 +100,12 @@ class CitationExtractor {
     final namespaces = <String>{};
     for (final op in delta.delta) {
       final path = op['path'];
+      // The op's value and path can carry user input (`rag.searches` is keyed
+      // by query text), so only their types reach the log.
       if (path is! String) {
         _logger.warning(
-          '_touchedNamespaces: skipping delta op with non-String path: $op',
+          '_touchedNamespaces: skipping delta op with non-String path',
+          attributes: {'pathType': '${path.runtimeType}'},
         );
         continue;
       }
@@ -110,7 +113,7 @@ class CitationExtractor {
       if (segments.isEmpty) {
         _logger.warning(
           '_touchedNamespaces: skipping delta op with no namespace segment '
-          'in path: $op',
+          'in path',
         );
         continue;
       }

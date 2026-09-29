@@ -1658,6 +1658,7 @@ class SoliplexApi {
     return ThreadHistory(
       messages: conversation.messages,
       aguiState: conversation.aguiState,
+      aguiStateIncomplete: conversation.aguiStateIncomplete,
       messageStates: messageStates,
       runs: runs,
       runOutcomes: conversation.runOutcomes,

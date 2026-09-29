@@ -10,4 +10,9 @@ enum ThreadStateWarning {
   /// hydrate: it starts from no document or every database, so a send can
   /// search wider than the thread did.
   scopeUnreadable,
+
+  /// A `STATE_DELTA` could not be fully applied and no snapshot has replaced
+  /// the state since, so the state the thread shows and a send carries may be
+  /// missing changes its runs made.
+  stateIncomplete,
 }

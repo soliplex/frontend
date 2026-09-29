@@ -212,6 +212,63 @@ void main() {
       expect(result.single.timestamp, 200);
     });
 
+    test('logs which activity a patch left incomplete', () {
+      final sink = _RecordingSink(forLoggerName: 'test.activity_events');
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      const initial = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {
+          'steps': ['a'],
+        },
+        timestamp: 100,
+      );
+      const event = ActivityDeltaEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        patch: [
+          {'op': 'replace', 'path': '/steps/5', 'value': 'x'},
+        ],
+      );
+
+      applyActivityEvent([initial], event, logger: logger);
+
+      final record = sink.records.singleWhere(
+        (r) => r.message.contains('incomplete'),
+      );
+      expect(record.attributes, {
+        'messageId': 'rag:call_1',
+        'activityType': 'skill_tool_call',
+      });
+    });
+
+    test('a patch that applies logs nothing about incompleteness', () {
+      final sink = _RecordingSink(forLoggerName: 'test.activity_events');
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      const initial = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {'status': 'in_progress'},
+        timestamp: 100,
+      );
+      const event = ActivityDeltaEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        patch: [
+          {'op': 'replace', 'path': '/status', 'value': 'done'},
+        ],
+      );
+
+      applyActivityEvent([initial], event, logger: logger);
+
+      expect(
+        sink.records.where((r) => r.message.contains('incomplete')),
+        isEmpty,
+      );
+    });
+
     test('drops when no prior snapshot exists', () {
       const event = ActivityDeltaEvent(
         messageId: 'rag:orphan',

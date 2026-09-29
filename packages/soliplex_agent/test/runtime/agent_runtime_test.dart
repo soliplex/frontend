@@ -246,6 +246,62 @@ void main() {
       );
       expect(outcomes['run-first']!.thinkingText, equals('weighing it'));
     });
+
+    test('a send after a run whose state was left incomplete carries the mark',
+        () async {
+      // Each stream breaks off without the closing snapshot that would replace
+      // the state: the first after a delta that did not apply, the second
+      // before any state event. What the second send starts from, and what the
+      // next send reads, is the incomplete state.
+      stubCreateThread();
+      stubCreateRun();
+      stubDeleteThread();
+      var call = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        call++;
+        final runId = 'run-$call';
+        return () async* {
+          yield DecodedEvent(
+            RunStartedEvent(threadId: _threadId, runId: runId),
+            const {},
+          );
+          if (call == 1) {
+            yield const DecodedEvent(
+              StateDeltaEvent(
+                delta: [
+                  {'op': 'replace', 'path': '/rag/citations/0', 'value': 'c1'},
+                ],
+              ),
+              {},
+            );
+          }
+          throw const NetworkException(message: 'connection reset');
+        }();
+      });
+
+      final first =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hi')]);
+      await first.result;
+      final second = await runtime.spawn(
+        roomId: _roomId,
+        threadId: _threadId,
+        prompt: [const TextPart('And again')],
+      );
+      await second.result;
+
+      expect(
+        runtime.threadStateOf(second.threadKey)?.history?.aguiStateIncomplete,
+        isTrue,
+      );
+    });
   });
 
   group('spawn', () {

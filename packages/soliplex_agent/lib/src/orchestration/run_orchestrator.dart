@@ -898,6 +898,7 @@ class RunOrchestrator {
       threadId: key.threadId,
       messages: [...priorMessages, userMsg],
       aguiState: aguiState,
+      aguiStateIncomplete: cachedHistory?.aguiStateIncomplete ?? false,
       messageStates: cachedHistory?.messageStates ?? const {},
       // Every send builds this afresh, so a run that ended earlier in the
       // thread loses its outcome unless it is carried over here.

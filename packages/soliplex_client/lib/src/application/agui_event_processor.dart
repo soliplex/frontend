@@ -754,8 +754,10 @@ EventProcessingResult _processStateSnapshot(
   // position; surrounding events still process. Future callers of
   // `processEvent` that don't wrap inherit this contract.
   return EventProcessingResult(
-    conversation:
-        conversation.copyWith(aguiState: snapshot as Map<String, dynamic>),
+    conversation: conversation.copyWith(
+      aguiState: snapshot as Map<String, dynamic>,
+      aguiStateIncomplete: false,
+    ),
     streaming: streaming,
   );
 }
@@ -765,10 +767,26 @@ EventProcessingResult _processStateDelta(
   StreamingState streaming,
   List<dynamic> delta,
 ) {
-  final newState =
+  final patched =
       applyJsonPatch(conversation.aguiState, delta, logger: _logger);
+  if (!patched.complete) {
+    // applyJsonPatch logs each skip without its full path, thread or run; this
+    // names the thread, and the run while one is open.
+    final status = conversation.status;
+    _logger.warning(
+      'State delta left the thread state incomplete',
+      attributes: {
+        'threadId': conversation.threadId,
+        if (status is Running) 'runId': status.runId,
+      },
+    );
+  }
   return EventProcessingResult(
-    conversation: conversation.copyWith(aguiState: newState),
+    conversation: conversation.copyWith(
+      aguiState: patched.state,
+      aguiStateIncomplete:
+          conversation.aguiStateIncomplete || !patched.complete,
+    ),
     streaming: streaming,
   );
 }

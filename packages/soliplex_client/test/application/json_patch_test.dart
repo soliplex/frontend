@@ -1,4 +1,5 @@
 import 'package:soliplex_client/src/application/json_patch.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -10,7 +11,7 @@ void main() {
           {'op': 'add', 'path': '/new', 'value': 'added'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['existing'], 'value');
         expect(result['new'], 'added');
@@ -22,7 +23,7 @@ void main() {
           {'op': 'add', 'path': '/a/b/c', 'value': 'deep'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         final a = result['a'] as Map<String, dynamic>;
         final b = a['b'] as Map<String, dynamic>;
@@ -37,7 +38,7 @@ void main() {
           {'op': 'add', 'path': '/items/2', 'value': 'c'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['items'], ['a', 'b', 'c']);
       });
@@ -50,7 +51,7 @@ void main() {
           {'op': 'add', 'path': '/items/-', 'value': 'c'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['items'], ['a', 'b', 'c']);
       });
@@ -65,7 +66,7 @@ void main() {
           {'op': 'add', 'path': '/rag/citations/-', 'value': 'chunk-2'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         final citations =
             (result['rag'] as Map<String, dynamic>)['citations'] as List;
@@ -80,7 +81,7 @@ void main() {
           {'op': 'add', 'path': '/items/1', 'value': 'inserted'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['items'], ['a', 'inserted', 'b', 'c']);
       });
@@ -93,7 +94,7 @@ void main() {
           {'op': 'replace', 'path': '/key', 'value': 'new'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['key'], 'new');
       });
@@ -106,7 +107,7 @@ void main() {
           {'op': 'replace', 'path': '/outer/inner', 'value': 'new'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         final outer = result['outer'] as Map<String, dynamic>;
         expect(outer['inner'], 'new');
@@ -120,7 +121,7 @@ void main() {
           {'op': 'remove', 'path': '/remove'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result.containsKey('keep'), isTrue);
         expect(result.containsKey('remove'), isFalse);
@@ -134,7 +135,7 @@ void main() {
           {'op': 'remove', 'path': '/outer/remove'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         final outer = result['outer'] as Map<String, dynamic>;
         expect(outer['keep'], 'yes');
@@ -149,7 +150,7 @@ void main() {
           {'op': 'remove', 'path': '/items/1'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['items'], ['a', 'c']);
       });
@@ -164,7 +165,7 @@ void main() {
           {'op': 'add', 'path': '/items', 'value': <dynamic>[]},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['count'], 1);
         expect(result['name'], 'test');
@@ -180,7 +181,7 @@ void main() {
           {'op': 'add', 'path': '/new', 'value': 'added'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['key'], 'value');
         expect(result['new'], 'added');
@@ -192,7 +193,7 @@ void main() {
           {'path': '/key', 'value': 'changed'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['key'], 'value');
       });
@@ -203,7 +204,7 @@ void main() {
           {'op': 'add', 'value': 'changed'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result['key'], 'value');
       });
@@ -216,7 +217,7 @@ void main() {
           {'op': 'test', 'path': '/key', 'value': 'value'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result, equals({'key': 'value'}));
       });
@@ -258,7 +259,7 @@ void main() {
           {'op': 'add', 'path': '/rag/citations/0', 'value': 'chunk-1'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         final ragState = result['rag'] as Map<String, dynamic>;
         final citations = ragState['citations'] as List<dynamic>;
@@ -271,7 +272,7 @@ void main() {
           {'op': 'add', 'path': '/data/items/-', 'value': 'first'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         final data = result['data'] as Map<String, dynamic>;
         final items = data['items'] as List<dynamic>;
@@ -286,7 +287,7 @@ void main() {
           {'op': 'add', 'path': '', 'value': 'ignored'},
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         expect(result, equals({'key': 'value'}));
       });
@@ -300,7 +301,7 @@ void main() {
         ];
 
         // Should handle gracefully - either skip or extend
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         // Verify original items preserved
         final items = result['items'] as List;
@@ -317,7 +318,7 @@ void main() {
         ];
 
         // Should handle gracefully - skip invalid operation
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         // Original array should be unchanged since -1 is not a valid index
         expect(result['items'], ['a', 'b', 'c']);
@@ -332,7 +333,7 @@ void main() {
         ];
 
         // Should handle gracefully
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         // Array should be unchanged
         expect(result['items'], ['a', 'b']);
@@ -348,7 +349,7 @@ void main() {
           },
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         // Root path replacement replaces entire state
         expect(result, equals({'new': 'state'}));
@@ -383,13 +384,171 @@ void main() {
           },
         ];
 
-        final result = applyJsonPatch(state, operations);
+        final result = applyJsonPatch(state, operations).state;
 
         final rag = result['rag'] as Map<String, dynamic>;
         final citations = rag['citations'] as List<dynamic>;
         expect(citations, equals(['c1', 'c2', 'c3']));
         final citationIndex = rag['citation_index'] as Map<String, dynamic>;
         expect(citationIndex.containsKey('c2'), isTrue);
+      });
+    });
+
+    group('JSON Pointer escapes', () {
+      test('decodes ~1 and ~0 in a path segment', () {
+        // What jsonpatch writes for a search keyed by a query with a slash.
+        final result = applyJsonPatch({
+          'rag': {'searches': <String, dynamic>{}},
+        }, [
+          {'op': 'add', 'path': '/rag/searches/A~1B test ~0 v2', 'value': 1},
+        ]);
+
+        expect(result.state, {
+          'rag': {
+            'searches': {'A/B test ~ v2': 1},
+          },
+        });
+      });
+
+      test('reads an empty segment as the key ""', () {
+        // What jsonpatch writes for a search whose query was empty.
+        final result = applyJsonPatch({
+          'rag': {
+            'searches': {'q': 1},
+          },
+        }, [
+          {'op': 'add', 'path': '/rag/searches/', 'value': 2},
+        ]);
+
+        expect(result.state, {
+          'rag': {
+            'searches': {'q': 1, '': 2},
+          },
+        });
+      });
+
+      test('decodes ~01 as a literal ~1', () {
+        final result = applyJsonPatch({}, [
+          {'op': 'add', 'path': '/a~01', 'value': 1},
+        ]);
+
+        expect(result.state, {'a~1': 1});
+      });
+    });
+
+    group('completeness', () {
+      test('is complete when every operation applies', () {
+        final result = applyJsonPatch({
+          'a': 1,
+        }, [
+          {'op': 'replace', 'path': '/a', 'value': 2},
+          {'op': 'add', 'path': '/b', 'value': 3},
+        ]);
+
+        expect(result.complete, isTrue);
+      });
+
+      test('is complete when removing a key that is not there', () {
+        // The result holds what the producer's state holds at that key.
+        final result = applyJsonPatch({
+          'a': 1,
+        }, [
+          {'op': 'remove', 'path': '/missing'},
+        ]);
+
+        expect(result.complete, isTrue);
+      });
+
+      test('is complete when removing under a map key that is not there', () {
+        final result = applyJsonPatch({
+          'a': 1,
+        }, [
+          {'op': 'remove', 'path': '/missing/deeper'},
+        ]);
+
+        expect(result.complete, isTrue);
+      });
+
+      final unappliable = <String, List<dynamic>>{
+        'an operation that is not a map': ['nope'],
+        'a missing op': [
+          {'path': '/a'},
+        ],
+        'an unsupported op': [
+          {'op': 'move', 'from': '/a', 'path': '/b'},
+        ],
+        'replacing the root with a non-object': [
+          {'op': 'replace', 'path': '/', 'value': 'x'},
+        ],
+        'removing the root': [
+          {'op': 'remove', 'path': '/'},
+        ],
+        'an array index that is not a number': [
+          {'op': 'add', 'path': '/items/x', 'value': 'x'},
+        ],
+        'a path through a missing array element': [
+          {'op': 'replace', 'path': '/items/9/name', 'value': 'x'},
+        ],
+        'setting a key under a value that is not a container': [
+          {'op': 'replace', 'path': '/a/b', 'value': 'x'},
+        ],
+        'a path through a value that is not a container': [
+          {'op': 'add', 'path': '/a/b/c', 'value': 'x'},
+        ],
+        'removing a key under a value that is not a container': [
+          {'op': 'remove', 'path': '/a/b'},
+        ],
+        'removing through a value that is not a container': [
+          {'op': 'remove', 'path': '/a/b/c'},
+        ],
+        'removing a list position under a missing container': [
+          {'op': 'remove', 'path': '/missing/0'},
+        ],
+        'an op that is not a string': [
+          {'op': 1, 'path': '/a'},
+        ],
+        'removing through a missing array element': [
+          {'op': 'remove', 'path': '/items/9/name'},
+        ],
+      };
+      for (final MapEntry(key: name, value: operations)
+          in unappliable.entries) {
+        test('is incomplete for $name', () {
+          final result = applyJsonPatch(
+            <String, dynamic>{
+              'a': 1,
+              'items': ['x'],
+            },
+            operations,
+          );
+
+          expect(result.complete, isFalse);
+        });
+      }
+
+      test('logs skipped operations without their values or paths', () {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        applyJsonPatch({
+          'a': 1,
+        }, [
+          {
+            'op': 'move',
+            'path': '/rag/searches/what did alice ask/0',
+            'value': 'secret@example.com',
+          },
+          {'op': 'secret-op', 'path': '/a', 'value': 1},
+          'secret-not-an-object',
+          {'op': 'add', 'value': 'secret-no-path'},
+        ]);
+
+        final logged =
+            sink.records.map((r) => '${r.message} ${r.attributes}').join('\n');
+        expect(logged, contains('rag'));
+        expect(logged, isNot(contains('alice')));
+        expect(logged, isNot(contains('secret')));
       });
     });
   });

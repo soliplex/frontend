@@ -4451,6 +4451,55 @@ void main() {
           );
         });
 
+        test('a stored delta that does not apply leaves the state incomplete',
+            () async {
+          // Replay applies each run's deltas to the state the earlier events
+          // built, not to the state that run was sent, and no haiku.skills-era
+          // run ended with a snapshot: a removal can name a list position the
+          // replayed state does not have.
+          stubGet('thread-456', twoRunThread());
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {'citations': <dynamic>[]},
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {'op': 'remove', 'path': '/rag/citations/0'},
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(history.aguiStateIncomplete, isTrue);
+        });
+
         test('records no warning for runs in the current shape', () async {
           stubGet('thread-456', twoRunThread());
           stubGet('thread-456/run-1', {

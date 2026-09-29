@@ -322,6 +322,28 @@ void main() {
             ],
           );
 
+      test('logs a malformed op without its value', () {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        extractor.accumulate(
+          const TurnCitations.empty(),
+          const {},
+          const StateDeltaEvent(
+            delta: [
+              {'op': 'add', 'path': 7, 'value': 'secret-query'},
+              {'op': 'replace', 'path': '/', 'value': 'secret-state'},
+            ],
+          ),
+        );
+
+        final logged =
+            sink.records.map((r) => '${r.message} ${r.attributes}').join('\n');
+        expect(logged, contains('skipping delta op'));
+        expect(logged, isNot(contains('secret')));
+      });
+
       test(
           'scopes to the namespace the delta touched, ignoring a stale '
           'sibling', () {

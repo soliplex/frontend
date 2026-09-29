@@ -76,5 +76,25 @@ void main() {
         isEmpty,
       );
     });
+
+    test('an incomplete state is a state-incomplete warning', () {
+      expect(
+        outgoingStateWarnings(
+          ThreadHistory(messages: const [], aguiStateIncomplete: true),
+        ),
+        {ThreadStateWarning.stateIncomplete},
+      );
+    });
+  });
+
+  group('threadStateWarnings', () {
+    test('a thread opened with an incomplete state shows state-incomplete', () {
+      expect(
+        threadStateWarnings(
+          ThreadHistory(messages: const [], aguiStateIncomplete: true),
+        ),
+        {ThreadStateWarning.stateIncomplete},
+      );
+    });
   });
 }
