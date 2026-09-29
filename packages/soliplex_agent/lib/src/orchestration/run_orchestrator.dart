@@ -885,9 +885,10 @@ class RunOrchestrator {
     // Seeding with the run-scoped keys emptied is what makes a namespace's
     // non-empty `citations` in the run's terminal snapshot definitionally this
     // turn's. The overlay merges on top, so a caller-set `document_filter`
-    // still applies.
+    // still applies. A scope value no backend accepts is cleared first, or
+    // every send from the thread would fail on it.
     final baseState = RagSnapshot.withEmptyRunScopedKeys(
-      cachedHistory?.aguiState ?? const {},
+      withRejectedScopeCleared(cachedHistory?.aguiState ?? const {}),
     );
     final aguiState =
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);

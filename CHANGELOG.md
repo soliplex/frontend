@@ -69,6 +69,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   objects, which every supported backend rejects; a send now empties them, as
   it already did for current threads. In a room with evidence compaction and an
   earlier search, the backend still refuses such a thread.
+- A thread whose saved `document_filter` is not a string, or whose `sources`
+  is not a list of names, can be sent to again. Every supported backend
+  rejects such a value, and a send that did not overwrite it (a room with no
+  database choice, or a flavor with the document filter off) carried it out
+  unchanged on every retry; a send now clears it, to no document filter and
+  every database.
+- **Library consumers:** `withRejectedScopeCleared`.
 
 ## [0.106.2+92] - 2026-09-28
 
