@@ -11,6 +11,7 @@ import 'package:soliplex_client/src/application/rag_snapshot.dart'
     show ragSourcesKey, ragStateKey;
 import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
+import 'package:soliplex_client/src/application/thread_state_warnings.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/chunk_visualization.dart';
@@ -27,6 +28,7 @@ import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/thread_state_warning.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
@@ -1277,6 +1279,7 @@ class SoliplexApi {
     // cited ids and inline figures so an earlier invocation's figure survives a
     // later invocation's `searches` clear.
     final turnsByUserMessage = <String, TurnCitations>{};
+    final storedStateWarnings = <ThreadStateWarning>{};
     final runs = <RunEventBundle>[];
     // Text of the user messages already appended, keyed by id, so a
     // continuation run does not add its parent's message a second time. An
@@ -1475,6 +1478,13 @@ class SoliplexApi {
               );
               conversation = result.conversation;
               streaming = result.streaming;
+              // Every state event, not only the thread's final state: each
+              // turn's sources come from its own run's state, which a later
+              // run replaces.
+              if (event is StateSnapshotEvent || event is StateDeltaEvent) {
+                storedStateWarnings
+                    .addAll(citationStateWarnings(conversation.aguiState));
+              }
               // Accumulate this run's cited ids and inline figures into the
               // turn's accumulator, from whichever carrier the run recorded:
               // a terminal snapshot holds the run's complete cited set, having
@@ -1628,6 +1638,7 @@ class SoliplexApi {
       runOutcomes: conversation.runOutcomes,
       documentFilter: documentFilter,
       databaseSources: databaseSources,
+      storedStateWarnings: storedStateWarnings,
     );
   }
 

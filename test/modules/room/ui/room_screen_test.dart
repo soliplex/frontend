@@ -32,6 +32,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/thread_state_warning_banner.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -1770,6 +1771,64 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Filter documents'), findsNothing);
+    });
+  });
+
+  group('thread state warning banner', () {
+    Future<void> pumpRoom(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: soliplexLightTheme(),
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a legacy thread shows the banner; closing hides it',
+        (tester) async {
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        aguiState: {
+          'rag': <String, dynamic>{
+            'citations': [
+              {'document_id': 'd', 'chunk_id': 'c', 'content': 'x'},
+            ],
+          },
+        },
+      );
+
+      await pumpRoom(tester);
+      final text = threadStateWarningText(ThreadStateWarning.legacyCitations);
+      expect(find.text(text), findsOneWidget);
+
+      await tester.tap(find.descendant(
+        of: find.byType(ThreadStateWarningBanner),
+        matching: find.byTooltip('Dismiss'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text(text), findsNothing);
+    });
+
+    testWidgets('a well-formed thread shows no banner', (tester) async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      await pumpRoom(tester);
+
+      expect(find.byType(ThreadStateWarningBanner), findsNothing);
     });
   });
 

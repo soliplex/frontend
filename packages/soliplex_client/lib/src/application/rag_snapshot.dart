@@ -282,8 +282,8 @@ class RagSnapshot {
     return RagSnapshot._(ids, index, CitedFigures.fromSearches(json));
   }
 
-  /// Wire key marking a citation-bearing capability-state block: the
-  /// `id → Citation` map the extractor needs to render a source.
+  /// Wire key of the `id → Citation` map the extractor needs to render a
+  /// source.
   static const _citationIndexKey = 'citation_index';
 
   /// Wire keys the backend clears at the start of every run in which the
@@ -298,18 +298,27 @@ class RagSnapshot {
   static const _searchesKey = 'searches';
   static const _executionsKey = 'executions';
 
-  /// Whether [raw] is a citation-bearing namespace block — the single predicate
-  /// [extractAll] and [withEmptyRunScopedKeys] share, so what one extracts from
-  /// and what the other clears cannot drift apart. Drift is silent in both
-  /// directions: clearing less than is extracted over-credits stale citations,
-  /// clearing more loses live ones.
-  static bool _isCitationBearing(Object? raw) =>
-      raw is Map<String, dynamic> && raw[_citationIndexKey] is Map;
+  /// Whether [raw], the block under [namespace], is citation-bearing — the
+  /// single predicate [extractAll], [withEmptyRunScopedKeys] and
+  /// [carriesNonIdCitations] share, so what one extracts from and what the
+  /// other clears cannot drift apart. Drift is silent in both directions:
+  /// clearing less than is extracted over-credits stale citations, clearing
+  /// more loses live ones.
+  ///
+  /// A block with a `citation_index` map is citation-bearing in any namespace.
+  /// Under `rag`, so is one carrying `citations` without it: the pre-0.41
+  /// shape (haiku.rag 0.33.0–0.40.1), which stored whole citations there and
+  /// which no other namespace held. [extractAll] reads it as citing nothing,
+  /// logging each whole citation it skips, but its `citations` must still be
+  /// emptied: every supported backend rejects a send carrying it.
+  static bool _isCitationBearing(String namespace, Object? raw) =>
+      raw is Map<String, dynamic> &&
+      (raw[_citationIndexKey] is Map ||
+          (namespace == ragStateKey && raw.containsKey(_citationsKey)));
 
   /// Every citation-bearing namespace block in a full agent-state map,
-  /// identified by a [`_citationIndexKey`] map. Namespaces without one, and
-  /// non-Map or mistyped blocks, are skipped, so this is the single place that
-  /// knows how a citation block is shaped.
+  /// identified by [_isCitationBearing]. Every other block is skipped, so this
+  /// is the single place that knows how a citation block is shaped.
   ///
   /// When [namespaces] is given, only blocks under those keys are considered;
   /// otherwise every namespace in [state] is.
@@ -326,7 +335,7 @@ class RagSnapshot {
     for (final entry in state.entries) {
       if (namespaces != null && !namespaces.contains(entry.key)) continue;
       final raw = entry.value;
-      if (!_isCitationBearing(raw)) continue;
+      if (!_isCitationBearing(entry.key, raw)) continue;
       try {
         snapshots.add(RagSnapshot.fromJson(raw as Map<String, dynamic>));
       } on Object catch (error, stackTrace) {
@@ -364,7 +373,7 @@ class RagSnapshot {
     final cleared = <String>[];
     for (final entry in state.entries) {
       final raw = entry.value;
-      if (!_isCitationBearing(raw)) continue;
+      if (!_isCitationBearing(entry.key, raw)) continue;
       raw as Map<String, dynamic>;
       final keys = [
         if (raw.containsKey(_citationsKey)) _citationsKey,
@@ -397,6 +406,19 @@ class RagSnapshot {
     );
     return result;
   }
+
+  /// Whether any citation-bearing block in [state] carries a `citations` value
+  /// that is not a list of chunk ids: the pre-0.41 shape's whole citations, a
+  /// list holding anything but ids, or a null or non-list value.
+  static bool carriesNonIdCitations(Map<String, dynamic> state) =>
+      state.entries.any((entry) {
+        final raw = entry.value;
+        if (!_isCitationBearing(entry.key, raw)) return false;
+        raw as Map<String, dynamic>;
+        if (!raw.containsKey(_citationsKey)) return false;
+        final citations = raw[_citationsKey];
+        return citations is! List || citations.any((entry) => entry is! String);
+      });
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;

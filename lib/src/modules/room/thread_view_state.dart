@@ -156,6 +156,27 @@ class ThreadViewState {
   /// dismisses; this is for explicit user dismissal.
   void dismissReconnectStatus() => _reconnectStatus.value = null;
 
+  final Signal<Set<ThreadStateWarning>> _stateWarnings =
+      Signal<Set<ThreadStateWarning>>(const {});
+
+  /// What the thread-state banner shows; empty hides it.
+  ///
+  /// Extended by this view's first successful history load and by a send
+  /// whose outgoing state gives rise to a warning, and cleared by
+  /// [dismissStateWarnings]. Later loads leave it alone, so a dismissed banner
+  /// does not return on a history refresh.
+  ReadonlySignal<Set<ThreadStateWarning>> get stateWarnings => _stateWarnings;
+
+  bool _loadWarningsShown = false;
+
+  void dismissStateWarnings() {
+    _logger.info(
+      'Thread state warnings dismissed',
+      attributes: {'threadId': threadId},
+    );
+    _stateWarnings.value = const {};
+  }
+
   // Persists historical trackers from loaded thread history and from
   // completed sessions (absorbed in _detachSession). Plain map — the live
   // registry lives inside ExecutionTrackerExtension, which outlives the
@@ -311,6 +332,24 @@ class ThreadViewState {
     // The spawner's own re-entrancy guard only covers in-flight spawns;
     // this blocks overlapping sends when a prior session is attached.
     if (_sessionState.value != null) return Future<void>.value();
+    // The next run is seeded from the runtime's cached history, with its
+    // run-scoped keys emptied, and any run that ends with a conversation
+    // replaces that cache with the state it ended with. So once one such run
+    // has emptied a thread's citations, a send from it triggers nothing.
+    final cached = runtime.threadStateOf(threadKey)?.history;
+    if (cached != null) {
+      final triggered = outgoingStateWarnings(cached);
+      if (triggered.isNotEmpty) {
+        _logger.info(
+          'Thread state warnings raised by a send',
+          attributes: {
+            'threadId': threadId,
+            'warnings': [for (final w in triggered) w.name],
+          },
+        );
+        _stateWarnings.value = {..._stateWarnings.value, ...triggered};
+      }
+    }
     return _spawner.spawn(
       spawnFn: () => runtime.spawn(
         roomId: _roomId,
@@ -564,6 +603,20 @@ class ThreadViewState {
             if (!read.contains(runId)) runId: outcome,
         },
       );
+      if (!_loadWarningsShown) {
+        _loadWarningsShown = true;
+        final warnings = threadStateWarnings(history);
+        if (warnings.isNotEmpty) {
+          _logger.info(
+            'Thread state warnings on load',
+            attributes: {
+              'threadId': threadId,
+              'warnings': [for (final w in warnings) w.name],
+            },
+          );
+        }
+        _stateWarnings.value = {..._stateWarnings.value, ...warnings};
+      }
       onHistoryLoaded?.call(threadId, history);
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
@@ -602,6 +655,7 @@ class ThreadViewState {
     _detachSession();
     _sessionState.dispose();
     _reconnectStatus.dispose();
+    _stateWarnings.dispose();
     isCancellable.dispose();
     pendingApproval.dispose();
   }

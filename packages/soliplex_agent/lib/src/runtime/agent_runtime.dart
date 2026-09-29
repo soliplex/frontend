@@ -458,8 +458,9 @@ class AgentRuntime {
     _removeSession(session);
   }
 
-  /// Captures conversation state from a completed or cancelled session so
-  /// subsequent spawns on the same thread automatically include prior context.
+  /// Captures conversation state from a completed, cancelled or failed session
+  /// so subsequent spawns on the same thread automatically include prior
+  /// context.
   void _captureThreadHistory(AgentSession session) {
     if (session.ephemeral) return;
     final state = session.runState.value;
