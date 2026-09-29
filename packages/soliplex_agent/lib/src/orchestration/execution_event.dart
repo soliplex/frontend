@@ -232,21 +232,6 @@ class StateUpdated extends ExecutionEvent {
   int get hashCode => _deepEq.hash(aguiState);
 }
 
-/// Step progress event for multi-step pipelines.
-class StepProgress extends ExecutionEvent {
-  const StepProgress({required this.stepName});
-
-  final String stepName;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is StepProgress && stepName == other.stepName;
-
-  @override
-  int get hashCode => stepName.hashCode;
-}
-
 /// A tool is awaiting user approval before executing a sensitive action.
 ///
 /// Emitted by `AgentSession.requestApproval` so UI layers can display

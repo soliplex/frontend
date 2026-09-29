@@ -1098,40 +1098,6 @@ void main() {
       expect(snapshots.first.activityType, equals('skill_tool_call'));
       expect(snapshots.first.content, equals({'tool_name': 'search'}));
     });
-
-    test('StepStartedEvent bridges to StepProgress', () async {
-      stubCreateRun();
-      stubRunAgent(
-        stream: Stream<BaseEvent>.fromIterable([
-          RunStartedEvent(threadId: 'thread-1', runId: _runId),
-          const StepStartedEvent(stepName: 'planning'),
-          const TextMessageStartEvent(messageId: 'msg-1'),
-          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
-          const TextMessageEndEvent(messageId: 'msg-1'),
-          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-        ]),
-      );
-
-      final events = <ExecutionEvent>[];
-      final session = createSession(
-        api: api,
-        agUiStreamClient: agUiStreamClient,
-        logger: logger,
-      );
-      addTearDown(session.dispose);
-
-      session.lastExecutionEvent.subscribe((_) {
-        final val = session.lastExecutionEvent.value;
-        if (val != null) events.add(val);
-      });
-
-      await session.start(userMessage: [const TextPart('Hi')]);
-      await session.result;
-
-      final steps = events.whereType<StepProgress>().toList();
-      expect(steps, hasLength(1));
-      expect(steps.first.stepName, equals('planning'));
-    });
   });
 
   group('conversationActivitiesOf', () {

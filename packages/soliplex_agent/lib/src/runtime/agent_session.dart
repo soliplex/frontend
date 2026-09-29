@@ -1,13 +1,14 @@
-// Four upstream types are deprecated, scheduled for removal in ag_ui 1.0.0:
-// THINKING_TEXT_MESSAGE_{START,CONTENT,END} and THINKING_CONTENT.
-// `ThinkingStartEvent` and `ThinkingEndEvent` are NOT deprecated and their arms
-// stay regardless — a removal sweep grepping "THINKING" must not touch them.
-// The THINKING_TEXT_MESSAGE_* arms stay because stored threads still decode to
-// them; the THINKING_CONTENT arm stays only to keep `bridgeBaseEvent`'s switch
-// over sealed `BaseEvent` exhaustive (upstream documents it as Dart-only legacy
-// that was never part of the canonical protocol). Suppressed per line so the
-// 1.0.0 sweep can enumerate them and an unrelated deprecation here still
-// raises.
+// AG-UI replaced its five THINKING_* events with REASONING_* and removes them
+// in 1.0.0. ag_ui's own 1.0.0 removal list names four types, which it marks
+// deprecated: THINKING_TEXT_MESSAGE_{START,CONTENT,END} and the Dart-only
+// THINKING_CONTENT. `ThinkingStartEvent` and `ThinkingEndEvent` carry no
+// @Deprecated, so their cases carry no ignore.
+// No supported backend emits any THINKING_* event live — pydantic-ai emits
+// REASONING_* for ag-ui-protocol 0.1.11 and later — so all of them fall to the
+// `=> null` arm, which keeps `bridgeBaseEvent`'s switch over sealed `BaseEvent`
+// exhaustive. A thread an older backend stored may still replay them; its
+// reasoning is not shown. Suppressed per line so the 1.0.0 sweep can enumerate
+// them and an unrelated deprecation here still raises.
 
 import 'dart:async';
 
@@ -748,23 +749,9 @@ List<ActivityRecord> conversationActivitiesOf(RunState runState) =>
 ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
   return switch (event) {
     TextMessageContentEvent(:final delta) => TextDelta(delta: delta),
-    // Deprecated upstream; retained to decode stored threads.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageStartEvent() ||
-    ReasoningMessageStartEvent() =>
-      const ThinkingStarted(),
-    // Deprecated upstream; retained to decode stored threads.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageContentEvent(:final delta) ||
-    ReasoningMessageContentEvent(:final delta) =>
-      ThinkingContent(delta: delta),
-    // Deprecated upstream; retained to decode stored threads.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageEndEvent() ||
-    ThinkingEndEvent() ||
-    ReasoningEndEvent() ||
-    ReasoningMessageEndEvent() =>
-      const ThinkingEnded(),
+    ReasoningMessageStartEvent() => const ThinkingStarted(),
+    ReasoningMessageContentEvent(:final delta) => ThinkingContent(delta: delta),
+    ReasoningEndEvent() || ReasoningMessageEndEvent() => const ThinkingEnded(),
     ToolCallStartEvent(:final toolCallId, :final toolCallName) =>
       ServerToolCallStarted(toolCallId: toolCallId, toolName: toolCallName),
     ToolCallArgsEvent(:final toolCallId, :final delta) =>
@@ -787,7 +774,6 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
         timestamp: timestamp,
         replace: replace,
       ),
-    StepStartedEvent(:final stepName) => StepProgress(stepName: stepName),
 
     // Events that don't need ExecutionEvent bridging.
     //
@@ -809,13 +795,24 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     TextMessageStartEvent() ||
     TextMessageEndEvent() ||
     ThinkingStartEvent() ||
-    // Deprecated upstream; arm only keeps the sealed switch exhaustive.
+    ThinkingEndEvent() ||
+    // Deprecated upstream; see the file header.
+    // ignore: deprecated_member_use
+    ThinkingTextMessageStartEvent() ||
+    // Deprecated upstream; see the file header.
+    // ignore: deprecated_member_use
+    ThinkingTextMessageContentEvent() ||
+    // Deprecated upstream; see the file header.
+    // ignore: deprecated_member_use
+    ThinkingTextMessageEndEvent() ||
+    // Deprecated upstream; see the file header.
     // ignore: deprecated_member_use
     ThinkingContentEvent() ||
     ToolCallEndEvent() ||
     StateSnapshotEvent() ||
     StateDeltaEvent() ||
     ActivitySnapshotEvent() ||
+    StepStartedEvent() ||
     StepFinishedEvent() ||
     TextMessageChunkEvent() ||
     ToolCallChunkEvent() ||

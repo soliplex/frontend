@@ -23,11 +23,6 @@
 /// tool-call timeline that was visible during the live run.
 library;
 
-// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
-// and THINKING_CONTENT events, exercising handling that is kept because a
-// producer negotiating ag-ui-protocol below 0.1.13 emits that family live.
-// Removal at ag_ui 1.0.0 surfaces as a compile error at these constructors.
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -191,15 +186,10 @@ void main() {
             runId: 'run-stuck',
             events: [
               RunStartedEvent(threadId: 't-1', runId: 'run-stuck'),
-              // Deprecated upstream; exercises the pre-REASONING_* replay path.
-              // ignore: deprecated_member_use
-              const ThinkingTextMessageStartEvent(),
-              // Deprecated upstream; exercises the pre-REASONING_* replay path.
-              // ignore: deprecated_member_use
-              const ThinkingTextMessageContentEvent(delta: 'reasoning'),
-              // Deprecated upstream; exercises the pre-REASONING_* replay path.
-              // ignore: deprecated_member_use
-              const ThinkingTextMessageEndEvent(),
+              const ReasoningMessageStartEvent(messageId: 'r1'),
+              const ReasoningMessageContentEvent(
+                  messageId: 'r1', delta: 'reasoning'),
+              const ReasoningMessageEndEvent(messageId: 'r1'),
               const ToolCallStartEvent(
                 toolCallId: 'tc-1',
                 toolCallName: 'search',
@@ -254,15 +244,9 @@ void main() {
           RunEventBundle(
             runId: 'run-stuck',
             events: const [
-              // Deprecated upstream; exercises the pre-REASONING_* replay path.
-              // ignore: deprecated_member_use
-              ThinkingTextMessageStartEvent(),
-              // Deprecated upstream; exercises the pre-REASONING_* replay path.
-              // ignore: deprecated_member_use
-              ThinkingTextMessageContentEvent(delta: 'mid'),
-              // Deprecated upstream; exercises the pre-REASONING_* replay path.
-              // ignore: deprecated_member_use
-              ThinkingTextMessageEndEvent(),
+              ReasoningMessageStartEvent(messageId: 'r1'),
+              ReasoningMessageContentEvent(messageId: 'r1', delta: 'mid'),
+              ReasoningMessageEndEvent(messageId: 'r1'),
               ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'search'),
               ToolCallEndEvent(toolCallId: 'tc-1'),
               ToolCallResultEvent(

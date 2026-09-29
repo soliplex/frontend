@@ -19,7 +19,6 @@ bool opensResponse(ExecutionEvent event) => switch (event) {
       RunFailed() ||
       RunCancelled() ||
       StateUpdated() ||
-      StepProgress() ||
       AwaitingApproval() ||
       ActivitySnapshot() ||
       CustomExecutionEvent() =>

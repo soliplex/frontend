@@ -1,8 +1,3 @@
-// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
-// events, exercising the arms kept for replaying stored threads that predate
-// REASONING_*. The backend emits REASONING_* live, never THINKING_*. Removal at
-// ag_ui 1.0.0 surfaces as a compile error at these constructors.
-
 import 'package:soliplex_agent/src/orchestration/execution_event.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -26,26 +21,8 @@ void main() {
       );
     });
 
-    test('routes ThinkingTextMessageStartEvent to ThinkingStarted', () {
-      // Deprecated upstream; exercises the pre-REASONING_* replay path.
-      // ignore: deprecated_member_use
-      const event = ThinkingTextMessageStartEvent();
-      expect(bridgeBaseEvent(event), const ThinkingStarted());
-    });
-
-    test('routes ThinkingTextMessageContentEvent delta to ThinkingContent', () {
-      // Deprecated upstream; exercises the pre-REASONING_* replay path.
-      // ignore: deprecated_member_use
-      const event = ThinkingTextMessageContentEvent(delta: 'hmm');
-      expect(bridgeBaseEvent(event), const ThinkingContent(delta: 'hmm'));
-    });
-
-    test('routes all four thinking-end variants to ThinkingEnded', () {
+    test('routes reasoning-end variants to ThinkingEnded', () {
       const events = <BaseEvent>[
-        // Deprecated upstream; exercises the pre-REASONING_* replay path.
-        // ignore: deprecated_member_use
-        ThinkingTextMessageEndEvent(),
-        ThinkingEndEvent(),
         ReasoningEndEvent(messageId: 'reas-1'),
         ReasoningMessageEndEvent(messageId: 'reas-1'),
       ];
