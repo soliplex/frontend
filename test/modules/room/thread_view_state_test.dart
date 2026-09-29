@@ -202,6 +202,20 @@ void main() {
       expect(state.stateWarnings.value, isEmpty);
       state.dispose();
     });
+
+    test('dismissing on a disposed view does not throw', () async {
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+      state.dispose();
+
+      expect(state.dismissStateWarnings, returnsNormally);
+    });
   });
 
   test('fetches thread history and exposes messages', () async {
@@ -322,6 +336,36 @@ void main() {
     expect(status, isA<MessagesLoaded>());
     expect((status as MessagesLoaded).messages.length, 1);
 
+    state.dispose();
+  });
+
+  test('a failed refresh is logged by thread, without the error text',
+      () async {
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+    final state = ThreadViewState(
+      connection: connection,
+      auth: auth,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+      registry: registry,
+    );
+    await Future<void>.delayed(Duration.zero);
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+
+    api.nextThreadHistory = null;
+    api.nextThreadHistoryError = Exception('secret payload');
+    await state.refresh();
+
+    final record = sink.records.singleWhere(
+      (r) => r.message.contains('Thread history load failed'),
+    );
+    expect(record.attributes['threadId'], 'thread-1');
+    expect(
+      '${record.message} ${record.attributes} ${record.error}',
+      isNot(contains('secret')),
+    );
     state.dispose();
   });
 
@@ -530,6 +574,27 @@ void main() {
 
       expect(state.stateWarnings.value, {ThreadStateWarning.legacyCitations});
       state.dispose();
+    });
+
+    test('a send from a disposed view does not throw', () async {
+      final legacy =
+          ThreadHistory(messages: const [], aguiState: _legacyRagState());
+      api.nextThreadHistory = legacy;
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+      runtime.seedThreadHistory(state.threadKey, legacy);
+      state.dispose();
+
+      await expectLater(
+        state.sendMessage([TextPart('Hello')], runtime),
+        completes,
+      );
     });
 
     test('a send that lands before the first load keeps its warning', () async {

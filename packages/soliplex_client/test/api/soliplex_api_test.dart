@@ -4500,6 +4500,138 @@ void main() {
           expect(history.aguiStateIncomplete, isTrue);
         });
 
+        test(
+            'records a citation entry that failed to parse in an earlier '
+            'snapshot, though a later snapshot is clean', () async {
+          stubGet('thread-456', twoRunThread());
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citations': ['a', 'x'],
+                    'citation_index': {
+                      'a': {
+                        'chunk_id': 'a',
+                        'content': 't',
+                        'document_id': 'd',
+                        'document_uri': 'u',
+                      },
+                      // A required field the parser needs is missing.
+                      'x': {
+                        'chunk_id': 'x',
+                        'content': 't',
+                        'document_id': 'd',
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citations': ['b'],
+                    'citation_index': {
+                      'b': {
+                        'chunk_id': 'b',
+                        'content': 't',
+                        'document_id': 'd',
+                        'document_uri': 'u',
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(
+            history.storedStateWarnings,
+            {ThreadStateWarning.sourcesSkipped},
+          );
+        });
+
+        test(
+            'records no warning for an entry a later snapshot of the same run '
+            'repaired', () async {
+          stubGet('thread-456', twoRunThread());
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citations': ['a'],
+                    'citation_index': {
+                      'a': {
+                        'chunk_id': 'a',
+                        'content': 't',
+                        'document_id': 'd',
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citations': ['a'],
+                    'citation_index': {
+                      'a': {
+                        'chunk_id': 'a',
+                        'content': 't',
+                        'document_id': 'd',
+                        'document_uri': 'u',
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'events': [
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(history.storedStateWarnings, isEmpty);
+        });
+
         test('records no warning for runs in the current shape', () async {
           stubGet('thread-456', twoRunThread());
           stubGet('thread-456/run-1', {

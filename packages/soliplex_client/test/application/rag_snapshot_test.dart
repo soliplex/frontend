@@ -291,6 +291,84 @@ void main() {
     });
   });
 
+  group('fromJson skip logging', () {
+    test('logs whole citations once per block, not once per entry', () {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      RagSnapshot.fromJson({
+        'citations': [
+          for (var i = 0; i < 3; i++) {'chunk_id': 'c$i', 'content': 'x'},
+        ],
+      });
+
+      final skips =
+          sink.records.where((r) => r.message.contains('citations')).toList();
+      expect(skips, hasLength(1));
+      expect(skips.single.attributes, {'skipped': 3});
+    });
+  });
+
+  group('withUnreadableCitationsDropped', () {
+    test('drops citation_index entries that are not objects or do not parse',
+        () {
+      final cleared = RagSnapshot.withUnreadableCitationsDropped({
+        'analysis': <String, dynamic>{
+          'citations': <String>[],
+          'citation_index': <String, dynamic>{
+            'a': {
+              'chunk_id': 'a',
+              'content': 't',
+              'document_id': 'd',
+              'document_uri': 'u',
+            },
+            'b': <String, dynamic>{'chunk_id': 'b', 'content': 't'},
+            'c': 7,
+          },
+        },
+      });
+
+      final index = (cleared['analysis'] as Map)['citation_index'] as Map;
+      expect(index.keys, ['a']);
+    });
+
+    test('logs what it drops without the entries', () {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      RagSnapshot.withUnreadableCitationsDropped({
+        'rag': <String, dynamic>{
+          'citations': <String>[],
+          'citation_index': <String, dynamic>{
+            'secret-chunk': <String, dynamic>{'content': 'secret-text'},
+          },
+        },
+      });
+
+      final record = sink.records.singleWhere(
+        (r) => r.message.contains('Dropped'),
+      );
+      expect(record.attributes, {'namespace': 'rag', 'dropped': 1});
+      expect(
+        '${record.message} ${record.attributes}',
+        isNot(contains('secret')),
+      );
+    });
+
+    test('sends a citation_index that is not a map as empty', () {
+      final cleared = RagSnapshot.withUnreadableCitationsDropped({
+        'rag': <String, dynamic>{
+          'citations': ['a'],
+          'citation_index': 'nope',
+        },
+      });
+
+      expect((cleared['rag'] as Map)['citation_index'], <String, dynamic>{});
+    });
+  });
+
   group('buildRagDocumentFilterOverlay', () {
     test('wraps a filter string under rag.document_filter', () {
       final overlay = buildRagDocumentFilterOverlay("id = 'abc'");

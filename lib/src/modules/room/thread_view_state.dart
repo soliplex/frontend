@@ -170,6 +170,7 @@ class ThreadViewState {
   bool _loadWarningsShown = false;
 
   void dismissStateWarnings() {
+    if (_isDisposed) return;
     _logger.info(
       'Thread state warnings dismissed',
       attributes: {'threadId': threadId},
@@ -337,7 +338,7 @@ class ThreadViewState {
     // replaces that cache with the state it ended with. So once one such run
     // has emptied a thread's citations, a send from it triggers nothing.
     final cached = runtime.threadStateOf(threadKey)?.history;
-    if (cached != null) {
+    if (cached != null && !_isDisposed) {
       final triggered = outgoingStateWarnings(cached);
       if (triggered.isNotEmpty) {
         _logger.info(
@@ -638,9 +639,19 @@ class ThreadViewState {
         error: error,
       );
       _auth.markSessionExpired();
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (token.isCancelled) return;
       _cancelToken = null;
+      // A refresh over loaded messages keeps them and shows nothing, so this
+      // is the only trace it failed. The error's text can carry the backend's.
+      _logger.warning(
+        'Thread history load failed',
+        stackTrace: stackTrace,
+        attributes: {
+          'threadId': threadId,
+          'failure': describeFailure(error),
+        },
+      );
       if (_messages.value is! MessagesLoaded) {
         _messages.value = MessagesFailed(error);
       }

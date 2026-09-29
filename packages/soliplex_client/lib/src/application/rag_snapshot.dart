@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/domain/surface.dart';
+import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -247,16 +248,17 @@ class RagSnapshot {
     final ids = <String>[];
     final rawCitations = json[_citationsKey];
     if (rawCitations is List) {
-      for (var i = 0; i < rawCitations.length; i++) {
-        final entry = rawCitations[i];
-        if (entry is String) {
-          ids.add(entry);
-        } else {
-          _logger.warning(
-            'RagSnapshot: skipping non-String citations[$i] '
-            '(runtimeType=${entry.runtimeType}).',
-          );
-        }
+      for (final entry in rawCitations) {
+        if (entry is String) ids.add(entry);
+      }
+      // One record per block, not per entry: replay parses a legacy block,
+      // whose whole citations accumulate over the thread, at every event.
+      final skipped = rawCitations.length - ids.length;
+      if (skipped > 0) {
+        _logger.warning(
+          'RagSnapshot: skipping non-String citations entries.',
+          attributes: {'skipped': skipped},
+        );
       }
     } else if (rawCitations != null) {
       _logger.warning(
@@ -325,9 +327,11 @@ class RagSnapshot {
   static const _executionsKey = 'executions';
 
   /// Whether [raw], the block under [namespace], is citation-bearing — the
-  /// single predicate [extractAll], [withEmptyRunScopedKeys] and
-  /// [carriesNonIdCitations] share, so what one extracts from and what the
-  /// other clears cannot drift apart. Drift is silent in both directions:
+  /// single predicate [extractAll], [withEmptyRunScopedKeys],
+  /// [withUnreadableCitationsDropped], [carriesNonIdCitations] and
+  /// [carriesUnreadableCitations] share, so what is extracted, what a send
+  /// clears and what the warnings judge cannot drift apart. Drift is silent in
+  /// both directions:
   /// clearing less than is extracted over-credits stale citations, clearing
   /// more loses live ones.
   ///
@@ -445,6 +449,97 @@ class RagSnapshot {
         final citations = raw[_citationsKey];
         return citations is! List || citations.any((entry) => entry is! String);
       });
+
+  /// Whether any citation-bearing block in [state] has a `citation_index` the
+  /// client cannot fully read: present but not a map, which
+  /// [RagSnapshot.fromJson] reads none of, or with an entry that is not an
+  /// object or does not parse as a [Citation], which it skips. haiku.rag adds
+  /// an entry only for a chunk a run cites, so each one lost is a source some
+  /// answer cited.
+  static bool carriesUnreadableCitations(Map<String, dynamic> state) =>
+      state.entries.any((entry) {
+        final raw = entry.value;
+        if (!_isCitationBearing(entry.key, raw)) return false;
+        raw as Map<String, dynamic>;
+        final index = raw[_citationIndexKey];
+        // A null or absent index is no index to [RagSnapshot.fromJson].
+        if (index == null) return false;
+        if (index is! Map) return true;
+        return !index.values.every(_isReadableCitation);
+      });
+
+  /// [state] with each citation-bearing block's `citation_index` reduced to
+  /// the entries [RagSnapshot.fromJson] keeps: an entry that is not an object,
+  /// or lacks or mistypes a required [Citation] field, is removed, and an index
+  /// that is null or not a map is sent as empty. haiku.rag validates the `rag`
+  /// index (and 0.84.0 the `analysis` one) as `dict[str, Citation]` on every
+  /// run and rejects the whole run on those, and the failed run's final
+  /// snapshot echoes the index back, so without this such a thread could never
+  /// be sent to again. No source still shown is lost.
+  ///
+  /// Not covered: an entry whose optional field has a type haiku.rag rejects
+  /// (e.g. `page_numbers: null`) parses here and is kept, so the backend still
+  /// rejects the send. And haiku.rag numbers a new citation one past the size
+  /// of the index, so after a drop a new citation can repeat an existing
+  /// badge number: an answer citing both lists two sources with that number.
+  static Map<String, dynamic> withUnreadableCitationsDropped(
+    Map<String, dynamic> state,
+  ) =>
+      {
+        for (final MapEntry(:key, :value) in state.entries)
+          key: _isCitationBearing(key, value)
+              ? _withReadableIndex(key, value as Map<String, dynamic>)
+              : value,
+      };
+
+  static Map<String, dynamic> _withReadableIndex(
+    String namespace,
+    Map<String, dynamic> block,
+  ) {
+    if (!block.containsKey(_citationIndexKey)) return block;
+    final index = block[_citationIndexKey];
+    final kept = <String, dynamic>{
+      if (index is Map)
+        for (final MapEntry(:key, :value) in index.entries)
+          if (key is String && _isReadableCitation(value)) key: value,
+    };
+    // The drop outlives this send: the run's final snapshot carries the index
+    // as sent. A null index loses nothing, so it goes unrecorded.
+    if (index is Map ? kept.length < index.length : index != null) {
+      _logger.warning(
+        'Dropped unreadable citation_index entries before a send',
+        attributes: {
+          'namespace': namespace,
+          if (index is Map)
+            'dropped': index.length - kept.length
+          else
+            'indexType': '${index.runtimeType}',
+        },
+      );
+    }
+    return {...block, _citationIndexKey: kept};
+  }
+
+  /// Whether [value], one `citation_index` entry, is one [RagSnapshot.fromJson]
+  /// keeps: an object that parses as a [Citation]. A parse fails only with a
+  /// [MalformedResponseException]; anything else is a client bug, so the entry
+  /// is kept and the failure logged rather than dropped from every send.
+  static bool _isReadableCitation(Object? value) {
+    if (value is! Map<String, dynamic>) return false;
+    try {
+      Citation.fromJson(value);
+      return true;
+    } on MalformedResponseException {
+      return false;
+    } on Object catch (error, stackTrace) {
+      _logger.error(
+        'RagSnapshot: checking a citation_index entry failed; kept it',
+        stackTrace: stackTrace,
+        attributes: {'failure': describeFailure(error)},
+      );
+      return true;
+    }
+  }
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;

@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- The banner also says when some sources for earlier answers couldn't be
+  shown: a stored `citation_index` entry that is not an object or does not
+  parse, or a `rag` `citation_index` that is not a map. An answer citing a
+  skipped entry shows fewer sources than it cited.
+- **Library consumers:** `ThreadStateWarning.sourcesSkipped`,
+  `RagSnapshot.carriesUnreadableCitations` and
+  `RagSnapshot.withUnreadableCitationsDropped`.
+
+### Fixed
+
+- A thread whose stored `citation_index` holds an entry the app cannot read
+  (not an object, or missing or mistyping a required field), or whose `rag`
+  `citation_index` is null or not a map, can be sent to again. haiku.rag
+  rejected the whole run on those, and the failed run's final snapshot echoed
+  them back; a send now drops them, and the app could not show them either.
+  A dropped entry is logged by namespace and count. After a drop, a new
+  citation can repeat an existing badge number. An entry whose optional field
+  has the wrong type is still sent and still rejected.
+- The thread-state banner no longer squeezes the conversation out of view on
+  a short screen: it takes at most a third of the height and its lines
+  scroll.
+- Opening a thread saved by haiku.rag 0.33 to 0.40 no longer floods the
+  diagnostics log: the whole citations its `rag` state holds are logged once
+  per state, with a count, not once each. The stored-state warnings are
+  judged on each run's final state, the one its answer's sources come from,
+  so an entry a run repaired before it ended no longer warns.
+- Sending from, or dismissing the banner of, a thread view that has just been
+  closed no longer throws.
+- A failed history refresh over loaded messages is recorded in the
+  diagnostics log, by thread and type of failure.
+
 ## [0.107.0+93] - 2026-09-29
 
 ### Added
