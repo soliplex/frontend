@@ -15,7 +15,7 @@ const _snapshotDir = 'test/schema/fixtures/agui_feature_schemas';
 
 /// The snapshots the supported-backends policy requires: the haiku.rag
 /// version `afsoc-rag` deploys, and the one backend `main` pins.
-const _supportedSnapshots = ['haiku-rag-0.84.0.json', 'haiku-rag-0.87.0.json'];
+const _supportedSnapshots = ['haiku-rag-0.89.0.json'];
 
 /// Keys the frontend reads, per schema type, with the normalised schema type
 /// its parser expects.
@@ -113,15 +113,9 @@ const _unread = <String, Map<String, String>>{
   },
 };
 
-/// Namespaces checked against another namespace's contract: `analysis`
-/// (haiku.rag 0.84.0) carries `rag`'s fields, plus the `executions` log,
-/// which 0.87.0 carries under `rag`.
-const _sameFieldsAs = {'analysis': 'rag'};
-
 /// Keys the frontend writes on send without reading them, with the normalised
 /// schema type the value it writes must satisfy: `executions` is emptied by
-/// `RagSnapshot.withEmptyRunScopedKeys`. Checked where present, since `rag` on
-/// haiku.rag 0.84.0 has no `executions`.
+/// `RagSnapshot.withEmptyRunScopedKeys`.
 const _written = <String, Map<String, String>>{
   'rag': {'executions': 'list[CodeExecutionEntry]'},
 };
@@ -256,8 +250,7 @@ void main() {
         final seen = shapesByFile.values.any(
           (shapes) => shapes.entries.any(
             (s) =>
-                (_sameFieldsAs[s.key] ?? s.key) == entry.key &&
-                s.value.properties.containsKey(property),
+                s.key == entry.key && s.value.properties.containsKey(property),
           ),
         );
         expect(
@@ -273,14 +266,11 @@ void main() {
   for (final MapEntry(key: file, value: shapes) in shapesByFile.entries) {
     group(file, () {
       for (final MapEntry(key: type, value: shape) in shapes.entries) {
-        final contractType = _sameFieldsAs[type] ?? type;
-
         test('$type: every property is read or unread', () {
-          final read = _read[contractType] ?? const {};
-          final unread = _unread[contractType] ?? const {};
+          final read = _read[type] ?? const {};
+          final unread = _unread[type] ?? const {};
           expect(
-            _read.containsKey(contractType) ||
-                _unread.containsKey(contractType),
+            _read.containsKey(type) || _unread.containsKey(type),
             isTrue,
             reason: '$type is not in the contract table; add its keys to '
                 '_read or _unread',
@@ -294,43 +284,39 @@ void main() {
           }
         });
 
-        final read = _read[contractType];
+        final read = _read[type];
         if (read != null) {
-          test('$type: each read property has the type its parser expects', () {
+          test(
+              '$type: each read property is present with the type its parser '
+              'expects', () {
             for (final MapEntry(key: property, value: expected)
                 in read.entries) {
-              final actual = shape.properties[property];
-              if (actual == null) continue;
-              expect(actual, expected, reason: '$type.$property');
-            }
-          });
-
-          test('$type: every read property is present', () {
-            for (final property in read.keys) {
               expect(
-                shape.properties,
-                contains(property),
-                reason: '$type.$property is gone from $file; update its '
-                    'reader and the table',
+                shape.properties[property],
+                expected,
+                reason: '$type.$property is gone from $file or retyped; update '
+                    'its reader and the table',
               );
             }
           });
         }
 
-        final written = _written[contractType];
+        final written = _written[type];
         if (written != null) {
           test('$type: each written property has the type the frontend writes',
               () {
             for (final MapEntry(key: property, value: expected)
                 in written.entries) {
-              final actual = shape.properties[property];
-              if (actual == null) continue;
-              expect(actual, expected, reason: '$type.$property');
+              expect(
+                shape.properties[property],
+                expected,
+                reason: '$type.$property',
+              );
             }
           });
         }
 
-        final required = _parserRequired[contractType];
+        final required = _parserRequired[type];
         if (required != null) {
           test('$type: required fields match the parser', () {
             expect(shape.required, required);

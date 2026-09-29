@@ -224,15 +224,14 @@ class CitedFigures {
 /// A read-model view of a RAG capability's AG-UI state slice.
 ///
 /// Every RAG-producing capability publishes the same citation shape under its
-/// own namespace — `rag`, and `analysis` on haiku.rag 0.84.0, both carry
-/// `citations` as a list of chunk ids and a `citation_index` map resolving
-/// each id to a full [Citation]. This snapshot exposes only what citation
-/// extraction and figure rendering need: the citation ids, id → [Citation]
-/// resolution, and inline picture bytes / captions, the only part of
-/// `searches` it reads. Other fields (e.g. `document_filter`, and
-/// `executions`, which haiku.rag 0.84.0 keeps under `analysis` and 0.87.0
-/// under `rag`) are read through a resilient per-entry reader when a consumer
-/// needs them, or ignored.
+/// own namespace (`rag` on haiku.rag 0.89.0), carrying `citations` as a list of
+/// chunk ids and a `citation_index` map resolving each id to a full [Citation].
+/// This snapshot exposes only what citation extraction and figure rendering
+/// need: the citation ids, id → [Citation] resolution, and inline picture
+/// bytes / captions, the only part of `searches` it reads. Other fields (e.g.
+/// `document_filter`, and `executions`, which haiku.rag 0.89.0 keeps under
+/// `rag`) are read through a resilient per-entry reader when a consumer needs
+/// them, or ignored.
 ///
 /// [RagSnapshot.fromJson] parses `citations` and `citation_index`
 /// entry-by-entry so one malformed entry is logged and skipped rather than
@@ -314,11 +313,11 @@ class RagSnapshot {
   /// source.
   static const _citationIndexKey = 'citation_index';
 
-  /// Wire keys the backend clears at the start of every run in which the
-  /// owning capability loads, so their contents are scoped to a single run: the
-  /// cited chunk ids, the retrieval results their inline figures come from, and
-  /// the code-execution log. The list is haiku.rag's `begin_invocation`:
-  /// `EvidenceState`'s and `AnalysisState`'s in 0.84.0, `RAGState`'s in 0.87.0.
+  /// Wire keys the backend clears when the owning capability loads for a new
+  /// question — a resumed question keeps them — so their contents are scoped to
+  /// one question: the cited chunk ids, the retrieval results their inline
+  /// figures come from, and the code-execution log. The list is haiku.rag
+  /// 0.89.0's `RAGState.begin_invocation`.
   /// A capability that never loads never clears, which is why a run is seeded
   /// via [withEmptyRunScopedKeys] rather than trusting the backend to have
   /// cleared.
@@ -393,9 +392,9 @@ class RagSnapshot {
   /// arrival.
   ///
   /// A key is only emptied when the namespace already carries it, mirroring the
-  /// backend's per-field lookup — `rag` on haiku.rag 0.84.0 has no
-  /// `executions`, and inventing one
-  /// would make the outbound request misleading to read.
+  /// backend's per-field lookup — `rag` in state stored by haiku.rag 0.84.0 has
+  /// no `executions`, and inventing one would make the outbound request
+  /// misleading to read.
   static Map<String, dynamic> withEmptyRunScopedKeys(
     Map<String, dynamic> state,
   ) {
@@ -468,14 +467,14 @@ class RagSnapshot {
         return !index.values.every(_isReadableCitation);
       });
 
-  /// [state] with each citation-bearing block's `citation_index` reduced to
-  /// the entries [RagSnapshot.fromJson] keeps: an entry that is not an object,
-  /// or lacks or mistypes a required [Citation] field, is removed, and an index
+  /// [state] with each citation-bearing block's `citation_index` reduced to the
+  /// entries [RagSnapshot.fromJson] keeps: an entry that is not an object, or
+  /// lacks or mistypes a required [Citation] field, is removed, and an index
   /// that is null or not a map is sent as empty. haiku.rag validates the `rag`
-  /// index (and 0.84.0 the `analysis` one) as `dict[str, Citation]` on every
-  /// run and rejects the whole run on those, and the failed run's final
-  /// snapshot echoes the index back, so without this such a thread could never
-  /// be sent to again. No source still shown is lost.
+  /// index as `dict[str, Citation]` on every run and rejects the whole run on
+  /// those, and the failed run's final snapshot echoes the index back, so
+  /// without this such a thread could never be sent to again. No source still
+  /// shown is lost.
   ///
   /// Not covered: an entry whose optional field has a type haiku.rag rejects
   /// (e.g. `page_numbers: null`) parses here and is kept, so the backend still

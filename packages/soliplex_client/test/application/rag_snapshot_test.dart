@@ -265,8 +265,9 @@ void main() {
     });
 
     test('does not add a key the namespace does not carry', () {
-      // `rag` has no `executions`; inventing one makes the outbound
-      // run_input.state misleading to read in the network inspector.
+      // `rag` in state stored by haiku.rag 0.84.0 has no `executions`;
+      // inventing one makes the outbound run_input.state misleading to read
+      // in the network inspector.
       final cleared = RagSnapshot.withEmptyRunScopedKeys({
         'rag': {
           'citation_index': <String, dynamic>{},
