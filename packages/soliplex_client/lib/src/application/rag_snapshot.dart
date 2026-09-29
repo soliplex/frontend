@@ -61,6 +61,32 @@ Map<String, dynamic> buildRagSourcesOverlay(
   };
 }
 
+/// [state] with each saved search scope value no supported backend accepts
+/// replaced by `null`: a `document_filter` that is not a string and a
+/// `sources` that is not a list of names, in any namespace. haiku.rag types
+/// them `str | None` and `list[str] | None` and fails every run carrying one,
+/// and the failed run's final snapshot echoes it back, so without this a
+/// thread carrying one could never be sent to again. The selection UI already
+/// reads `rag`'s filter and any `sources` that way: no document, every
+/// database.
+Map<String, dynamic> withRejectedScopeCleared(Map<String, dynamic> state) => {
+      for (final MapEntry(:key, :value) in state.entries)
+        key: value is Map<String, dynamic>
+            ? {
+                ...value,
+                if (value[_ragDocumentFilterKey] != null &&
+                    value[_ragDocumentFilterKey] is! String)
+                  _ragDocumentFilterKey: null,
+                if (_isRejectedSources(value[ragSourcesKey]))
+                  ragSourcesKey: null,
+              }
+            : value,
+    };
+
+bool _isRejectedSources(Object? sources) =>
+    sources != null &&
+    (sources is! List || sources.any((name) => name is! String));
+
 /// Composite key for the picture-bytes index: document id + picture self_ref.
 ///
 /// A named record so the two same-typed components can't be transposed at a

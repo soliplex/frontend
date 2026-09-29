@@ -319,6 +319,50 @@ void main() {
     });
   });
 
+  group('withRejectedScopeCleared', () {
+    test(
+        'a document_filter that is not a string becomes null in any '
+        'namespace', () {
+      final cleared = withRejectedScopeCleared({
+        'rag': <String, dynamic>{'document_filter': 42},
+        'analysis': <String, dynamic>{'document_filter': 42},
+      });
+
+      expect(cleared, {
+        'rag': {'document_filter': null},
+        'analysis': {'document_filter': null},
+      });
+    });
+
+    test('sources that are not a list of names become null in any namespace',
+        () {
+      final cleared = withRejectedScopeCleared({
+        'rag': <String, dynamic>{'sources': 'papers'},
+        'analysis': <String, dynamic>{
+          'sources': ['papers', 7],
+        },
+      });
+
+      expect(cleared, {
+        'rag': {'sources': null},
+        'analysis': {'sources': null},
+      });
+    });
+
+    test('keeps values the backend accepts', () {
+      final state = {
+        'rag': <String, dynamic>{
+          'document_filter': 'id IS NOT NULL',
+          'sources': ['papers'],
+          'citations': ['chunk-1'],
+        },
+        'citation_policy': <String, dynamic>{},
+      };
+
+      expect(withRejectedScopeCleared(state), state);
+    });
+  });
+
   group('buildRagSourcesOverlay', () {
     test('writes the names under rag.sources by default', () {
       expect(

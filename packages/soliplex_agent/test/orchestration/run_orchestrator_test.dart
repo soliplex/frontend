@@ -1097,6 +1097,32 @@ void main() {
       expect(completed.conversation.aguiState['other'], 'data');
     });
 
+    test('a cached sources value no backend accepts goes out as null',
+        () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'sources': ['rag', 7],
+          },
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('test')],
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+      );
+
+      final completed = result as CompletedState;
+      final rag = completed.conversation.aguiState['rag'] as Map;
+      expect(rag['sources'], isNull);
+    });
+
     test('deep-merges nested maps recursively', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
