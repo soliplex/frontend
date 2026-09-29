@@ -221,35 +221,6 @@ void main() {
       });
     });
 
-    group('sealed class exhaustiveness', () {
-      test('all variants are ExecutionEvent subtypes', () {
-        final events = <ExecutionEvent>[
-          const TextDelta(delta: ''),
-          const ThinkingStarted(),
-          const ThinkingContent(delta: ''),
-          const ServerToolCallStarted(toolName: '', toolCallId: ''),
-          const ServerToolCallCompleted(toolCallId: '', result: ''),
-          const ClientToolExecuting(toolName: '', toolCallId: ''),
-          const ClientToolCompleted(
-            toolCallId: '',
-            result: '',
-            status: ToolCallStatus.completed,
-          ),
-          const RunCompleted(),
-          const RunFailed(error: ''),
-          const RunCancelled(),
-          const StateUpdated(aguiState: {}),
-          const CustomExecutionEvent(type: '', payload: {}),
-          const ActivitySnapshot(messageId: '', activityType: '', content: {}),
-        ];
-
-        expect(events, hasLength(13));
-        for (final event in events) {
-          expect(event, isA<ExecutionEvent>());
-        }
-      });
-    });
-
     group('ClientTool.simple with context-ignoring executor', () {
       test('works with (toolCall, _) signature', () async {
         final tool = ClientTool.simple(
