@@ -18,6 +18,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `RagSnapshot.carriesUnreadableCitations` and
   `RagSnapshot.withUnreadableCitationsDropped`.
 
+### Changed
+
+- The schema drift test checks haiku.rag 0.89.0, the version `afsoc-rag`
+  deploys and backend `main` pins; the 0.84.0 and 0.87.0 snapshots are gone.
+  Threads stored by 0.84.0 still read as before.
+
 ### Removed
 
 - Handling for the `THINKING_*` and `MESSAGES_SNAPSHOT` events, and the

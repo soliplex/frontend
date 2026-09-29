@@ -2720,8 +2720,8 @@ void main() {
             'searches': {'q': <dynamic>[]},
             'document_filter': "id = 'doc-1'",
           },
-          // Only `analysis` carries `executions`, so the two namespaces must
-          // come back cleared of different key sets.
+          // Here only `analysis` carries `executions`, so the two namespaces
+          // must come back cleared of different key sets.
           'analysis': {
             'citation_index': <String, dynamic>{},
             'citations': ['stale-chunk'],

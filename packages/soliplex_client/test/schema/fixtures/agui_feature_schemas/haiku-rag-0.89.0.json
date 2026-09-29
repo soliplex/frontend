@@ -1,6 +1,6 @@
 {
-  "haiku_rag": "0.87.0",
-  "backend_commit": "0b38f7e15627a199689491fd698742c97a7f7d37",
+  "haiku_rag": "0.89.0",
+  "backend_commit": "0b5ce1c11cc8a8bc4764c938f86b302536e87367",
   "features": {
     "rag": {
       "source": "server",
