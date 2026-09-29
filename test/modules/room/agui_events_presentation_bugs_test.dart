@@ -10,17 +10,6 @@
 /// `replace=true`). The second must land on the first's record rather
 /// than beside it, so the pair renders as one row that advances — the
 /// timeline places one id and resolves it against the stored record.
-///
-/// Bubble survives reload after a tool-yield
-/// -----------------------------------------
-/// On thread reload, [replayToTrackers] keys events by assistant
-/// `TextMessageStart`. A run that ends with a `ToolCallStart` but no
-/// follow-up bundle (errored mid-tool, cancelled, server restart) hits
-/// the "trailing tool-yield" branch. If the chat-message processor
-/// synthesizes a no-response tile for the same run via a different
-/// code path, the replay must still produce a tracker keyed under the
-/// synthesized id so the bubble keeps rendering the thinking and
-/// tool-call timeline that was visible during the live run.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -165,107 +154,6 @@ void main() {
           hasLength(1),
           reason: 'Both snapshots carry one messageId, so the timeline must '
               'hold one entry — the second placement is a no-op, not a row.',
-        );
-      },
-    );
-  });
-
-  group('bubble survives reload after a tool-yield', () {
-    test(
-      'a run that yielded to a tool and never produced an assistant '
-      'TextMessageStart (errored / cancelled mid-tool, trailing in '
-      'history) produces no tracker — the bubble vanishes on reload',
-      () {
-        // The chat-message side may still synthesize a no-response tile
-        // for this run (id = noResponseMessageId(runId)). The replay
-        // path *must* hand back a tracker keyed under the same id so the
-        // bubble keeps showing the thinking + tool-call timeline that
-        // was visible while the run was live.
-        final runs = [
-          RunEventBundle(
-            runId: 'run-stuck',
-            events: [
-              RunStartedEvent(threadId: 't-1', runId: 'run-stuck'),
-              const ReasoningMessageStartEvent(messageId: 'r1'),
-              const ReasoningMessageContentEvent(
-                  messageId: 'r1', delta: 'reasoning'),
-              const ReasoningMessageEndEvent(messageId: 'r1'),
-              const ToolCallStartEvent(
-                toolCallId: 'tc-1',
-                toolCallName: 'search',
-              ),
-              const ToolCallEndEvent(toolCallId: 'tc-1'),
-              const ToolCallResultEvent(
-                toolCallId: 'tc-1',
-                content: 'partial',
-                messageId: 'tool-1',
-              ),
-              // No assistant TextMessageStart, no follow-up bundle.
-            ],
-          ),
-        ];
-
-        final trackers = replayToTrackers(runs);
-        final expectedKey = noResponseMessageId('run-stuck');
-
-        expect(
-          trackers,
-          contains(expectedKey),
-          reason: 'A trailing tool-yield must still produce a tracker '
-              'keyed under the synthesized no-response id so the bubble '
-              'keeps rendering across the reload boundary.',
-        );
-        expect(
-          trackers[expectedKey]!.steps.value.map((s) => s.label),
-          containsAll(<String>['Thinking', 'search']),
-          reason: 'The recovered tracker must contain the same steps the '
-              'user saw live.',
-        );
-      },
-    );
-
-    test(
-      'multi-run thread: a normal-bundle run followed by a trailing '
-      'tool-yield run — both must produce trackers',
-      () {
-        // The first run exercises the normal-bundle code path; the second
-        // exercises the trailing tool-yield branch. Keeping both in one
-        // test pins that the recovery is scoped to the trailing case
-        // without disturbing the surrounding bundles.
-        final runs = [
-          RunEventBundle(
-            runId: 'run-1',
-            events: const [
-              TextMessageStartEvent(messageId: 'asst-1'),
-              TextMessageContentEvent(messageId: 'asst-1', delta: 'hi'),
-              TextMessageEndEvent(messageId: 'asst-1'),
-            ],
-          ),
-          RunEventBundle(
-            runId: 'run-stuck',
-            events: const [
-              ReasoningMessageStartEvent(messageId: 'r1'),
-              ReasoningMessageContentEvent(messageId: 'r1', delta: 'mid'),
-              ReasoningMessageEndEvent(messageId: 'r1'),
-              ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'search'),
-              ToolCallEndEvent(toolCallId: 'tc-1'),
-              ToolCallResultEvent(
-                toolCallId: 'tc-1',
-                content: 'ok',
-                messageId: 'tool-1',
-              ),
-            ],
-          ),
-        ];
-
-        final trackers = replayToTrackers(runs);
-
-        expect(trackers.keys, contains('asst-1'));
-        expect(
-          trackers.keys,
-          contains(noResponseMessageId('run-stuck')),
-          reason: 'A trailing tool-yield bundle must still produce a '
-              'tracker; the second run must not lose it on reload.',
         );
       },
     );

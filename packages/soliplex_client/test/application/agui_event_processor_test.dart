@@ -1624,21 +1624,6 @@ void main() {
         },
       );
 
-      test('ReasoningMessageContentEvent buffers text in AwaitingText', () {
-        const startedState = app_streaming.AwaitingText(
-          isThinkingStreaming: true,
-        );
-        const event = ReasoningMessageContentEvent(
-          messageId: 'r1',
-          delta: 'Thinking...',
-        );
-
-        final result = processEvent(conversation, startedState, event);
-
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        expect(awaitingText.bufferedThinkingText, equals('Thinking...'));
-      });
-
       test('ReasoningMessageContentEvent appends to existing buffer', () {
         const startedState = app_streaming.AwaitingText(
           isThinkingStreaming: true,

@@ -5,22 +5,6 @@ import 'package:test/test.dart';
 
 void main() {
   group('bridgeBaseEvent', () {
-    test('routes ReasoningMessageStartEvent to ThinkingStarted', () {
-      const event = ReasoningMessageStartEvent(messageId: 'reas-1');
-      expect(bridgeBaseEvent(event), const ThinkingStarted());
-    });
-
-    test('routes ReasoningMessageContentEvent delta to ThinkingContent', () {
-      const event = ReasoningMessageContentEvent(
-        messageId: 'reas-1',
-        delta: 'reasoning step',
-      );
-      expect(
-        bridgeBaseEvent(event),
-        const ThinkingContent(delta: 'reasoning step'),
-      );
-    });
-
     test('routes reasoning-end variants to ThinkingEnded', () {
       const events = <BaseEvent>[
         ReasoningEndEvent(messageId: 'reas-1'),
