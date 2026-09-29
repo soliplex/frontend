@@ -1,13 +1,14 @@
-// Four upstream types are deprecated, scheduled for removal in ag_ui 1.0.0:
-// THINKING_TEXT_MESSAGE_{START,CONTENT,END} and THINKING_CONTENT.
-// `ThinkingStartEvent` and `ThinkingEndEvent` are NOT deprecated and their arms
-// stay regardless — a removal sweep grepping "THINKING" must not touch them.
-// The THINKING_TEXT_MESSAGE_* arms stay because stored threads still decode to
-// them; the THINKING_CONTENT arm stays only to keep `processEvent`'s switch
-// over sealed `BaseEvent` exhaustive (upstream documents it as Dart-only legacy
-// that was never part of the canonical protocol). Suppressed per line so the
-// 1.0.0 sweep can enumerate them and an unrelated deprecation here still
-// raises.
+// AG-UI replaced its five THINKING_* events with REASONING_* and removes them
+// in 1.0.0. ag_ui's own 1.0.0 removal list names four types, which it marks
+// deprecated: THINKING_TEXT_MESSAGE_{START,CONTENT,END} and the Dart-only
+// THINKING_CONTENT. `ThinkingStartEvent` and `ThinkingEndEvent` carry no
+// @Deprecated, so their cases carry no ignore.
+// No supported backend emits any THINKING_* event live — pydantic-ai emits
+// REASONING_* for ag-ui-protocol 0.1.11 and later — so all of them fall to the
+// pass-through arm, which keeps `processEvent`'s switch over sealed `BaseEvent`
+// exhaustive. A thread an older backend stored may still replay them; its
+// reasoning is not shown. Suppressed per line so the 1.0.0 sweep can enumerate
+// them and an unrelated deprecation here still raises.
 
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
@@ -82,33 +83,20 @@ EventProcessingResult processEvent(
         createdAt: _eventTime(timestamp) ?? runCreated,
       ),
 
-    // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
-    // inner thinking (ThinkingTextMessageStart/End), and reasoning message
-    // (ReasoningMessageStart/Content/End) all route through the same
-    // idempotent handlers.
-    ThinkingStartEvent() ||
+    // Reasoning lifecycle — the outer (ReasoningStart/End) and message
+    // (ReasoningMessageStart/End) boundaries route through the same idempotent
+    // start and end handlers; ReasoningMessageContent appends to the thinking
+    // text.
     ReasoningStartEvent() ||
-    // Deprecated upstream; retained to decode stored threads.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageStartEvent() ||
     ReasoningMessageStartEvent() =>
       _processThinkingStart(
         conversation,
         streaming,
       ),
-    ThinkingEndEvent() ||
     ReasoningEndEvent() ||
-    // Deprecated upstream; retained to decode stored threads.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageEndEvent() ||
     ReasoningMessageEndEvent() =>
       _processThinkingEnd(conversation, streaming),
-    // Deprecated upstream; retained to decode stored threads.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageContentEvent(:final delta) ||
-    ReasoningMessageContentEvent(
-      :final delta,
-    ) =>
+    ReasoningMessageContentEvent(:final delta) =>
       _processThinkingContent(conversation, streaming, delta),
 
     // Text message streaming events
@@ -192,12 +180,21 @@ EventProcessingResult processEvent(
     // mirroring how StateDeltaEvent patches aguiState.
     ActivityDeltaEvent() =>
       _processActivityDelta(conversation, streaming, event),
-    MessagesSnapshotEvent(:final messages) =>
-      _processMessagesSnapshot(conversation, streaming, messages),
 
     // Unhandled event types — pass through unchanged.
     // Explicit cases ensure a compile error if ag_ui adds new event types.
-    // Deprecated upstream; arm only keeps the sealed switch exhaustive.
+    ThinkingStartEvent() ||
+    ThinkingEndEvent() ||
+    // Deprecated upstream; see the file header.
+    // ignore: deprecated_member_use
+    ThinkingTextMessageStartEvent() ||
+    // Deprecated upstream; see the file header.
+    // ignore: deprecated_member_use
+    ThinkingTextMessageContentEvent() ||
+    // Deprecated upstream; see the file header.
+    // ignore: deprecated_member_use
+    ThinkingTextMessageEndEvent() ||
+    // Deprecated upstream; see the file header.
     // ignore: deprecated_member_use
     ThinkingContentEvent() ||
     TextMessageChunkEvent() ||
@@ -206,40 +203,13 @@ EventProcessingResult processEvent(
     StepFinishedEvent() ||
     RawEvent() ||
     CustomEvent() ||
-    ReasoningMessageChunkEvent() =>
+    ReasoningMessageChunkEvent() ||
+    MessagesSnapshotEvent() =>
       EventProcessingResult(
         conversation: conversation,
         streaming: streaming,
       ),
   };
-}
-
-/// Passes the snapshot through unreconciled.
-///
-/// AG-UI treats `MESSAGES_SNAPSHOT` as the authoritative message list, but this
-/// client does not rebuild `conversation.messages` from it, so a server-side
-/// prune or rewrite of history diverges here. Logged rather than surfaced as a
-/// drop tile: a producer that emits snapshots routinely would mint a tile on
-/// every run.
-EventProcessingResult _processMessagesSnapshot(
-  Conversation conversation,
-  StreamingState streaming,
-  List<Message> messages,
-) {
-  _logger.warning(
-    'MessagesSnapshotEvent received but not reconciled against '
-    'conversation.messages; client may now hold a divergent history '
-    '(snapshot: ${messages.length} messages, local: '
-    '${conversation.messages.length})',
-    attributes: {
-      'snapshotMessageCount': messages.length,
-      'localMessageCount': conversation.messages.length,
-    },
-  );
-  return EventProcessingResult(
-    conversation: conversation,
-    streaming: streaming,
-  );
 }
 
 EventProcessingResult _processThinkingStart(

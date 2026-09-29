@@ -1,8 +1,3 @@
-// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
-// and THINKING_CONTENT events, exercising handling that is kept because a
-// producer negotiating ag-ui-protocol below 0.1.13 emits that family live.
-// Removal at ag_ui 1.0.0 surfaces as a compile error at these constructors.
-
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
 import 'package:soliplex_client/src/application/run_ending.dart';
@@ -1613,38 +1608,10 @@ void main() {
     });
 
     group('thinking events', () {
-      test('ThinkingStartEvent sets isThinkingStreaming and phase', () {
-        const event = ThinkingStartEvent();
-
-        final result = processEvent(conversation, streaming, event);
-
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        expect(awaitingText.isThinkingStreaming, isTrue);
-        expect(
-          awaitingText.currentPhase,
-          isA<app_streaming.ThinkingPhase>(),
-        );
-      });
-
-      test('ThinkingEndEvent sets isThinkingStreaming to false', () {
-        const thinkingStreaming = app_streaming.AwaitingText(
-          isThinkingStreaming: true,
-          currentPhase: app_streaming.ThinkingPhase(),
-        );
-        const event = ThinkingEndEvent();
-
-        final result = processEvent(conversation, thinkingStreaming, event);
-
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        expect(awaitingText.isThinkingStreaming, isFalse);
-      });
-
       test(
-        'ThinkingTextMessageStartEvent sets isThinkingStreaming and phase',
+        'ReasoningMessageStartEvent sets isThinkingStreaming and phase',
         () {
-          // Deprecated upstream; exercises the pre-REASONING_* replay path.
-          // ignore: deprecated_member_use
-          const event = ThinkingTextMessageStartEvent();
+          const event = ReasoningMessageStartEvent(messageId: 'r1');
 
           final result = processEvent(conversation, streaming, event);
 
@@ -1657,13 +1624,14 @@ void main() {
         },
       );
 
-      test('ThinkingTextMessageContentEvent buffers text in AwaitingText', () {
+      test('ReasoningMessageContentEvent buffers text in AwaitingText', () {
         const startedState = app_streaming.AwaitingText(
           isThinkingStreaming: true,
         );
-        // Deprecated upstream; exercises the pre-REASONING_* replay path.
-        // ignore: deprecated_member_use
-        const event = ThinkingTextMessageContentEvent(delta: 'Thinking...');
+        const event = ReasoningMessageContentEvent(
+          messageId: 'r1',
+          delta: 'Thinking...',
+        );
 
         final result = processEvent(conversation, startedState, event);
 
@@ -1671,14 +1639,15 @@ void main() {
         expect(awaitingText.bufferedThinkingText, equals('Thinking...'));
       });
 
-      test('ThinkingTextMessageContentEvent appends to existing buffer', () {
+      test('ReasoningMessageContentEvent appends to existing buffer', () {
         const startedState = app_streaming.AwaitingText(
           isThinkingStreaming: true,
           bufferedThinkingText: 'Part 1. ',
         );
-        // Deprecated upstream; exercises the pre-REASONING_* replay path.
-        // ignore: deprecated_member_use
-        const event = ThinkingTextMessageContentEvent(delta: 'Part 2.');
+        const event = ReasoningMessageContentEvent(
+          messageId: 'r1',
+          delta: 'Part 2.',
+        );
 
         final result = processEvent(conversation, startedState, event);
 
@@ -1688,14 +1657,12 @@ void main() {
         );
       });
 
-      test('ThinkingTextMessageEndEvent sets isThinkingStreaming to false', () {
+      test('ReasoningMessageEndEvent sets isThinkingStreaming to false', () {
         const startedState = app_streaming.AwaitingText(
           isThinkingStreaming: true,
           bufferedThinkingText: 'Done thinking',
         );
-        // Deprecated upstream; exercises the pre-REASONING_* replay path.
-        // ignore: deprecated_member_use
-        const event = ThinkingTextMessageEndEvent();
+        const event = ReasoningMessageEndEvent(messageId: 'r1');
 
         final result = processEvent(conversation, startedState, event);
 
@@ -1725,7 +1692,7 @@ void main() {
       );
 
       test(
-        'ThinkingTextMessageContentEvent appends to TextStreaming.thinkingText',
+        'ReasoningMessageContentEvent appends to TextStreaming.thinkingText',
         () {
           const textStreamingState = app_streaming.TextStreaming(
             messageId: 'msg-1',
@@ -1734,9 +1701,8 @@ void main() {
             thinkingText: 'Initial thinking',
             isThinkingStreaming: true,
           );
-          // Deprecated upstream; exercises the pre-REASONING_* replay path.
-          // ignore: deprecated_member_use
-          const event = ThinkingTextMessageContentEvent(
+          const event = ReasoningMessageContentEvent(
+            messageId: 'r1',
             delta: ' more thinking',
           );
 

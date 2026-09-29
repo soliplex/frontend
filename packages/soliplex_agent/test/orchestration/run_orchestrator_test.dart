@@ -1,8 +1,3 @@
-// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
-// and THINKING_CONTENT events, exercising handling that is kept because a
-// producer negotiating ag-ui-protocol below 0.1.13 emits that family live.
-// Removal at ag_ui 1.0.0 surfaces as a compile error at these constructors.
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -473,16 +468,13 @@ void main() {
       stubRunAgent(
         stream: Stream.fromIterable([
           RunStartedEvent(threadId: 'thread-1', runId: _runId),
-          const ThinkingStartEvent(),
-          // Deprecated upstream; exercises the pre-REASONING_* replay path.
-          // ignore: deprecated_member_use
-          const ThinkingTextMessageStartEvent(),
-          // Deprecated upstream; exercises the pre-REASONING_* replay path.
-          // ignore: deprecated_member_use
-          const ThinkingTextMessageContentEvent(delta: 'partial reasoning'),
-          // Deprecated upstream; exercises the pre-REASONING_* replay path.
-          // ignore: deprecated_member_use
-          const ThinkingTextMessageEndEvent(),
+          const ReasoningStartEvent(messageId: 'r1'),
+          const ReasoningMessageStartEvent(messageId: 'r1'),
+          const ReasoningMessageContentEvent(
+            messageId: 'r1',
+            delta: 'partial reasoning',
+          ),
+          const ReasoningMessageEndEvent(messageId: 'r1'),
           const RunErrorEvent(message: 'boom'),
         ]),
       );
@@ -691,20 +683,15 @@ void main() {
           .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller
         ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
-        ..add(const ThinkingStartEvent())
-        // Deprecated upstream; exercises the pre-REASONING_* replay path.
-        // ignore: deprecated_member_use
-        ..add(const ThinkingTextMessageStartEvent())
+        ..add(const ReasoningStartEvent(messageId: 'r1'))
+        ..add(const ReasoningMessageStartEvent(messageId: 'r1'))
         ..add(
-          // Deprecated upstream; exercises the pre-REASONING_* replay path.
-          // ignore: deprecated_member_use
-          const ThinkingTextMessageContentEvent(
+          const ReasoningMessageContentEvent(
+            messageId: 'r1',
             delta: 'considering options',
           ),
         )
-        // Deprecated upstream; exercises the pre-REASONING_* replay path.
-        // ignore: deprecated_member_use
-        ..add(ThinkingTextMessageEndEvent(timestamp: staleTs));
+        ..add(ReasoningMessageEndEvent(messageId: 'r1', timestamp: staleTs));
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<RunningState>());

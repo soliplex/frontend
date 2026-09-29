@@ -120,16 +120,6 @@ void main() {
         expect(a, isNot(equals(c)));
       });
 
-      test('StepProgress equality', () {
-        const a = StepProgress(stepName: 'step1');
-        const b = StepProgress(stepName: 'step1');
-        const c = StepProgress(stepName: 'step2');
-
-        expect(a, equals(b));
-        expect(a.hashCode, equals(b.hashCode));
-        expect(a, isNot(equals(c)));
-      });
-
       test('CustomExecutionEvent equality', () {
         const a = CustomExecutionEvent(
           type: 'monty.started',
@@ -249,12 +239,11 @@ void main() {
           const RunFailed(error: ''),
           const RunCancelled(),
           const StateUpdated(aguiState: {}),
-          const StepProgress(stepName: ''),
           const CustomExecutionEvent(type: '', payload: {}),
           const ActivitySnapshot(messageId: '', activityType: '', content: {}),
         ];
 
-        expect(events, hasLength(14));
+        expect(events, hasLength(13));
         for (final event in events) {
           expect(event, isA<ExecutionEvent>());
         }

@@ -2281,12 +2281,19 @@ void main() {
                 'threadId': 'thread-456',
                 'runId': 'run-1',
               },
-              {'type': 'THINKING_TEXT_MESSAGE_START'},
+              {'type': 'REASONING_START', 'messageId': 'r1'},
               {
-                'type': 'THINKING_TEXT_MESSAGE_CONTENT',
+                'type': 'REASONING_MESSAGE_START',
+                'messageId': 'r1',
+                'role': 'reasoning',
+              },
+              {
+                'type': 'REASONING_MESSAGE_CONTENT',
+                'messageId': 'r1',
                 'delta': 'reasoning preserved',
               },
-              {'type': 'THINKING_TEXT_MESSAGE_END'},
+              {'type': 'REASONING_MESSAGE_END', 'messageId': 'r1'},
+              {'type': 'REASONING_END', 'messageId': 'r1'},
               {
                 'type': 'RUN_FINISHED',
                 'threadId': 'thread-456',
@@ -2302,7 +2309,7 @@ void main() {
         expect(parked.id, equals(noResponseMessageId('run-1')));
         expect(parked.reason, equals(TerminalReason.finished));
         expect(parked.thinkingText, equals('reasoning preserved'));
-        expect(history.messages.whereType<NoResponseTile>(), isEmpty);
+        expect(history.messages, isEmpty);
       });
 
       test('handles null runs gracefully', () async {

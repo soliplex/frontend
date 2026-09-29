@@ -1,8 +1,3 @@
-// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
-// and THINKING_CONTENT events, exercising handling that is kept because a
-// producer negotiating ag-ui-protocol below 0.1.13 emits that family live.
-// Removal at ag_ui 1.0.0 surfaces as a compile error at these constructors.
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -297,16 +292,10 @@ void main() {
               timestamp: 1000,
             ),
             TextMessageEndEvent(messageId: 'user-1', timestamp: 1000),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(timestamp: 2000),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(
-                delta: 'reasoning', timestamp: 2100),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(timestamp: 2200),
+            ReasoningMessageStartEvent(messageId: 'r1', timestamp: 2000),
+            ReasoningMessageContentEvent(
+                messageId: 'r1', delta: 'reasoning', timestamp: 2100),
+            ReasoningMessageEndEvent(messageId: 'r1', timestamp: 2200),
             RunFinishedEvent(threadId: 't', runId: 'run-1', timestamp: 4000),
           ],
         ),
@@ -334,15 +323,10 @@ void main() {
         RunEventBundle(
           runId: 'run-yield',
           events: const [
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(timestamp: 1000),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(delta: 'pre-tool', timestamp: 1100),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(timestamp: 1200),
+            ReasoningMessageStartEvent(messageId: 'r1', timestamp: 1000),
+            ReasoningMessageContentEvent(
+                messageId: 'r1', delta: 'pre-tool', timestamp: 1100),
+            ReasoningMessageEndEvent(messageId: 'r1', timestamp: 1200),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
               toolCallName: 'search',
@@ -402,15 +386,10 @@ void main() {
         RunEventBundle(
           runId: 'run-yield-only',
           events: const [
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(timestamp: 1000),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(delta: 'pre-tool', timestamp: 1100),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(timestamp: 1200),
+            ReasoningMessageStartEvent(messageId: 'r1', timestamp: 1000),
+            ReasoningMessageContentEvent(
+                messageId: 'r1', delta: 'pre-tool', timestamp: 1100),
+            ReasoningMessageEndEvent(messageId: 'r1', timestamp: 1200),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
               toolCallName: 'search',
@@ -455,15 +434,9 @@ void main() {
         RunEventBundle(
           runId: 'run-yield',
           events: const [
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(delta: 'pre-tool'),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(),
+            ReasoningMessageStartEvent(messageId: 'r1'),
+            ReasoningMessageContentEvent(messageId: 'r1', delta: 'pre-tool'),
+            ReasoningMessageEndEvent(messageId: 'r1'),
             ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'search'),
             ToolCallEndEvent(toolCallId: 'tc-1'),
             ToolCallResultEvent(
@@ -476,15 +449,9 @@ void main() {
         RunEventBundle(
           runId: 'run-no-response',
           events: const [
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageStartEvent(),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageContentEvent(delta: 'mid'),
-            // Deprecated upstream; exercises the pre-REASONING_* replay path.
-            // ignore: deprecated_member_use
-            ThinkingTextMessageEndEvent(),
+            ReasoningMessageStartEvent(messageId: 'r2'),
+            ReasoningMessageContentEvent(messageId: 'r2', delta: 'mid'),
+            ReasoningMessageEndEvent(messageId: 'r2'),
             RunFinishedEvent(threadId: 't', runId: 'run-no-response'),
           ],
         ),

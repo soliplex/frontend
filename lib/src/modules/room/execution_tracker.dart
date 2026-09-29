@@ -242,7 +242,6 @@ class ExecutionTracker {
         _placeActivityInTimeline(messageId, content['tool_call_id']);
       case TextDelta() ||
             StateUpdated() ||
-            StepProgress() ||
             AwaitingApproval() ||
             CustomExecutionEvent():
         break;

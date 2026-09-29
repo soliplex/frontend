@@ -18,6 +18,18 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `RagSnapshot.carriesUnreadableCitations` and
   `RagSnapshot.withUnreadableCitationsDropped`.
 
+### Removed
+
+- Handling for the `THINKING_*` and `MESSAGES_SNAPSHOT` events, and the
+  bridging of `STEP_STARTED`, none of which a supported backend emits live:
+  they now pass through unprocessed. Reasoning an older backend stored as
+  `THINKING_*` events no longer shows when such a thread is reopened, and a
+  `MESSAGES_SNAPSHOT` no longer logs a warning.
+- **Library consumers (breaking):** `StepProgress` removed from
+  `ExecutionEvent`; `bridgeBaseEvent` maps `STEP_STARTED` and every
+  `THINKING_*` event to `null`, and `processEvent` leaves the conversation and
+  streaming state unchanged for every `THINKING_*` event.
+
 ### Fixed
 
 - A thread whose stored `citation_index` holds an entry the app cannot read
