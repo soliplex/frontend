@@ -51,5 +51,30 @@ void main() {
         isEmpty,
       );
     });
+
+    test('a history loaded with an unreadable scope is scope-unreadable', () {
+      expect(
+        outgoingStateWarnings(
+          ThreadHistory(
+            messages: const [],
+            storedStateWarnings: const {ThreadStateWarning.scopeUnreadable},
+          ),
+        ),
+        {ThreadStateWarning.scopeUnreadable},
+      );
+    });
+
+    test('an unreadable scope in the cached state alone gives no warning', () {
+      // The replayed state can be an older run's snapshot, so the scope is
+      // judged by the verdict the loaded history's run-input readers reached.
+      expect(
+        outgoingStateWarnings(
+          _history({
+            'rag': <String, dynamic>{'document_filter': 42},
+          }),
+        ),
+        isEmpty,
+      );
+    });
   });
 }

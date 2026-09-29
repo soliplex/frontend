@@ -859,6 +859,9 @@ class SoliplexApi {
     if (runs.isEmpty) return ThreadHistory(messages: const []);
     final documentFilter = _extractLatestDocumentFilter(runs);
     final databaseSources = _extractLatestDatabaseSources(runs);
+    final scopeWarnings = {
+      if (_latestScopeUnreadable(runs)) ThreadStateWarning.scopeUnreadable,
+    };
 
     // 2. Walk runs in creation order, collecting:
     //    - completed run ids → fetched in parallel below
@@ -909,6 +912,7 @@ class SoliplexApi {
         messages: const [],
         documentFilter: documentFilter,
         databaseSources: databaseSources,
+        storedStateWarnings: scopeWarnings,
       );
     }
 
@@ -1002,6 +1006,7 @@ class SoliplexApi {
       threadId,
       documentFilter,
       databaseSources,
+      scopeWarnings,
     );
   }
 
@@ -1193,7 +1198,9 @@ class SoliplexApi {
   /// every run; the backend keeps no merged state), so the newest run's value
   /// IS the current filter — there is nothing to accumulate. An explicit null
   /// on the newest carrying run means "cleared" and wins over older runs.
-  /// Resilient: malformed entries are skipped. See U3.
+  /// A run whose input or state is not a map is skipped; a newest value that
+  /// is neither null nor a string reads as null, which
+  /// [_latestScopeUnreadable] flags.
   String? _extractLatestDocumentFilter(Map<String, dynamic> runs) {
     final filter = _latestStateValue(runs, 'document_filter');
     return filter is String ? filter : null;
@@ -1219,6 +1226,23 @@ class SoliplexApi {
       names.add(entry);
     }
     return names;
+  }
+
+  /// Whether the newest run's saved `document_filter` or `sources` is one the
+  /// selection UI cannot hydrate, so it starts from no document or every
+  /// database. A filter is unreadable when it is neither null nor a string,
+  /// or a non-empty string [parseDocumentFilter] finds no id in; an empty one
+  /// is no filter to haiku.rag, as it is to the UI. `sources` is unreadable
+  /// when it is neither null nor a list of names.
+  bool _latestScopeUnreadable(Map<String, dynamic> runs) {
+    final filter = _latestStateValue(runs, 'document_filter');
+    final sources = _latestStateValue(runs, ragSourcesKey, anyNamespace: true);
+    final filterUnreadable = filter != null &&
+        (filter is! String ||
+            (filter.isNotEmpty && parseDocumentFilter(filter).isEmpty));
+    final sourcesUnreadable = sources != null &&
+        (sources is! List || sources.any((s) => s is! String));
+    return filterUnreadable || sourcesUnreadable;
   }
 
   /// The value under [key] in the newest run's `run_input.state.rag` that
@@ -1262,6 +1286,7 @@ class SoliplexApi {
     String threadId,
     String? documentFilter,
     List<String>? databaseSources,
+    Set<ThreadStateWarning> scopeWarnings,
   ) {
     if (runsToReplay.isEmpty) {
       return ThreadHistory(
@@ -1279,7 +1304,7 @@ class SoliplexApi {
     // cited ids and inline figures so an earlier invocation's figure survives a
     // later invocation's `searches` clear.
     final turnsByUserMessage = <String, TurnCitations>{};
-    final storedStateWarnings = <ThreadStateWarning>{};
+    final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
     final runs = <RunEventBundle>[];
     // Text of the user messages already appended, keyed by id, so a
     // continuation run does not add its parent's message a second time. An

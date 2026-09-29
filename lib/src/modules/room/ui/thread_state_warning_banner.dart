@@ -7,6 +7,10 @@ String threadStateWarningText(ThreadStateWarning warning) => switch (warning) {
       ThreadStateWarning.legacyCitations =>
         "This thread was saved by an older version. Sources for its earlier "
             "answers can't be shown.",
+      ThreadStateWarning.scopeUnreadable =>
+        "This thread's saved document or database selection couldn't be "
+            'read, so the next answer may search more than earlier answers '
+            'did.',
     };
 
 /// Tells the user part of this thread's stored state could not be used as

@@ -5359,7 +5359,10 @@ void main() {
     });
 
     group('getThreadHistory document filter', () {
-      void stubRun(String runId) {
+      void stubRun(
+        String runId, [
+        List<Map<String, dynamic>> events = const [],
+      ]) {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -5372,7 +5375,7 @@ void main() {
             headers: any(named: 'headers'),
             timeout: any(named: 'timeout'),
           ),
-        ).thenAnswer((_) async => {'run_id': runId, 'events': <dynamic>[]});
+        ).thenAnswer((_) async => {'run_id': runId, 'events': events});
       }
 
       void stubThread(Map<String, dynamic> runs) {
@@ -5706,6 +5709,160 @@ void main() {
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
         expect(history.documentFilter, isNull);
+      });
+
+      Map<String, dynamic> finishedRun(
+        String runId,
+        int hour,
+        Map<String, dynamic> state,
+      ) =>
+          {
+            'run_id': runId,
+            'created': '2026-01-07T0$hour:00:00.000Z',
+            'finished': '2026-01-07T0$hour:01:00.000Z',
+            'run_input': {'state': state},
+          };
+
+      // What the backend stores for a run: its input state echoed in a
+      // closing STATE_SNAPSHOT, then RUN_ERROR when that state fails
+      // validation, RUN_FINISHED otherwise.
+      void stubRunEchoing(
+        String runId,
+        Map<String, dynamic> state, {
+        bool invalid = false,
+      }) {
+        stubRun(runId, [
+          {'type': 'STATE_SNAPSHOT', 'snapshot': state},
+          if (invalid)
+            {'type': 'RUN_ERROR', 'message': 'invalid state'}
+          else
+            {
+              'type': 'RUN_FINISHED',
+              'thread_id': 'thread-456',
+              'run_id': runId,
+            },
+        ]);
+      }
+
+      test('a document_filter that is not a string is scope-unreadable',
+          () async {
+        final state = {
+          'rag': {'document_filter': 42},
+        };
+        stubThread({'run-1': finishedRun('run-1', 1, state)});
+        stubRunEchoing('run-1', state, invalid: true);
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(
+          history.storedStateWarnings,
+          {ThreadStateWarning.scopeUnreadable},
+        );
+      });
+
+      test('sources with a non-string entry are scope-unreadable', () async {
+        final state = {
+          'analysis': {
+            'sources': ['papers', 7],
+          },
+        };
+        stubThread({'run-1': finishedRun('run-1', 1, state)});
+        stubRunEchoing('run-1', state, invalid: true);
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(
+          history.storedStateWarnings,
+          {ThreadStateWarning.scopeUnreadable},
+        );
+      });
+
+      test('sources that are not a list are scope-unreadable', () async {
+        final state = {
+          'analysis': {'sources': 'papers'},
+        };
+        stubThread({'run-1': finishedRun('run-1', 1, state)});
+        stubRunEchoing('run-1', state, invalid: true);
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(
+          history.storedStateWarnings,
+          {ThreadStateWarning.scopeUnreadable},
+        );
+      });
+
+      test('an empty document_filter gives no warning', () async {
+        final state = {
+          'rag': {'document_filter': ''},
+        };
+        stubThread({'run-1': finishedRun('run-1', 1, state)});
+        stubRunEchoing('run-1', state);
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(threadStateWarnings(history), isEmpty);
+      });
+
+      test('a document_filter outside rag gives no warning', () async {
+        final state = {
+          'analysis': {'document_filter': 'title LIKE x'},
+        };
+        stubThread({'run-1': finishedRun('run-1', 1, state)});
+        stubRunEchoing('run-1', state);
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(threadStateWarnings(history), isEmpty);
+      });
+
+      test(
+          'a readable newest run input gives no warning over an older '
+          'unreadable one', () async {
+        final older = {
+          'rag': {'document_filter': 42},
+        };
+        stubThread({
+          'run-1': finishedRun('run-1', 1, older),
+          'run-2': finishedRun('run-2', 2, {
+            'rag': {
+              'document_filter': "id = 'new'",
+              'sources': ['papers'],
+            },
+          }),
+        });
+        stubRunEchoing('run-1', older, invalid: true);
+        // The newest run's stream raised before its first event, so it stored
+        // none and the replayed state is still the older run's.
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(threadStateWarnings(history), isEmpty);
+      });
+
+      test(
+          'an unreadable filter on a thread whose only run is in flight is '
+          'scope-unreadable', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': null,
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': 'title LIKE x'},
+              },
+            },
+          },
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(
+          history.storedStateWarnings,
+          {ThreadStateWarning.scopeUnreadable},
+        );
       });
     });
 

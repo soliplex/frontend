@@ -9,15 +9,24 @@ Set<ThreadStateWarning> citationStateWarnings(Map<String, dynamic> state) => {
         ThreadStateWarning.legacyCitations,
     };
 
-/// The warnings a send from [history]'s current state gives rise to: the
-/// cached state is what the next run is seeded from.
+/// The warnings a send from [history] gives rise to. Citations are judged on
+/// the cached state, which is what the next run is seeded from. The saved
+/// search scope keeps the verdict the loaded history's run-input readers
+/// reached ([ThreadHistory.storedStateWarnings]): the replayed state can be an
+/// older run's. A history captured from a finished run carries no verdict.
 Set<ThreadStateWarning> outgoingStateWarnings(ThreadHistory history) => {
       if (RagSnapshot.carriesNonIdCitations(history.aguiState))
         ThreadStateWarning.legacyCitations,
+      if (history.storedStateWarnings
+          .contains(ThreadStateWarning.scopeUnreadable))
+        ThreadStateWarning.scopeUnreadable,
     };
 
-/// The warnings a thread opened with [history] shows.
+/// The warnings a thread opened with [history] shows. Its saved search scope
+/// is judged by [ThreadHistory.storedStateWarnings] alone: the selection UI
+/// reads the scope from the newest run's input, and the replayed state can
+/// be an older run's.
 Set<ThreadStateWarning> threadStateWarnings(ThreadHistory history) => {
       ...history.storedStateWarnings,
-      ...outgoingStateWarnings(history),
+      ...citationStateWarnings(history.aguiState),
     };

@@ -29,6 +29,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Library consumers:** `ThreadStateWarning`, `ThreadHistory.storedStateWarnings`,
   `threadStateWarnings`, `outgoingStateWarnings`, `citationStateWarnings` and
   `RagSnapshot.carriesNonIdCitations`.
+- The banner also says when a thread's saved document or database selection
+  cannot be read back — a `rag` `document_filter` that is not a string, or a
+  non-empty one with no document id in it, or `sources` that is not a list of
+  names — so the next answer may search more than earlier answers did. It is
+  judged on the newest run's input; a send brings it back only while the
+  thread's loaded history is still what the send starts from.
+- **Library consumers:** `ThreadStateWarning.scopeUnreadable`.
 
 ### Changed
 
