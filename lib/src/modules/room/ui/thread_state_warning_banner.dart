@@ -9,8 +9,8 @@ String threadStateWarningText(ThreadStateWarning warning) => switch (warning) {
             "answers can't be shown.",
       ThreadStateWarning.scopeUnreadable =>
         "This thread's saved document or database selection couldn't be "
-            'read, so the next answer may search more than earlier answers '
-            'did.',
+            'read, so answers from now on may search more than earlier '
+            'answers did.',
     };
 
 /// Tells the user part of this thread's stored state could not be used as
