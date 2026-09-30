@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:soliplex_agent/soliplex_agent.dart'
     show NetworkException, SoliplexHttpClient, fetchOidcDiscoveryDocument;
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -10,10 +9,10 @@ import 'server_manager.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.server_logout');
 
-/// Signs [entry] out of its identity provider, clearing the local session
-/// and, when [remove] is set, removing the server from [serverManager]. The
-/// returned future completes once the storage writes for that local state
-/// have settled.
+/// Clears [entry]'s local session and, when [remove] is set, removes the
+/// server from [serverManager]. When [entry] holds a session, also ends it at
+/// the identity provider, in the order described below. The returned future
+/// completes once the storage writes for that local state have settled.
 ///
 /// Ordering of the local clear relative to [AuthFlow.endSession] is
 /// platform-conditional:
@@ -54,8 +53,8 @@ Future<void> logoutServer({
   required SoliplexHttpClient probeClient,
   // The platform branch is a seam so the web and native orderings — the
   // invariant this function exists to protect — are both reachable in a VM
-  // test. Production always uses the real `kIsWeb`.
-  bool web = kIsWeb,
+  // test. Production passes the real `kIsWeb`.
+  required bool web,
 }) async {
   Future<void> clearLocal() {
     entry.auth.logout();

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
@@ -16,8 +17,9 @@ final Logger _logger =
     LogManager.instance.getLogger('soliplex.server_sign_out_control');
 
 /// A server row's sign-out and remove action. Shows the caller's idle action,
-/// a spinner in its place while a sign-out runs, and an error button after
-/// one fails. The server is kept when a sign-out fails (see [logoutServer]).
+/// a spinner in its place while the action runs, and an error button after a
+/// sign-out fails. The server is kept when a sign-out fails (see
+/// [logoutServer]).
 class ServerSignOutControl extends ConsumerStatefulWidget {
   const ServerSignOutControl({
     super.key,
@@ -67,16 +69,11 @@ class _ServerSignOutControlState extends ConsumerState<ServerSignOutControl> {
       isDestructive: true,
     );
     if (!confirmed || !mounted) return;
-    if (!signsOut) {
-      widget.serverManager.removeServer(entry.serverId);
-      return;
-    }
     await _run(remove: true);
   }
 
   Future<void> _run({required bool remove}) async {
     final entry = widget.entry;
-    final session = entry.auth.session.value;
     try {
       setState(() {
         _busy = true;
@@ -88,6 +85,7 @@ class _ServerSignOutControlState extends ConsumerState<ServerSignOutControl> {
         remove: remove,
         authFlow: ref.read(authFlowProvider),
         probeClient: ref.read(probeClientProvider),
+        web: kIsWeb,
       );
     } catch (e, st) {
       // error: e is safe: what logoutServer throws is the discovery errors
@@ -100,7 +98,10 @@ class _ServerSignOutControlState extends ConsumerState<ServerSignOutControl> {
         stackTrace: st,
         attributes: {'serverId': entry.serverId},
       );
-      if (mounted) {
+      // A failed logoutServer leaves local state untouched, so this is the
+      // session the failure belongs to.
+      final session = entry.auth.session.value;
+      if (mounted && session is! NoSession) {
         setState(() => _failure = (
               message: describeLogoutFailure(e),
               removing: remove,
@@ -128,11 +129,11 @@ class _ServerSignOutControlState extends ConsumerState<ServerSignOutControl> {
       );
     }
     final failure = _failure;
-    // Every transition installs a new session object except the one to the
-    // shared const NoSession, which never carries a failure (that path doesn't
-    // throw). So identity tells whether the failure is still current: any
-    // change since the attempt, a token refresh included, retires it. It is
-    // already logged.
+    // A failure is recorded against the session it failed on and shows only
+    // while that object is current: every session change installs a
+    // different object, so any later change, a token refresh included,
+    // retires it. None is recorded on NoSession, deliberately: the server is
+    // already signed out locally. Every failure is logged.
     if (failure != null && identical(session, failure.session)) {
       return _ErrorButton(
         failure: failure,

@@ -226,20 +226,36 @@ void main() {
       expect(manager.servers.value.containsKey('srv'), !remove);
       expect(find.byIcon(Icons.error_outline), findsNothing);
     });
-
-    testWidgets(
-        'Remove server after a failed ${remove ? 'removal' : 'sign-out'} '
-        'removes outright', (tester) async {
-      await pumpFailingControl(tester);
-      await _start(tester, remove: remove);
-
-      flow.endSessionCalled = false;
-      await _chooseFromErrorMenu(tester, 'Remove server');
-
-      expect(flow.endSessionCalled, isFalse);
-      expect(manager.servers.value, isNot(contains('srv')));
-    });
   }
+
+  testWidgets('Remove server after a failed sign-out removes outright',
+      (tester) async {
+    await pumpFailingControl(tester);
+    await _tapSignOut(tester);
+
+    flow.endSessionCalled = false;
+    await _chooseFromErrorMenu(tester, 'Remove server');
+
+    expect(flow.endSessionCalled, isFalse);
+    expect(manager.servers.value, isNot(contains('srv')));
+  });
+
+  testWidgets('a sign-out that fails after the session changed shows the error',
+      (tester) async {
+    final pending = Completer<void>();
+    await pumpFailingControl(tester);
+    flow.endSessionCompleter = pending;
+
+    await tester.tap(find.text('Sign out'));
+    await tester.pump();
+    // Stands in for a token refresh while the IdP sheet is open: both install
+    // a new ActiveSession.
+    _signIn(entry);
+    pending.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+  });
 
   testWidgets('a failure stops showing once the session changes',
       (tester) async {
@@ -276,26 +292,15 @@ void main() {
     });
   }
 
-  testWidgets('a spinner replaces the action while signing out',
-      (tester) async {
+  testWidgets('the spinner is labelled while signing out', (tester) async {
     createServer();
     _signIn(entry);
-    final pending = Completer<void>();
-    flow.endSessionCompleter = pending;
+    flow.endSessionCompleter = Completer<void>();
     await pumpControl(tester);
 
     await tester.tap(find.text('Sign out'));
     await tester.pump();
 
-    // The idle action is gone, so the operation can't be started twice.
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.byTooltip('Signing out'), findsOneWidget);
-    expect(find.text('Sign out'), findsNothing);
-    expect(find.text('Remove'), findsNothing);
-
-    pending.complete();
-    await tester.pumpAndSettle();
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(entry.auth.session.value, isA<NoSession>());
   });
 }

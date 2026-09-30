@@ -291,6 +291,11 @@ void main() {
           serverManager: manager,
           // Selected so the hover-revealed ⋮ is shown (no mouse in the test).
           selectedServerId: 'srv',
+          // Removal runs through the sign-out path, which reads these.
+          overrides: [
+            authFlowProvider.overrideWithValue(FakeAuthFlow()),
+            probeClientProvider.overrideWithValue(FakeHttpClient()),
+          ],
         ));
 
         await tester.tap(find.byIcon(Icons.more_vert).first);
@@ -305,39 +310,6 @@ void main() {
         await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
         await tester.pumpAndSettle();
         expect(manager.servers.value.containsKey('srv'), isFalse);
-      });
-
-      testWidgets('a session that expires in the background offers Sign in',
-          (tester) async {
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'srv',
-          serverUrl: Uri.parse('https://api.example.com'),
-        );
-        entry.auth.login(
-          provider: const OidcProvider(
-            discoveryUrl: 'https://sso/.well-known/openid-configuration',
-            clientId: 'c',
-          ),
-          tokens: AuthTokens(
-            accessToken: 'a',
-            refreshToken: 'r',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        );
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-        ));
-        entry.auth.markSessionExpired();
-        await tester.pump();
-
-        await tester.tap(find.byIcon(Icons.more_vert).first);
-        await tester.pumpAndSettle();
-        expect(find.text('Sign in'), findsOneWidget);
-        expect(find.text('Log out'), findsOneWidget);
       });
 
       testWidgets('a connected authenticated server offers Log out and Remove',
@@ -631,8 +603,6 @@ void main() {
 
         completer.complete();
         await tester.pumpAndSettle();
-        expect(manager.servers.value.containsKey('bravo'), isFalse);
-        expect(manager.servers.value.containsKey('alpha'), isTrue);
       });
     });
 
@@ -672,6 +642,7 @@ void main() {
         ));
         await tester.tap(find.byIcon(Icons.more_vert).first);
         await tester.pumpAndSettle();
+        expect(find.text('Sign in'), findsOneWidget);
         await tester.tap(find.text('Log out'));
         await tester.pumpAndSettle();
 

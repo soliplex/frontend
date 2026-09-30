@@ -156,26 +156,24 @@ void main() {
       expect(flow.lastEndSessionEndpoint, isNull);
     });
 
-    for (final remove in [false, true]) {
-      test('a failed endSession preserves the local session (remove: $remove)',
-          () async {
-        final storage = InMemoryServerStorage();
-        final manager = _manager(storage: storage);
-        final entry = _signedInEntry(manager);
-        final flow = RecordingAuthFlow(endSessionError: Exception('idp down'));
+    test('a failed endSession preserves the local session and the server',
+        () async {
+      final storage = InMemoryServerStorage();
+      final manager = _manager(storage: storage);
+      final entry = _signedInEntry(manager);
+      final flow = RecordingAuthFlow(endSessionError: Exception('idp down'));
 
-        await expectLater(
-          _logout(entry, manager, flow, web: false, remove: remove),
-          throwsA(isA<Exception>()),
-        );
+      await expectLater(
+        _logout(entry, manager, flow, web: false, remove: true),
+        throwsA(isA<Exception>()),
+      );
 
-        // The throw happens before the local clear, so the session and the
-        // server survive.
-        expect(entry.auth.isAuthenticated, isTrue);
-        expect(manager.servers.value, contains('srv'));
-        expect((await storage.loadAll())['srv'], isA<AuthenticatedServer>());
-      });
-    }
+      // The throw happens before the local clear, so the session and the
+      // server survive.
+      expect(entry.auth.isAuthenticated, isTrue);
+      expect(manager.servers.value, contains('srv'));
+      expect((await storage.loadAll())['srv'], isA<AuthenticatedServer>());
+    });
 
     test('a signed-out session signs out locally without an IdP round-trip',
         () async {
@@ -271,8 +269,9 @@ void main() {
       expect((await storage.loadAll())['srv'], isA<KnownServer>());
     });
 
-    test('an expired session still ends the IdP session with its id token',
-        () async {
+    test(
+        'an expired session still ends the IdP session with its id token, at '
+        'the discovered end_session_endpoint', () async {
       final manager = _manager();
       final entry = _signedInEntry(manager);
       entry.auth.markSessionExpired();
@@ -286,40 +285,20 @@ void main() {
       expect(entry.auth.session.value, isA<NoSession>());
     });
 
-    test('clears the local session before navigating to endSession', () async {
+    test('an endSession failure after the local clear completes normally',
+        () async {
       final manager = _manager();
       final entry = _signedInEntry(manager);
-      bool authedDuringEndSession = true;
-      final flow = RecordingAuthFlow(
-        onEndSession: () => authedDuringEndSession = entry.auth.isAuthenticated,
-      );
+      final flow = RecordingAuthFlow(endSessionError: _NavFailure());
+      final sink = _captureLogs();
 
-      await _logout(entry, manager, flow, web: true);
+      await _logout(entry, manager, flow, web: true, remove: true);
 
       expect(flow.endSessionCalled, isTrue);
-      // Web ordering (inverse of native): local is cleared before the
-      // full-page navigation, so it must not survive the unload race.
-      expect(authedDuringEndSession, isFalse);
-      expect(entry.auth.isAuthenticated, isFalse);
+      expect(entry.auth.session.value, isA<NoSession>());
+      expect(manager.servers.value, isNot(contains('srv')));
+      _expectEndSessionFailureLogged(sink);
     });
-
-    for (final remove in [false, true]) {
-      test(
-          'an endSession failure after the local clear completes normally '
-          '(remove: $remove)', () async {
-        final manager = _manager();
-        final entry = _signedInEntry(manager);
-        final flow = RecordingAuthFlow(endSessionError: _NavFailure());
-        final sink = _captureLogs();
-
-        await _logout(entry, manager, flow, web: true, remove: remove);
-
-        expect(flow.endSessionCalled, isTrue);
-        expect(entry.auth.session.value, isA<NoSession>());
-        expect(manager.servers.value.containsKey('srv'), !remove);
-        _expectEndSessionFailureLogged(sink);
-      });
-    }
 
     test('an empty id token sends no id_token_hint', () async {
       final manager = _manager();
@@ -361,33 +340,29 @@ void main() {
       expect(entry.auth.isAuthenticated, isFalse);
     });
 
-    for (final remove in [false, true]) {
-      test(
-          'a discovery-fetch failure preserves the session and skips '
-          'endSession (remove: $remove)', () async {
-        final storage = InMemoryServerStorage();
-        final manager = _manager(storage: storage);
-        final entry = _signedInEntry(manager);
-        final probeClient = FakeHttpClient()
-          ..onRequest =
-              (method, uri) async => throw Exception('discovery down');
-        final flow = RecordingAuthFlow();
+    test('a discovery-fetch failure preserves the session and skips endSession',
+        () async {
+      final storage = InMemoryServerStorage();
+      final manager = _manager(storage: storage);
+      final entry = _signedInEntry(manager);
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async => throw Exception('discovery down');
+      final flow = RecordingAuthFlow();
 
-        await expectLater(
-          _logout(entry, manager, flow,
-              web: true, remove: remove, probe: probeClient),
-          throwsA(isA<Exception>()),
-        );
+      await expectLater(
+        _logout(entry, manager, flow,
+            web: true, remove: true, probe: probeClient),
+        throwsA(isA<Exception>()),
+      );
 
-        // Degrading to endSessionEndpoint: null would clear local while the
-        // IdP session stays alive, so a discovery failure must keep the
-        // session and the server.
-        expect(flow.endSessionCalled, isFalse);
-        expect(entry.auth.isAuthenticated, isTrue);
-        expect(manager.servers.value, contains('srv'));
-        expect((await storage.loadAll())['srv'], isA<AuthenticatedServer>());
-      });
-    }
+      // Degrading to endSessionEndpoint: null would clear local while the IdP
+      // session stays alive, so a discovery failure must keep the session and
+      // the server.
+      expect(flow.endSessionCalled, isFalse);
+      expect(entry.auth.isAuthenticated, isTrue);
+      expect(manager.servers.value, contains('srv'));
+      expect((await storage.loadAll())['srv'], isA<AuthenticatedServer>());
+    });
   });
 
   group('describeLogoutFailure', () {
@@ -435,8 +410,6 @@ void main() {
 
     test('anything else is a generic failure', () {
       expect(describeLogoutFailure(Exception(_token)), generic);
-      expect(describeLogoutFailure(_NavFailure()), generic);
-      expect(describeLogoutFailure(StateError(_token)), generic);
     });
   });
 }

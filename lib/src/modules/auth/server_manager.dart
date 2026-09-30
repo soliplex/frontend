@@ -170,15 +170,16 @@ class ServerManager {
     };
   }
 
-  /// Permanently removes [serverId] and deletes its stored record. An unknown
-  /// id is a no-op: nothing is logged, dispatched or written.
+  /// Permanently removes [serverId] and deletes its stored record.
   void removeServer(String serverId) {
     final entry = _servers.value[serverId];
-    if (entry == null) return;
+    if (entry == null) {
+      throw StateError('No server entry for "$serverId"');
+    }
 
-    // Deliberate, destructive, and the only in-app action that clears a
-    // server's stored credentials — so it belongs on the timeline of a field
-    // report at a level a release build keeps.
+    // Deliberate and destructive: it deletes the server's stored record — so
+    // it belongs on the timeline of a field report at a level a release build
+    // keeps.
     _logger.warning(
       'Removing a server and its stored session',
       attributes: {

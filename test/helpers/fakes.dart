@@ -716,7 +716,6 @@ class InMemoryInactivityLogoutFlagStorage
 class InMemoryServerStorage implements ServerStorage {
   final Map<String, PersistedServer> _store = {};
   int saveCount = 0;
-  int deleteCount = 0;
 
   /// When set, [save] and [delete] write only once it completes, so a test
   /// can hold a write pending.
@@ -737,7 +736,6 @@ class InMemoryServerStorage implements ServerStorage {
   Future<void> delete(String serverId) async {
     if (writesHeldUntil case final held?) await held;
     if (deletesHeldUntil case final held?) await held;
-    deleteCount++;
     _store.remove(serverId);
   }
 

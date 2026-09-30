@@ -1206,54 +1206,9 @@ void main() {
       expect(manager.servers.value, isEmpty);
     });
 
-    testWidgets('a background sign-out shows the remove button',
-        (tester) async {
-      final manager = _createServerManager();
-      final entry = manager.addServer(
-        serverId: 'https://demo.example.com',
-        serverUrl: Uri.parse('https://demo.example.com'),
-      );
-      _loginEntry(entry);
-
-      await tester.pumpWidget(_buildApp(serverManager: manager));
-      await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.delete_outline), findsNothing);
-
-      entry.auth.logout();
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
-    });
-
-    testWidgets('a background sign-out makes a tap connect, not enter lobby',
-        (tester) async {
-      final manager = _createServerManager();
-      final entry = manager.addServer(
-        serverId: 'https://demo.example.com',
-        serverUrl: Uri.parse('https://demo.example.com'),
-      );
-      _loginEntry(entry);
-
-      await tester.pumpWidget(_buildApp(
-        serverManager: manager,
-        discover: (_, __) async {
-          throw const NetworkException(message: 'timed out', isTimeout: true);
-        },
-      ));
-      await tester.pumpAndSettle();
-
-      entry.auth.logout();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(entry.listLabel));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Lobby placeholder'), findsNothing);
-      expect(find.textContaining('timed out'), findsOneWidget);
-    });
-
     testWidgets(
-        'a background sign-out moves the server to the signed-out group',
-        (tester) async {
+        'a background sign-out re-sorts the row, shows its remove button and '
+        'makes a tap connect', (tester) async {
       final manager = _createServerManager();
       final alpha = manager.addServer(
         serverId: 'https://alpha.example.com',
@@ -1266,16 +1221,29 @@ void main() {
       _loginEntry(alpha);
       _loginEntry(beta);
 
-      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpWidget(_buildApp(
+        serverManager: manager,
+        discover: (_, __) async {
+          throw const NetworkException(message: 'timed out', isTimeout: true);
+        },
+      ));
       await tester.pumpAndSettle();
       double top(ServerEntry entry) =>
           tester.getTopLeft(find.text(entry.listLabel)).dy;
       expect(top(alpha), lessThan(top(beta)));
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
 
       alpha.auth.logout();
       await tester.pumpAndSettle();
 
       expect(top(beta), lessThan(top(alpha)));
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+
+      await tester.tap(find.text(alpha.listLabel));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lobby placeholder'), findsNothing);
+      expect(find.textContaining('timed out'), findsOneWidget);
     });
 
     testWidgets(
