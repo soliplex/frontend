@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -244,6 +245,38 @@ void main() {
       expect(session.accessToken, 'new-access');
       final active = session.session.value as ActiveSession;
       expect(active.tokens.refreshToken, 'new-refresh');
+    });
+
+    test('a refresh returning an empty id_token keeps the stored one',
+        () async {
+      // The real service, so the IdP's JSON goes through its parsing.
+      final idp = FakeHttpClient()
+        ..onRequest = (method, uri) async => HttpResponse(
+              statusCode: 200,
+              bodyBytes: Uint8List.fromList(utf8.encode(jsonEncode(
+                method == 'GET'
+                    ? {'token_endpoint': 'https://auth.example.com/token'}
+                    : {'access_token': 'new-access', 'id_token': ''},
+              ))),
+            );
+      final session = AuthSession(
+        refreshService: TokenRefreshService(httpClient: idp),
+      );
+      session.login(
+        provider: _provider,
+        tokens: AuthTokens(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresAt: DateTime.now().add(const Duration(seconds: 30)),
+          idToken: 'id-1',
+        ),
+      );
+
+      expect(await session.tryRefresh(), isTrue);
+
+      final active = session.session.value as ActiveSession;
+      expect(active.tokens.accessToken, 'new-access');
+      expect(active.tokens.idToken, 'id-1');
     });
 
     test('invalidGrant flips to ExpiredSession preserving tokens', () async {

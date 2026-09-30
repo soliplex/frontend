@@ -4,6 +4,27 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import '../../helpers/test_server_entry.dart';
 
 void main() {
+  group('hasSession', () {
+    test('is false for a no-auth server and a signed-out one', () {
+      expect(createTestServerEntry().hasSession, isFalse);
+      expect(createTestServerEntry(requiresAuth: true).hasSession, isFalse);
+    });
+
+    test('is true while active and after expiry', () {
+      final auth = authInActiveSession();
+      final entry = createTestServerEntry(requiresAuth: true, auth: auth);
+      expect(entry.hasSession, isTrue);
+      auth.markSessionExpired();
+      expect(entry.hasSession, isTrue);
+      expect(entry.isConnected, isFalse);
+    });
+
+    test('is true for a no-auth server that holds tokens', () {
+      final entry = createTestServerEntry(auth: authInActiveSession());
+      expect(entry.hasSession, isTrue);
+    });
+  });
+
   group('displayName', () {
     test('uses the human-readable name when present', () {
       final entry = createTestServerEntry(

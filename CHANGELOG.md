@@ -38,6 +38,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- A server whose session has expired can now be logged out of from the
+  lobby. Logging out of it, or removing it from the lobby or the home screen,
+  also ends the identity provider's session, so adding it again asks for
+  credentials instead of signing straight back in. If that sign-out fails, the
+  server stays, with options to try again or remove it anyway.
+- On web, signing out of a server or removing it now saves the change before
+  the browser leaves for the identity provider.
+- A failed sign-out now says what went wrong in a plain sentence. It no longer
+  shows or logs the text the sign-in library returned, which on iPhone, iPad or
+  Mac could include the session's ID token.
+- On the home screen, a server signed out in the background (for example
+  after inactivity) now shows its remove button and moves to the signed-out
+  group straight away.
 - A thread whose stored `citation_index` holds an entry the app cannot read
   (not an object, or missing or mistyping a required field), or whose `rag`
   `citation_index` is null or not a map, can be sent to again. haiku.rag

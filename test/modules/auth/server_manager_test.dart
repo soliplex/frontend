@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -153,13 +155,58 @@ void main() {
       expect(manager.registry['test'], isNull);
     });
 
-    test('missing serverId throws StateError', () {
-      final manager = _createManager();
-
-      expect(
-        () => manager.removeServer('nonexistent'),
-        throwsStateError,
+    test('removing an unknown serverId is a no-op', () async {
+      final storage = InMemoryServerStorage();
+      final manager = _createManager(storage: storage);
+      final entry = manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
       );
+      entry.auth.login(provider: _provider, tokens: _tokens());
+      await pumpEventQueue();
+      final savesBefore = storage.saveCount;
+      final removed = <String>[];
+      manager.onServerRemoved(removed.add);
+
+      expect(() => manager.removeServer('nonexistent'), returnsNormally);
+      await pumpEventQueue();
+
+      expect(storage.saveCount, savesBefore);
+      expect(storage.deleteCount, 0);
+      expect((await storage.loadAll())['test'], isA<AuthenticatedServer>());
+      expect(removed, isEmpty);
+    });
+  });
+
+  group('whenPersisted', () {
+    test('waits for a pending save and the delete queued after it', () async {
+      final storage = InMemoryServerStorage();
+      final manager = _createManager(storage: storage);
+      final releaseSaves = Completer<void>();
+      final releaseDelete = Completer<void>();
+      storage.writesHeldUntil = releaseSaves.future;
+      storage.deletesHeldUntil = releaseDelete.future;
+      final entry = manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      entry.auth.login(provider: _provider, tokens: _tokens());
+      manager.removeServer('test');
+      var persisted = false;
+      unawaited(manager.whenPersisted('test').then((_) => persisted = true));
+
+      await pumpEventQueue();
+      expect(persisted, isFalse);
+
+      releaseSaves.complete();
+      await pumpEventQueue();
+      expect((await storage.loadAll())['test'], isA<AuthenticatedServer>());
+      expect(persisted, isFalse);
+
+      releaseDelete.complete();
+      await pumpEventQueue();
+      expect(persisted, isTrue);
+      expect(await storage.loadAll(), isEmpty);
     });
   });
 

@@ -27,6 +27,7 @@ void main() {
         discoveryUrl: 'https://example.com/.well-known/openid-configuration',
       ),
     );
+    registerFallbackValue(EndSessionRequest());
   });
 
   setUp(() {
@@ -223,6 +224,71 @@ void main() {
         () => appAuth.authorizeAndExchangeCode(captureAny()),
       ).captured.single as AuthorizationTokenRequest;
       expect(captured.additionalParameters, equals({'prompt': 'login'}));
+    });
+  });
+
+  group('NativeAuthFlow endSession failure', () {
+    const token = 'eyJhbGciOiJSUzI1NiJ9.secret-id-token';
+    const leakyText = 'State mismatch for '
+        'https://idp.example.com/logout?id_token_hint=$token';
+    final leakyDetails = FlutterAppAuthPlatformErrorDetails(
+      errorDescription: leakyText,
+      errorDebugDescription: leakyText,
+      rootCauseDebugDescription: leakyText,
+    );
+
+    // A known origin, so the test can tell the plugin's frames were kept.
+    final origin = StackTrace.fromString('#0 appAuthEndSession (plugin.dart)');
+
+    Future<(AuthException, StackTrace)> captureEndSession(
+      PlatformException failure,
+    ) async {
+      when(() => appAuth.endSession(any()))
+          .thenAnswer((_) => Future.error(failure, origin));
+      try {
+        await flow.endSession(
+          discoveryUrl:
+              'https://idp.example.com/.well-known/openid-configuration',
+          endSessionEndpoint: null,
+          idToken: token,
+          clientId: 'cid',
+        );
+        fail('expected throw');
+      } on AuthException catch (e, st) {
+        return (e, st);
+      }
+    }
+
+    test('a failure becomes an unknown AuthException with fixed text',
+        () async {
+      final (e, st) = await captureEndSession(
+        FlutterAppAuthPlatformException(
+          code: 'end_session_failed',
+          message: leakyText,
+          legacyDetails: {'error_debug_description': leakyText},
+          platformErrorDetails: leakyDetails,
+        ),
+      );
+
+      expect(e.kind, AuthFailureKind.unknown);
+      expect(e.toString(), isNot(contains(token)));
+      expect(st.toString(), origin.toString());
+    });
+
+    test('a cancellation becomes a cancelled AuthException with fixed text',
+        () async {
+      final (e, st) = await captureEndSession(
+        FlutterAppAuthUserCancelledException(
+          code: 'end_session_failed',
+          message: leakyText,
+          legacyDetails: {'error_debug_description': leakyText},
+          platformErrorDetails: leakyDetails,
+        ),
+      );
+
+      expect(e.kind, AuthFailureKind.cancelled);
+      expect(e.toString(), isNot(contains(token)));
+      expect(st.toString(), origin.toString());
     });
   });
 }

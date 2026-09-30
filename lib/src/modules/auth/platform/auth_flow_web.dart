@@ -77,7 +77,7 @@ class WebAuthFlow implements AuthFlow {
   Future<void> endSession({
     required String discoveryUrl,
     required String? endSessionEndpoint,
-    required String idToken,
+    required String? idToken,
     required String clientId,
   }) async {
     if (endSessionEndpoint == null) return;
@@ -89,7 +89,7 @@ class WebAuthFlow implements AuthFlow {
         ...baseUri.queryParameters,
         'post_logout_redirect_uri': frontendOrigin,
         'client_id': clientId,
-        if (idToken.isNotEmpty) 'id_token_hint': idToken,
+        if (idToken != null) 'id_token_hint': idToken,
       },
     );
 

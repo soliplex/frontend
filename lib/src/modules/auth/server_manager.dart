@@ -170,11 +170,11 @@ class ServerManager {
     };
   }
 
+  /// Permanently removes [serverId] and deletes its stored record. An unknown
+  /// id is a no-op: nothing is logged, dispatched or written.
   void removeServer(String serverId) {
     final entry = _servers.value[serverId];
-    if (entry == null) {
-      throw StateError('No server entry for "$serverId"');
-    }
+    if (entry == null) return;
 
     // Deliberate, destructive, and the only in-app action that clears a
     // server's stored credentials — so it belongs on the timeline of a field
@@ -224,6 +224,11 @@ class ServerManager {
       );
     });
   }
+
+  /// Completes when every save or delete queued so far for [serverId] has
+  /// settled. A failed write is logged by the queue and still completes it.
+  Future<void> whenPersisted(String serverId) =>
+      _persistQueue[serverId] ?? Future.value();
 
   /// Restores servers from persistent storage.
   Future<void> restoreServers() async {

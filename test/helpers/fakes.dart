@@ -170,7 +170,7 @@ class FakeAuthFlow implements AuthFlow {
   Future<void> endSession({
     required String discoveryUrl,
     required String? endSessionEndpoint,
-    required String idToken,
+    required String? idToken,
     required String clientId,
   }) async {
     endSessionCalled = true;
@@ -191,6 +191,7 @@ class RecordingAuthFlow implements AuthFlow {
 
   bool endSessionCalled = false;
   String? lastEndSessionEndpoint;
+  String? lastIdToken;
 
   @override
   Future<AuthResult> authenticate(
@@ -205,11 +206,12 @@ class RecordingAuthFlow implements AuthFlow {
   Future<void> endSession({
     required String discoveryUrl,
     required String? endSessionEndpoint,
-    required String idToken,
+    required String? idToken,
     required String clientId,
   }) async {
     endSessionCalled = true;
     lastEndSessionEndpoint = endSessionEndpoint;
+    lastIdToken = idToken;
     onEndSession?.call();
     if (endSessionError != null) throw endSessionError!;
   }
@@ -714,15 +716,28 @@ class InMemoryInactivityLogoutFlagStorage
 class InMemoryServerStorage implements ServerStorage {
   final Map<String, PersistedServer> _store = {};
   int saveCount = 0;
+  int deleteCount = 0;
+
+  /// When set, [save] and [delete] write only once it completes, so a test
+  /// can hold a write pending.
+  Future<void>? writesHeldUntil;
+
+  /// When set, [delete] also waits for it, so a test can release saves while
+  /// a delete stays pending.
+  Future<void>? deletesHeldUntil;
 
   @override
   Future<void> save(String serverId, PersistedServer data) async {
+    if (writesHeldUntil case final held?) await held;
     saveCount++;
     _store[serverId] = data;
   }
 
   @override
   Future<void> delete(String serverId) async {
+    if (writesHeldUntil case final held?) await held;
+    if (deletesHeldUntil case final held?) await held;
+    deleteCount++;
     _store.remove(serverId);
   }
 

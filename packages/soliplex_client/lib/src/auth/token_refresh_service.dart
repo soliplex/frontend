@@ -30,7 +30,8 @@ class TokenRefreshSuccess extends TokenRefreshResult {
   /// When the access token expires.
   final DateTime expiresAt;
 
-  /// New ID token if returned by IdP, null otherwise.
+  /// New ID token if returned by IdP, null otherwise. An empty `id_token`
+  /// counts as not returned.
   ///
   /// Per OIDC Core 1.0 Section 12.2, refresh token responses "might not
   /// contain an id_token." Whether an IdP returns a new id_token depends on
@@ -257,11 +258,13 @@ class TokenRefreshService {
     final newRefreshToken =
         tokenData['refresh_token'] as String? ?? originalRefreshToken;
 
+    final idToken = tokenData['id_token'] as String?;
+
     return TokenRefreshSuccess(
       accessToken: accessToken,
       refreshToken: newRefreshToken,
       expiresAt: expiresAt,
-      idToken: tokenData['id_token'] as String?,
+      idToken: idToken == '' ? null : idToken,
     );
   }
 }

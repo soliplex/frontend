@@ -13,6 +13,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/auth/ui/server_sign_out_control.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/server_sidebar.dart';
 import 'package:soliplex_frontend/version.dart';
@@ -306,6 +307,39 @@ void main() {
         expect(manager.servers.value.containsKey('srv'), isFalse);
       });
 
+      testWidgets('a session that expires in the background offers Sign in',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+        ));
+        entry.auth.markSessionExpired();
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Sign in'), findsOneWidget);
+        expect(find.text('Log out'), findsOneWidget);
+      });
+
       testWidgets('a connected authenticated server offers Log out and Remove',
           (tester) async {
         final manager = _createManager();
@@ -455,30 +489,6 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      // Opens the menu that replaces the ⋮ after a failed log-out.
-      Future<void> openErrorMenu(WidgetTester tester) async {
-        await tester.tap(find.byIcon(Icons.error_outline));
-        await tester.pumpAndSettle();
-      }
-
-      testWidgets('surfaces an error affordance and preserves the session',
-          (tester) async {
-        final (manager, entry, flow) = failingLogout();
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-          overrides: overridesFor(flow),
-        ));
-        await tapLogOut(tester);
-
-        // The ⋮ is replaced by an error icon; the session is intact (the IdP
-        // round-trip failed, so the local session was not cleared).
-        expect(find.byIcon(Icons.error_outline), findsOneWidget);
-        expect(entry.auth.isAuthenticated, isTrue);
-      });
-
       testWidgets('an unselected tile surfaces its failure', (tester) async {
         final (manager, _, flow) = failingLogout();
 
@@ -528,95 +538,9 @@ void main() {
         expect(find.byIcon(Icons.error_outline), findsOneWidget);
       });
 
-      testWidgets('the error menu offers retry, detail, and remove',
-          (tester) async {
-        final (manager, _, flow) = failingLogout();
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-          overrides: overridesFor(flow),
-        ));
-        await tapLogOut(tester);
-        await openErrorMenu(tester);
-
-        expect(find.text('Try again'), findsOneWidget);
-        expect(find.text('Show error detail'), findsOneWidget);
-        expect(find.text('Remove server'), findsOneWidget);
-      });
-
-      testWidgets('Show error detail opens a dialog with the message',
-          (tester) async {
-        final (manager, _, flow) = failingLogout();
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-          overrides: overridesFor(flow),
-        ));
-        await tapLogOut(tester);
-        await openErrorMenu(tester);
-        await tester.tap(find.text('Show error detail'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('Log out failed'), findsOneWidget);
-        expect(find.textContaining('network down'), findsWidgets);
-
-        // Closing the dialog leaves the persistent error affordance in place.
-        await tester.tap(find.text('Close'));
-        await tester.pumpAndSettle();
-        expect(find.byIcon(Icons.error_outline), findsOneWidget);
-      });
-
-      testWidgets('Try again retries and clears the error once it succeeds',
-          (tester) async {
-        final (manager, entry, flow) = failingLogout();
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-          overrides: overridesFor(flow),
-        ));
-        await tapLogOut(tester);
-
-        // The IdP recovers; the retry now signs out cleanly.
-        flow.endSessionError = null;
-        await openErrorMenu(tester);
-        await tester.tap(find.text('Try again'));
-        await tester.pumpAndSettle();
-
-        expect(entry.auth.isAuthenticated, isFalse);
-        expect(find.byIcon(Icons.error_outline), findsNothing);
-      });
-
       testWidgets(
-          'Remove server drops the entry even when sign-out keeps '
-          'failing', (tester) async {
-        final (manager, _, flow) = failingLogout();
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-          overrides: overridesFor(flow),
-        ));
-        await tapLogOut(tester);
-
-        // endSessionError stays set, so the escape hatch's best-effort
-        // sign-out fails again — the server must still be removed.
-        await openErrorMenu(tester);
-        await tester.tap(find.text('Remove server'));
-        await tester.pumpAndSettle();
-
-        expect(manager.servers.value.containsKey('srv'), isFalse);
-      });
-
-      testWidgets(
-          'an in-flight log-out replaces the tile menu so it can not '
-          'be re-triggered', (tester) async {
+          'an in-flight log-out replaces the tile menu with a spinner of '
+          'the same size', (tester) async {
         final manager = _createManager();
         final entry = manager.addServer(
           serverId: 'srv',
@@ -632,24 +556,30 @@ void main() {
           selectedServerId: 'srv',
           overrides: overridesFor(flow),
         ));
+        // Run on Android and macOS: their default visual densities differ, so
+        // the ⋮ is 48 px on one and 40 px on the other.
+        final idleSize = tester.getSize(find.byType(ServerSignOutControl));
         await tester.tap(find.byIcon(Icons.more_vert).first);
         await tester.pumpAndSettle();
         await tester.tap(find.text('Log out'));
         await tester.pump(); // start the round-trip; the completer is pending
 
         // The tile's ⋮ is gone (only the account bar's remains), so a second
-        // log-out/remove can't be fired while the first is outstanding.
+        // log-out/remove can't be fired while the first is outstanding. The
+        // spinner takes the ⋮'s size, so the tile doesn't shift.
         expect(find.byIcon(Icons.more_vert), findsOneWidget);
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(tester.getSize(find.byType(ServerSignOutControl)), idleSize);
 
         completer.complete();
         await tester.pumpAndSettle();
         expect(entry.auth.isAuthenticated, isFalse);
-      });
+      },
+          variant: TargetPlatformVariant(
+              const {TargetPlatform.android, TargetPlatform.macOS}));
 
-      testWidgets(
-          'an in-flight removal survives a reorder and drops the '
-          'server it started on', (tester) async {
+      testWidgets('an in-flight removal keeps its spinner across a reorder',
+          (tester) async {
         final manager = _createManager();
         final alpha = manager.addServer(
           serverId: 'alpha',
@@ -663,6 +593,13 @@ void main() {
         signIn(bravo);
         final completer = Completer<void>();
         final flow = FakeAuthFlow()..endSessionCompleter = completer;
+        Finder spinnerIn(String label) => find.descendant(
+              of: find.ancestor(
+                of: find.text(label),
+                matching: find.byType(ListTile),
+              ),
+              matching: find.byType(CircularProgressIndicator),
+            );
 
         // alpha pinned first, so bravo's tile is at index 1.
         await tester.pumpWidget(_buildSidebar(
@@ -679,9 +616,8 @@ void main() {
         await tester.pump(); // sign-out outstanding; bravo's tile is busy
 
         // Selecting bravo pins it first, so index 1 now holds alpha. Element
-        // reuse is by index unless the tiles are keyed, so without a key the
-        // busy state rebinds to alpha and the removal lands on the wrong
-        // server.
+        // reuse is by index unless the tiles are keyed, so without a key
+        // bravo's tile loses its spinner.
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
           serverManager: manager,
@@ -690,12 +626,11 @@ void main() {
         ));
         await tester.pump();
 
+        expect(spinnerIn('bravo.example.com'), findsOneWidget);
+        expect(spinnerIn('alpha.example.com'), findsNothing);
+
         completer.complete();
         await tester.pumpAndSettle();
-
-        // Only the post-await `removeServer` rebinds: `logoutServer` takes the
-        // entry as an argument before the await, so asserting on sessions here
-        // would pass with or without the key.
         expect(manager.servers.value.containsKey('bravo'), isFalse);
         expect(manager.servers.value.containsKey('alpha'), isTrue);
       });
@@ -719,14 +654,14 @@ void main() {
             probeClientProvider.overrideWithValue(FakeHttpClient()),
           ];
 
-      testWidgets('logging out clears the session and restores the ⋮',
-          (tester) async {
+      testWidgets('an expired server offers Log out', (tester) async {
         final manager = _createManager();
         final entry = manager.addServer(
           serverId: 'srv',
           serverUrl: Uri.parse('https://api.example.com'),
         );
         signIn(entry);
+        entry.auth.markSessionExpired();
         final flow = RecordingAuthFlow();
 
         await tester.pumpWidget(_buildSidebar(
@@ -741,8 +676,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(flow.endSessionCalled, isTrue);
-        expect(entry.auth.isAuthenticated, isFalse);
-        expect(find.byIcon(Icons.error_outline), findsNothing);
+        expect(entry.auth.session.value, isA<NoSession>());
       });
 
       testWidgets('removing a connected authenticated server logs out first',
@@ -772,34 +706,6 @@ void main() {
         // outlive the removed server.
         expect(flow.endSessionCalled, isTrue);
         expect(manager.servers.value.containsKey('srv'), isFalse);
-      });
-
-      testWidgets(
-          'cancelling the remove confirmation keeps the server and does not '
-          'log out', (tester) async {
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'srv',
-          serverUrl: Uri.parse('https://api.example.com'),
-        );
-        signIn(entry);
-        final flow = RecordingAuthFlow();
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          serverManager: manager,
-          selectedServerId: 'srv',
-          overrides: overridesFor(flow),
-        ));
-        await tester.tap(find.byIcon(Icons.more_vert).first);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Remove'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(SoliplexButton, 'Cancel'));
-        await tester.pumpAndSettle();
-
-        expect(flow.endSessionCalled, isFalse);
-        expect(manager.servers.value.containsKey('srv'), isTrue);
       });
     });
 

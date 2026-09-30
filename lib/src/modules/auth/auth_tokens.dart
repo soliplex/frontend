@@ -25,12 +25,12 @@ class OidcProvider {
 class AuthTokens {
   /// Assumed token lifetime when the server doesn't provide an expiry.
   static const defaultLifetime = Duration(hours: 1);
-  const AuthTokens({
+  AuthTokens({
     required this.accessToken,
     required this.refreshToken,
     required this.expiresAt,
-    this.idToken,
-  });
+    String? idToken,
+  }) : idToken = idToken == '' ? null : idToken;
 
   factory AuthTokens.fromJson(Map<String, dynamic> json) {
     return AuthTokens(
@@ -44,6 +44,8 @@ class AuthTokens {
   final String accessToken;
   final String refreshToken;
   final DateTime expiresAt;
+
+  /// An empty ID token is treated as absent.
   final String? idToken;
 
   Map<String, dynamic> toJson() => {
