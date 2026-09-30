@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../version.dart';
 import '../../../core/app_identity.dart';
-import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/menu_row.dart';
-import '../../auth/auth_providers.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
-import '../../auth/server_logout.dart';
 import '../../auth/server_manager.dart';
+import '../../auth/ui/server_sign_out_control.dart';
 import '../../auth/ui/server_status_dot.dart';
 import '../lobby_state.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -200,8 +197,8 @@ class _ServerList extends StatelessWidget {
           _ServerTile(
             // Keyed by server, because this list reorders (the pin, and rank
             // on sign-in). Without it ListView matches elements by index, so a
-            // reorder rebinds a tile's live log-out state to a different
-            // server and its post-await `removeServer` drops the wrong one.
+            // reorder drops a tile's live log-out state — its spinner or its
+            // error.
             key: ValueKey(entry.serverId),
             entry: entry,
             serverManager: serverManager,
@@ -250,12 +247,12 @@ class _ServerTileState extends State<_ServerTile> {
 
   /// Opens the trailing ⋮ menu from the tile's long-press and secondary tap.
   ///
-  /// `currentState` is null exactly while a log-out is outstanding or has
-  /// failed, because the menu is not built then — the slot holds a spinner or
-  /// an error button — so the gestures go inert without a flag to keep in
-  /// step. A hidden menu is still built (`Visibility.maintainState`), which is
-  /// what lets an unselected tile, the case with no visible ⋮, answer the
-  /// gesture at all.
+  /// `currentState` is null exactly while a log-out is outstanding or its
+  /// failure is showing, because the menu is not built then — the slot holds a
+  /// spinner or an error button — so the gestures go inert without a flag to
+  /// keep in step. A hidden menu is still built (`Visibility.maintainState`),
+  /// which is what lets an unselected tile, the case with no visible ⋮, answer
+  /// the gesture at all.
   final _menuKey = GlobalKey<PopupMenuButtonState<_ServerTileAction>>();
 
   @override
@@ -267,7 +264,7 @@ class _ServerTileState extends State<_ServerTile> {
     // The ⋮ reveals on hover (desktop); the selected tile keeps it shown so the
     // actions stay reachable without a mouse (touch, or the active server). A
     // hidden ⋮ still holds its space, so revealing one does not shift the
-    // title — see [_ServerTileMenuState.build], which also decides that a
+    // title — see [_ServerTileMenu.build], which also decides that a
     // spinner or an error ignores this flag entirely.
     final showMenu = _hovered || widget.selected;
     return MouseRegion(
@@ -331,32 +328,11 @@ String _signedInName(UserProfile? profile) {
 /// depends on the server's connection state (see [_ServerTileMenu]).
 enum _ServerTileAction { signIn, logOut, markAllRead, copyAddress, remove }
 
-/// What happens to the entry after a log-out attempt. The error-menu escape
-/// hatch (remove even when sign-out fails) is a third outcome beyond "keep"
-/// and "remove on a clean sign-out", so the disposition needs an enum, not a
-/// boolean.
-enum _AfterLogout {
-  /// Plain "Log out": clear the session, keep the entry.
-  keep,
-
-  /// Plain "Remove" on a connected, authenticated server: remove only after a
-  /// clean sign-out; a failure keeps the entry and surfaces the error.
-  removeOnSuccess,
-
-  /// "Remove server" from the error menu: attempt a sign-out but remove the
-  /// entry regardless of the outcome, so a server whose IdP logout keeps
-  /// failing can still be removed.
-  removeRegardless,
-}
-
 /// A server tile's ⋮ menu: sign in / log out / remove, scoped to one
-/// [ServerEntry]. Owns its own log-out in-flight state (a spinner replaces the
-/// ⋮ while the IdP round-trip runs) and reads the auth providers directly so
-/// the destructive actions don't have to be threaded as async callbacks up
-/// through the lobby. A log-out failure preserves the local session (see
-/// [logoutServer]) and swaps the ⋮ for a [_LogoutErrorButton] surfacing the
-/// failure.
-class _ServerTileMenu extends ConsumerStatefulWidget {
+/// [ServerEntry]. Log out and remove go through [ServerSignOutControl], which
+/// replaces the ⋮ with a spinner while the IdP round-trip runs and with an
+/// error button when it fails.
+class _ServerTileMenu extends StatelessWidget {
   const _ServerTileMenu({
     required this.menuKey,
     required this.revealed,
@@ -372,7 +348,7 @@ class _ServerTileMenu extends ConsumerStatefulWidget {
   final GlobalKey<PopupMenuButtonState<_ServerTileAction>> menuKey;
 
   /// Whether the idle ⋮ is shown. A spinner or an error ignores this and shows
-  /// regardless — see [_ServerTileMenuState.build].
+  /// regardless — see [build].
   final bool revealed;
 
   final ServerEntry entry;
@@ -380,54 +356,12 @@ class _ServerTileMenu extends ConsumerStatefulWidget {
   final VoidCallback onSignIn;
   final VoidCallback onMarkAllRead;
 
-  @override
-  ConsumerState<_ServerTileMenu> createState() => _ServerTileMenuState();
-}
-
-class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
-  bool _busy = false;
-  _LogoutFailure? _failure;
-
-  Future<void> _handle(_ServerTileAction action) async {
-    switch (action) {
-      case _ServerTileAction.signIn:
-        widget.onSignIn();
-      case _ServerTileAction.logOut:
-        await _runLogout(_AfterLogout.keep);
-      case _ServerTileAction.markAllRead:
-        widget.onMarkAllRead();
-      case _ServerTileAction.copyAddress:
-        await _copyAddress();
-      case _ServerTileAction.remove:
-        final signsOut = widget.entry.isConnected && widget.entry.requiresAuth;
-        final confirmed = await showConfirmDialog(
-          context,
-          title: 'Remove server?',
-          message: signsOut
-              ? "You'll be signed out of '${widget.entry.displayName}' and it "
-                  "will be removed. You'll need to add it again to reconnect."
-              : "Remove '${widget.entry.displayName}'? "
-                  "You'll need to add it again to reconnect.",
-          confirmLabel: 'Remove',
-          isDestructive: true,
-        );
-        if (!confirmed || !mounted) return;
-        // A connected, authenticated server logs out first so the IdP session
-        // doesn't outlive the removed entry; everything else removes outright.
-        if (signsOut) {
-          await _runLogout(_AfterLogout.removeOnSuccess);
-        } else {
-          widget.serverManager.removeServer(widget.entry.serverId);
-        }
-    }
-  }
-
   /// Copies the server's full address to the clipboard and confirms with a
   /// SnackBar. Captures the messenger before the async gap so the post-await
   /// use doesn't depend on a possibly-unmounted context.
-  Future<void> _copyAddress() async {
+  Future<void> _copyAddress(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    final address = formatServerUrl(widget.entry.serverUrl);
+    final address = formatServerUrl(entry.serverUrl);
     try {
       await Clipboard.setData(ClipboardData(text: address));
     } on Exception catch (e, st) {
@@ -446,231 +380,74 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
     );
   }
 
-  Future<void> _runLogout(_AfterLogout then) async {
-    setState(() {
-      _busy = true;
-      _failure = null;
-    });
-    try {
-      await logoutServer(
-        entry: widget.entry,
-        authFlow: ref.read(authFlowProvider),
-        probeClient: ref.read(probeClientProvider),
-      );
-      switch (then) {
-        case _AfterLogout.keep:
-          break;
-        case _AfterLogout.removeOnSuccess:
-        case _AfterLogout.removeRegardless:
-          widget.serverManager.removeServer(widget.entry.serverId);
-      }
-    } catch (e, st) {
-      switch (then) {
-        case _AfterLogout.removeRegardless:
-          // The user chose to remove despite a failing sign-out; honour it and
-          // drop the entry, logging the swallowed error (the IdP session may
-          // outlive the entry — the accepted cost of the escape hatch).
-          _logger.warning(
-            'Logout failed; removing the server anyway',
-            error: e,
-            stackTrace: st,
-          );
-          widget.serverManager.removeServer(widget.entry.serverId);
-          return;
-        case _AfterLogout.keep:
-        case _AfterLogout.removeOnSuccess:
-          // On the remove path a failure means the server was kept (the entry
-          // is removed only after a clean sign-out) — distinguish it in the log
-          // and, via [_LogoutFailure.removalWasIntended], in the surfaced
-          // message.
-          final removalWasIntended = then == _AfterLogout.removeOnSuccess;
-          _logger.warning(
-            removalWasIntended ? 'Logout failed; server kept' : 'Logout failed',
-            error: e,
-            stackTrace: st,
-          );
-          if (mounted) {
-            setState(() => _failure = _LogoutFailure(
-                  message: friendlyLogoutError(e),
-                  removalWasIntended: removalWasIntended,
-                ));
-          }
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // A spinner and an error both show unconditionally: only the idle ⋮ is
-    // hidden by [_ServerTileMenu.revealed]. An outcome the user cannot see is
-    // worse than a busy-looking tile, and a long-press can start a removal on
-    // a tile that never reveals its ⋮ — hiding the result would leave the
-    // failure with nowhere to appear.
-    if (_busy) {
-      return const SizedBox.square(
-        dimension: 24,
-        child: Padding(
-          padding: EdgeInsets.all(SoliplexSpacing.s1),
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
-    final failure = _failure;
-    if (failure != null) {
-      return _LogoutErrorButton(
-        failure: failure,
-        onRetry: () => _runLogout(
-          failure.removalWasIntended
-              ? _AfterLogout.removeOnSuccess
-              : _AfterLogout.keep,
-        ),
-        onRemove: () => _runLogout(_AfterLogout.removeRegardless),
-      );
-    }
-    final entry = widget.entry;
-    final connected = entry.isConnected;
-    return Visibility(
-      visible: widget.revealed,
-      maintainSize: true,
-      maintainAnimation: true,
-      maintainState: true,
-      child: PopupMenuButton<_ServerTileAction>(
-        key: widget.menuKey,
-        icon: const Icon(Icons.more_vert),
-        tooltip: 'Server actions',
-        onSelected: _handle,
-        itemBuilder: (context) => [
-          if (!connected)
+    // hidden by [revealed]. An outcome the user cannot see is worse than a
+    // busy-looking tile, and a long-press can start a removal on a tile that
+    // never reveals its ⋮ — hiding the result would leave the failure with
+    // nowhere to appear.
+    return ServerSignOutControl(
+      entry: entry,
+      serverManager: serverManager,
+      idleBuilder: (context, {required signOut, required remove}) => Visibility(
+        visible: revealed,
+        maintainSize: true,
+        maintainAnimation: true,
+        maintainState: true,
+        child: PopupMenuButton<_ServerTileAction>(
+          key: menuKey,
+          icon: const Icon(Icons.more_vert),
+          tooltip: 'Server actions',
+          onSelected: (action) {
+            switch (action) {
+              case _ServerTileAction.signIn:
+                onSignIn();
+              case _ServerTileAction.logOut:
+                signOut();
+              case _ServerTileAction.markAllRead:
+                onMarkAllRead();
+              case _ServerTileAction.copyAddress:
+                _copyAddress(context);
+              case _ServerTileAction.remove:
+                remove();
+            }
+          },
+          itemBuilder: (context) => [
+            if (!entry.isConnected)
+              const PopupMenuItem(
+                value: _ServerTileAction.signIn,
+                child: MenuRow(icon: Icons.login, label: 'Sign in'),
+              ),
+            if (entry.hasSession)
+              const PopupMenuItem(
+                value: _ServerTileAction.logOut,
+                child: MenuRow(icon: Icons.logout, label: 'Log out'),
+              ),
             const PopupMenuItem(
-              value: _ServerTileAction.signIn,
-              child: MenuRow(icon: Icons.login, label: 'Sign in'),
+              value: _ServerTileAction.markAllRead,
+              child: MenuRow(
+                icon: Icons.mark_chat_read_outlined,
+                label: 'Mark all as read',
+              ),
             ),
-          if (connected && entry.requiresAuth)
             const PopupMenuItem(
-              value: _ServerTileAction.logOut,
-              child: MenuRow(icon: Icons.logout, label: 'Log out'),
+              value: _ServerTileAction.copyAddress,
+              child: MenuRow(
+                icon: Icons.content_copy,
+                label: 'Copy server address',
+              ),
             ),
-          const PopupMenuItem(
-            value: _ServerTileAction.markAllRead,
-            child: MenuRow(
-              icon: Icons.mark_chat_read_outlined,
-              label: 'Mark all as read',
+            PopupMenuItem(
+              value: _ServerTileAction.remove,
+              child: MenuRow(
+                icon: Icons.delete_outline,
+                label: 'Remove',
+                destructive: true,
+              ),
             ),
-          ),
-          const PopupMenuItem(
-            value: _ServerTileAction.copyAddress,
-            child: MenuRow(
-              icon: Icons.content_copy,
-              label: 'Copy server address',
-            ),
-          ),
-          PopupMenuItem(
-            value: _ServerTileAction.remove,
-            child: MenuRow(
-              icon: Icons.delete_outline,
-              label: 'Remove',
-              destructive: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A captured log-out failure: the user-facing [message] and whether the user
-/// had asked to remove the server ([removalWasIntended]), in which case the
-/// server is kept rather than removed because the sign-out failed.
-class _LogoutFailure {
-  const _LogoutFailure({
-    required this.message,
-    required this.removalWasIntended,
-  });
-
-  final String message;
-  final bool removalWasIntended;
-}
-
-/// The actions on a tile's error menu (see [_LogoutErrorButton]).
-enum _ErrorAction { retry, showDetail, remove }
-
-/// Replaces a tile's ⋮ after a failed log-out: a red error icon that opens the
-/// same kind of menu the tile normally carries, with **Try again** /
-/// **Show error detail** / **Remove server**. The icon tooltip carries the
-/// message for a desktop hover; "Show error detail" surfaces the full text for
-/// a touch user. The failure lives in the menu's widget state, so it shows
-/// until the user retries successfully, removes the server, or the menu is
-/// disposed — navigating away from the lobby resets the tile to its normal ⋮,
-/// leaving the kept session untouched. "Remove server" is the escape hatch for
-/// a sign-out that keeps failing (see [_AfterLogout.removeRegardless]).
-class _LogoutErrorButton extends StatelessWidget {
-  const _LogoutErrorButton({
-    required this.failure,
-    required this.onRetry,
-    required this.onRemove,
-  });
-
-  final _LogoutFailure failure;
-  final VoidCallback onRetry;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_ErrorAction>(
-      icon: Icon(
-        Icons.error_outline,
-        color: Theme.of(context).colorScheme.error,
-      ),
-      tooltip: failure.message,
-      onSelected: (action) {
-        switch (action) {
-          case _ErrorAction.retry:
-            onRetry();
-          case _ErrorAction.showDetail:
-            _showDetail(context);
-          case _ErrorAction.remove:
-            onRemove();
-        }
-      },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
-          value: _ErrorAction.retry,
-          child: MenuRow(icon: Icons.refresh, label: 'Try again'),
+          ],
         ),
-        PopupMenuItem(
-          value: _ErrorAction.showDetail,
-          child: MenuRow(icon: Icons.info_outline, label: 'Show error detail'),
-        ),
-        PopupMenuItem(
-          value: _ErrorAction.remove,
-          child: MenuRow(
-            icon: Icons.delete_outline,
-            label: 'Remove server',
-            destructive: true,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _showDetail(BuildContext context) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          failure.removalWasIntended
-              ? 'Server kept — sign-out failed'
-              : 'Log out failed',
-        ),
-        content: SelectableText(failure.message),
-        actions: [
-          SoliplexButton.text(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }

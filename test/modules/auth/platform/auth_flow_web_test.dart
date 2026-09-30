@@ -146,12 +146,12 @@ void main() {
       expect(navigator.lastNavigatedUrl, isNull);
     });
 
-    test('endSession omits id_token_hint when idToken is empty', () async {
+    test('endSession omits id_token_hint when there is no id token', () async {
       await authFlow.endSession(
         discoveryUrl:
             'https://sso.example.com/.well-known/openid-configuration',
         endSessionEndpoint: 'https://sso.example.com/logout',
-        idToken: '',
+        idToken: null,
         clientId: 'soliplex',
       );
 

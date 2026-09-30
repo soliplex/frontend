@@ -136,12 +136,21 @@ parameter it rejected, but never the value. Everything else is reduced to a
 type name, `StateError` and `UnsupportedError` included, because their text is
 supplied by whoever threw them.
 
-The rule does not fire when the record already carries the same value
-deliberately. `connection_probe.dart` logs `input`, `inputLength`, `candidates`
-and `hosts` as attributes, because a typed address with a stray character is a
-reported failure mode and the address is not a secret. Forwarding the
-`Uri.parse` failure beside them adds the offset of the offending character and
-no new value, so that site keeps `error:`.
+The rule does not fire when every value the catch can see is non-secret and is
+what makes the record actionable: hosts, public URLs (a discovery document's
+endpoints), status codes, and error codes — never a token, a credential, a
+callback query, or the content of a message or document. Keep `error:` there,
+and say in one comment at the catch which values it can carry and why they are
+safe. `connection_probe.dart` is one such site: it logs `input`, `inputLength`,
+`candidates` and `hosts` as attributes, because a typed address with a stray
+character is a reported failure mode and the address is not a secret, so
+forwarding the `Uri.parse` failure beside them adds the offset of the offending
+character and no new value. `ServerSignOutControl`, the caller of
+`logoutServer`, is another: what it catches is the discovery errors (hosts,
+public URLs, status codes) and the fixed-text `AuthException` that
+`NativeAuthFlow.endSession` throws in place of a platform failure — AppAuth on
+iOS and macOS can put the end-session URL, `id_token_hint` included, into the
+error's text.
 
 The rule does not reach network failures. A `SocketException` renders as a host
 and an OS error, and this codebase already logs hostnames as attributes

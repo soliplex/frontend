@@ -103,12 +103,15 @@ abstract interface class AuthFlow {
 
   /// End the OIDC session.
   ///
+  /// [idToken] is sent as `id_token_hint`; `null` when the session has none,
+  /// in which case the IdP may not tie the logout to a session.
+  ///
   /// Native: calls flutter_appauth endSession.
   /// Web: redirects to IdP end_session_endpoint if available.
   Future<void> endSession({
     required String discoveryUrl,
     required String? endSessionEndpoint,
-    required String idToken,
+    required String? idToken,
     required String clientId,
   });
 }

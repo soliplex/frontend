@@ -168,22 +168,41 @@ class NativeAuthFlow implements AuthFlow {
     return const AuthException('Sign-in failed', kind: AuthFailureKind.unknown);
   }
 
-  /// Propagates any [FlutterAppAuth] failure (user cancel, network,
-  /// IdP unreachable) to the caller; the local session is the caller's
-  /// to preserve or clear based on the platform's logout invariant.
+  /// Turns a [PlatformException] from [FlutterAppAuth] (user cancel,
+  /// network, IdP unreachable) into an [AuthException] with fixed text:
+  /// [AuthFailureKind.cancelled] for a user cancel, [AuthFailureKind.unknown]
+  /// otherwise, thrown with the original stack trace. The local session is the
+  /// caller's to preserve or clear based on the platform's logout invariant.
   @override
   Future<void> endSession({
     required String discoveryUrl,
     required String? endSessionEndpoint,
-    required String idToken,
+    required String? idToken,
     required String clientId,
   }) async {
-    await _appAuth.endSession(
-      EndSessionRequest(
-        idTokenHint: idToken,
-        discoveryUrl: discoveryUrl,
-        postLogoutRedirectUrl: _redirectUri,
-      ),
-    );
+    try {
+      await _appAuth.endSession(
+        EndSessionRequest(
+          idTokenHint: idToken,
+          discoveryUrl: discoveryUrl,
+          postLogoutRedirectUrl: _redirectUri,
+        ),
+      );
+    } on PlatformException catch (e, st) {
+      // AppAuth on iOS/macOS can put the end-session URL, `id_token_hint`
+      // included, into the error's text.
+      Error.throwWithStackTrace(
+        e is FlutterAppAuthUserCancelledException
+            ? const AuthException(
+                'Sign-out was cancelled',
+                kind: AuthFailureKind.cancelled,
+              )
+            : const AuthException(
+                'Sign-out with the identity provider failed',
+                kind: AuthFailureKind.unknown,
+              ),
+        st,
+      );
+    }
   }
 }

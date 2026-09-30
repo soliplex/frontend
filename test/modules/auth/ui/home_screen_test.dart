@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +19,7 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/connect_flow_rail.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/home_screen.dart';
+import 'package:soliplex_frontend/src/modules/auth/ui/server_sign_out_control.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/server_status_dot.dart';
 import 'package:soliplex_frontend/src/shared/markdown/prose_markdown.dart';
 import 'package:soliplex_frontend/version.dart';
@@ -1167,9 +1170,8 @@ void main() {
 
       // The icon belongs to the signed-out row. Asserting absence alone would
       // also pass if the rows stopped rendering icons altogether, so pin which
-      // row owns it. Removing the signed-in server would have to end the IdP
-      // session first — async and fallible, and this screen has no retry
-      // surface.
+      // row owns it. A connected server is removed from the lobby, which has a
+      // retry surface.
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
       expect(
         find.descendant(
@@ -1178,6 +1180,175 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('removing an expired server signs out of it first',
+        (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
+      );
+      _loginEntry(entry);
+      entry.auth.markSessionExpired();
+      final flow = FakeAuthFlow();
+
+      await tester
+          .pumpWidget(_buildApp(serverManager: manager, authFlow: flow));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      expect(find.textContaining("You'll be signed out"), findsOneWidget);
+      await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
+      await tester.pumpAndSettle();
+
+      expect(flow.endSessionCalled, isTrue);
+      expect(manager.servers.value, isEmpty);
+    });
+
+    testWidgets('a background sign-out shows the remove button',
+        (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
+      );
+      _loginEntry(entry);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+
+      entry.auth.logout();
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+    });
+
+    testWidgets('a background sign-out makes a tap connect, not enter lobby',
+        (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
+      );
+      _loginEntry(entry);
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: manager,
+        discover: (_, __) async {
+          throw const NetworkException(message: 'timed out', isTimeout: true);
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      entry.auth.logout();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(entry.listLabel));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lobby placeholder'), findsNothing);
+      expect(find.textContaining('timed out'), findsOneWidget);
+    });
+
+    testWidgets(
+        'a background sign-out moves the server to the signed-out group',
+        (tester) async {
+      final manager = _createServerManager();
+      final alpha = manager.addServer(
+        serverId: 'https://alpha.example.com',
+        serverUrl: Uri.parse('https://alpha.example.com'),
+      );
+      final beta = manager.addServer(
+        serverId: 'https://beta.example.com',
+        serverUrl: Uri.parse('https://beta.example.com'),
+      );
+      _loginEntry(alpha);
+      _loginEntry(beta);
+
+      await tester.pumpWidget(_buildApp(serverManager: manager));
+      await tester.pumpAndSettle();
+      double top(ServerEntry entry) =>
+          tester.getTopLeft(find.text(entry.listLabel)).dy;
+      expect(top(alpha), lessThan(top(beta)));
+
+      alpha.auth.logout();
+      await tester.pumpAndSettle();
+
+      expect(top(beta), lessThan(top(alpha)));
+    });
+
+    testWidgets(
+        'a spinner the size of the remove button replaces it while signing '
+        'out', (tester) async {
+      final manager = _createServerManager();
+      final entry = manager.addServer(
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
+      );
+      _loginEntry(entry);
+      entry.auth.markSessionExpired();
+      final flow = FakeAuthFlow()..endSessionCompleter = Completer<void>();
+
+      await tester
+          .pumpWidget(_buildApp(serverManager: manager, authFlow: flow));
+      await tester.pumpAndSettle();
+      // Run on Android and macOS: their default visual densities differ, so
+      // the button is 48 px on one and 40 px on the other.
+      final idleSize = tester.getSize(find.byType(ServerSignOutControl));
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.getSize(find.byType(ServerSignOutControl)), idleSize);
+
+      flow.endSessionCompleter!.complete();
+      await tester.pumpAndSettle();
+      expect(manager.servers.value, isEmpty);
+    },
+        variant: TargetPlatformVariant(
+            const {TargetPlatform.android, TargetPlatform.macOS}));
+
+    testWidgets('a failed sign-out stays with its server when the rows re-sort',
+        (tester) async {
+      final manager = _createServerManager();
+      final alpha = manager.addServer(
+        serverId: 'https://alpha.example.com',
+        serverUrl: Uri.parse('https://alpha.example.com'),
+      );
+      final bravo = manager.addServer(
+        serverId: 'https://bravo.example.com',
+        serverUrl: Uri.parse('https://bravo.example.com'),
+      );
+      _loginEntry(alpha);
+      alpha.auth.markSessionExpired();
+      final flow = FakeAuthFlow()..endSessionError = Exception('idp down');
+      Finder errorIn(ServerEntry entry) => find.descendant(
+            of: find.ancestor(
+              of: find.text(entry.listLabel),
+              matching: find.byType(ListTile),
+            ),
+            matching: find.byIcon(Icons.error_outline),
+          );
+
+      await tester
+          .pumpWidget(_buildApp(serverManager: manager, authFlow: flow));
+      await tester.pumpAndSettle();
+      // Both signed out, so alphabetical: alpha's row is first.
+      await tester.tap(find.byIcon(Icons.delete_outline).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
+      await tester.pumpAndSettle();
+      expect(errorIn(alpha), findsOneWidget);
+
+      // Signing bravo in moves it above alpha, into the signed-in group.
+      _loginEntry(bravo);
+      await tester.pumpAndSettle();
+
+      expect(errorIn(alpha), findsOneWidget);
     });
 
     testWidgets('a no-auth server is removable', (tester) async {

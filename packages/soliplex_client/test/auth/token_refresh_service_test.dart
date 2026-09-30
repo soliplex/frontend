@@ -132,6 +132,21 @@ void main() {
         expect(success.expiresAt.isBefore(expectedMax), isTrue);
       });
 
+      test('idToken is null when IdP returns an empty one', () async {
+        setupDiscoverySuccess();
+        setupTokenSuccess(accessToken: 'fresh-access', idToken: '');
+
+        final result = await service.refresh(
+          discoveryUrl: discoveryUrl,
+          refreshToken: refreshToken,
+          clientId: clientId,
+        );
+
+        expect(result, isA<TokenRefreshSuccess>());
+        final success = result as TokenRefreshSuccess;
+        expect(success.idToken, isNull);
+      });
+
       test('idToken is null when IdP does not return it', () async {
         setupDiscoverySuccess();
         setupTokenSuccess(accessToken: 'fresh-access');

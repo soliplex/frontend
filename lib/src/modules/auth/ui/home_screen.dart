@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../../core/routes.dart';
-import '../../../core/ui/confirm_dialog.dart';
 import '../../../shared/markdown/prose_markdown.dart';
 import '../../../status_message/status_message_dismissals.dart';
 import '../auth_providers.dart';
@@ -16,6 +16,7 @@ import '../server_entry.dart';
 import '../server_manager.dart';
 import 'connect_flow_rail.dart';
 import 'home_shell.dart';
+import 'server_sign_out_control.dart';
 import 'server_status_dot.dart';
 import '../../../shared/selectable_content.dart';
 import '../../../shared/type_to_focus.dart';
@@ -173,7 +174,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Connected() => _buildAuthenticating(context),
           },
           if (servers.isNotEmpty && state is UrlInput)
-            ..._buildServerSection(context, servers),
+            // In a Watch so a session change without a server-map mutation
+            // (an inactivity logout, an expiry) re-sorts the list and
+            // re-renders each row's trailing and tap target: a router refresh
+            // to the same location doesn't rebuild the page.
+            Watch(
+              (context) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _buildServerSection(context, servers),
+              ),
+            ),
         ],
       ),
     );
@@ -580,21 +591,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // -- Server section --
 
-  Future<void> _confirmRemoveServer(
-    BuildContext context,
-    ServerEntry entry,
-  ) async {
-    final confirmed = await showConfirmDialog(
-      context,
-      title: 'Remove server?',
-      message: "Remove '${entry.displayName}'? "
-          "You'll need to add it again to reconnect.",
-      confirmLabel: 'Remove',
-      isDestructive: true,
-    );
-    if (confirmed) widget.serverManager.removeServer(entry.serverId);
-  }
-
   List<Widget> _buildServerSection(
     BuildContext context,
     Map<String, ServerEntry> servers,
@@ -628,6 +624,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       for (final entry in visibleServers)
         ListTile(
+          // Keyed by server, because these rows re-sort on a session change;
+          // matched by index, a row would drop its sign-out spinner or error.
+          key: ValueKey(entry.serverId),
           leading: ServerStatusDot.leadingSlot(entry),
           minLeadingWidth: 0,
           horizontalTitleGap: SoliplexSpacing.s3,
@@ -643,22 +642,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   overflow: TextOverflow.ellipsis,
                 )
               : null,
-          // Only servers that remove synchronously carry the button. A
-          // signed-in server's removal would have to end the IdP session
-          // first — async, fallible, and this screen has no retry surface.
-          //
-          // Read outside a Watch, unlike the dot: a session ending without a
-          // server-map mutation (inactivity logout) reaches this row through
-          // `connectionRevision`, the router's refreshListenable, which
-          // rebuilds the page.
+          // A signed-in server carries no button: it enters the lobby, whose
+          // Remove has a retry surface. Every other server stays removable
+          // here — with no connected server this is the only screen the
+          // router allows, and one that can't be signed back into must not be
+          // stranded. One that still holds a session signs out first; if that
+          // fails, the error button takes the delete button's place.
           trailing: entry.auth.isAuthenticated
               ? null
-              : IconButton(
-                  icon: Icon(
-                    Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.error,
+              : ServerSignOutControl(
+                  entry: entry,
+                  serverManager: widget.serverManager,
+                  idleBuilder: (context, {required signOut, required remove}) =>
+                      IconButton(
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    onPressed: remove,
                   ),
-                  onPressed: () => _confirmRemoveServer(context, entry),
                 ),
           // Connected enters the lobby on this server; logged-out prefills
           // the address and runs the connect flow, which saves the selection

@@ -2,6 +2,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'admin_status.dart';
 import 'auth_session.dart';
+import 'auth_tokens.dart';
 
 /// Canonical server identity: scheme + host + port (default ports omitted).
 ///
@@ -82,6 +83,14 @@ class ServerEntry {
   String get listLabel => name ?? bareAddress;
 
   bool get isConnected => !requiresAuth || auth.isAuthenticated;
+
+  /// Whether this server holds a sign-in, live or expired, so signing out of
+  /// it or removing it has an identity-provider session to end. Differs from
+  /// [isConnected] for an expired session: it can't serve requests, but its
+  /// IdP session may still be alive. Not gated on [requiresAuth]: a no-auth
+  /// server holds a session only through corrupted storage, and then its
+  /// tokens are real.
+  bool get hasSession => auth.session.value is! NoSession;
 }
 
 /// Auth servers first (signed in, then signed out), no-auth last; alphabetical
