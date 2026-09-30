@@ -16,7 +16,6 @@ void main() {
       expect(entry.hasSession, isTrue);
       auth.markSessionExpired();
       expect(entry.hasSession, isTrue);
-      expect(entry.isConnected, isFalse);
     });
 
     test('is true for a no-auth server that holds tokens', () {

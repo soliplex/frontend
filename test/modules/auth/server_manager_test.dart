@@ -155,26 +155,13 @@ void main() {
       expect(manager.registry['test'], isNull);
     });
 
-    test('removing an unknown serverId is a no-op', () async {
-      final storage = InMemoryServerStorage();
-      final manager = _createManager(storage: storage);
-      final entry = manager.addServer(
-        serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
+    test('missing serverId throws StateError', () {
+      final manager = _createManager();
+
+      expect(
+        () => manager.removeServer('nonexistent'),
+        throwsStateError,
       );
-      entry.auth.login(provider: _provider, tokens: _tokens());
-      await pumpEventQueue();
-      final savesBefore = storage.saveCount;
-      final removed = <String>[];
-      manager.onServerRemoved(removed.add);
-
-      expect(() => manager.removeServer('nonexistent'), returnsNormally);
-      await pumpEventQueue();
-
-      expect(storage.saveCount, savesBefore);
-      expect(storage.deleteCount, 0);
-      expect((await storage.loadAll())['test'], isA<AuthenticatedServer>());
-      expect(removed, isEmpty);
     });
   });
 
