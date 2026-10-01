@@ -14,11 +14,11 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/server_sign_out_control.dart';
-import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/server_sidebar.dart';
 import 'package:soliplex_frontend/version.dart';
 
 import '../../../helpers/fakes.dart';
+import '../../../helpers/test_server_entry.dart';
 
 ServerManager _createManager() => ServerManager(
       authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
@@ -29,7 +29,6 @@ ServerManager _createManager() => ServerManager(
 Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
   ServerManager? serverManager,
-  Map<String, UserProfile?> profiles = const {},
   AppIdentity? identity,
   String? selectedServerId,
   void Function(String serverId)? onSelectServer,
@@ -51,7 +50,6 @@ Widget _buildSidebar({
         body: ServerSidebar(
           servers: servers,
           serverManager: serverManager ?? _createManager(),
-          profiles: profiles,
           identity: identity ?? testIdentity(),
           selectedServerId: selectedServerId,
           onSelectServer: onSelectServer ?? (_) {},
@@ -769,7 +767,7 @@ void main() {
             requiresAuth: requiresAuth,
           );
 
-      void signIn(ServerEntry entry) => entry.auth.login(
+      void signIn(ServerEntry entry, {String? idToken}) => entry.auth.login(
             provider: const OidcProvider(
               discoveryUrl: 'https://sso/.well-known/openid-configuration',
               clientId: 'c',
@@ -778,8 +776,24 @@ void main() {
               accessToken: 'a',
               refreshToken: 'r',
               expiresAt: DateTime.now().add(const Duration(hours: 1)),
+              idToken: idToken,
             ),
           );
+
+      String claims({
+        String given = '',
+        String family = '',
+        String email = '',
+        String preferred = '',
+      }) =>
+          testJwt({
+            'iss': 'https://idp.test',
+            'sub': 'ada',
+            'given_name': given,
+            'family_name': family,
+            'email': email,
+            'preferred_username': preferred,
+          });
 
       testWidgets('shows Guest for a no-auth server', (tester) async {
         final manager = _createManager();
@@ -811,22 +825,16 @@ void main() {
           (tester) async {
         final manager = _createManager();
         final entry = addServer(manager, requiresAuth: true);
-        signIn(entry);
+        signIn(entry,
+            idToken: claims(
+                given: 'Ada', family: 'Lovelace', email: 'ada@example.com'));
 
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
           selectedServerId: 'srv',
-          profiles: const {
-            'srv': UserProfile(
-              givenName: 'Ada',
-              familyName: 'Lovelace',
-              email: 'ada@example.com',
-              preferredUsername: 'ada',
-            ),
-          },
         ));
 
-        // Identity lives only in the account block now (the tile has no
+        // Identity lives only in the account block (the tile has no
         // subtitle); name, email, and avatar initial each render once.
         expect(find.text('Ada Lovelace'), findsOneWidget);
         expect(find.text('ada@example.com'), findsOneWidget);
@@ -837,19 +845,11 @@ void main() {
           (tester) async {
         final manager = _createManager();
         final entry = addServer(manager, requiresAuth: true);
-        signIn(entry);
+        signIn(entry, idToken: claims(preferred: 'ada99'));
 
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
           selectedServerId: 'srv',
-          profiles: const {
-            'srv': UserProfile(
-              givenName: '',
-              familyName: '',
-              email: '',
-              preferredUsername: 'ada99',
-            ),
-          },
         ));
 
         // Block-only identity; the preferred_username and initial each
@@ -858,15 +858,14 @@ void main() {
         expect(find.text('A'), findsOneWidget);
       });
 
-      testWidgets(
-          'shows Signed in when authenticated but the profile is absent',
+      testWidgets('shows Signed in when the tokens name nobody',
           (tester) async {
         final manager = _createManager();
         final entry = addServer(manager, requiresAuth: true);
         signIn(entry);
 
-        // No profiles entry for 'srv': the profile fetch has not resolved
-        // (or failed), but the session is active.
+        // An opaque access token and no ID token: the session is active but
+        // no claims name the user.
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
           selectedServerId: 'srv',
@@ -877,23 +876,15 @@ void main() {
         expect(find.text('S'), findsOneWidget);
       });
 
-      testWidgets('omits the email line when the profile has no email',
+      testWidgets('omits the email line when the claims have no email',
           (tester) async {
         final manager = _createManager();
         final entry = addServer(manager, requiresAuth: true);
-        signIn(entry);
+        signIn(entry, idToken: claims(given: 'Ada', family: 'Lovelace'));
 
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
           selectedServerId: 'srv',
-          profiles: const {
-            'srv': UserProfile(
-              givenName: 'Ada',
-              familyName: 'Lovelace',
-              email: '',
-              preferredUsername: 'ada',
-            ),
-          },
         ));
 
         expect(find.text('Ada Lovelace'), findsOneWidget);
@@ -905,7 +896,9 @@ void main() {
           'mutation', (tester) async {
         final manager = _createManager();
         final entry = addServer(manager, requiresAuth: true);
-        signIn(entry);
+        signIn(entry,
+            idToken: claims(
+                given: 'Ada', family: 'Lovelace', email: 'ada@example.com'));
 
         // Snapshot the map once and never refresh it: the block must update
         // from the per-entry session signal, not from a map change.
@@ -913,14 +906,6 @@ void main() {
         await tester.pumpWidget(_buildSidebar(
           servers: servers,
           selectedServerId: 'srv',
-          profiles: const {
-            'srv': UserProfile(
-              givenName: 'Ada',
-              familyName: 'Lovelace',
-              email: 'ada@example.com',
-              preferredUsername: 'ada',
-            ),
-          },
         ));
         expect(find.text('Ada Lovelace'), findsOneWidget);
 
@@ -930,6 +915,37 @@ void main() {
         // The block falls back to Guest; the signed-in name is gone.
         expect(find.text('Guest'), findsOneWidget);
         expect(find.text('Ada Lovelace'), findsNothing);
+      });
+
+      testWidgets('follows the claims of a refreshed token', (tester) async {
+        final manager = _createManager();
+        final entry = addServer(manager, requiresAuth: true);
+        signIn(entry, idToken: claims(given: 'Ada', family: 'Lovelace'));
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          selectedServerId: 'srv',
+        ));
+        expect(find.text('Ada Lovelace'), findsOneWidget);
+
+        signIn(entry, idToken: claims(given: 'Ada', family: 'King'));
+        await tester.pump();
+
+        expect(find.text('Ada King'), findsOneWidget);
+        expect(find.text('Ada Lovelace'), findsNothing);
+      });
+
+      testWidgets('shows the email once when it is also the name',
+          (tester) async {
+        final manager = _createManager();
+        final entry = addServer(manager, requiresAuth: true);
+        signIn(entry, idToken: claims(email: 'ada@example.com'));
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          selectedServerId: 'srv',
+        ));
+
+        expect(find.text('ada@example.com'), findsOneWidget);
       });
     });
 

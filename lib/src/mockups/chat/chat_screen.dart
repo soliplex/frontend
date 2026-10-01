@@ -3,7 +3,6 @@
 // timeline, tiles, rail, sidebar) are still the app's own; copy one over the
 // same way when a mockup needs to change it.
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
@@ -73,7 +72,6 @@ import '../../modules/room/ui/async_action_dialog.dart';
 import '../../modules/room/ui/room_rail.dart';
 import '../../modules/room/ui/room_welcome.dart';
 import '../../modules/room/ui/thread_sidebar.dart';
-import '../../modules/auth/auth_tokens.dart';
 import '../../modules/room/ui/upload_event_banner.dart';
 import '../../modules/room/upload_tracker.dart';
 import '../../modules/room/upload_tracker_registry.dart';
@@ -171,32 +169,6 @@ String uploadChipLabel(int roomCount, int threadCount) {
   }
   if (roomCount > 0) return '$roomCount room';
   return '$threadCount thread';
-}
-
-/// Resolves a display identity from an OIDC `/api/user_info` payload, trying
-/// the most specific label first: the full name (`given_name` + `family_name`),
-/// then `preferred_username`, then `email`, falling back to a generic
-/// "Signed in" when the payload carries no usable label. The returned email is
-/// null when absent so the rail's account header can omit the secondary line.
-RoomAccount accountFromJson(Map<String, dynamic> json) {
-  // Read each claim independently: a non-string value is treated as absent so
-  // one malformed field can't discard its valid siblings.
-  String claim(String key) {
-    final value = json[key];
-    return value is String ? value : '';
-  }
-
-  final given = claim('given_name');
-  final family = claim('family_name');
-  final preferred = claim('preferred_username').trim();
-  final email = claim('email').trim();
-  final full = '$given $family'.trim();
-  final hasName = full.isNotEmpty || preferred.isNotEmpty;
-  final name = [full, preferred, email]
-      .firstWhere((s) => s.isNotEmpty, orElse: () => signedInLabel);
-  // Omit the email line when the email is doubling as the name, so the header
-  // doesn't render the same string twice.
-  return (name: name, email: hasName && email.isNotEmpty ? email : null);
 }
 
 class RoomScreen extends StatefulWidget {
@@ -325,16 +297,6 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Coalesces bursts of run completions into a single room-activity refetch.
   final Debouncer _roomActivityRefresh =
       Debouncer(const Duration(milliseconds: 300));
-
-  /// Best-effort account identity for the rail's footer menu; `null` until
-  /// resolved (or when the server is unauthenticated / the fetch fails).
-  RoomAccount? _account;
-
-  /// Bumped on each account fetch so a slow in-flight request for a previous
-  /// server can't write its identity onto the current one. The raw
-  /// `/api/user_info` request can't be cancelled, so we guard the result
-  /// against the latest generation instead.
-  int _accountFetchGeneration = 0;
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -819,73 +781,6 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  /// Best-effort fetch of the signed-in identity for the rail's account menu.
-  /// No-op (and clears the cached account) when the server is unauthenticated;
-  /// a failure falls back to the generic "Signed in" label.
-  //
-  // TODO: The fetch + parse here duplicate the lobby's `_fetchUserProfile` /
-  // `UserProfile.fromJson` against the same `/api/user_info` endpoint. Collapse
-  // them into one shared `fetchUserInfo(ServerEntry)` helper. The room can't
-  // reuse the lobby's cache because `LobbyState` is screen-scoped.
-  void _fetchAccount() {
-    final entry = widget.serverEntry;
-    // Direct assignments here (not setState): this may run from initState
-    // before the first build, and the async callbacks below trigger the
-    // rebuild once a result lands. Clearing eagerly drops the previous
-    // server's identity instead of letting it linger through the switch.
-    _account = null;
-    final generation = ++_accountFetchGeneration;
-    if (!entry.requiresAuth || entry.auth.session.value is! ActiveSession) {
-      return;
-    }
-    final url = entry.serverUrl.resolve('/api/user_info');
-    Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
-      // entry.httpClient is the raw decorator chain (no HttpTransport), so a
-      // 401 arrives as a response rather than a thrown AuthException — funnel
-      // it to the session explicitly. The captured entry's session is expired
-      // even if we have since switched servers, so this fires regardless of
-      // the staleness guard below.
-      if (response.statusCode == 401) {
-        entry.auth.markSessionExpired();
-        return;
-      }
-      if (!mounted || generation != _accountFetchGeneration) return;
-      if (response.statusCode != 200) {
-        // A 403 is the expected steady state for a permission-restricted
-        // profile endpoint, so log it below the warning channel reserved for
-        // genuine 5xx / decode failures — debuggable without crying wolf.
-        final message = 'Account profile fetch returned ${response.statusCode}';
-        if (response.statusCode == 403) {
-          _logger.debug(message);
-        } else {
-          _logger.warning(message);
-        }
-        return;
-      }
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        // A 200 whose body isn't a JSON object is a backend/proxy contract
-        // break (an HTML error page, a bare array), distinct from a network
-        // drop — log it on its own so it isn't read as "no profile".
-        _logger.warning(
-          'Account profile response was not a JSON object (status 200)',
-        );
-        return;
-      }
-      setState(() => _account = accountFromJson(decoded));
-    }).catchError((Object error, StackTrace stackTrace) {
-      if (error is AuthException) {
-        entry.auth.markSessionExpired();
-        return;
-      }
-      _logger.warning(
-        'Failed to load account profile',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    });
-  }
-
   // MOCKUP: kept for when the filter's purpose is settled and the picker is
   // wired back in; `_stubDocumentFilter` stands in for it meanwhile.
   // ignore: unused_element
@@ -987,7 +882,6 @@ class _RoomScreenState extends State<RoomScreen> {
     // you stay in the current room.
     _watchServerActivity();
     _markThreadRead(widget.threadId);
-    _fetchAccount();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
       _beginUnreadTracking(widget.threadId!);
@@ -1085,15 +979,14 @@ class _RoomScreenState extends State<RoomScreen> {
       _refreshFilterableDocuments();
       _watchRoomRead();
       _markThreadRead(widget.threadId);
-      // Room list, account identity, and room-activity stats are all
-      // server-scoped: refetch only on a server change, not on every in-server
-      // room switch (which would otherwise flash the rail back to a spinner and
-      // fire redundant requests). The room's unread dot is kept in sync by
-      // _watchRoomRead above, which re-subscribes to the new room's thread list.
+      // Room list and room-activity stats are server-scoped: refetch only on
+      // a server change, not on every in-server room switch (which would
+      // otherwise flash the rail back to a spinner and fire redundant
+      // requests). The room's unread dot is kept in sync by _watchRoomRead
+      // above, which re-subscribes to the new room's thread list.
       if (serverChanged) {
         _fetchServerRooms();
         _fetchRoomActivity();
-        _fetchAccount();
         // The read markers are keyed per (server, user); load the entered
         // server's blobs for the current user. Idempotent — a no-op if the
         // lobby already loaded them into the shared store.
@@ -1840,7 +1733,6 @@ class _RoomScreenState extends State<RoomScreen> {
         _onBackToLobby();
       },
       entry: widget.serverEntry,
-      account: _account,
       onDiagnostics: () {
         onNavigate?.call();
         _onDiagnostics();

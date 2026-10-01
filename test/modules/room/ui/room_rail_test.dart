@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException, Room;
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 
 import '../../../helpers/test_server_entry.dart';
@@ -25,7 +26,7 @@ RoomRail _rail({
   void Function(String)? onMarkRoomRead,
   VoidCallback? onRetryRooms,
   VoidCallback? onBackToLobby,
-  RoomAccount? account,
+  ServerEntry? entry,
   VoidCallback? onDiagnostics,
   VoidCallback? onVersions,
 }) =>
@@ -39,8 +40,7 @@ RoomRail _rail({
       onSelectRoom: onSelectRoom ?? (_) {},
       onMarkRoomRead: onMarkRoomRead,
       onBackToLobby: onBackToLobby ?? () {},
-      entry: createTestServerEntry(),
-      account: account,
+      entry: entry ?? createTestServerEntry(),
       onDiagnostics: onDiagnostics ?? () {},
       onVersions: onVersions ?? () {},
     );
@@ -189,7 +189,6 @@ void main() {
       var inspector = false;
       var versions = false;
       await tester.pumpWidget(_wrap(_rail(
-        account: (name: 'Ada Lovelace', email: 'ada@example.com'),
         onDiagnostics: () => inspector = true,
         onVersions: () => versions = true,
       )));
@@ -197,8 +196,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
 
-      // A no-auth test server resolves to Guest regardless of the cached
-      // account, since the identity gate requires an ActiveSession.
+      // A no-auth test server resolves to Guest, since the identity gate
+      // requires an ActiveSession.
       expect(find.text('Guest'), findsOneWidget);
       expect(find.text('Diagnostics'), findsOneWidget);
       expect(find.text('Versions'), findsOneWidget);
@@ -215,6 +214,45 @@ void main() {
       await tester.tap(find.text('Versions'));
       await tester.pumpAndSettle();
       expect(versions, isTrue);
+    });
+
+    testWidgets('footer menu shows Guest once the session expires',
+        (tester) async {
+      final auth = authWithIdentity(idTokenClaims: {
+        'given_name': 'Ada',
+        'family_name': 'Lovelace',
+      });
+      await tester.pumpWidget(_wrap(_rail(
+        entry: createTestServerEntry(requiresAuth: true, auth: auth),
+      )));
+
+      auth.markSessionExpired();
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Guest'), findsOneWidget);
+      expect(find.text('Ada Lovelace'), findsNothing);
+    });
+
+    testWidgets('footer menu names the signed-in user from their token',
+        (tester) async {
+      await tester.pumpWidget(_wrap(_rail(
+        entry: createTestServerEntry(
+          requiresAuth: true,
+          auth: authWithIdentity(idTokenClaims: {
+            'given_name': 'Ada',
+            'family_name': 'Lovelace',
+            'email': 'ada@example.com',
+          }),
+        ),
+      )));
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+      expect(find.text('ada@example.com'), findsOneWidget);
     });
   });
 

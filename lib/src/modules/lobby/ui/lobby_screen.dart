@@ -134,7 +134,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final servers = widget.serverManager.servers.watch(context);
-    final profiles = _state.userProfiles.watch(context);
     final roomsByServer = _state.roomsByServer.watch(context);
     final viewMode = _state.viewMode.watch(context);
     final searchQuery = _state.searchQuery.watch(context);
@@ -152,7 +151,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
         return isWide
             ? _WideLayout(
                 servers: servers,
-                profiles: profiles,
                 identity: widget.identity,
                 roomsByServer: roomsByServer,
                 viewMode: viewMode,
@@ -179,7 +177,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
               )
             : _NarrowLayout(
                 servers: servers,
-                profiles: profiles,
                 identity: widget.identity,
                 roomsByServer: roomsByServer,
                 viewMode: viewMode,
@@ -212,7 +209,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
 class _WideLayout extends StatelessWidget {
   const _WideLayout({
     required this.servers,
-    required this.profiles,
     required this.identity,
     required this.roomsByServer,
     required this.viewMode,
@@ -239,7 +235,6 @@ class _WideLayout extends StatelessWidget {
   });
 
   final Map<String, ServerEntry> servers;
-  final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
   final Map<String, ServerRooms> roomsByServer;
   final LobbyViewMode viewMode;
@@ -277,7 +272,6 @@ class _WideLayout extends StatelessWidget {
               child: ServerSidebar(
                 servers: servers,
                 serverManager: serverManager,
-                profiles: profiles,
                 identity: identity,
                 selectedServerId: selectedServerId,
                 onSelectServer: onSelectServer,
@@ -321,7 +315,6 @@ class _WideLayout extends StatelessWidget {
 class _NarrowLayout extends StatelessWidget {
   const _NarrowLayout({
     required this.servers,
-    required this.profiles,
     required this.identity,
     required this.roomsByServer,
     required this.viewMode,
@@ -348,7 +341,6 @@ class _NarrowLayout extends StatelessWidget {
   });
 
   final Map<String, ServerEntry> servers;
-  final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
   final Map<String, ServerRooms> roomsByServer;
   final LobbyViewMode viewMode;
@@ -410,7 +402,6 @@ class _NarrowLayout extends StatelessWidget {
             builder: (drawerContext) => ServerSidebar(
               servers: servers,
               serverManager: serverManager,
-              profiles: profiles,
               identity: identity,
               selectedServerId: selectedServerId,
               onSelectServer: (id) {

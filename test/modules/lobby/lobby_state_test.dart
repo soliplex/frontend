@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -351,9 +349,7 @@ void main() {
         () async {
           // The lobby keeps an expired server's row visible with an
           // inline "sign in again" affordance so the user can recover
-          // without leaving the lobby. The profile is dropped so a
-          // re-auth as a different identity doesn't briefly show the
-          // previous user's name.
+          // without leaving the lobby.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -389,21 +385,13 @@ void main() {
           expect(entry.auth.session.value, isA<ExpiredSession>());
           // Section is kept visible with the RoomsExpired marker.
           expect(state.roomsByServer.value['auth-server'], isA<RoomsExpired>());
-          // Profile entry is present but null: the key is preserved so
-          // the sidebar still iterates it, but stale identity data is
-          // cleared.
-          expect(
-            state.userProfiles.value.containsKey('auth-server'),
-            isTrue,
-          );
-          expect(state.userProfiles.value['auth-server'], isNull);
 
           state.dispose();
         },
       );
 
       test(
-        'ExpiredSession → ActiveSession refetches rooms and profile',
+        'ExpiredSession → ActiveSession refetches rooms',
         () async {
           // Silent-recovery path: any in-flight HTTP request through
           // RefreshingHttpClient can succeed in refreshing tokens for a
@@ -538,14 +526,11 @@ void main() {
       );
 
       test(
-        'NoSession (logout) marks the section RoomsSignedOut and drops '
-        'the profile',
+        'NoSession (logout) marks the section RoomsSignedOut',
         () async {
           // The single-server lobby shows the selected server's section
           // alone, so a logged-out server keeps a RoomsSignedOut row with a
-          // sign-in affordance instead of a blank pane. The profile is
-          // dropped so a re-auth as a different identity does not flash the
-          // prior user's name.
+          // sign-in affordance instead of a blank pane.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -578,7 +563,6 @@ void main() {
 
           expect(
               state.roomsByServer.value['auth-server'], isA<RoomsSignedOut>());
-          expect(state.userProfiles.value['auth-server'], isNull);
 
           state.dispose();
         },
@@ -695,7 +679,7 @@ void main() {
     });
 
     group('auth state changes', () {
-      test('fetches rooms and profile after login', () async {
+      test('fetches rooms after login', () async {
         // NoSession → ActiveSession must trigger a fetch. Pins the
         // transition-INTO-ActiveSession contract independently of
         // which screen happens to be mounted when the transition
@@ -750,7 +734,7 @@ void main() {
         () async {
           // `TokenRefreshService` writes a new `ActiveSession` to
           // `auth.session` after every successful refresh. The user,
-          // server, rooms list, and profile are unchanged across a
+          // server and rooms list are unchanged across a
           // rotation, so the lobby must treat it as a no-op. Without
           // this guard, an IdP that issues access tokens shorter than
           // the refresh threshold creates a self-amplifying
@@ -814,13 +798,12 @@ void main() {
 
       test(
         'ActiveSession → ExpiredSession while RoomsLoaded flips to '
-        'RoomsExpired and drops the profile',
+        'RoomsExpired',
         () async {
           // The common bad-day path: a real fetch returns 401, the
           // funnel calls `markSessionExpired`, and the lobby must
           // replace the live rooms list with `RoomsExpired` (the
-          // inline "sign in again" affordance) and drop the previously
-          // rendered user name.
+          // inline "sign in again" affordance).
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -838,18 +821,6 @@ void main() {
             ),
           );
 
-          final fakeClient = entry.httpClient as FakeHttpClient;
-          fakeClient.onRequest = (method, uri) async => HttpResponse(
-                statusCode: 200,
-                bodyBytes: Uint8List.fromList(
-                  utf8.encode(jsonEncode({
-                    'given_name': 'Ada',
-                    'family_name': 'Lovelace',
-                    'email': 'ada@example.com',
-                    'preferred_username': 'ada',
-                  })),
-                ),
-              );
           final fakeApi = FakeSoliplexApi();
           fakeApi.nextRooms = [const Room(id: 'r1', name: 'Room 1')];
 
@@ -860,13 +831,11 @@ void main() {
           await Future<void>.delayed(Duration.zero);
 
           expect(state.roomsByServer.value['auth-server'], isA<RoomsLoaded>());
-          expect(state.userProfiles.value['auth-server'], isNotNull);
 
           entry.auth.markSessionExpired();
           await Future<void>.delayed(Duration.zero);
 
           expect(state.roomsByServer.value['auth-server'], isA<RoomsExpired>());
-          expect(state.userProfiles.value['auth-server'], isNull);
 
           state.dispose();
         },
@@ -913,151 +882,6 @@ void main() {
         );
 
         expect(() => state.refresh('nonexistent'), throwsStateError);
-
-        state.dispose();
-      });
-    });
-
-    group('user profile fetching', () {
-      test('fetches user profile for connected servers', () async {
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'local',
-          serverUrl: Uri.parse('http://localhost:8000'),
-          requiresAuth: false,
-        );
-
-        final fakeClient = entry.httpClient as FakeHttpClient;
-        final profileJson = jsonEncode({
-          'given_name': 'Ada',
-          'family_name': 'Lovelace',
-          'email': 'ada@example.com',
-          'preferred_username': 'ada',
-        });
-        fakeClient.onRequest = (method, uri) async => HttpResponse(
-              statusCode: 200,
-              bodyBytes: Uint8List.fromList(utf8.encode(profileJson)),
-            );
-
-        final state = LobbyState(
-          serverManager: manager,
-          apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
-        );
-
-        await Future<void>.delayed(Duration.zero);
-
-        final profiles = state.userProfiles.value;
-        expect(profiles, contains('local'));
-        final profile = profiles['local'];
-        expect(profile, isNotNull);
-        expect(profile!.givenName, 'Ada');
-        expect(profile.familyName, 'Lovelace');
-        expect(profile.email, 'ada@example.com');
-        expect(profile.preferredUsername, 'ada');
-
-        state.dispose();
-      });
-
-      test('sets null profile when /user_info returns 404', () async {
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'local',
-          serverUrl: Uri.parse('http://localhost:8000'),
-          requiresAuth: false,
-        );
-
-        final fakeClient = entry.httpClient as FakeHttpClient;
-        fakeClient.onRequest = (method, uri) async => HttpResponse(
-              statusCode: 404,
-              bodyBytes: Uint8List(0),
-            );
-
-        final state = LobbyState(
-          serverManager: manager,
-          apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
-        );
-
-        await Future<void>.delayed(Duration.zero);
-
-        final profiles = state.userProfiles.value;
-        expect(profiles, contains('local'));
-        expect(profiles['local'], isNull);
-
-        state.dispose();
-      });
-
-      test('401 from /user_info funnels through markSessionExpired', () async {
-        // entry.httpClient is the raw decorator chain (no HttpTransport),
-        // so a 401 surfaces as a response — not as a thrown
-        // AuthException. The success arm must funnel explicitly.
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'auth-server',
-          serverUrl: Uri.parse('https://api.example.com'),
-        );
-        entry.auth.login(
-          provider: const OidcProvider(
-            discoveryUrl:
-                'https://auth.example.com/.well-known/openid-configuration',
-            clientId: 'c',
-          ),
-          tokens: AuthTokens(
-            accessToken: 'a',
-            refreshToken: 'r',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        );
-
-        final fakeClient = entry.httpClient as FakeHttpClient;
-        fakeClient.onRequest = (method, uri) async => HttpResponse(
-              statusCode: 401,
-              bodyBytes: Uint8List(0),
-            );
-
-        final state = LobbyState(
-          serverManager: manager,
-          apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
-        );
-
-        await Future<void>.delayed(Duration.zero);
-
-        expect(entry.auth.session.value, isA<ExpiredSession>());
-
-        state.dispose();
-      });
-
-      test('removes profile when server is removed', () async {
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'local',
-          serverUrl: Uri.parse('http://localhost:8000'),
-          requiresAuth: false,
-        );
-
-        final fakeClient = entry.httpClient as FakeHttpClient;
-        fakeClient.onRequest = (method, uri) async => HttpResponse(
-              statusCode: 200,
-              bodyBytes: Uint8List.fromList(
-                utf8.encode(jsonEncode({
-                  'given_name': 'Ada',
-                  'family_name': 'Lovelace',
-                  'email': 'ada@example.com',
-                  'preferred_username': 'ada',
-                })),
-              ),
-            );
-
-        final state = LobbyState(
-          serverManager: manager,
-          apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
-        );
-
-        await Future<void>.delayed(Duration.zero);
-        expect(state.userProfiles.value, contains('local'));
-
-        manager.removeServer('local');
-
-        expect(state.userProfiles.value, isNot(contains('local')));
 
         state.dispose();
       });

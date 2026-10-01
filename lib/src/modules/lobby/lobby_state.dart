@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:clock/clock.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
@@ -29,27 +28,6 @@ import 'lobby_view_mode.dart';
 final Logger _logger = LogManager.instance.getLogger('soliplex.lobby_state');
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
-
-class UserProfile {
-  const UserProfile({
-    required this.givenName,
-    required this.familyName,
-    required this.email,
-    required this.preferredUsername,
-  });
-
-  final String givenName;
-  final String familyName;
-  final String email;
-  final String preferredUsername;
-
-  factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        givenName: json['given_name'] as String? ?? '',
-        familyName: json['family_name'] as String? ?? '',
-        email: json['email'] as String? ?? '',
-        preferredUsername: json['preferred_username'] as String? ?? '',
-      );
-}
 
 sealed class ServerRooms {
   const ServerRooms();
@@ -157,10 +135,6 @@ class LobbyState {
   final Signal<Map<String, ServerRooms>> _roomsByServer =
       Signal<Map<String, ServerRooms>>({});
   ReadonlySignal<Map<String, ServerRooms>> get roomsByServer => _roomsByServer;
-
-  final Signal<Map<String, UserProfile?>> _userProfiles =
-      Signal<Map<String, UserProfile?>>({});
-  ReadonlySignal<Map<String, UserProfile?>> get userProfiles => _userProfiles;
 
   /// Preferred room layout. Starts at [LobbyViewMode.list]; replaced by the
   /// persisted preference (or its [LobbyViewMode.list] fallback) once
@@ -580,11 +554,8 @@ class LobbyState {
     final removed = knownIds.difference(nextIds);
     if (removed.isNotEmpty) {
       final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value);
-      final updatedProfiles =
-          Map<String, UserProfile?>.from(_userProfiles.value);
       for (final id in removed) {
         updatedRooms.remove(id);
-        updatedProfiles.remove(id);
         _cancelTokens.remove(id)?.cancel('server removed');
         _authSubscriptions.remove(id)?.call();
         _lastSessionState.remove(id);
@@ -593,7 +564,6 @@ class LobbyState {
         if (_activityFetchServerId == id) _cancelActivityFetch();
       }
       _roomsByServer.value = updatedRooms;
-      _userProfiles.value = updatedProfiles;
       if (_roomActivity.value.keys.any((k) => removed.contains(k.serverId))) {
         _roomActivity.value = {..._roomActivity.value}
           ..removeWhere((k, _) => removed.contains(k.serverId));
@@ -618,7 +588,6 @@ class LobbyState {
       _ensureMarkersLoaded(entry);
       if (entry.isConnected) {
         _fetchRooms(id, entry);
-        _fetchUserProfile(id, entry);
       }
     }
 
@@ -638,14 +607,13 @@ class LobbyState {
     if (entry.isConnected) {
       // Refetch only on transitions INTO ActiveSession (silent
       // recovery from a prior ExpiredSession/NoSession). Active →
-      // Active is token rotation: the user, server, rooms list, and
-      // profile are unchanged, and refetching on every rotation
+      // Active is token rotation: the user, server and rooms list
+      // are unchanged, and refetching on every rotation
       // would race the proactive refresh threshold and produce a
       // self-amplifying refresh→fetch→refresh loop whenever the
       // IdP issues access tokens shorter than that threshold.
       if (current is ActiveSession && previous is! ActiveSession) {
         _fetchRooms(serverId, entry);
-        _fetchUserProfile(serverId, entry);
       }
       return;
     }
@@ -653,24 +621,18 @@ class LobbyState {
     switch (current) {
       case ExpiredSession():
         // Keep the row visible with an inline "sign in again" affordance.
-        // The previously-known profile is dropped so a re-auth as a
-        // different identity does not briefly render the prior user's
-        // name.
         _roomsByServer.value = {
           ..._roomsByServer.value,
           serverId: const RoomsExpired(),
         };
-        _userProfiles.value = {..._userProfiles.value, serverId: null};
       case NoSession():
         // Signed out: keep the row with an inline "sign in" affordance so
         // the single-server lobby shows a recoverable state rather than a
-        // blank pane. The profile is dropped so a re-auth as a different
-        // identity does not briefly render the prior user's name.
+        // blank pane.
         _roomsByServer.value = {
           ..._roomsByServer.value,
           serverId: const RoomsSignedOut(),
         };
-        _userProfiles.value = {..._userProfiles.value, serverId: null};
       case ActiveSession():
         assert(false, 'ActiveSession reached the !isConnected branch');
     }
@@ -765,61 +727,7 @@ class LobbyState {
     }
   }
 
-  void _fetchUserProfile(String serverId, ServerEntry entry) {
-    final url = entry.serverUrl.resolve('/api/user_info');
-    Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
-      if (!_authSubscriptions.containsKey(serverId)) return;
-      // `entry.httpClient` is the raw decorator chain (no HttpTransport),
-      // so a 401 comes back as a response, not as a thrown AuthException
-      // — funnel it explicitly. RefreshingHttpClient has already tried
-      // refresh-and-retry by the time we see this status.
-      if (response.statusCode == 401) {
-        entry.auth.markSessionExpired();
-        return;
-      }
-      final UserProfile? profile;
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is! Map<String, dynamic>) {
-          // A 200 whose body isn't a JSON object is a backend/proxy contract
-          // break (an HTML error page, a bare array), not a missing profile —
-          // log it distinctly and degrade to null.
-          _logger.warning(
-            'Profile response was not a JSON object (status 200) for $serverId',
-          );
-          profile = null;
-        } else {
-          profile = UserProfile.fromJson(decoded);
-        }
-      } else {
-        _logger.warning(
-          'Profile fetch returned ${response.statusCode} for $serverId',
-        );
-        profile = null;
-      }
-      _userProfiles.value = {..._userProfiles.value, serverId: profile};
-    }).catchError((Object error, StackTrace st) {
-      if (!_authSubscriptions.containsKey(serverId)) return;
-      if (error is AuthException) {
-        entry.auth.markSessionExpired();
-        return;
-      }
-      // Profile is optional sidebar metadata; silent null is the correct
-      // UI disposition for PermissionDeniedException and other failures.
-      // Log everything else so 5xx / decode / programmer errors stay
-      // debuggable — there is no surface in the UI for them otherwise.
-      if (error is! PermissionDeniedException) {
-        _logger.warning(
-          'Failed to fetch user profile for $serverId',
-          error: error,
-          stackTrace: st,
-        );
-      }
-      _userProfiles.value = {..._userProfiles.value, serverId: null};
-    });
-  }
-
-  /// Manually re-fetches rooms and profile for the given server.
+  /// Manually re-fetches rooms for the given server.
   void refresh(String serverId) {
     final servers = _serverManager.servers.value;
     final entry = servers[serverId];
@@ -827,7 +735,6 @@ class LobbyState {
       throw StateError('No server entry for "$serverId"');
     }
     _fetchRooms(serverId, entry);
-    _fetchUserProfile(serverId, entry);
   }
 
   void dispose() {
