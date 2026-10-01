@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
+import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart'
+    hide LatexInlineSyntax;
 import 'package:markdown/markdown.dart' as md;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -17,6 +18,7 @@ import 'data_uri_image.dart';
 import 'file_image_loader.dart'
     if (dart.library.io) 'file_image_loader_io.dart';
 import 'inline_code_builder.dart';
+import 'latex_inline_syntax.dart';
 import 'log_source.dart';
 
 final _logger =
