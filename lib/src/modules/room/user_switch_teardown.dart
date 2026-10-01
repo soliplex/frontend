@@ -25,8 +25,8 @@ final Logger _logger =
 /// and database selections. A sixth, `AdminStatus`, hangs off the
 /// `ServerEntry` and holds an authorization answer, so it is evicted here too;
 /// `ServerManager` additionally clears it when a session ends, which reaches
-/// the sign-out path on the opaque-token servers this class cannot see. Their
-/// expiry path is the known gap below, for `AdminStatus` as for the rest.
+/// the sign-out path on the `null`-identity servers this class cannot see.
+/// Their expiry path is the known gap below, for `AdminStatus` as for the rest.
 /// `MessageExpansions` is a module-owned cache left untouched on purpose: its
 /// per-message expand/collapse state is cosmetic, and a cross-user collision
 /// would need a shared server-assigned `messageId`.
@@ -38,16 +38,18 @@ final Logger _logger =
 /// intercepting transitions covers every auth path — including the silent
 /// sign-in that `ServerManager.restoreServers` performs on launch, which the
 /// first effect run records as the baseline without evicting. A `null` identity
-/// (signed out, or an opaque non-JWT token) is ignored, so a logout alone tears
-/// down nothing; the switch is recognised only when a server's identity moves
-/// from one non-null user to a different non-null user.
+/// (signed out, or claims without an `iss`/`sub`) is ignored, so a logout
+/// alone tears down nothing; the switch is recognised only when a server's
+/// identity moves from one non-null user to a different non-null user.
 ///
-/// This leaves a known gap: a server whose IdP issues opaque access tokens has
-/// a `null` identity for *every* user, so a switch between two such users is
-/// undetectable here and the next user inherits the prior user's in-memory
-/// session. That mirrors how those servers already share one unauthenticated
-/// bucket for persistent state (see `AuthSession.currentUserId`); isolating them
-/// would need a credential fingerprint the token doesn't carry.
+/// This leaves a known gap: a server whose `AuthSession.currentUserClaims`
+/// carry no `iss`/`sub` has a `null` identity for every user, so a switch
+/// between two of its users is undetectable here and the next user inherits the
+/// prior user's in-memory session. It takes a non-compliant IdP — the Soliplex
+/// backend rejects an access token without `iss` and `sub`, and OIDC Core
+/// requires both in an ID token. It mirrors how such servers share one
+/// unauthenticated bucket for persistent state (see
+/// `AuthSession.currentUserId`).
 ///
 /// Owned by [RoomAppModule] alongside `RemovedServerCleanup`.
 class UserSwitchTeardown {
@@ -67,8 +69,8 @@ class UserSwitchTeardown {
       for (final MapEntry(key: serverId, value: entry)
           in servers.value.entries) {
         final identity = entry.auth.currentUserId.value;
-        // Opaque-token servers report a null identity for every user, so their
-        // switches go undetected here — see the class doc's known-gap note.
+        // A server with no decodable identity reports null for every user, so
+        // its switches go undetected here — see the class doc's known-gap note.
         if (identity == null) continue;
         final previous = _lastSeen[serverId];
         _lastSeen[serverId] = identity;

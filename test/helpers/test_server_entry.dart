@@ -67,8 +67,13 @@ String testIdentityFor(String sub) => 'https://idp.test#$sub';
 /// An [AuthSession] in [ActiveSession] whose access token is a decodable JWT
 /// carrying `iss#`[sub], so `currentUserId` resolves to a stable user and
 /// user-scoped stores (thread markers, anchors, drafts) actually persist. Pass a
-/// distinct [sub] to model a different user on another server.
-AuthSession authWithIdentity({String sub = 'test-user'}) {
+/// distinct [sub] to model a different user on another server. Pass
+/// [idTokenClaims] to add an ID token carrying the same `iss`/`sub` plus those
+/// claims.
+AuthSession authWithIdentity({
+  String sub = 'test-user',
+  Map<String, Object?>? idTokenClaims,
+}) {
   final auth = AuthSession(refreshService: FakeTokenRefreshService());
   auth.login(
     provider: const OidcProvider(
@@ -79,20 +84,23 @@ AuthSession authWithIdentity({String sub = 'test-user'}) {
       accessToken: testAccessToken(sub: sub),
       refreshToken: 'refresh',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      idToken: idTokenClaims == null
+          ? null
+          : testJwt({'iss': 'https://idp.test', 'sub': sub, ...idTokenClaims}),
     ),
   );
   return auth;
+}
+
+/// A JWT-shaped `header.payload.signature` string whose payload is [claims].
+String testJwt(Map<String, Object?> claims) {
+  String seg(Map<String, Object?> m) =>
+      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
+  return '${seg({'alg': 'RS256'})}.${seg(claims)}.sig';
 }
 
 /// A decodable JWT access token embedding `https://idp.test#`[sub], for logging
 /// a [ServerManager] entry into a specific identity (`entry.auth.login`) so its
 /// `currentUserId` resolves to [testIdentityFor]`(sub)`.
 String testAccessToken({String sub = 'test-user'}) =>
-    _jwt('https://idp.test', sub);
-
-/// Builds a JWT-shaped `header.payload.signature` string embedding [iss]/[sub].
-String _jwt(String iss, String sub) {
-  String seg(Map<String, dynamic> m) =>
-      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
-  return '${seg({'alg': 'RS256'})}.${seg({'iss': iss, 'sub': sub})}.sig';
-}
+    testJwt({'iss': 'https://idp.test', 'sub': sub});

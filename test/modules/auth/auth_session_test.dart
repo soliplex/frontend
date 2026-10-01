@@ -9,6 +9,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 
 import '../../helpers/fakes.dart';
+import '../../helpers/test_server_entry.dart';
 
 const _provider = OidcProvider(
   discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
@@ -23,17 +24,14 @@ AuthTokens _tokens({Duration expiresIn = const Duration(hours: 1)}) {
   );
 }
 
-String _jwt(String iss, String sub) {
-  String seg(Map<String, dynamic> m) =>
-      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
-  return '${seg({'alg': 'RS256'})}.${seg({'iss': iss, 'sub': sub})}.sig';
-}
-
-AuthTokens _identityTokens(String accessToken) => AuthTokens(
+AuthTokens _identityTokens(String accessToken, {String? idToken}) => AuthTokens(
       accessToken: accessToken,
       refreshToken: 'r',
       expiresAt: DateTime.utc(2100),
+      idToken: idToken,
     );
+
+String _jwt(String iss, String sub) => testJwt({'iss': iss, 'sub': sub});
 
 void main() {
   late FakeTokenRefreshService refreshService;
@@ -193,6 +191,80 @@ void main() {
       );
       expect(session.currentUserId.value, first);
       expect(session.currentUserId.value, 'iss-a#alice');
+    });
+
+    test("prefers the id token's iss#sub over the access token's", () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(
+          _jwt('iss-a', 'alice-access'),
+          idToken: _jwt('iss-a', 'alice-id'),
+        ),
+      );
+      expect(session.currentUserId.value, 'iss-a#alice-id');
+    });
+
+    test('falls back to the access token when the id token does not decode',
+        () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(_jwt('iss-a', 'alice'), idToken: 'garbage'),
+      );
+      expect(session.currentUserId.value, 'iss-a#alice');
+    });
+
+    test('keeps the id token identity across a refresh that returns none',
+        () async {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(
+          _jwt('iss-a', 'alice-access'),
+          idToken: _jwt('iss-a', 'alice-id'),
+        ),
+      );
+      refreshService.nextResult = TokenRefreshSuccess(
+        accessToken: _jwt('iss-a', 'alice-access'),
+        refreshToken: 'r2',
+        expiresAt: DateTime.utc(2100),
+      );
+
+      await session.tryRefresh();
+
+      expect(session.currentUserId.value, 'iss-a#alice-id');
+    });
+  });
+
+  group('AuthSession.currentUserClaims', () {
+    test("are the id token's claims when there is one", () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(
+          testJwt({'iss': 'i', 'sub': 's', 'given_name': 'Access'}),
+          idToken: testJwt({'iss': 'i', 'sub': 's', 'given_name': 'Id'}),
+        ),
+      );
+      expect(session.currentUserClaims.value?['given_name'], 'Id');
+    });
+
+    test("are the access token's claims when there is no id token", () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(
+          testJwt({'iss': 'i', 'sub': 's', 'given_name': 'Access'}),
+        ),
+      );
+      expect(session.currentUserClaims.value?['given_name'], 'Access');
+    });
+
+    test('survive expiry and clear on logout', () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(testJwt({'iss': 'i', 'sub': 's'})),
+      );
+      session.markSessionExpired();
+      expect(session.currentUserClaims.value, isNotNull);
+      session.logout();
+      expect(session.currentUserClaims.value, isNull);
     });
   });
 
