@@ -153,8 +153,9 @@ boots. Without it, sign-in still works, but the tokens stay visible for that
 time and the app logs an error naming this page.
 
 The browser still records the callback URL, tokens included, in its history.
-In Chrome, placing the script after `<title>` makes that entry show the page
-title rather than the tokens; only a backend change keeps them out of the URL.
+In Chrome, placing the script after `<title>` makes the history list show the
+page title rather than the tokens; only a backend change keeps them out of the
+URL.
 
 Keep `CallbackParamsCapture.captureNow()` then `clearCallbackUrl()` at the top
 of `main()`, after `installLogSinks()`.
