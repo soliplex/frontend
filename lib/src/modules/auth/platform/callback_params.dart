@@ -17,8 +17,9 @@ class WebCallbackSuccess extends CallbackParams {
   final int? expiresIn;
 
   /// OIDC ID Token. Required as `id_token_hint` for RP-Initiated
-  /// Logout to deterministically end the IdP SSO session. Null until
-  /// the BFF includes `id_token` in the callback redirect.
+  /// Logout to deterministically end the IdP SSO session. Null when the
+  /// backend's scope lacks `openid`, or when its callback carries no ID token
+  /// (before v0.82.3 / v0.83.3).
   final String? idToken;
 
   @override

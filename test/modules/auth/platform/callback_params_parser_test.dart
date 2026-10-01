@@ -35,22 +35,6 @@ void main() {
       expect((result as WebCallbackSuccess).accessToken, 'abc123');
     });
 
-    test('access_token param used as fallback', () {
-      final result = parseCallbackParams({'access_token': 'xyz789'});
-
-      expect(result, isA<WebCallbackSuccess>());
-      expect((result as WebCallbackSuccess).accessToken, 'xyz789');
-    });
-
-    test('token takes precedence over access_token', () {
-      final result = parseCallbackParams({
-        'token': 'primary',
-        'access_token': 'fallback',
-      });
-
-      expect((result as WebCallbackSuccess).accessToken, 'primary');
-    });
-
     test('refresh_token and expires_in forwarded when present', () {
       final result = parseCallbackParams({
         'token': 'abc',
@@ -98,46 +82,109 @@ void main() {
     });
   });
 
-  group('extractQueryParams', () {
-    test('parses from search string', () {
-      final result = extractQueryParams(
-        search: '?code=abc&state=xyz',
-        hash: '',
-      );
-
-      expect(result, {'code': 'abc', 'state': 'xyz'});
+  group('callbackQueryFromHash', () {
+    test('returns the query of the sign-in callback route', () {
+      expect(callbackQueryFromHash('#/auth/callback?token=abc&expires_in=60'),
+          'token=abc&expires_in=60');
     });
 
-    test('empty search falls back to hash query', () {
-      final result = extractQueryParams(
-        search: '',
-        hash: '#/callback?token=abc&expires_in=3600',
-      );
+    test('ignores other routes, even with a query', () {
+      expect(callbackQueryFromHash('#/lobby?server=x'), isNull);
+      expect(callbackQueryFromHash('#/?url=https%3A%2F%2Fa&returnTo=%2Fr'),
+          isNull);
+      expect(callbackQueryFromHash('#/auth/callback'), isNull);
+      expect(callbackQueryFromHash(''), isNull);
+    });
+  });
 
-      expect(result, {'token': 'abc', 'expires_in': '3600'});
+  group('urlWithoutQueries', () {
+    const page = 'https://soliplex.example/app/';
+
+    String? clear(String hash,
+            {String search = '', String pathname = '/app/'}) =>
+        urlWithoutQueries(
+          origin: 'https://soliplex.example',
+          pathname: pathname,
+          search: search,
+          hash: hash,
+        );
+
+    test("drops a sign-in callback's tokens", () {
+      expect(clear('#/auth/callback?token=x'), '$page#/auth/callback');
     });
 
-    test('both empty returns empty map', () {
-      final result = extractQueryParams(search: '', hash: '');
-      expect(result, isEmpty);
+    test("drops a lobby route's query", () {
+      expect(clear('#/lobby?server=x'), '$page#/lobby');
     });
 
-    test('hash without query portion returns empty map', () {
-      final result = extractQueryParams(
-        search: '',
-        hash: '#/callback',
-      );
-
-      expect(result, isEmpty);
+    test("drops the home route's query", () {
+      expect(clear('#/?url=x'), '$page#/');
     });
 
-    test('search takes precedence over hash', () {
-      final result = extractQueryParams(
-        search: '?from=search',
-        hash: '#/path?from=hash',
+    test('drops the query of a hash with no path', () {
+      expect(clear('#?url=x'), '$page#');
+    });
+
+    test('drops the query of another spelling of the home route', () {
+      expect(clear('#//?url=x'), '$page#//');
+    });
+
+    test('drops tokens in the address bar query', () {
+      expect(clear('#/', search: '?token=a&refresh_token=b'), '$page#/');
+    });
+
+    test('drops the address bar query when there is no hash', () {
+      expect(clear('', search: '?token=a'), page);
+    });
+
+    test('leaves a URL with no query unchanged', () {
+      expect(clear('#/lobby'), isNull);
+    });
+
+    test('keeps the origin when the path reads as another host', () {
+      expect(clear('#/auth/callback?token=abc', pathname: '//evil.example/'),
+          startsWith('https://soliplex.example/'));
+    });
+  });
+
+  group('captureCallback', () {
+    test('reads the query index.html stashed', () {
+      final captured = captureCallback(
+        stashedQuery: 'token=abc&id_token=id',
+        hash: '#/auth/callback',
       );
 
-      expect(result['from'], 'search');
+      expect(captured.scriptMissing, isFalse);
+      final success = captured.params as WebCallbackSuccess;
+      expect(success.accessToken, 'abc');
+      expect(success.idToken, 'id');
+    });
+
+    test('falls back to the URL and flags the missing script', () {
+      final captured = captureCallback(
+        stashedQuery: null,
+        hash: '#/auth/callback?token=abc',
+      );
+
+      expect(captured.scriptMissing, isTrue);
+      expect((captured.params as WebCallbackSuccess).accessToken, 'abc');
+    });
+
+    test('an ordinary page load is no callback and no missing script', () {
+      final captured =
+          captureCallback(stashedQuery: null, hash: '#/lobby?server=x');
+
+      expect(captured.params, isA<NoCallbackParams>());
+      expect(captured.scriptMissing, isFalse);
+    });
+
+    test('ignores an access_token key', () {
+      final captured = captureCallback(
+        stashedQuery: 'access_token=abc',
+        hash: '#/auth/callback',
+      );
+
+      expect(captured.params, isA<NoCallbackParams>());
     });
   });
 }

@@ -11,13 +11,15 @@ export 'callback_params.dart';
 abstract final class CallbackParamsCapture {
   /// Capture callback params from current URL.
   ///
-  /// On web, extracts tokens from URL query params.
+  /// On web, reads the tokens `web/index.html` moved out of the URL, or the
+  /// URL itself when that script is missing.
   /// On native, returns [NoCallbackParams].
   static CallbackParams captureNow() => impl.captureCallbackParamsNow();
 }
 
 /// Clears OAuth callback parameters from the browser URL.
 ///
-/// On web, removes tokens from the URL and browser history.
+/// On web, removes every query from the page URL on load, in the address bar
+/// and in the hash route, including the sign-in callback's tokens.
 /// On native, this is a no-op.
 void clearCallbackUrl() => impl.clearCallbackUrl();

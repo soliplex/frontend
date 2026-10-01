@@ -15,6 +15,26 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <title>Soliplex</title>
+  <!--
+    Moves the sign-in callback's tokens out of the address bar before anything
+    else loads. It follows <title> so the history entry Chrome records
+    for the callback URL shows the title, not the tokens; the entry still
+    holds them. The app reads them from window.soliplexCallbackQuery
+    (lib/src/modules/auth/platform/callback_service_web.dart).
+  -->
+  <script>
+    (function () {
+      var route = '#/auth/callback';
+      var hash = window.location.hash;
+      if (hash.indexOf(route + '?') !== 0) return;
+      window.soliplexCallbackQuery = hash.substring(route.length + 1);
+      history.replaceState(
+        null, '',
+        window.location.origin + window.location.pathname +
+          window.location.search + route);
+    })();
+  </script>
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Soliplex AI-powered RAG system">
 
@@ -27,7 +47,6 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
 
-  <title>Soliplex</title>
   <link rel="manifest" href="manifest.json">
   <style id="splash-screen-style">
     html {

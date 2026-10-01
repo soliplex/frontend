@@ -125,6 +125,40 @@ exported for exactly this, and it is what the shell runs, so your tests cannot
 drift from production by reproducing the composition slightly differently.
 Prefer `standardFlavor` unless you genuinely need a different module graph.
 
+## Web entry page
+
+A fork with its own `web/index.html` must carry the sign-in callback script,
+right after `<title>`, with no tag that loads a resource (`<link>`,
+`<script src>`) above it:
+
+```html
+<script>
+  (function () {
+    var route = '#/auth/callback';
+    var hash = window.location.hash;
+    if (hash.indexOf(route + '?') !== 0) return;
+    window.soliplexCallbackQuery = hash.substring(route.length + 1);
+    history.replaceState(
+      null, '',
+      window.location.origin + window.location.pathname +
+        window.location.search + route);
+  })();
+</script>
+```
+
+After a web sign-in the backend sends the browser to
+`#/auth/callback?token=…`. The script takes the tokens out of the address bar
+before the app starts downloading, instead of leaving them there until Flutter
+boots. Without it, sign-in still works, but the tokens stay visible for that
+time and the app logs an error naming this page.
+
+The browser still records the callback URL, tokens included, in its history.
+In Chrome, placing the script after `<title>` makes that entry show the page
+title rather than the tokens; only a backend change keeps them out of the URL.
+
+Keep `CallbackParamsCapture.captureNow()` then `clearCallbackUrl()` at the top
+of `main()`, after `installLogSinks()`.
+
 ## Rules
 
 - Build the theme with `buildSoliplexThemeData` (never a bare `ThemeData`) — the

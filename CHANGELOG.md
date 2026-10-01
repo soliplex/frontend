@@ -30,6 +30,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - The account name and email come from the sign-in tokens instead of a
   `/api/user_info` request, so they show as soon as the app opens. The lobby
   and the room rail show the email once when it is also the name or username.
+- After a web sign-in, the tokens leave the address bar before the app starts
+  loading rather than once it has booted. Forks with their own
+  `web/index.html` need the script in `docs/authoring-a-flavor.md`; without it
+  sign-in still works and the app logs an error.
 - **Library consumers:** `AuthProviderConfig.scope` is `String?`.
 
 ### Removed
@@ -39,6 +43,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   they now pass through unprocessed. Reasoning an older backend stored as
   `THINKING_*` events no longer shows when such a thread is reopened, and a
   `MESSAGES_SNAPSHOT` no longer logs a warning.
+- Web sign-in against backends that return the tokens in the query string
+  (before `v0.82.2` / `v0.83.2`); those put the tokens in server logs.
 - **Library consumers (breaking):** `StepProgress` removed from
   `ExecutionEvent`; `bridgeBaseEvent` maps `STEP_STARTED` and every
   `THINKING_*` event to `null`, and `processEvent` leaves the conversation and
