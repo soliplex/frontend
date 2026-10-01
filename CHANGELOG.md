@@ -24,11 +24,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   deploys and backend `main` pins; the 0.84.0 and 0.87.0 snapshots are gone.
   Threads stored by 0.84.0 still read as before.
 - The signed-in user's identity on a server comes from the ID token, and from
-  the access token only when there is none. On Keycloak both carry the same
-  identity, so drafts, read markers and thread positions stay where they are.
+  the access token only when there is none or it can't be read. On Keycloak
+  both carry the same identity, so drafts, read markers and thread positions
+  stay where they are.
 - The account name and email come from the sign-in tokens instead of a
   `/api/user_info` request, so they show as soon as the app opens. The lobby
-  shows the email once when it is also the name, as the room rail already did.
+  and the room rail show the email once when it is also the name or username.
 - **Library consumers:** `AuthProviderConfig.scope` is `String?`.
 
 ### Removed

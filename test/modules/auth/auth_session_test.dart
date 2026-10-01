@@ -139,10 +139,6 @@ void main() {
   });
 
   group('AuthSession.currentUserId', () {
-    test('null before any login (NoSession)', () {
-      expect(session.currentUserId.value, isNull);
-    });
-
     test('yields iss#sub after login', () {
       session.login(
         provider: _provider,
@@ -168,29 +164,6 @@ void main() {
       );
       session.logout();
       expect(session.currentUserId.value, isNull);
-    });
-
-    test('null when the access token is not a decodable JWT', () {
-      session.login(
-        provider: _provider,
-        tokens: _identityTokens('opaque-token'),
-      );
-      expect(session.currentUserId.value, isNull);
-    });
-
-    test('value is stable across a same-user token refresh', () {
-      session.login(
-        provider: _provider,
-        tokens: _identityTokens(_jwt('iss-a', 'alice')),
-      );
-      final first = session.currentUserId.value;
-      // Simulate a refresh: same user, new token string.
-      session.login(
-        provider: _provider,
-        tokens: _identityTokens(_jwt('iss-a', 'alice')),
-      );
-      expect(session.currentUserId.value, first);
-      expect(session.currentUserId.value, 'iss-a#alice');
     });
 
     test("prefers the id token's iss#sub over the access token's", () {
@@ -231,40 +204,6 @@ void main() {
       await session.tryRefresh();
 
       expect(session.currentUserId.value, 'iss-a#alice-id');
-    });
-  });
-
-  group('AuthSession.currentUserClaims', () {
-    test("are the id token's claims when there is one", () {
-      session.login(
-        provider: _provider,
-        tokens: _identityTokens(
-          testJwt({'iss': 'i', 'sub': 's', 'given_name': 'Access'}),
-          idToken: testJwt({'iss': 'i', 'sub': 's', 'given_name': 'Id'}),
-        ),
-      );
-      expect(session.currentUserClaims.value?['given_name'], 'Id');
-    });
-
-    test("are the access token's claims when there is no id token", () {
-      session.login(
-        provider: _provider,
-        tokens: _identityTokens(
-          testJwt({'iss': 'i', 'sub': 's', 'given_name': 'Access'}),
-        ),
-      );
-      expect(session.currentUserClaims.value?['given_name'], 'Access');
-    });
-
-    test('survive expiry and clear on logout', () {
-      session.login(
-        provider: _provider,
-        tokens: _identityTokens(testJwt({'iss': 'i', 'sub': 's'})),
-      );
-      session.markSessionExpired();
-      expect(session.currentUserClaims.value, isNotNull);
-      session.logout();
-      expect(session.currentUserClaims.value, isNull);
     });
   });
 

@@ -44,6 +44,17 @@ void main() {
     }
   }
 
+  AuthorizationTokenResponse validResponse() => AuthorizationTokenResponse(
+        'access',
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      );
+
   group('NativeAuthFlow exception mapping', () {
     test('FlutterAppAuthUserCancelledException → cancelled', () async {
       when(() => appAuth.authorizeAndExchangeCode(any())).thenThrow(
@@ -191,17 +202,6 @@ void main() {
   });
 
   group('NativeAuthFlow forceLoginPrompt', () {
-    AuthorizationTokenResponse validResponse() => AuthorizationTokenResponse(
-          'access',
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-        );
-
     test('omits prompt=login when forceLoginPrompt is false', () async {
       when(() => appAuth.authorizeAndExchangeCode(any()))
           .thenAnswer((_) async => validResponse());
@@ -224,6 +224,41 @@ void main() {
         () => appAuth.authorizeAndExchangeCode(captureAny()),
       ).captured.single as AuthorizationTokenRequest;
       expect(captured.additionalParameters, equals({'prompt': 'login'}));
+    });
+  });
+
+  group('NativeAuthFlow scopes', () {
+    Future<AuthorizationTokenRequest> authenticateWith(
+      AuthProviderConfig config,
+    ) async {
+      when(() => appAuth.authorizeAndExchangeCode(any()))
+          .thenAnswer((_) async => validResponse());
+
+      await flow.authenticate(config);
+
+      return verify(
+        () => appAuth.authorizeAndExchangeCode(captureAny()),
+      ).captured.single as AuthorizationTokenRequest;
+    }
+
+    test('requests the configured scopes', () async {
+      final captured = await authenticateWith(provider);
+
+      expect(captured.scopes, ['openid', 'profile']);
+    });
+
+    test('requests no scopes when the provider configures none', () async {
+      final captured = await authenticateWith(
+        const AuthProviderConfig(
+          id: 'idp',
+          name: 'IdP',
+          serverUrl: 'https://idp.example.com',
+          clientId: 'cid',
+          scope: null,
+        ),
+      );
+
+      expect(captured.scopes, isNull);
     });
   });
 

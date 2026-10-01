@@ -463,7 +463,7 @@ void main() {
 
     test(
         'an AuthException during the batch funnels to session expiry, like the '
-        'room-list and profile fetches', () async {
+        'room-list fetch', () async {
       final manager = _createManager();
       final entry = manager.addServer(
         serverId: 'auth',

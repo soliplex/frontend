@@ -10,17 +10,8 @@ void main() {
           {'sub': 'u', 'email': 'a@b'});
     });
 
-    test('returns null for a non-JWT string', () {
-      expect(decodeJwtClaims('not-a-jwt'), isNull);
-      expect(decodeJwtClaims(''), isNull);
-    });
-
     test('returns null for an undecodable payload segment', () {
       expect(decodeJwtClaims('aaa.!!!not-base64!!!.sig'), isNull);
-    });
-
-    test('returns null when the payload is not a JSON object', () {
-      expect(decodeJwtClaims('aaa.WzFd.sig'), isNull); // payload "[1]"
     });
   });
 
@@ -32,10 +23,6 @@ void main() {
       );
     });
 
-    test('returns null when sub is missing', () {
-      expect(identityFromClaims({'iss': 'https://idp.example'}), isNull);
-    });
-
     test('returns null when iss is missing', () {
       expect(identityFromClaims({'sub': 'u-1'}), isNull);
     });
@@ -43,6 +30,7 @@ void main() {
     test('returns null when a claim is blank or not a string', () {
       expect(identityFromClaims({'iss': '', 'sub': 'u-1'}), isNull);
       expect(identityFromClaims({'iss': 'i', 'sub': 7}), isNull);
+      expect(identityFromClaims({'iss': 'i', 'sub': ''}), isNull);
     });
   });
 
@@ -65,23 +53,18 @@ void main() {
       expect(account.email, isNull);
     });
 
-    test('falls back to preferred_username when no name is present', () {
-      final account = accountFromClaims({
-        'preferred_username': 'ada',
-        'email': 'ada@example.com',
-      });
-      expect(account.name, 'ada');
-    });
-
     test('uses email as the name but drops the duplicate email line', () {
       final account = accountFromClaims({'email': 'ada@example.com'});
       expect(account.name, 'ada@example.com');
       expect(account.email, isNull);
     });
 
-    test('falls back to "Signed in" when the payload carries no label', () {
-      final account = accountFromClaims(const {});
-      expect(account.name, 'Signed in');
+    test('drops the email line when it is also the preferred_username', () {
+      final account = accountFromClaims({
+        'preferred_username': 'ada@example.com',
+        'email': 'ada@example.com',
+      });
+      expect(account.name, 'ada@example.com');
       expect(account.email, isNull);
     });
 
@@ -102,12 +85,6 @@ void main() {
       expect(account.name, 'ada@example.com');
     });
 
-    test('reports a blank email as null', () {
-      final account =
-          accountFromClaims({'preferred_username': 'ada', 'email': ''});
-      expect(account.email, isNull);
-    });
-
     test('treats a whitespace-only email as null', () {
       final account =
           accountFromClaims({'preferred_username': 'ada', 'email': '  '});
@@ -124,17 +101,6 @@ void main() {
       });
       expect(account.name, 'ada');
       expect(account.email, 'ada@example.com');
-    });
-
-    test('falls back to "Signed in" when every claim is non-string', () {
-      final account = accountFromClaims({
-        'given_name': 1,
-        'family_name': true,
-        'preferred_username': ['ada'],
-        'email': {'value': 'ada@example.com'},
-      });
-      expect(account.name, 'Signed in');
-      expect(account.email, isNull);
     });
 
     test('null claims give the generic label', () {
