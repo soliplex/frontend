@@ -28,8 +28,10 @@ class AuthProviderConfig {
   /// OAuth client ID registered with the identity provider.
   final String clientId;
 
-  /// OAuth scopes to request (space-separated, e.g., "openid email profile").
-  final String scope;
+  /// OAuth scopes to request (space-separated, e.g., "openid email profile"),
+  /// or `null` when the backend configures none. Without `openid` the IdP
+  /// issues no ID token.
+  final String? scope;
 
   @override
   bool operator ==(Object other) {

@@ -39,7 +39,7 @@ Future<List<AuthProviderConfig>> fetchAuthProviders({
       name: data['title'] as String,
       serverUrl: data['server_url'] as String,
       clientId: data['client_id'] as String,
-      scope: data['scope'] as String,
+      scope: data['scope'] as String?,
     );
   }).toList();
 }

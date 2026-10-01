@@ -227,5 +227,36 @@ void main() {
       expect(providers.first.id, equals('single'));
       expect(providers.first.name, equals('Single Provider'));
     });
+
+    test('a provider the backend configures without a scope parses', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+        ),
+      ).thenAnswer(
+        (_) async => {
+          'keycloak': {
+            'title': 'Authenticate with Keycloak',
+            'server_url': 'https://sso.example.com/realms/app',
+            'client_id': 'soliplex',
+            'scope': null,
+          },
+        },
+      );
+
+      final providers = await fetchAuthProviders(
+        transport: mockTransport,
+        baseUrl: Uri.parse('https://api.example.com'),
+      );
+
+      expect(providers.single.id, 'keycloak');
+      expect(providers.single.scope, isNull);
+    });
   });
 }
