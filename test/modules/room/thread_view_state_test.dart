@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -19,20 +18,13 @@ import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_view_state.dart';
 
 import '../../helpers/fakes.dart';
+import '../../helpers/test_server_entry.dart';
 
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       serverId: 'test-server',
       api: api,
       agUiStreamClient: FakeAgUiStreamClient(),
     );
-
-/// Builds a minimal unsigned JWT with `iss`/`sub` claims so
-/// [AuthSession.currentUserId] can decode a stable identity from it.
-String _jwt(String iss, String sub) {
-  String seg(Map<String, dynamic> m) =>
-      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
-  return '${seg({'alg': 'RS256'})}.${seg({'iss': iss, 'sub': sub})}.sig';
-}
 
 const _testUserId = 'iss-test#user';
 
@@ -1415,7 +1407,7 @@ void main() {
             clientId: 'c',
           ),
           tokens: AuthTokens(
-            accessToken: _jwt('iss-test', 'user'),
+            accessToken: testJwt({'iss': 'iss-test', 'sub': 'user'}),
             refreshToken: 'r',
             expiresAt: DateTime.now().add(const Duration(hours: 1)),
           ),

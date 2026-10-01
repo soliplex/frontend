@@ -23,6 +23,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - The schema drift test checks haiku.rag 0.89.0, the version `afsoc-rag`
   deploys and backend `main` pins; the 0.84.0 and 0.87.0 snapshots are gone.
   Threads stored by 0.84.0 still read as before.
+- The signed-in user's identity on a server comes from the ID token, and from
+  the access token only when there is none. On Keycloak both carry the same
+  identity, so drafts, read markers and thread positions stay where they are.
 - **Library consumers:** `AuthProviderConfig.scope` is `String?`.
 
 ### Removed

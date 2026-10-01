@@ -1,8 +1,8 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'access_token_identity.dart';
 import 'auth_tokens.dart';
+import 'user_claims.dart';
 
 /// Routed through [LogManager] rather than `dart:developer` so these records
 /// reach the in-memory sink the diagnostics screen reads. A `dart:developer`
@@ -24,28 +24,42 @@ class AuthSession implements TokenRefresher {
   final Signal<SessionState> _session = Signal<SessionState>(const NoSession());
   ReadonlySignal<SessionState> get session => _session;
 
-  /// The live user's stable identity (`iss#sub`) for this server, or `null`
-  /// when signed out or the access token can't be decoded. Resolves the token
-  /// from ActiveSession AND ExpiredSession — a draft persisted on auth-expiry
-  /// must still be attributable to the user. Re-evaluates only when the session
-  /// changes and yields the same value across a same-user refresh, so watchers
-  /// don't churn. Raw (un-encoded); key builders percent-encode it downstream.
+  /// The signed-in user's claims on this server: the ID token's, else the
+  /// access token's, or `null` when signed out or neither decodes.
   ///
-  /// Keyed on the access token, not the id token: the access token is the one
-  /// credential available on every platform. We only decode it — never verify
-  /// its signature — because the backend already validated it cryptographically.
-  ///
-  /// A `null` on an *authenticated* session (an opaque access token carrying no
-  /// `iss`/`sub`) is expected, not an error: user-scoped device-local state
-  /// then shares this server's unauthenticated bucket, since there is no
-  /// identity claim to isolate it by.
-  late final ReadonlySignal<String?> currentUserId = computed(() {
-    final token = switch (_session.value) {
-      ActiveSession(:final tokens) => tokens.accessToken,
-      ExpiredSession(:final tokens) => tokens.accessToken,
+  /// The ID token is the credential OIDC addresses to the client; the access
+  /// token is addressed to the backend, so it is read only when there is no
+  /// ID token or it does not decode — a backend configured without the
+  /// `openid` scope, or a web session stored before the backend returned one.
+  /// Resolves from ActiveSession AND ExpiredSession, so a draft persisted on
+  /// auth expiry is still attributable to the user. Decode-only; see
+  /// [decodeJwtClaims].
+  late final ReadonlySignal<Map<String, dynamic>?> currentUserClaims =
+      computed(() {
+    final tokens = switch (_session.value) {
+      ActiveSession(:final tokens) || ExpiredSession(:final tokens) => tokens,
       NoSession() => null,
     };
-    return token == null ? null : accessTokenIdentity(token);
+    if (tokens == null) return null;
+    final idToken = tokens.idToken;
+    return (idToken == null ? null : decodeJwtClaims(idToken)) ??
+        decodeJwtClaims(tokens.accessToken);
+  });
+
+  /// The live user's stable identity (`iss#sub`) for this server, from
+  /// [currentUserClaims]. Yields the same value across a same-user refresh,
+  /// so watchers don't churn. Raw (un-encoded); key builders percent-encode it
+  /// downstream.
+  ///
+  /// A `null` on an *authenticated* session ([currentUserClaims] carry no
+  /// `iss`/`sub`) is expected, not an error: user-scoped device-local state
+  /// then shares this server's unauthenticated bucket, since there is no
+  /// identity claim to isolate it by. It takes a non-compliant IdP: the
+  /// Soliplex backend rejects an access token without `iss` and `sub`, and
+  /// OIDC Core requires both in an ID token.
+  late final ReadonlySignal<String?> currentUserId = computed(() {
+    final claims = currentUserClaims.value;
+    return claims == null ? null : identityFromClaims(claims);
   });
 
   /// Sync read for the HTTP client's getToken callback.
