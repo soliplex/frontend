@@ -53,8 +53,7 @@ UserAccount accountFromClaims(Map<String, dynamic>? claims) {
   final preferred = claim('preferred_username').trim();
   final email = claim('email').trim();
   final full = '$given $family'.trim();
-  final hasName = full.isNotEmpty || preferred.isNotEmpty;
   final name = [full, preferred, email]
       .firstWhere((s) => s.isNotEmpty, orElse: () => signedInLabel);
-  return (name: name, email: hasName && email.isNotEmpty ? email : null);
+  return (name: name, email: email.isNotEmpty && email != name ? email : null);
 }

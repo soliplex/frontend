@@ -30,7 +30,8 @@ class AuthSession implements TokenRefresher {
   /// The ID token is the credential OIDC addresses to the client; the access
   /// token is addressed to the backend, so it is read only when there is no
   /// ID token or it does not decode — a backend configured without the
-  /// `openid` scope, or a web session stored before the backend returned one.
+  /// `openid` scope, or a web sign-in through a backend whose callback carries
+  /// no ID token.
   /// Resolves from ActiveSession AND ExpiredSession, so a draft persisted on
   /// auth expiry is still attributable to the user. Decode-only; see
   /// [decodeJwtClaims].

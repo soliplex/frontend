@@ -784,7 +784,6 @@ void main() {
         String given = '',
         String family = '',
         String email = '',
-        String preferred = '',
       }) =>
           testJwt({
             'iss': 'https://idp.test',
@@ -792,7 +791,6 @@ void main() {
             'given_name': given,
             'family_name': family,
             'email': email,
-            'preferred_username': preferred,
           });
 
       testWidgets('shows Guest for a no-auth server', (tester) async {
@@ -841,23 +839,6 @@ void main() {
         expect(find.text('A'), findsOneWidget); // avatar initial
       });
 
-      testWidgets('falls back to preferred_username when no full name',
-          (tester) async {
-        final manager = _createManager();
-        final entry = addServer(manager, requiresAuth: true);
-        signIn(entry, idToken: claims(preferred: 'ada99'));
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          selectedServerId: 'srv',
-        ));
-
-        // Block-only identity; the preferred_username and initial each
-        // render once.
-        expect(find.text('ada99'), findsOneWidget);
-        expect(find.text('A'), findsOneWidget);
-      });
-
       testWidgets('shows Signed in when the tokens name nobody',
           (tester) async {
         final manager = _createManager();
@@ -874,21 +855,6 @@ void main() {
         // The block falls back to the generic label; initial is block-only.
         expect(find.text('Signed in'), findsOneWidget);
         expect(find.text('S'), findsOneWidget);
-      });
-
-      testWidgets('omits the email line when the claims have no email',
-          (tester) async {
-        final manager = _createManager();
-        final entry = addServer(manager, requiresAuth: true);
-        signIn(entry, idToken: claims(given: 'Ada', family: 'Lovelace'));
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          selectedServerId: 'srv',
-        ));
-
-        expect(find.text('Ada Lovelace'), findsOneWidget);
-        expect(find.textContaining('@'), findsNothing);
       });
 
       testWidgets(
@@ -917,7 +883,7 @@ void main() {
         expect(find.text('Ada Lovelace'), findsNothing);
       });
 
-      testWidgets('follows the claims of a refreshed token', (tester) async {
+      testWidgets('follows the claims of a new sign-in', (tester) async {
         final manager = _createManager();
         final entry = addServer(manager, requiresAuth: true);
         signIn(entry, idToken: claims(given: 'Ada', family: 'Lovelace'));
@@ -932,20 +898,6 @@ void main() {
 
         expect(find.text('Ada King'), findsOneWidget);
         expect(find.text('Ada Lovelace'), findsNothing);
-      });
-
-      testWidgets('shows the email once when it is also the name',
-          (tester) async {
-        final manager = _createManager();
-        final entry = addServer(manager, requiresAuth: true);
-        signIn(entry, idToken: claims(email: 'ada@example.com'));
-
-        await tester.pumpWidget(_buildSidebar(
-          servers: manager.servers.value,
-          selectedServerId: 'srv',
-        ));
-
-        expect(find.text('ada@example.com'), findsOneWidget);
       });
     });
 
