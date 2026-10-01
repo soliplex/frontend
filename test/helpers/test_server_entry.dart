@@ -37,7 +37,7 @@ ServerEntry createTestServerEntry({
 }
 
 /// An [AuthSession] already in its [ActiveSession] state, for tests that need
-/// to exercise authenticated-only paths (e.g. the rail's account fetch).
+/// to exercise authenticated-only paths (e.g. the rail's account label).
 AuthSession authInActiveSession() {
   final auth = AuthSession(refreshService: FakeTokenRefreshService());
   auth.login(

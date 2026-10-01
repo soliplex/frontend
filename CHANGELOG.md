@@ -26,6 +26,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - The signed-in user's identity on a server comes from the ID token, and from
   the access token only when there is none. On Keycloak both carry the same
   identity, so drafts, read markers and thread positions stay where they are.
+- The account name and email come from the sign-in tokens instead of a
+  `/api/user_info` request, so they show as soon as the app opens. The lobby
+  shows the email once when it is also the name, as the room rail already did.
 - **Library consumers:** `AuthProviderConfig.scope` is `String?`.
 
 ### Removed
@@ -39,9 +42,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `ExecutionEvent`; `bridgeBaseEvent` maps `STEP_STARTED` and every
   `THINKING_*` event to `null`, and `processEvent` leaves the conversation and
   streaming state unchanged for every `THINKING_*` event.
+- **Library consumers (breaking):** `UserProfile`, `LobbyState.userProfiles`,
+  `ServerSidebar.profiles`, `RoomAccount`, `RoomRail.account` and
+  `accountFromJson` removed; use `accountFromClaims` and
+  `AuthSession.currentUserClaims`. `signedInLabel` moved from `room_rail.dart`
+  to `user_claims.dart`.
 
 ### Fixed
 
+- A user whose identity provider has no first or last name on file no longer
+  shows as `<unknown> <unknown>`; the account falls back to their username or
+  email.
 - Connecting to a backend whose sign-in provider has no configured scope no
   longer fails while reading its providers.
 - A server whose session has expired can now be logged out of from the

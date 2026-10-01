@@ -10,8 +10,8 @@ import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../auth/ui/server_sign_out_control.dart';
+import '../../auth/user_claims.dart';
 import '../../auth/ui/server_status_dot.dart';
-import '../lobby_state.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.server_sidebar');
@@ -21,7 +21,6 @@ class ServerSidebar extends StatelessWidget {
     super.key,
     required this.servers,
     required this.serverManager,
-    required this.profiles,
     required this.identity,
     required this.selectedServerId,
     required this.onSelectServer,
@@ -36,7 +35,6 @@ class ServerSidebar extends StatelessWidget {
 
   /// Drives the per-tile destructive actions (log out / remove).
   final ServerManager serverManager;
-  final Map<String, UserProfile?> profiles;
 
   /// Brand identity shown in the header (logo + app name).
   final AppIdentity identity;
@@ -62,8 +60,6 @@ class ServerSidebar extends StatelessWidget {
     // server (or Guest when there's no selection / no auth).
     final selectedEntry =
         selectedServerId == null ? null : servers[selectedServerId];
-    final selectedProfile =
-        selectedServerId == null ? null : profiles[selectedServerId];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s3),
       child: Column(
@@ -85,7 +81,6 @@ class ServerSidebar extends StatelessWidget {
           const Divider(height: 1),
           _AccountBar(
             entry: selectedEntry,
-            profile: selectedProfile,
             onDiagnostics: onDiagnostics,
             onVersions: onVersions,
           ),
@@ -313,17 +308,6 @@ class _ServerTileState extends State<_ServerTile> {
   }
 }
 
-/// The signed-in user's display name from [profile], falling back through the
-/// preferred username and email to a generic label when no name is set.
-String _signedInName(UserProfile? profile) {
-  if (profile == null) return 'Signed in';
-  final full = '${profile.givenName} ${profile.familyName}'.trim();
-  if (full.isNotEmpty) return full;
-  if (profile.preferredUsername.isNotEmpty) return profile.preferredUsername;
-  if (profile.email.isNotEmpty) return profile.email;
-  return 'Signed in';
-}
-
 /// Per-server actions behind a tile's trailing ⋮ menu. The available set
 /// depends on the server's connection state (see [_ServerTileMenu]).
 enum _ServerTileAction { signIn, logOut, markAllRead, copyAddress, remove }
@@ -464,13 +448,11 @@ enum _SidebarAction { diagnostics, versions }
 class _AccountBar extends StatelessWidget {
   const _AccountBar({
     required this.entry,
-    required this.profile,
     required this.onDiagnostics,
     required this.onVersions,
   });
 
   final ServerEntry? entry;
-  final UserProfile? profile;
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
 
@@ -490,7 +472,7 @@ class _AccountBar extends StatelessWidget {
           SoliplexSpacing.s2, SoliplexSpacing.s2, 0, SoliplexSpacing.s2),
       child: Row(
         children: [
-          Expanded(child: _AccountBlock(entry: entry, profile: profile)),
+          Expanded(child: _AccountBlock(entry: entry)),
           const SizedBox(width: SoliplexSpacing.s2),
           PopupMenuButton<_SidebarAction>(
             icon: const Icon(Icons.more_vert),
@@ -517,15 +499,16 @@ class _AccountBar extends StatelessWidget {
 /// colored initial avatar. Falls back to a "Guest" identity when the server
 /// is unauthenticated or in no-auth mode.
 class _AccountBlock extends StatelessWidget {
-  const _AccountBlock({required this.entry, required this.profile});
+  const _AccountBlock({required this.entry});
 
   final ServerEntry? entry;
-  final UserProfile? profile;
 
   @override
   Widget build(BuildContext context) {
-    // Session is a per-entry signal the parent does not watch; Watch rebuilds
-    // the block when it flips (e.g. sign-in / expiry) without a map mutation.
+    // Session and token claims are per-entry signals the parent does not
+    // watch; Watch rebuilds the block when the session flips (e.g. sign-in /
+    // expiry) or the claims change (e.g. a token refresh) without a map
+    // mutation.
     return Watch((context) {
       final theme = Theme.of(context);
       final identity = _resolveIdentity();
@@ -561,15 +544,14 @@ class _AccountBlock extends StatelessWidget {
     });
   }
 
-  ({String name, String? email}) _resolveIdentity() {
+  UserAccount _resolveIdentity() {
     final isAuthenticated = entry != null &&
         entry!.requiresAuth &&
         entry!.auth.session.value is ActiveSession;
     if (!isAuthenticated) {
       return (name: 'Guest', email: null);
     }
-    final email = (profile?.email.isNotEmpty ?? false) ? profile!.email : null;
-    return (name: _signedInName(profile), email: email);
+    return accountFromClaims(entry!.auth.currentUserClaims.value);
   }
 }
 

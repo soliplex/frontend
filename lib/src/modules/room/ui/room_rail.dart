@@ -8,16 +8,8 @@ import '../../../core/ui/menu_row.dart';
 import '../../../shared/mark_read_context_menu.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
+import '../../auth/user_claims.dart';
 import '../../lobby/ui/unread_dot.dart';
-
-/// A signed-in identity for the rail's account menu: a display [name] and an
-/// optional [email]. Resolved by the room screen from `/api/user_info`.
-typedef RoomAccount = ({String name, String? email});
-
-/// Fallback display name for an authenticated user whose profile carries no
-/// usable label. Shared so the room screen's parse and the rail's resolution
-/// agree on the same string.
-const String signedInLabel = 'Signed in';
 
 /// The compact, always-visible rail of rooms for the current server.
 ///
@@ -35,7 +27,6 @@ class RoomRail extends StatelessWidget {
     required this.onSelectRoom,
     required this.onBackToLobby,
     required this.entry,
-    required this.account,
     required this.onDiagnostics,
     required this.onVersions,
     this.roomsError,
@@ -70,12 +61,10 @@ class RoomRail extends StatelessWidget {
   /// thread column, so the thread column's full width is free for its CTA.
   final VoidCallback onBackToLobby;
 
-  /// The current server entry; its session drives the Guest/signed-in label.
+  /// The current server entry; its session and token claims drive the label:
+  /// "Guest" unless the server requires sign-in and the session is active,
+  /// else the claims' name, else "Signed in".
   final ServerEntry entry;
-
-  /// The resolved profile for [entry], or `null` when unknown (best-effort
-  /// fetch). Falls back to a generic "Signed in" / "Guest" label.
-  final RoomAccount? account;
 
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
@@ -109,7 +98,6 @@ class RoomRail extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
           child: _RailAccountMenu(
             entry: entry,
-            account: account,
             onDiagnostics: onDiagnostics,
             onVersions: onVersions,
           ),
@@ -313,20 +301,19 @@ class _UnreadBadge extends StatelessWidget {
 class _RailAccountMenu extends StatelessWidget {
   const _RailAccountMenu({
     required this.entry,
-    required this.account,
     required this.onDiagnostics,
     required this.onVersions,
   });
 
   final ServerEntry entry;
-  final RoomAccount? account;
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
 
   @override
   Widget build(BuildContext context) {
-    // Session is a per-entry signal; Watch refreshes the identity label on
-    // sign-in / expiry without a parent rebuild.
+    // Session and token claims are per-entry signals; Watch refreshes the
+    // identity label on sign-in / expiry and when the claims change (e.g. a
+    // token refresh) without a parent rebuild.
     return Watch((context) {
       final identity = _resolveIdentity();
       return PopupMenuButton<void>(
@@ -352,11 +339,11 @@ class _RailAccountMenu extends StatelessWidget {
     });
   }
 
-  RoomAccount _resolveIdentity() {
+  UserAccount _resolveIdentity() {
     final isAuthenticated =
         entry.requiresAuth && entry.auth.session.value is ActiveSession;
     if (!isAuthenticated) return (name: 'Guest', email: null);
-    return account ?? (name: signedInLabel, email: null);
+    return accountFromClaims(entry.auth.currentUserClaims.value);
   }
 }
 
