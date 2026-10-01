@@ -170,6 +170,37 @@ Requires Visual Studio with "Desktop development with C++" workload:
 flutter run -d windows
 ```
 
+## Backend sign-in settings
+
+These live in the backend's OIDC config (`oidc/config.yaml` in the installation,
+or each path in its `oidc_paths`) or, where noted, in the identity provider's
+client settings. They're not in this repo, but the app depends on them.
+
+- `scope` must include `openid`. Without it the identity provider issues no ID
+  token: sign-out can't name the session to end, and the account name and
+  identity fall back to the access token.
+- Web sign-in from an origin other than the backend's own asks the user to
+  confirm on a backend page, unless the origin is listed in
+  `allowed_frontend_origins`. With `unlisted_frontend_origin: deny-all` it
+  fails with a 400 instead, and a plain `http://` origin that isn't loopback
+  (such as `localhost` or `127.0.0.1`) always does. This affects a web build
+  hosted apart from the backend and `flutter run -d chrome`, whose port makes
+  it a different origin: ask the backend's operator to list the origin, or
+  confirm the page each time. Cancelling on that page leaves you on the
+  backend's page, which never sends you back; return to the app yourself.
+- Native apps sign in with the backend's own `client_id` (from `/api/login`),
+  so their tokens carry it as `azp`. The backend accepts only the
+  `accepted_azp_list` values (default: that `client_id`); a deployment that
+  sets the list must keep it, or native sign-in succeeds at the identity
+  provider and then every request is refused.
+- In the identity provider's client settings, the web app's origin must be
+  allowed for cross-origin requests (Keycloak: the client's **Web Origins**,
+  with the app's origin, or `+` when the app is served from the backend's
+  origin). On web, token refresh is a browser request straight to the
+  provider's token endpoint. Without that setting, every refresh fails as a
+  network error, the session is never renewed, and it ends only when the
+  backend refuses a request with an expired token.
+
 ## Troubleshooting
 
 ### Analyzer errors that don't match the code
