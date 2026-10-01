@@ -48,7 +48,7 @@ class NativeAuthFlow implements AuthFlow {
           provider.clientId,
           _redirectUri,
           discoveryUrl: discoveryUrl,
-          scopes: provider.scope.split(' '),
+          scopes: provider.scope?.split(' '),
           externalUserAgent:
               ExternalUserAgent.ephemeralAsWebAuthenticationSession,
           additionalParameters:
