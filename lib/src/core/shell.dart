@@ -34,9 +34,11 @@ import 'status_message_config.dart';
 ///
 /// The error is rethrown once the failure surface is *scheduled*: `runApp`
 /// both attaches the root widget and pumps the warm-up frame through
-/// `Timer.run`, so the rethrow runs first and the frame follows. Both the
-/// engine's report and [installUncaughtErrorLogging]'s asynchronous intake
-/// still see it, unless the caller awaits this future and swallows it.
+/// `Timer.run`, so the rethrow runs first and the frame follows. The
+/// engine's report and, off web, [installUncaughtErrorLogging]'s asynchronous
+/// intake see the rethrow, unless the caller awaits this future and swallows
+/// it. On web that intake records nothing (see [installUncaughtErrorLogging]),
+/// so the failure surface is the only in-app trace there.
 ///
 /// Uses [UniqueKey] so that hot restart (which re-runs main) creates a fresh
 /// widget tree. Hot reload does not re-run main, so this is safe.
