@@ -54,6 +54,9 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
         case NoCallbackParams():
           _fail('No callback parameters received.');
           return;
+        case WebCallbackMalformed():
+          _fail('The sign-in response could not be read. Please try again.');
+          return;
         case WebCallbackError(:final error):
           _logger.warning(
             'Auth callback returned an OAuth error',

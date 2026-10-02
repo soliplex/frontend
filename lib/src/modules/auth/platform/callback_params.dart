@@ -43,6 +43,14 @@ class WebCallbackError extends CallbackParams {
   String toString() => 'WebCallbackError(error: $error)';
 }
 
+/// A web sign-in callback whose query could not be decoded.
+class WebCallbackMalformed extends CallbackParams {
+  const WebCallbackMalformed();
+
+  @override
+  String toString() => 'WebCallbackMalformed()';
+}
+
 /// No callback parameters detected.
 class NoCallbackParams extends CallbackParams {
   const NoCallbackParams();

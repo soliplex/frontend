@@ -1,6 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params_parser.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+MemorySink _captureLogs() {
+  final sink = MemorySink();
+  LogManager.instance.addSink(sink);
+  addTearDown(() => LogManager.instance.removeSink(sink));
+  return sink;
+}
+
+/// The single warning `soliplex.auth_callback` recorded.
+LogRecord _warning(MemorySink sink) => sink.records
+    .where((r) =>
+        r.loggerName == 'soliplex.auth_callback' && r.level == LogLevel.warning)
+    .single;
 
 void main() {
   group('parseCallbackParams', () {
@@ -185,6 +199,41 @@ void main() {
       );
 
       expect(captured.params, isA<NoCallbackParams>());
+    });
+
+    test('an illegal percent encoding in the stash is malformed', () {
+      final sink = _captureLogs();
+
+      final captured = captureCallback(
+        stashedQuery: 'token=secret%ZZ',
+        hash: '#/auth/callback',
+      );
+
+      expect(captured.params, isA<WebCallbackMalformed>());
+      expect(captured.scriptMissing, isFalse);
+      final record = _warning(sink);
+      expect(record.attributes, {'failure': 'ArgumentError'});
+      expect(record.error, isNull);
+      expect(record.stackTrace, isNotNull);
+      expect(record.toString(), isNot(contains('secret')));
+    });
+
+    test('invalid UTF-8 in the URL is malformed and still flags the script',
+        () {
+      final sink = _captureLogs();
+
+      final captured = captureCallback(
+        stashedQuery: null,
+        hash: '#/auth/callback?token=secret%E0%A4',
+      );
+
+      expect(captured.params, isA<WebCallbackMalformed>());
+      expect(captured.scriptMissing, isTrue);
+      final record = _warning(sink);
+      expect(record.attributes['failure'], startsWith('FormatException'));
+      expect(record.error, isNull);
+      expect(record.toString(), isNot(contains('secret')));
+      expect(record.attributes.toString(), isNot(contains('secret')));
     });
   });
 }

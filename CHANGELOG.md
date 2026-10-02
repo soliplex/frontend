@@ -95,6 +95,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   closed no longer throws.
 - A failed history refresh over loaded messages is recorded in the
   diagnostics log, by thread and type of failure.
+- A web sign-in link whose query can't be decoded shows an error instead of
+  stopping the app from starting.
 
 ## [0.107.0+93] - 2026-09-29
 
