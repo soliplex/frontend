@@ -129,30 +129,16 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
     }
   }
 
-  /// Returns [returnTo] if it's a safe relative in-app path, else
-  /// falls back to the lobby.
+  /// Returns [returnTo] if [isSafeReturnTo] accepts it, else falls back to
+  /// the lobby.
   ///
-  /// Defense in depth on top of [PreAuthState]'s constructor
-  /// validation: rejects absolute URLs (`http://`, `https://`) and
-  /// protocol-relative URLs (`//host/...`) so a tampered storage entry
-  /// cannot open-redirect the user even if it bypassed the type
-  /// invariant.
+  /// Every [PreAuthState] already passes that check in its constructor, so
+  /// this is a defensive check at the navigation point. The warning carries
+  /// no part of [returnTo], which came from a link.
   String _safeReturnTo(String? returnTo) {
     if (returnTo == null || returnTo.isEmpty) return AppRoutes.lobby;
-    if (returnTo.startsWith('//') ||
-        returnTo.startsWith('http://') ||
-        returnTo.startsWith('https://')) {
-      _logger.warning(
-        'Rejected returnTo (open-redirect target)',
-        attributes: {'returnTo': returnTo},
-      );
-      return AppRoutes.lobby;
-    }
-    if (!returnTo.startsWith('/')) {
-      _logger.info(
-        'Rejected returnTo (not an absolute path)',
-        attributes: {'returnTo': returnTo},
-      );
+    if (!isSafeReturnTo(returnTo)) {
+      _logger.warning('Rejected an unsafe returnTo');
       return AppRoutes.lobby;
     }
     return returnTo;
