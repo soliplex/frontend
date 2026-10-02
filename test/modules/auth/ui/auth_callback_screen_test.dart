@@ -110,6 +110,22 @@ void main() {
       expect(find.text('Back to home'), findsOneWidget);
     });
 
+    testWidgets('shows error when the callback query could not be read',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackMalformed(),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.text('The sign-in response could not be read. '
+              'Please try again.'),
+          findsOneWidget);
+      expect(find.text('Back to home'), findsOneWidget);
+    });
+
     testWidgets('shows error when callback has error', (tester) async {
       final serverManager = _createServerManager();
       await tester.pumpWidget(_buildApp(

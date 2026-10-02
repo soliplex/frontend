@@ -1,4 +1,8 @@
+import 'package:soliplex_logging/soliplex_logging.dart';
+
 import 'callback_params.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.auth_callback');
 
 /// Parses OAuth callback parameters from URL query params.
 ///
@@ -70,7 +74,7 @@ CapturedCallback captureCallback({
 }) {
   if (stashedQuery != null) {
     return (
-      params: parseCallbackParams(Uri.splitQueryString(stashedQuery)),
+      params: _parseQuery(stashedQuery),
       scriptMissing: false,
     );
   }
@@ -79,9 +83,28 @@ CapturedCallback captureCallback({
     return (params: const NoCallbackParams(), scriptMissing: false);
   }
   return (
-    params: parseCallbackParams(Uri.splitQueryString(query)),
+    params: _parseQuery(query),
     scriptMissing: true,
   );
+}
+
+/// Parses a callback [query], or returns [WebCallbackMalformed] when its
+/// percent encoding or UTF-8 is malformed, so a crafted link cannot stop the
+/// app from starting.
+CallbackParams _parseQuery(String query) {
+  try {
+    return parseCallbackParams(Uri.splitQueryString(query));
+  } catch (e, st) {
+    if (e is! ArgumentError && e is! FormatException) rethrow;
+    // `describeFailure` drops the input a failure carries, per the logging
+    // rule in CLAUDE.md.
+    _logger.warning(
+      'Ignoring a sign-in callback with a malformed query',
+      attributes: {'failure': describeFailure(e)},
+      stackTrace: st,
+    );
+    return const WebCallbackMalformed();
+  }
 }
 
 int? _parseIntOrNull(String? value) {
