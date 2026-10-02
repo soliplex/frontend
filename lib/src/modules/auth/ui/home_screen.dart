@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/routes.dart';
 import '../../../shared/markdown/prose_markdown.dart';
@@ -21,6 +22,8 @@ import 'server_status_dot.dart';
 import '../../../shared/selectable_content.dart';
 import '../../../shared/type_to_focus.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.home_screen');
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({
@@ -111,17 +114,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
 
     final autoConnect = widget.autoConnectUrl;
-    if (autoConnect != null) {
-      _urlController.text = autoConnect;
+    final knownServer =
+        autoConnect == null ? null : _knownServerAt(autoConnect);
+    if (knownServer != null) {
+      _urlController.text = knownServer.serverUrl.toString();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _connect();
       });
     } else {
+      if (autoConnect != null) {
+        _logger.warning(
+            'Ignored an auto-connect address that names no saved server');
+      }
       final defaultUrl = widget.defaultBackendUrl;
       if (defaultUrl != null && widget.serverManager.servers.value.isEmpty) {
         _urlController.text = defaultUrl;
       }
     }
+  }
+
+  // An address in the page URL can come from outside the app, so only a
+  // server the user already added is connected, and at the address it was
+  // added with.
+  ServerEntry? _knownServerAt(String address) {
+    final uri = Uri.tryParse(address);
+    if (uri == null || !uri.hasAuthority || uri.host.isEmpty) return null;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    return widget.serverManager.servers.value[serverIdFromUrl(uri)];
   }
 
   void _onUrlChanged() {
