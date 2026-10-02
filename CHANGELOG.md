@@ -34,6 +34,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   loading rather than once it has booted. Forks with their own
   `web/index.html` need the script in `docs/authoring-a-flavor.md`; without it
   sign-in still works and the app logs an error.
+- An auto-connect address (`?url=`, from the app's own sign-in prompts or an
+  iOS deep link) connects only to a server already in the app's list, at the
+  address it was added with; any other address is ignored.
 - **Library consumers:** `AuthProviderConfig.scope` is `String?`.
 
 ### Removed

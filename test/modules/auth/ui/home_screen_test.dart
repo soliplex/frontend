@@ -23,6 +23,7 @@ import 'package:soliplex_frontend/src/modules/auth/ui/server_sign_out_control.da
 import 'package:soliplex_frontend/src/modules/auth/ui/server_status_dot.dart';
 import 'package:soliplex_frontend/src/shared/markdown/prose_markdown.dart';
 import 'package:soliplex_frontend/version.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -977,8 +978,122 @@ void main() {
       expect(field.controller!.text, isEmpty);
     });
 
+    for (final address in [
+      'https://other.example',
+      'https://known.example.com:@evil.example.com',
+      'known.example.com:@evil.example.com',
+      'known.example.com@evil.example.com',
+      ' https://known.example.com:@evil.example.com',
+    ]) {
+      testWidgets('autoConnectUrl for an unknown "$address" is ignored',
+          (tester) async {
+        final serverManager = _createServerManager();
+        serverManager.addServer(
+          serverId: 'https://known.example.com',
+          serverUrl: Uri.parse('https://known.example.com'),
+        );
+        final encodedUrl = Uri.encodeComponent(address);
+
+        await tester.pumpWidget(_buildApp(
+          serverManager: serverManager,
+          discover: _noAuthDiscover,
+          initialLocation: '/?url=$encodedUrl',
+        ));
+        await tester.pumpAndSettle();
+
+        expect(serverManager.servers.value.keys, ['https://known.example.com']);
+        expect(find.text('Lobby placeholder'), findsNothing);
+        final field = tester.widget<TextFormField>(find.byType(TextFormField));
+        expect(field.controller!.text, isEmpty);
+      });
+    }
+
+    testWidgets('an ignored autoConnectUrl is recorded without the address',
+        (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final serverManager = _createServerManager();
+      serverManager.addServer(
+        serverId: 'https://known.example.com',
+        serverUrl: Uri.parse('https://known.example.com'),
+      );
+      final encodedUrl = Uri.encodeComponent('https://other.example/secret');
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        initialLocation: '/?url=$encodedUrl',
+      ));
+      await tester.pumpAndSettle();
+
+      final record = sink.records
+          .where((r) =>
+              r.loggerName == 'soliplex.home_screen' &&
+              r.level == LogLevel.warning)
+          .single;
+      expect(record.message,
+          'Ignored an auto-connect address that names no saved server');
+      expect(record.toString(), isNot(contains('other.example')));
+      expect(record.toString(), isNot(contains('secret')));
+    });
+
+    testWidgets(
+        'an unknown autoConnectUrl with no saved servers leaves the default '
+        'URL, unconnected', (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final encodedUrl = Uri.encodeComponent('https://other.example/secret');
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: _createServerManager(),
+        discover: _noAuthDiscover,
+        defaultBackendUrl: 'https://default.example.com',
+        initialLocation: '/?url=$encodedUrl',
+      ));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextFormField>(find.byType(TextFormField));
+      expect(field.controller!.text, 'https://default.example.com');
+      expect(find.text('Lobby placeholder'), findsNothing);
+      final record = sink.records
+          .where((r) =>
+              r.loggerName == 'soliplex.home_screen' &&
+              r.level == LogLevel.warning)
+          .single;
+      expect(record.message,
+          'Ignored an auto-connect address that names no saved server');
+      expect(record.toString(), isNot(contains('other.example')));
+    });
+
+    testWidgets('autoConnectUrl connects a known server at its stored address',
+        (tester) async {
+      final serverManager = _createServerManager();
+      serverManager.addServer(
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
+      );
+      final encodedUrl =
+          Uri.encodeComponent('https://demo.example.com/other/path');
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _noAuthDiscover,
+        initialLocation: '/?url=$encodedUrl',
+      ));
+      final field = tester.widget<TextFormField>(find.byType(TextFormField));
+      await tester.pumpAndSettle();
+
+      expect(field.controller!.text, 'https://demo.example.com');
+      expect(find.text('Lobby placeholder'), findsOneWidget);
+    });
+
     testWidgets('autoConnectUrl sets URL and triggers connect', (tester) async {
       final serverManager = _createServerManager();
+      serverManager.addServer(
+        serverId: 'https://demo.example.com',
+        serverUrl: Uri.parse('https://demo.example.com'),
+      );
       final encodedUrl = Uri.encodeComponent('https://demo.example.com');
 
       await tester.pumpWidget(_buildApp(
@@ -990,25 +1105,6 @@ void main() {
 
       // Should have auto-connected and navigated to lobby.
       expect(find.text('Lobby placeholder'), findsOneWidget);
-    });
-
-    testWidgets('autoConnectUrl takes precedence over defaultBackendUrl',
-        (tester) async {
-      final serverManager = _createServerManager();
-      final encodedUrl = Uri.encodeComponent('https://auto.example.com');
-
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        discover: _noAuthDiscover,
-        defaultBackendUrl: 'https://default.example.com',
-        initialLocation: '/?url=$encodedUrl',
-      ));
-      await tester.pumpAndSettle();
-
-      // Should auto-connect to the autoConnectUrl, not defaultBackendUrl.
-      expect(
-          serverManager.servers.value.containsKey('https://auto.example.com'),
-          isTrue);
     });
 
     testWidgets('re-fills URL field when last server is removed',
