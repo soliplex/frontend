@@ -100,6 +100,6 @@ export 'src/modules/auth/auth_providers.dart'
 export 'src/modules/auth/inactivity_logout_storage.dart'
     show InactivityLogoutFlagStorage, LocalInactivityLogoutFlagStorage;
 export 'src/modules/auth/platform/callback_service.dart'
-    show CallbackParamsCapture, clearCallbackUrl;
+    show CallbackParams, CallbackParamsCapture, clearCallbackUrl;
 export 'src/modules/auth/consent_notice.dart' show ConsentNotice;
 export 'src/modules/auth/server_manager.dart' show ServerManager;

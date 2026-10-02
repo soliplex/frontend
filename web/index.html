@@ -17,10 +17,12 @@
   <meta charset="UTF-8">
   <title>Soliplex</title>
   <!--
-    Moves the sign-in callback's tokens out of the address bar before anything
-    else loads. It follows <title> so the history entry Chrome records
-    for the callback URL shows the title, not the tokens; the entry still
-    holds them. The app reads them from window.soliplexCallbackQuery
+    Moves the sign-in callback's tokens out of the address bar as soon as the
+    page starts parsing, before the app's scripts load. It sits above any
+    stylesheet <link> or <script src>, either of which would hold it back
+    until that file downloads. It follows <title> so the history entry Chrome
+    records for the callback URL shows the title, not the tokens; the entry
+    still holds them. The app reads them from window.soliplexCallbackQuery
     (lib/src/modules/auth/platform/callback_service_web.dart).
   -->
   <script>

@@ -63,7 +63,7 @@ String? urlWithoutQueries({
 }
 
 /// A captured sign-in callback, and whether it was still in the URL because
-/// `web/index.html` lacks the script that moves it out before the app loads.
+/// the `web/index.html` script is missing or did not run.
 typedef CapturedCallback = ({CallbackParams params, bool scriptMissing});
 
 /// Captures the sign-in callback from the query `web/index.html` stashed
