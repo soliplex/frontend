@@ -58,16 +58,17 @@ AuthResult _successResult() => AuthResult(
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
     );
 
-/// A fork's flag store that throws instead of degrading the way
+/// A fork's flag store that throws [failure] instead of degrading the way
 /// `LocalInactivityLogoutFlagStorage` does.
 /// [gate], when set, holds the failure until it completes.
 class _ThrowingFlagStorage extends InMemoryInactivityLogoutFlagStorage {
   Completer<void>? gate;
+  Object failure = Exception('flag store unavailable');
 
   @override
   Future<bool> isMarked(String serverId) async {
     await gate?.future;
-    throw Exception('flag store unavailable');
+    throw failure;
   }
 }
 
@@ -160,8 +161,8 @@ void main() {
                 r.loggerName == 'soliplex.connect_flow' &&
                 r.level == LogLevel.warning)
             .single;
-        expect(
-            record.message, 'Dropped a return page that is not an in-app path');
+        expect(record.message,
+            'Dropped a return page that is not a safe in-app path');
         expect(record.toString(), isNot(contains('evil.example')));
         expect(record.toString(), isNot(contains('%FF')));
       });
@@ -369,7 +370,53 @@ void main() {
               r.loggerName == 'soliplex.connect_flow' &&
               r.level == LogLevel.error)
           .single;
+      expect(record.error, isNull);
+      expect(record.attributes['failure'], isA<String>());
       expect(record.toString(), isNot(contains('set nextResult')));
+    });
+
+    test('an Exception during sign-in keeps its text in the record', () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        preAuthStateStorage: InMemoryPreAuthStateStorage(failSave: true),
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      final record = sink.records
+          .where((r) =>
+              r.loggerName == 'soliplex.connect_flow' &&
+              r.level == LogLevel.error)
+          .single;
+      expect(record.error.toString(), contains('store unavailable'));
+    });
+
+    test('a throw that is not an Error keeps its text in the record', () async {
+      // The shape of a web storage failure: a JS DOMException is neither a
+      // Dart Exception nor an Error.
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        inactivityLogoutFlags: _ThrowingFlagStorage()
+          ..failure = 'QuotaExceededError: storage is full',
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(flow.state.value, _connectError);
+      final record = sink.records
+          .where((r) =>
+              r.loggerName == 'soliplex.connect_flow' &&
+              r.level == LogLevel.error)
+          .single;
+      expect(record.error, 'QuotaExceededError: storage is full');
     });
 
     test('a sign-in reset while its flag check fails stays reset', () async {

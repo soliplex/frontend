@@ -1121,6 +1121,65 @@ void main() {
       expect(preAuth!.frontendReturnTo, '/lobby');
     });
 
+    for (final saved in [
+      'https://known.example.com/',
+      'https://known.example.com:8443',
+    ]) {
+      testWidgets("a server saved as $saved gets its link's returnTo",
+          (tester) async {
+        final savedUrl = Uri.parse(saved);
+        final serverManager = _createServerManager();
+        serverManager.addServer(
+          serverId: serverIdFromUrl(savedUrl),
+          serverUrl: savedUrl,
+        );
+        final url = Uri.encodeComponent(savedUrl.origin);
+        final returnTo = Uri.encodeComponent('/lobby');
+
+        await tester.pumpWidget(_buildApp(
+          serverManager: serverManager,
+          authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
+          discover: _singleProviderDiscover,
+          initialLocation: '/?url=$url&returnTo=$returnTo',
+        ));
+        // The sign-in spinner never settles once the redirect begins.
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
+
+        final preAuth = await const LocalPreAuthStateStorage().load();
+        expect(preAuth, isNotNull);
+        expect(preAuth!.frontendReturnTo, '/lobby');
+      });
+    }
+
+    testWidgets(
+        "an unsaved server's returnTo is not saved when the user connects to it",
+        (tester) async {
+      final url = Uri.encodeComponent('https://other.example.com');
+      final returnTo = Uri.encodeComponent('/lobby');
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: _createServerManager(),
+        authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
+        discover: _singleProviderDiscover,
+        initialLocation: '/?url=$url&returnTo=$returnTo',
+      ));
+      await tester.pumpAndSettle();
+      expect(await const LocalPreAuthStateStorage().load(), isNull);
+
+      await tester.enterText(
+          find.byType(TextFormField), 'https://other.example.com');
+      await tester.tap(find.text('Connect'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      final preAuth = await const LocalPreAuthStateStorage().load();
+      expect(preAuth, isNotNull);
+      expect(preAuth!.frontendReturnTo, isNull);
+    });
+
     testWidgets('autoConnectUrl sets URL and triggers connect', (tester) async {
       final serverManager = _createServerManager();
       serverManager.addServer(

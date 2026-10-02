@@ -14,9 +14,10 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 ///   no `onError`. It sees the **root zone only**, which is the right intake
 ///   here because nothing in this app runs under `runZonedGuarded` — and it is
 ///   preferable to wrapping `runApp`, which would put the whole app in a child
-///   zone for no other reason. On web it records nothing: the web engine
-///   stores the callback and never calls it (flutter/flutter#100277), so an
-///   unhandled async error there reaches only the browser console.
+///   zone for no other reason. On web it records nothing: the web engine of
+///   Flutter 3.41 stores the callback and does not call it
+///   (flutter/flutter#100277), so an unhandled async error there reaches only
+///   the browser console.
 ///
 /// This is detection, not repair. Neither intake can unstick whatever the
 /// error left half-done; what they buy is that a broken invariant leaves a

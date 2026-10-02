@@ -4,21 +4,26 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../core/routes.dart';
 import '../../core/uri_decoding.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.pre_auth_state');
 
 /// Whether [value] is an in-app path a sign-in may return to (open-redirect
-/// defense): it starts with one `/`, and its path and query decode. One that
-/// doesn't decode would throw when the callback navigates to it.
+/// defense): it starts with one `/`, its path and query decode, and it is not
+/// the sign-in callback. One that doesn't decode would throw when the callback
+/// navigates to it; returning to the callback would run it again on the same
+/// link. The callback check ignores any trailing slashes: go_router strips
+/// one before matching, so `/auth/callback/` reaches the callback too.
 bool isSafeReturnTo(String value) {
   if (!value.startsWith('/') || value.startsWith('//')) return false;
-  try {
-    return isDecodable(Uri.parse(value));
-  } on FormatException {
-    return false;
-  }
+  final uri = Uri.tryParse(value);
+  return uri != null &&
+      isDecodable(uri) &&
+      uri.path.replaceFirst(_trailingSlashes, '') != AppRoutes.authCallback;
 }
+
+final _trailingSlashes = RegExp(r'/+$');
 
 /// State saved before OAuth redirect.
 ///
@@ -46,7 +51,8 @@ class PreAuthState {
       throw ArgumentError.value(
         frontendReturnTo,
         'frontendReturnTo',
-        'must be an in-app path starting with "/", not "//", that decodes',
+        'must be an in-app path starting with "/", not "//", that decodes '
+            'and is not the sign-in callback',
       );
     }
   }
@@ -144,7 +150,7 @@ abstract interface class PreAuthStateStorage {
 
   /// The saved state, or `null` when there is none, it has expired, or it
   /// can't be read; an expired or unreadable state is cleared.
-  Future<PreAuthState?> load({DateTime? now});
+  Future<PreAuthState?> load();
 
   Future<void> clear();
 }
@@ -185,16 +191,15 @@ class LocalPreAuthStateStorage implements PreAuthStateStorage {
 
   @override
   Future<PreAuthState?> load({DateTime? now}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(storageKey);
-    if (raw == null) return null;
-
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(storageKey);
+      if (raw == null) return null;
       final state = PreAuthState.fromJson(
         jsonDecode(raw) as Map<String, dynamic>,
       );
       if (state.isExpired(now: now)) {
-        await clear();
+        await clearBestEffort();
         return null;
       }
       return state;
@@ -207,7 +212,7 @@ class LocalPreAuthStateStorage implements PreAuthStateStorage {
         attributes: {'failure': describeFailure(e)},
         stackTrace: st,
       );
-      await clear();
+      await clearBestEffort();
       return null;
     }
   }

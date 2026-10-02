@@ -334,16 +334,18 @@ void main() {
       expect(find.text('Lobby Screen'), findsNothing);
     });
 
-    testWidgets('tampered storage with absolute frontendReturnTo is rejected',
+    testWidgets('tampered storage with an unsafe frontendReturnTo is rejected',
         (tester) async {
       // Defense in depth: even if shared_preferences is tampered with
       // externally (the constructor would otherwise reject these),
-      // load() must not propagate a value that could open-redirect
-      // the user.
+      // load() must not propagate a value the callback can't safely
+      // navigate to.
       for (final crafted in [
         'https://evil.com/x',
         'http://evil.com/x',
         '//evil.com/x',
+        '/lobby?server=%FF',
+        '/auth/callback',
       ]) {
         SharedPreferences.setMockInitialValues({
           LocalPreAuthStateStorage.storageKey: _rawPreAuthJson(
@@ -352,6 +354,8 @@ void main() {
         });
         final serverManager = _createServerManager();
 
+        // A fresh screen per case, so its error text is this case's.
+        await tester.pumpWidget(const SizedBox());
         await tester.pumpWidget(_buildApp(
           serverManager: serverManager,
           callbackParams: const WebCallbackSuccess(
@@ -363,15 +367,18 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          find.text('Room ${crafted.replaceAll('/', '')}'),
-          findsNothing,
-          reason: 'crafted=$crafted must not navigate to the attacker target',
+          find.text(
+            'Authentication session expired or missing. Please try again.',
+          ),
+          findsOneWidget,
+          reason: 'crafted=$crafted should surface the session error',
         );
+        expect(serverManager.servers.value, isEmpty, reason: crafted);
+        final prefs = await SharedPreferences.getInstance();
         expect(
-          find.text('Lobby Screen'),
-          findsNothing,
-          reason: 'crafted=$crafted should surface the error, not silently '
-              'land on the lobby',
+          prefs.getString(LocalPreAuthStateStorage.storageKey),
+          isNull,
+          reason: 'crafted=$crafted should be cleared from storage',
         );
       }
     });

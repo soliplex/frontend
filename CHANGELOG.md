@@ -40,8 +40,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   iOS deep link) connects only to a server already in the app's list, at the
   address it was added with; any other address is ignored.
 - **Library consumers:** `AuthProviderConfig.scope` is `String?`.
-- **Library consumers:** `buildRouter` starts at `/` when the platform's
-  start address can't be decoded.
+- **Library consumers:** `buildRouter` starts at the config's initial route
+  when the platform's start address can't be decoded.
 
 ### Removed
 
@@ -106,12 +106,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A web sign-in link whose query can't be decoded shows an error instead of
   stopping the app from starting.
 - Opening the web app at an address it can't decode (such as `%FF` in a
-  room link) shows the home screen instead of leaving the splash screen up.
+  room link) opens the app's start page instead of leaving the splash screen
+  up.
 - A storage failure while starting a sign-in shows an error instead of
   leaving the spinner up.
 - A re-sign-in's return page applies only to the server it was issued for,
   and one that can't be decoded is dropped.
-- A web sign-in no longer fails when the saved sign-in state can't be cleared
+- A sign-in completes even when the saved sign-in state can't be cleared
   afterwards.
 
 ## [0.107.0+93] - 2026-09-29

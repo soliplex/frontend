@@ -725,14 +725,12 @@ class InMemoryPreAuthStateStorage implements PreAuthStateStorage {
 
   @override
   Future<void> save(PreAuthState state) async {
-    if (failSave) {
-      throw Exception('store unavailable');
-    }
+    if (failSave) throw Exception('store unavailable');
     saved = state;
   }
 
   @override
-  Future<PreAuthState?> load({DateTime? now}) async => saved;
+  Future<PreAuthState?> load() async => saved;
 
   @override
   Future<void> clear() async {

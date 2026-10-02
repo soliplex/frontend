@@ -118,11 +118,13 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
       // screen prefills it (best-effort; never throws).
       await DefaultBackendUrlStorage.save(preAuth.serverUrl.toString());
 
-      if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
+      // Every PreAuthState's return page passed isSafeReturnTo in its
+      // constructor.
+      if (mounted) context.go(preAuth.frontendReturnTo ?? AppRoutes.lobby);
     } catch (e, st) {
-      // Through `describeFailure`, per the logging rule in CLAUDE.md: an
-      // `expires_in` past DateTime's range throws a RangeError carrying a
-      // value derived from the callback link.
+      // Through `describeFailure`: an `expires_in` past DateTime's range
+      // throws a RangeError carrying a value derived from the callback link,
+      // so only its type and parameter name are logged.
       _logger.error(
         'Auth callback failed',
         attributes: {'failure': describeFailure(e)},
@@ -130,21 +132,6 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
       );
       _fail('Something went wrong. Please try again.');
     }
-  }
-
-  /// Returns [returnTo] if [isSafeReturnTo] accepts it, else falls back to
-  /// the lobby.
-  ///
-  /// Every [PreAuthState] already passes that check in its constructor, so
-  /// this is a defensive check at the navigation point. The warning carries
-  /// no part of [returnTo], which came from a link.
-  String _safeReturnTo(String? returnTo) {
-    if (returnTo == null || returnTo.isEmpty) return AppRoutes.lobby;
-    if (!isSafeReturnTo(returnTo)) {
-      _logger.warning('Rejected an unsafe returnTo');
-      return AppRoutes.lobby;
-    }
-    return returnTo;
   }
 
   void _fail(String message) {

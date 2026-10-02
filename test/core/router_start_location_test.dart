@@ -56,24 +56,25 @@ Future<void> _boot(
 void main() {
   group('buildRouter start address', () {
     testWidgets(
-        'starts at / and logs one warning when the platform route '
-        'does not decode', (tester) async {
+        'starts at the initial route and logs one warning when the platform '
+        'route does not decode', (tester) async {
       final sink = MemorySink();
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
 
       await _boot(tester, '/room/%FF/x');
 
-      expect(find.text('route /'), findsOneWidget);
+      expect(find.text('route /lobby'), findsOneWidget);
       final record = sink.records
           .where((r) =>
               r.loggerName == 'soliplex.router' && r.level == LogLevel.warning)
           .single;
       expect(record.message, 'Ignored a start address that cannot be decoded');
+      expect(record.toString(), isNot(contains('%FF')));
     });
 
     testWidgets(
-        'starts at / when the platform route does not parse, '
+        'starts at the initial route when the platform route does not parse, '
         'and logs no part of it', (tester) async {
       final sink = MemorySink();
       LogManager.instance.addSink(sink);
@@ -81,7 +82,7 @@ void main() {
 
       await _boot(tester, '//room:x/y');
 
-      expect(find.text('route /'), findsOneWidget);
+      expect(find.text('route /lobby'), findsOneWidget);
       final record = sink.records
           .where((r) =>
               r.loggerName == 'soliplex.router' && r.level == LogLevel.warning)
@@ -90,10 +91,11 @@ void main() {
       expect(record.toString(), isNot(contains('//room:x/y')));
     });
 
-    testWidgets('starts at / for an undecodable query', (tester) async {
-      await _boot(tester, '/lobby?server=%FF');
+    testWidgets('starts at the initial route for an undecodable query',
+        (tester) async {
+      await _boot(tester, '/room/a/b?server=%FF');
 
-      expect(find.text('route /'), findsOneWidget);
+      expect(find.text('route /lobby'), findsOneWidget);
     });
 
     testWidgets('opens a valid deep link', (tester) async {
@@ -109,9 +111,16 @@ void main() {
       expect(find.text('route /lobby'), findsOneWidget);
     });
 
-    testWidgets('a callback boot still lands on the callback route',
+    testWidgets('a callback boot lands on the callback route, not the initial',
         (tester) async {
-      await _boot(tester, '/auth/callback', initialRoute: '/auth/callback');
+      await _boot(tester, '/auth/callback');
+
+      expect(find.text('route /auth/callback'), findsOneWidget);
+    });
+
+    testWidgets('a platform / lands on a callback initial route',
+        (tester) async {
+      await _boot(tester, '/', initialRoute: '/auth/callback');
 
       expect(find.text('route /auth/callback'), findsOneWidget);
     });
@@ -125,7 +134,7 @@ void main() {
   });
 
   group('platformStartLocation', () {
-    String start(String route) =>
+    String? start(String route) =>
         platformStartLocation(route, initialRoute: '/lobby');
 
     test('keeps a valid deep link with its query', () {
@@ -159,8 +168,8 @@ void main() {
       '/?url=%FF',
       '//room:x/y',
     ]) {
-      test('throws for $route', () {
-        expect(() => start(route), throwsFormatException);
+      test('rejects $route', () {
+        expect(start(route), isNull);
       });
     }
   });

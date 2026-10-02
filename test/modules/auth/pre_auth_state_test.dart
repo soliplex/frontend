@@ -133,6 +133,17 @@ void main() {
       expect(isSafeReturnTo('/room/a/b?x=1'), isTrue);
     });
 
+    test('isSafeReturnTo rejects the sign-in callback route', () {
+      for (final route in [
+        '/auth/callback',
+        '/auth/callback?x=1',
+        '/auth/callback/',
+      ]) {
+        expect(isSafeReturnTo(route), isFalse, reason: route);
+      }
+      expect(isSafeReturnTo('/auth'), isTrue);
+    });
+
     test('constructor accepts safe relative paths for frontendReturnTo', () {
       for (final safe in [
         '/lobby',
