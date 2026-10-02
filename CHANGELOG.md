@@ -40,6 +40,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   iOS deep link) connects only to a server already in the app's list, at the
   address it was added with; any other address is ignored.
 - **Library consumers:** `AuthProviderConfig.scope` is `String?`.
+- **Library consumers:** `buildRouter` starts at `/` when the platform's
+  start address can't be decoded.
 
 ### Removed
 
@@ -103,6 +105,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   diagnostics log, by thread and type of failure.
 - A web sign-in link whose query can't be decoded shows an error instead of
   stopping the app from starting.
+- Opening the web app at an address it can't decode (such as `%FF` in a
+  room link) shows the home screen instead of leaving the splash screen up.
 
 ## [0.107.0+93] - 2026-09-29
 
