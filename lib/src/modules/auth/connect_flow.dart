@@ -354,7 +354,7 @@ class ConnectFlow {
       // signed in, so a storage failure here must not bounce them to the
       // error state. The PreAuthState clear is guarded; the shipped inactivity
       // flag store and the two storage saves swallow their own failures.
-      await _clearPreAuthState();
+      await preAuthStateStorage.clearBestEffort();
       // Only clear after a successful login. If the IdP challenge was
       // cancelled or failed, the flag stays set so the next attempt
       // also forces prompt=login.
@@ -368,7 +368,7 @@ class ConnectFlow {
       // Web: browser is redirecting to IdP. The flag stays set;
       // AuthCallbackScreen clears it after persisting the new tokens.
     } on AuthException catch (e) {
-      await _clearPreAuthState();
+      await preAuthStateStorage.clearBestEffort();
       if (!_isCancelled(gen)) {
         final description = describeAuthFailure(
           kind: e.kind,
@@ -400,7 +400,7 @@ class ConnectFlow {
           stackTrace: st,
         );
       }
-      await _clearPreAuthState();
+      await preAuthStateStorage.clearBestEffort();
       if (!_isCancelled(gen)) {
         state.value = UrlInput(
           message: ConnectError(
@@ -408,23 +408,6 @@ class ConnectFlow {
           ),
         );
       }
-    }
-  }
-
-  /// Clears the saved [PreAuthState], logging a failure instead of
-  /// throwing: it runs inside catch blocks and after a completed sign-in,
-  /// where a throw would leave the spinner up or bounce a signed-in user.
-  Future<void> _clearPreAuthState() async {
-    try {
-      await preAuthStateStorage.clear();
-    } catch (e, st) {
-      // `error: e` is safe: the key is a constant and no stored value reaches
-      // it; at most a PlatformException or a web storage SecurityError.
-      _logger.warning(
-        'Failed to clear the pre-auth state',
-        error: e,
-        stackTrace: st,
-      );
     }
   }
 }

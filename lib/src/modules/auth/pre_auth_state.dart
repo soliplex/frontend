@@ -149,6 +149,28 @@ abstract interface class PreAuthStateStorage {
   Future<void> clear();
 }
 
+extension BestEffortClear on PreAuthStateStorage {
+  /// Clears the saved [PreAuthState], logging a failure instead of
+  /// throwing. It runs inside catch blocks, and after the IdP has returned
+  /// tokens, where a throw would leave the spinner up or discard a completed
+  /// sign-in.
+  Future<void> clearBestEffort() async {
+    try {
+      await clear();
+    } catch (e, st) {
+      // `error: e` is safe for [LocalPreAuthStateStorage]: its key is a
+      // constant and no stored value reaches it; at most a PlatformException
+      // or a web storage SecurityError. Another implementation's exception
+      // text is its own to keep free of secrets.
+      _logger.warning(
+        'Failed to clear the pre-auth state',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+}
+
 /// Stores and retrieves [PreAuthState] via SharedPreferences.
 class LocalPreAuthStateStorage implements PreAuthStateStorage {
   const LocalPreAuthStateStorage();
