@@ -290,23 +290,24 @@ class ConnectFlow {
     final discoveryUrl =
         '${provider.serverUrl}/.well-known/openid-configuration';
 
-    await PreAuthStateStorage.save(PreAuthState(
-      serverUrl: probeResult.serverUrl,
-      providerId: provider.id,
-      discoveryUrl: discoveryUrl,
-      clientId: provider.clientId,
-      createdAt: DateTime.timestamp(),
-      frontendReturnTo: _pendingReturnTo,
-      serverName: probeResult.info?.name,
-      serverDescription: probeResult.info?.description,
-    ));
-
-    final serverId = serverIdFromUrl(probeResult.serverUrl);
-    final forceLoginPrompt = await inactivityLogoutFlags.isMarked(serverId);
-
-    if (_isCancelled(gen)) return;
-
+    // Everything that can throw sits inside the `try`: the callers don't
+    // await this method, so a throw outside it would leave the spinner up.
     try {
+      final serverId = serverIdFromUrl(probeResult.serverUrl);
+      await PreAuthStateStorage.save(PreAuthState(
+        serverUrl: probeResult.serverUrl,
+        providerId: provider.id,
+        discoveryUrl: discoveryUrl,
+        clientId: provider.clientId,
+        createdAt: DateTime.timestamp(),
+        frontendReturnTo: _pendingReturnTo,
+        serverName: probeResult.info?.name,
+        serverDescription: probeResult.info?.description,
+      ));
+      final forceLoginPrompt = await inactivityLogoutFlags.isMarked(serverId);
+
+      if (_isCancelled(gen)) return;
+
       final authResult = await authFlow.authenticate(
         provider,
         backendUrl: probeResult.serverUrl,
@@ -340,17 +341,9 @@ class ConnectFlow {
 
       // Post-login housekeeping is best-effort: the user is already
       // signed in, so a storage failure here must not bounce them to the
-      // error state. Guard the PreAuthState clear (the inactivity flag
-      // store swallows its own failures).
-      try {
-        await PreAuthStateStorage.clear();
-      } catch (e, st) {
-        _logger.warning(
-          'post-login PreAuthState clear failed',
-          error: e,
-          stackTrace: st,
-        );
-      }
+      // error state. The PreAuthState clear is guarded; the shipped inactivity
+      // flag store and the two storage saves swallow their own failures.
+      await _clearPreAuthState();
       // Only clear after a successful login. If the IdP challenge was
       // cancelled or failed, the flag stays set so the next attempt
       // also forces prompt=login.
@@ -364,7 +357,7 @@ class ConnectFlow {
       // Web: browser is redirecting to IdP. The flag stays set;
       // AuthCallbackScreen clears it after persisting the new tokens.
     } on AuthException catch (e) {
-      await PreAuthStateStorage.clear();
+      await _clearPreAuthState();
       if (!_isCancelled(gen)) {
         final description = describeAuthFailure(
           kind: e.kind,
@@ -377,13 +370,26 @@ class ConnectFlow {
               : ConnectError(description),
         );
       }
-    } on Exception catch (e, st) {
-      _logger.error(
-        'Authentication failed',
-        error: e,
-        stackTrace: st,
-      );
-      await PreAuthStateStorage.clear();
+    } catch (e, st) {
+      if (e is Exception) {
+        // An Exception keeps `error:`. Here it is a storage platform error,
+        // on web the login URL failing to parse, or a fork's
+        // InactivityLogoutFlagStorage failing in `isMarked`: platform text,
+        // the server's host and the provider id, none of them secret. A fork's
+        // exception text is the fork's to keep free of secrets.
+        _logger.error('Authentication failed', error: e, stackTrace: st);
+      } else {
+        // Anything else is a bug or the PreAuthState constructor's
+        // ArgumentError for an unsafe `returnTo`, whose value is
+        // link-supplied, so only the failure's type is logged, per the
+        // logging rule in CLAUDE.md.
+        _logger.error(
+          'Authentication failed',
+          attributes: {'failure': describeFailure(e)},
+          stackTrace: st,
+        );
+      }
+      await _clearPreAuthState();
       if (!_isCancelled(gen)) {
         state.value = UrlInput(
           message: ConnectError(
@@ -391,6 +397,21 @@ class ConnectFlow {
           ),
         );
       }
+    }
+  }
+
+  /// Clears the saved [PreAuthState], logging a failure instead of
+  /// throwing: it runs inside catch blocks and after a completed sign-in,
+  /// where a throw would leave the spinner up or bounce a signed-in user.
+  Future<void> _clearPreAuthState() async {
+    try {
+      await PreAuthStateStorage.clear();
+    } catch (e, st) {
+      _logger.warning(
+        'Failed to clear the pre-auth state',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 }

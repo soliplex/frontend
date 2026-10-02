@@ -107,6 +107,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   stopping the app from starting.
 - Opening the web app at an address it can't decode (such as `%FF` in a
   room link) shows the home screen instead of leaving the splash screen up.
+- A storage failure while starting a sign-in shows an error instead of
+  leaving the spinner up.
 
 ## [0.107.0+93] - 2026-09-29
 
