@@ -16,7 +16,7 @@ import 'server_manager.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.connect_flow');
 
-/// A page to return to after signing in to the saved server [serverId].
+/// A page to return to after signing in to the saved server `serverId`.
 typedef ReturnTarget = ({String serverId, String path});
 
 /// State of the server connection flow.
@@ -117,7 +117,7 @@ class ConnectFlow {
   // is dropped here, before any sign-in, and logged without its value.
   static ReturnTarget? _safeReturnTarget(ReturnTarget? target) {
     if (target == null || isSafeReturnTo(target.path)) return target;
-    _logger.warning('Dropped a return page that is not an in-app path');
+    _logger.warning('Dropped a return page that is not a safe in-app path');
     return null;
   }
 
@@ -353,7 +353,8 @@ class ConnectFlow {
       // Post-login housekeeping is best-effort: the user is already
       // signed in, so a storage failure here must not bounce them to the
       // error state. The PreAuthState clear is guarded; the shipped inactivity
-      // flag store and the two storage saves swallow their own failures.
+      // flag store and the two storage saves swallow their own failures. A
+      // fork's flag store that throws still lands in the catch below.
       await preAuthStateStorage.clearBestEffort();
       // Only clear after a successful login. If the IdP challenge was
       // cancelled or failed, the flag stays set so the next attempt
@@ -382,23 +383,25 @@ class ConnectFlow {
         );
       }
     } catch (e, st) {
-      if (e is Exception) {
-        // An Exception keeps `error:`. Here it is a storage platform error,
-        // on web the login URL failing to parse, or a fork's
-        // InactivityLogoutFlagStorage failing in `isMarked` or `clear`:
-        // platform text, the server's host and the provider id, none of them
-        // secret. A fork's exception text is the fork's to keep free of
-        // secrets.
-        _logger.error('Authentication failed', error: e, stackTrace: st);
-      } else {
-        // Anything else is a bug. An Error can carry the value it rejected
-        // (`ArgumentError.value`), so it goes through `describeFailure`, per
-        // the logging rule in CLAUDE.md.
+      if (e is Error) {
+        // A bug. An Error can carry the value it rejected
+        // (`ArgumentError.value`), so only what `describeFailure` keeps is
+        // logged.
         _logger.error(
           'Authentication failed',
           attributes: {'failure': describeFailure(e)},
           stackTrace: st,
         );
+      } else {
+        // Anything else keeps `error:`. Here it is a PreAuthState save
+        // failing (a PlatformException, or on web a DOMException from
+        // localStorage, which is not a Dart Exception), on web the login URL
+        // failing to parse, or a fork's InactivityLogoutFlagStorage failing
+        // in `isMarked` or `clear`: platform text (a browser's names the
+        // storage key, not the value), the server's host and the provider
+        // id, none of them secret. A fork's exception text is the fork's to
+        // keep free of secrets.
+        _logger.error('Authentication failed', error: e, stackTrace: st);
       }
       await preAuthStateStorage.clearBestEffort();
       if (!_isCancelled(gen)) {

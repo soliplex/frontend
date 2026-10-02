@@ -218,59 +218,59 @@ String _canonicalPath(String path) {
 /// [ShellConfig.fromModules] rejects configs that fail [validateRoutes].
 ///
 /// The start location is computed here rather than by go_router, so a
-/// platform route that does not decode starts the app at `/` instead. An
-/// undecodable path would throw in go_router's first match before any route
-/// runs; an undecodable query would throw when a route builder reads it.
-/// A push after boot (a same-tab hash change, back/forward, an iOS deep link)
-/// whose address does not decode never reaches the router: the framework's
-/// first binding observer throws decoding it first, so the app stays where it
-/// is and records nothing. That silence is the framework's, and deliberate
-/// here.
+/// platform route that does not decode starts the app at `initialRoute`
+/// instead. An undecodable path would throw in go_router's first match before
+/// any route runs; an undecodable query would throw when a route builder reads
+/// it. A push after boot (a same-tab hash change, back/forward, an iOS deep
+/// link) whose address does not decode never reaches the router: the
+/// framework's `View` observer, registered ahead of the router, throws
+/// decoding it first, so the app stays where it is and records nothing. That
+/// silence is the framework's, and deliberate here.
 GoRouter buildRouter(ShellConfig config) => GoRouter(
-      initialLocation: _startLocation(config.initialRoute),
+      initialLocation: platformStartLocation(
+            WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+            initialRoute: config.initialRoute,
+          ) ??
+          config.initialRoute,
       overridePlatformDefaultLocation: true,
       routes: config.routes,
       refreshListenable: config.refreshListenable,
       redirect: config.redirect,
     );
 
-/// The location a router starts at for [platformRoute], by go_router's own
-/// rule (`GoRouter._effectiveInitialLocation` in go_router 17.5.0): an empty
-/// path reads as `/`, and a platform route of exactly `/` means
-/// [initialRoute].
+/// The location a router starts at for [platformRoute], by the rule go_router
+/// applies to the platform route (see `GoRouter._effectiveInitialLocation`;
+/// keep in step on upgrade): an empty path reads as `/`, and a platform route
+/// of exactly `/` means [initialRoute].
 ///
-/// Throws [FormatException] when [platformRoute] does not parse, or its path
-/// or query does not decode; go_router or a route builder can throw on such a
-/// route.
-String platformStartLocation(
+/// Returns `null`, and logs one warning, when [platformRoute] does not parse,
+/// or its path or query does not decode; go_router or a route builder can
+/// throw on such a route. The platform route comes from outside the app (a
+/// link, a deep link), so the warning carries none of it.
+String? platformStartLocation(
   String platformRoute, {
   required String initialRoute,
 }) {
-  var uri = Uri.parse(platformRoute);
+  const rejected = 'Ignored a start address that cannot be decoded';
+  Uri uri;
+  try {
+    uri = Uri.parse(platformRoute);
+  } on FormatException catch (e, st) {
+    // `FormatException.source` is the route, so only its message and offset
+    // are logged.
+    _logger.warning(
+      rejected,
+      attributes: {'failure': describeFailure(e)},
+      stackTrace: st,
+    );
+    return null;
+  }
   if (uri.hasEmptyPath) uri = uri.replace(path: '/');
   final location = uri.toString();
   if (location == '/') return initialRoute;
   if (!isDecodable(uri)) {
-    throw const FormatException('The start address does not decode');
+    _logger.warning(rejected);
+    return null;
   }
   return location;
-}
-
-String _startLocation(String initialRoute) {
-  try {
-    return platformStartLocation(
-      WidgetsBinding.instance.platformDispatcher.defaultRouteName,
-      initialRoute: initialRoute,
-    );
-  } on FormatException catch (e, st) {
-    // The platform route comes from outside the app (a link, a deep link),
-    // so only the failure's type is logged, per the logging rule in
-    // CLAUDE.md.
-    _logger.warning(
-      'Ignored a start address that cannot be decoded',
-      attributes: {'failure': describeFailure(e)},
-      stackTrace: st,
-    );
-    return '/';
-  }
 }
