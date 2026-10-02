@@ -474,7 +474,7 @@ void main() {
       expect(manager.servers.value, isNotEmpty);
       expect(
         sink.records.where((r) =>
-            r.loggerName == 'soliplex.connect_flow' &&
+            r.loggerName == 'soliplex.pre_auth_state' &&
             r.level == LogLevel.warning),
         hasLength(1),
       );

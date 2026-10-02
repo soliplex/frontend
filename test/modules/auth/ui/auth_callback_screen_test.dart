@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/default_backend_url.dart';
@@ -39,6 +40,7 @@ Widget _buildApp({
   required ServerManager serverManager,
   required CallbackParams callbackParams,
   InactivityLogoutFlagStorage? inactivityFlags,
+  PreAuthStateStorage? preAuthStateStorage,
 }) {
   final router = GoRouter(
     initialLocation: '/auth/callback',
@@ -79,6 +81,8 @@ Widget _buildApp({
       callbackParamsProvider.overrideWithValue(callbackParams),
       inactivityLogoutFlagsProvider.overrideWithValue(
           inactivityFlags ?? InMemoryInactivityLogoutFlagStorage()),
+      if (preAuthStateStorage != null)
+        preAuthStateStorageProvider.overrideWithValue(preAuthStateStorage),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
@@ -206,6 +210,64 @@ void main() {
 
       expect(serverManager.servers.value, isNotEmpty);
       expect(find.text('Lobby Screen'), findsOneWidget);
+    });
+
+    testWidgets('a failed pre-auth clear still completes the sign-in',
+        (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final serverManager = _createServerManager();
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackSuccess(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresIn: 3600,
+        ),
+        preAuthStateStorage: InMemoryPreAuthStateStorage(failClear: true)
+          ..saved = _validPreAuthState(),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(serverManager.servers.value, isNotEmpty);
+      expect(find.text('Lobby Screen'), findsOneWidget);
+      expect(
+        sink.records.where((r) =>
+            r.loggerName == 'soliplex.pre_auth_state' &&
+            r.level == LogLevel.warning),
+        hasLength(1),
+      );
+    });
+
+    testWidgets('a failure carrying a callback value logs only its shape',
+        (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      await const LocalPreAuthStateStorage().save(_validPreAuthState());
+
+      // An `expires_in` past DateTime's range makes the expiry throw a
+      // RangeError whose text carries a value derived from the link.
+      await tester.pumpWidget(_buildApp(
+        serverManager: _createServerManager(),
+        callbackParams: const WebCallbackSuccess(
+          accessToken: 'access',
+          expiresIn: 9000000000000,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.text('Something went wrong. Please try again.'), findsOneWidget);
+      final record = sink.records.singleWhere((r) =>
+          r.loggerName == 'soliplex.auth_callback_screen' &&
+          r.level == LogLevel.error);
+      expect(record.error, isNull);
+      expect(
+          record.attributes['failure'], 'RangeError: millisecondsSinceEpoch');
+      expect(record.stackTrace, isNotNull);
     });
 
     testWidgets('persists the connected server as the selection',

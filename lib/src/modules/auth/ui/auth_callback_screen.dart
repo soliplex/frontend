@@ -80,7 +80,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
         return;
       }
 
-      await ref.read(preAuthStateStorageProvider).clear();
+      await ref.read(preAuthStateStorageProvider).clearBestEffort();
       if (!mounted) return;
 
       final serverId = serverIdFromUrl(preAuth.serverUrl);
@@ -120,9 +120,12 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
 
       if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {
+      // Through `describeFailure`, per the logging rule in CLAUDE.md: an
+      // `expires_in` past DateTime's range throws a RangeError carrying a
+      // value derived from the callback link.
       _logger.error(
         'Auth callback failed',
-        error: e,
+        attributes: {'failure': describeFailure(e)},
         stackTrace: st,
       );
       _fail('Something went wrong. Please try again.');

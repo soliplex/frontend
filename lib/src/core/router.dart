@@ -221,6 +221,11 @@ String _canonicalPath(String path) {
 /// platform route that does not decode starts the app at `/` instead. An
 /// undecodable path would throw in go_router's first match before any route
 /// runs; an undecodable query would throw when a route builder reads it.
+/// A push after boot (a same-tab hash change, back/forward, an iOS deep link)
+/// whose address does not decode never reaches the router: the framework's
+/// first binding observer throws decoding it first, so the app stays where it
+/// is and records nothing. That silence is the framework's, and deliberate
+/// here.
 GoRouter buildRouter(ShellConfig config) => GoRouter(
       initialLocation: _startLocation(config.initialRoute),
       overridePlatformDefaultLocation: true,

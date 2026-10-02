@@ -111,6 +111,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   leaving the spinner up.
 - A re-sign-in's return page applies only to the server it was issued for,
   and one that can't be decoded is dropped.
+- A web sign-in no longer fails when the saved sign-in state can't be cleared
+  afterwards.
 
 ## [0.107.0+93] - 2026-09-29
 
