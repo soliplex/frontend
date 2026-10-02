@@ -1,7 +1,11 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'app_module.dart';
 import 'shell_config.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.router');
 
 final _paramPattern = RegExp(r':[^/]+');
 
@@ -211,9 +215,57 @@ String _canonicalPath(String path) {
 ///
 /// Routes are non-empty and consistent with `initialRoute` by construction:
 /// [ShellConfig.fromModules] rejects configs that fail [validateRoutes].
+///
+/// The start location is computed here rather than by go_router, so a
+/// platform route that does not decode starts the app at `/` instead. An
+/// undecodable path would throw in go_router's first match before any route
+/// runs; an undecodable query would throw when a route builder reads it.
 GoRouter buildRouter(ShellConfig config) => GoRouter(
-      initialLocation: config.initialRoute,
+      initialLocation: _startLocation(config.initialRoute),
+      overridePlatformDefaultLocation: true,
       routes: config.routes,
       refreshListenable: config.refreshListenable,
       redirect: config.redirect,
     );
+
+/// The location a router starts at for [platformRoute], by go_router's own
+/// rule (`GoRouter._effectiveInitialLocation` in go_router 17.5.0): an empty
+/// path reads as `/`, and a platform route of exactly `/` means
+/// [initialRoute].
+///
+/// Throws [FormatException] when [platformRoute] does not parse, or its path
+/// or query does not decode; go_router or a route builder can throw on such a
+/// route.
+String platformStartLocation(
+  String platformRoute, {
+  required String initialRoute,
+}) {
+  var uri = Uri.parse(platformRoute);
+  if (uri.hasEmptyPath) uri = uri.replace(path: '/');
+  final location = uri.toString();
+  if (location == '/') return initialRoute;
+  // Both getters decode, and throw when an escape decodes to invalid UTF-8;
+  // a stray `%ZZ` is re-encoded by Uri.parse and never throws.
+  uri.pathSegments;
+  uri.queryParametersAll;
+  return location;
+}
+
+String _startLocation(String initialRoute) {
+  try {
+    return platformStartLocation(
+      WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+      initialRoute: initialRoute,
+    );
+  } on FormatException catch (e, st) {
+    // The platform route comes from outside the app (a link, a deep link),
+    // so only the failure's type is logged, per the logging rule in
+    // CLAUDE.md.
+    _logger.warning(
+      'Ignored a start address that cannot be decoded',
+      attributes: {'failure': describeFailure(e)},
+      stackTrace: st,
+    );
+    return '/';
+  }
+}
