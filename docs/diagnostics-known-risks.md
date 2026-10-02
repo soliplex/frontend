@@ -23,7 +23,7 @@ and `formatLogRecord` applies no redaction. Two consequences:
 
 - Every `attributes:` site in the app today carries deployment detail —
   `discoveryUrl`, `serverUrl`, `hosts`, `alias`, `expiresAt`, `session`,
-  `platformError`, `elapsedMs`, `returnTo`. None carries a credential.
+  `platformError`, `elapsedMs`. None carries a credential.
   (`accessToken` / `refreshToken` / `idToken` appear in the codebase only as
   token-storage JSON keys, never as log attributes.)
 - `error:` takes an arbitrary object. An IdP or plugin exception whose

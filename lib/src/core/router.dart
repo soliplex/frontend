@@ -4,6 +4,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'app_module.dart';
 import 'shell_config.dart';
+import 'uri_decoding.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.router');
 
@@ -244,10 +245,9 @@ String platformStartLocation(
   if (uri.hasEmptyPath) uri = uri.replace(path: '/');
   final location = uri.toString();
   if (location == '/') return initialRoute;
-  // Both getters decode, and throw when an escape decodes to invalid UTF-8;
-  // a stray `%ZZ` is re-encoded by Uri.parse and never throws.
-  uri.pathSegments;
-  uri.queryParametersAll;
+  if (!isDecodable(uri)) {
+    throw const FormatException('The start address does not decode');
+  }
   return location;
 }
 

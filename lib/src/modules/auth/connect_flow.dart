@@ -385,9 +385,10 @@ class ConnectFlow {
       if (e is Exception) {
         // An Exception keeps `error:`. Here it is a storage platform error,
         // on web the login URL failing to parse, or a fork's
-        // InactivityLogoutFlagStorage failing in `isMarked`: platform text,
-        // the server's host and the provider id, none of them secret. A fork's
-        // exception text is the fork's to keep free of secrets.
+        // InactivityLogoutFlagStorage failing in `isMarked` or `clear`:
+        // platform text, the server's host and the provider id, none of them
+        // secret. A fork's exception text is the fork's to keep free of
+        // secrets.
         _logger.error('Authentication failed', error: e, stackTrace: st);
       } else {
         // Anything else is a bug. An Error can carry the value it rejected

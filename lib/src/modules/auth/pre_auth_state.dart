@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../core/uri_decoding.dart';
+
 final Logger _logger = LogManager.instance.getLogger('soliplex.pre_auth_state');
 
 /// Whether [value] is an in-app path a sign-in may return to (open-redirect
@@ -12,11 +14,7 @@ final Logger _logger = LogManager.instance.getLogger('soliplex.pre_auth_state');
 bool isSafeReturnTo(String value) {
   if (!value.startsWith('/') || value.startsWith('//')) return false;
   try {
-    final uri = Uri.parse(value);
-    // Both getters decode, and throw when an escape isn't valid UTF-8.
-    uri.pathSegments;
-    uri.queryParametersAll;
-    return true;
+    return isDecodable(Uri.parse(value));
   } on FormatException {
     return false;
   }
