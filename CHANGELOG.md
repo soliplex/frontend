@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.108.0+94] - 2026-10-02
 
 ### Added
 
@@ -114,6 +114,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   and one that can't be decoded is dropped.
 - A sign-in completes even when the saved sign-in state can't be cleared
   afterwards.
+- Prose with a bracket followed by a space, such as `( Note 2&5 )`, renders
+  as text instead of a LaTeX parser error. Math is recognised only between
+  `$…$`, `\(…\)`, `$$…$$` and `\[…\]`; `\ce{…}` and `\pu{…}` are no longer
+  treated as math.
 
 ## [0.107.0+93] - 2026-09-29
 
