@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
@@ -119,6 +121,18 @@ void main() {
       }
     });
 
+    test('isSafeReturnTo rejects a path or query that does not decode', () {
+      for (final route in ['/room/%FF/x', '/lobby?server=%FF']) {
+        expect(isSafeReturnTo(route), isFalse, reason: route);
+        expect(
+          () => _makeState(frontendReturnTo: route),
+          throwsA(isA<ArgumentError>()),
+          reason: route,
+        );
+      }
+      expect(isSafeReturnTo('/room/a/b?x=1'), isTrue);
+    });
+
     test('constructor accepts safe relative paths for frontendReturnTo', () {
       for (final safe in [
         '/lobby',
@@ -188,6 +202,21 @@ void main() {
       final loaded =
           await const LocalPreAuthStateStorage().load(now: _baseTime);
       expect(loaded, isNull);
+    });
+
+    test('a stored return page that does not decode clears the state',
+        () async {
+      final json = _makeState().toJson()
+        ..['frontendReturnTo'] = '/lobby?server=%FF';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          LocalPreAuthStateStorage.storageKey, jsonEncode(json));
+
+      final loaded =
+          await const LocalPreAuthStateStorage().load(now: _baseTime);
+
+      expect(loaded, isNull);
+      expect(prefs.getString(LocalPreAuthStateStorage.storageKey), isNull);
     });
 
     test('load returns null and clears corrupted data', () async {

@@ -38,6 +38,7 @@ ConnectFlow _createFlow({
   DiscoverProviders? discover,
   void Function(Uri serverUrl)? onServerConnected,
   PreAuthStateStorage? preAuthStateStorage,
+  ReturnTarget? returnTarget,
 }) =>
     ConnectFlow(
       serverManager: serverManager ?? _createManager(),
@@ -48,6 +49,7 @@ ConnectFlow _createFlow({
           inactivityLogoutFlags ?? InMemoryInactivityLogoutFlagStorage(),
       preAuthStateStorage: preAuthStateStorage ?? InMemoryPreAuthStateStorage(),
       onServerConnected: onServerConnected,
+      returnTarget: returnTarget,
     );
 
 AuthResult _successResult() => AuthResult(
@@ -75,51 +77,95 @@ Matcher get _connectError =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('ConnectFlow.connect — returnTo plumbing', () {
+  group('ConnectFlow — return target', () {
     setUp(() {
       SharedPreferences.setMockInitialValues({});
     });
 
-    test(
-      'writes returnTo passed to connect() into PreAuthState',
-      () async {
+    const server = 'https://server.example.com';
+
+    test('saves the return page for its own server', () async {
+      final storage = InMemoryPreAuthStateStorage();
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
+        preAuthStateStorage: storage,
+        returnTarget: (serverId: server, path: '/room/a/b'),
+      );
+
+      await flow.connect(server);
+      await pumpEventQueue();
+
+      expect(storage.saved!.frontendReturnTo, '/room/a/b');
+    });
+
+    test('saves no return page for a different server', () async {
+      final storage = InMemoryPreAuthStateStorage();
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
+        preAuthStateStorage: storage,
+        returnTarget: (
+          serverId: 'https://other.example.com',
+          path: '/room/a/b'
+        ),
+      );
+
+      await flow.connect(server);
+      await pumpEventQueue();
+
+      expect(storage.saved, isNotNull);
+      expect(storage.saved!.frontendReturnTo, isNull);
+    });
+
+    test('keeps the return page across a reset and a retry', () async {
+      final storage = InMemoryPreAuthStateStorage();
+      final authFlow = FakeAuthFlow()
+        ..nextError = const AuthException(
+          'cancelled',
+          kind: AuthFailureKind.cancelled,
+        );
+      final flow = _createFlow(
+        authFlow: authFlow,
+        preAuthStateStorage: storage,
+        returnTarget: (serverId: server, path: '/room/a/b'),
+      );
+
+      await flow.connect(server);
+      await pumpEventQueue();
+      flow.reset();
+      authFlow.throwRedirectInitiated = true;
+      await flow.connect(server);
+      await pumpEventQueue();
+
+      expect(storage.saved!.frontendReturnTo, '/room/a/b');
+    });
+
+    for (final path in ['https://evil.example/steal', '/lobby?server=%FF']) {
+      test('drops the unsafe return page $path, without logging it', () async {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
         final storage = InMemoryPreAuthStateStorage();
         final flow = _createFlow(
           authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
           preAuthStateStorage: storage,
+          returnTarget: (serverId: server, path: path),
         );
 
-        await flow.connect(
-          'https://server.example.com',
-          returnTo: '/r/alias/room/thread/t1',
-        );
-        // _authenticate is invoked without await; pump the event queue so
-        // its preAuthStateStorage.save and AuthRedirectInitiated branch run.
+        await flow.connect(server);
         await pumpEventQueue();
 
-        final saved = storage.saved;
-        expect(saved, isNotNull);
-        expect(saved!.frontendReturnTo, '/r/alias/room/thread/t1');
-      },
-    );
-
-    test(
-      'writes null frontendReturnTo when connect() is called without returnTo',
-      () async {
-        final storage = InMemoryPreAuthStateStorage();
-        final flow = _createFlow(
-          authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
-          preAuthStateStorage: storage,
-        );
-
-        await flow.connect('https://server.example.com');
-        await pumpEventQueue();
-
-        final saved = storage.saved;
-        expect(saved, isNotNull);
-        expect(saved!.frontendReturnTo, isNull);
-      },
-    );
+        expect(storage.saved!.frontendReturnTo, isNull);
+        final record = sink.records
+            .where((r) =>
+                r.loggerName == 'soliplex.connect_flow' &&
+                r.level == LogLevel.warning)
+            .single;
+        expect(
+            record.message, 'Dropped a return page that is not an in-app path');
+        expect(record.toString(), isNot(contains('evil.example')));
+        expect(record.toString(), isNot(contains('%FF')));
+      });
+    }
   });
 
   group('ConnectFlow._authenticate — forceLoginPrompt plumbing', () {
@@ -307,17 +353,14 @@ void main() {
       expect(flow.state.value, _connectError);
     });
 
-    test('an unsafe returnTo ends at an error and is not logged', () async {
+    test('an Error during sign-in ends at an error and logs only its type',
+        () async {
       final sink = MemorySink();
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
-      final flow =
-          _createFlow(authFlow: FakeAuthFlow()..nextResult = _successResult());
+      final flow = _createFlow(authFlow: FakeAuthFlow());
 
-      await flow.connect(
-        'https://server.example.com',
-        returnTo: 'https://evil.example/steal',
-      );
+      await flow.connect('https://server.example.com');
       await pumpEventQueue();
 
       expect(flow.state.value, _connectError);
@@ -326,8 +369,7 @@ void main() {
               r.loggerName == 'soliplex.connect_flow' &&
               r.level == LogLevel.error)
           .single;
-      expect(record.toString(), isNot(contains('evil.example')));
-      expect(record.toString(), isNot(contains('steal')));
+      expect(record.toString(), isNot(contains('set nextResult')));
     });
 
     test('a sign-in reset while its flag check fails stays reset', () async {

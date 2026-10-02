@@ -13,6 +13,7 @@ import '../auth_providers.dart';
 import '../connect_flow.dart';
 import '../consent_notice.dart';
 import '../connection_probe.dart';
+import '../pre_auth_state.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
 import 'connect_flow_rail.dart';
@@ -42,10 +43,10 @@ class HomeScreen extends ConsumerStatefulWidget {
   final String? defaultBackendUrl;
   final String? autoConnectUrl;
 
-  /// In-app route to return the user to after a successful re-auth
-  /// triggered by this auto-connect. Forwarded to
-  /// [ConnectFlow.connect] which stashes it in `PreAuthState` for the
-  /// callback to honor.
+  /// In-app route to return the user to after a sign-in to the saved server
+  /// [autoConnectUrl] names. Given to the [ConnectFlow] as a [ReturnTarget],
+  /// which drops one [isSafeReturnTo] rejects and applies it only to that
+  /// server.
   final String? autoConnectReturnTo;
 
   @override
@@ -73,6 +74,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
 
+    final autoConnect = widget.autoConnectUrl;
+    final knownServer =
+        autoConnect == null ? null : _knownServerAt(autoConnect);
+    final returnTo = widget.autoConnectReturnTo;
+
     _flow = ConnectFlow(
       serverManager: widget.serverManager,
       probeClient: ref.read(probeClientProvider),
@@ -86,6 +92,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       onServerConnected: (url) => ref
           .read(statusMessageDismissalsProvider)
           .clear(serverKey: url.toString()),
+      returnTarget: knownServer == null || returnTo == null
+          ? null
+          : (serverId: serverIdFromUrl(knownServer.serverUrl), path: returnTo),
     );
 
     _urlController.addListener(_onUrlChanged);
@@ -114,9 +123,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
-    final autoConnect = widget.autoConnectUrl;
-    final knownServer =
-        autoConnect == null ? null : _knownServerAt(autoConnect);
     if (knownServer != null) {
       _urlController.text = knownServer.serverUrl.toString();
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -729,10 +735,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _connect() {
     if (!_formKey.currentState!.validate()) return;
-    _flow.connect(
-      _urlController.text.trim(),
-      returnTo: widget.autoConnectReturnTo,
-    );
+    _flow.connect(_urlController.text.trim());
   }
 }
 
