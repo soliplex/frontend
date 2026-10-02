@@ -37,7 +37,7 @@ extension and runs the contrast check.
 import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 
-Future<Flavor> myFlavor() {
+Future<Flavor> myFlavor({required CallbackParams callbackParams}) {
   final light = buildSoliplexThemeData(
       colors: lightSoliplexColors.copyWith(primary: const Color(0xFF0A7AFF)),
       brightness: Brightness.light);
@@ -52,6 +52,7 @@ Future<Flavor> myFlavor() {
     ),
     defaultBackendUrl: 'https://api.mybrand.com',
     theme: FlavorTheme.themeData(light: light, dark: dark),
+    callbackParams: callbackParams,
     // Custom modules receive the composition kit, so they can share the
     // standard flavor's session state:
     // extraModules: (kit) => [MyCustomModule(kit.serverManager)],
@@ -61,7 +62,9 @@ Future<Flavor> myFlavor() {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   installLogSinks();
-  final flavor = await myFlavor();
+  final callbackParams = CallbackParamsCapture.captureNow();
+  clearCallbackUrl();
+  final flavor = await myFlavor(callbackParams: callbackParams);
   // Pass the builder, not the built config: `Flavor.build()` throws on an
   // invalid configuration, and a throw out here lands before any view exists —
   // which on iOS, macOS and Android is not a crash but a launch that never
@@ -128,8 +131,8 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
 ## Web entry page
 
 A fork with its own `web/index.html` must carry the sign-in callback script,
-right after `<title>`, with no tag that loads a resource (`<link>`,
-`<script src>`) above it:
+right after `<title>`, with no stylesheet `<link>` or `<script src>` above it,
+since either would hold it back until that file downloads:
 
 ```html
 <script>
@@ -150,15 +153,17 @@ After a web sign-in the backend sends the browser to
 `#/auth/callback?token=…`. The script takes the tokens out of the address bar
 before the app starts downloading, instead of leaving them there until Flutter
 boots. Without it, sign-in still works, but the tokens stay visible for that
-time and the app logs an error naming this page.
+time and the app logs an error that names `web/index.html` and this document.
 
 The browser still records the callback URL, tokens included, in its history.
 In Chrome, placing the script after `<title>` makes the history list show the
 page title rather than the tokens; only a backend change keeps them out of the
 URL.
 
-Keep `CallbackParamsCapture.captureNow()` then `clearCallbackUrl()` at the top
-of `main()`, after `installLogSinks()`.
+`main()` must call `CallbackParamsCapture.captureNow()`, then
+`clearCallbackUrl()`, and pass the result to `standardFlavor` as
+`callbackParams`, as the example above does. Call them after
+`installLogSinks()`: without a sink, the missing-script error is discarded.
 
 ## Rules
 
@@ -268,8 +273,11 @@ of `main()`, after `installLogSinks()`.
 - Declaring a path public leaves your `initialRoute` untouched, so a cold launch
   lands where it did unless you also set `signedOutLandingPath`. On web a URL to
   a declared path opens it directly, because go_router prefers a non-`/`
-  platform route over `initialLocation`; native deep links do not, since no
-  platform in this repo enables Flutter deep linking.
+  platform route over `initialLocation`. On iOS, Flutter deep linking is on unless
+  `Info.plist` sets `FlutterDeepLinkingEnabled` to false, and the app registers
+  the `ai.soliplex.client` URL scheme, so `ai.soliplex.client:///<path>` reaches
+  a declared path after the first frame, once the app has built at its initial
+  route.
 - A module needs no `go_router` dependency of its own, in `dependencies` or in
   `dev_dependencies`. The barrel re-exports the routing types module authoring
   and module *testing* use — `GoRoute`, `GoRouter`, `GoRouterHelper`,

@@ -133,9 +133,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  // An address in the page URL can come from outside the app, so only a
-  // server the user already added is connected, and at the address it was
-  // added with.
+  // The route's address can come from outside the app (an iOS deep link, or
+  // a same-tab hash change on web), so only a server the user already added
+  // is connected, and at the address it was added with.
   ServerEntry? _knownServerAt(String address) {
     final uri = Uri.tryParse(address);
     if (uri == null || !uri.hasAuthority || uri.host.isEmpty) return null;

@@ -18,8 +18,8 @@ class WebCallbackSuccess extends CallbackParams {
 
   /// OIDC ID Token. Required as `id_token_hint` for RP-Initiated
   /// Logout to deterministically end the IdP SSO session. Null when the
-  /// backend's scope lacks `openid`, or when its callback carries no ID token
-  /// (before v0.82.3 / v0.83.3).
+  /// callback carries no ID token: the backend predates v0.82.3 / v0.83.3, its
+  /// `scope` lacks `openid`, or the provider returned none.
   final String? idToken;
 
   @override

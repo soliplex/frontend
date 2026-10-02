@@ -17,6 +17,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Library consumers:** `ThreadStateWarning.sourcesSkipped`,
   `RagSnapshot.carriesUnreadableCitations` and
   `RagSnapshot.withUnreadableCitationsDropped`.
+- **Library consumers:** `CallbackParams`, the type of `standardFlavor`'s
+  `callbackParams`, is exported.
 
 ### Changed
 
@@ -47,7 +49,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `THINKING_*` events no longer shows when such a thread is reopened, and a
   `MESSAGES_SNAPSHOT` no longer logs a warning.
 - Web sign-in against backends that return the tokens in the query string
-  (before `v0.82.2` / `v0.83.2`); those put the tokens in server logs.
+  (before `v0.82.2` / `v0.83.2`); those put the tokens in the logs of the
+  server hosting the app.
 - **Library consumers (breaking):** `StepProgress` removed from
   `ExecutionEvent`; `bridgeBaseEvent` maps `STEP_STARTED` and every
   `THINKING_*` event to `null`, and `processEvent` leaves the conversation and
