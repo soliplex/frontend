@@ -81,6 +81,12 @@ Future<List<AuthProviderConfig>> _multiProviderDiscover(
 ) async =>
     [_testProvider, _secondProvider];
 
+Future<List<AuthProviderConfig>> _singleProviderDiscover(
+  Uri serverUrl,
+  SoliplexHttpClient httpClient,
+) async =>
+    [_testProvider];
+
 Widget _buildApp({
   required ServerManager serverManager,
   String appName = 'Soliplex',
@@ -105,6 +111,7 @@ Widget _buildApp({
           logo: logo,
           defaultBackendUrl: defaultBackendUrl,
           autoConnectUrl: state.uri.queryParameters['url'],
+          autoConnectReturnTo: state.uri.queryParameters['returnTo'],
         ),
       ),
       GoRoute(
@@ -1086,6 +1093,32 @@ void main() {
 
       expect(field.controller!.text, 'https://demo.example.com');
       expect(find.text('Lobby placeholder'), findsOneWidget);
+    });
+
+    testWidgets("a known server's returnTo is saved for its sign-in",
+        (tester) async {
+      final serverManager = _createServerManager();
+      serverManager.addServer(
+        serverId: 'https://known.example.com',
+        serverUrl: Uri.parse('https://known.example.com'),
+      );
+      final url = Uri.encodeComponent('https://known.example.com');
+      final returnTo = Uri.encodeComponent('/lobby');
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
+        discover: _singleProviderDiscover,
+        initialLocation: '/?url=$url&returnTo=$returnTo',
+      ));
+      // The sign-in spinner never settles once the redirect begins.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      final preAuth = await const LocalPreAuthStateStorage().load();
+      expect(preAuth, isNotNull);
+      expect(preAuth!.frontendReturnTo, '/lobby');
     });
 
     testWidgets('autoConnectUrl sets URL and triggers connect', (tester) async {

@@ -16,6 +16,9 @@ import 'server_manager.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.connect_flow');
 
+/// A page to return to after signing in to the saved server [serverId].
+typedef ReturnTarget = ({String serverId, String path});
+
 /// State of the server connection flow.
 sealed class ConnectState {
   const ConnectState();
@@ -92,7 +95,8 @@ class ConnectFlow {
     required this.preAuthStateStorage,
     this.consentNotice,
     this.onServerConnected,
-  });
+    ReturnTarget? returnTarget,
+  }) : _returnTarget = _safeReturnTarget(returnTarget);
 
   final ServerManager serverManager;
   final SoliplexHttpClient probeClient;
@@ -107,23 +111,26 @@ class ConnectFlow {
   /// server's dismissed status messages) without this flow depending on it.
   final void Function(Uri serverUrl)? onServerConnected;
 
+  final ReturnTarget? _returnTarget;
+
+  // A return target comes from a link, so one that fails [isSafeReturnTo]
+  // is dropped here, before any sign-in, and logged without its value.
+  static ReturnTarget? _safeReturnTarget(ReturnTarget? target) {
+    if (target == null || isSafeReturnTo(target.path)) return target;
+    _logger.warning('Dropped a return page that is not an in-app path');
+    return null;
+  }
+
   final Signal<ConnectState> state = Signal<ConnectState>(const UrlInput());
 
   bool _disposed = false;
   int _generation = 0;
 
-  /// Held between the start of [connect] and the eventual save of
-  /// `PreAuthState` so the user lands back where they came from after
-  /// a successful re-auth. Carried across consent / provider-selection
-  /// pauses since those don't reset the flow.
-  String? _pendingReturnTo;
-
   bool _isCancelled(int gen) => _disposed || gen != _generation;
 
-  Future<void> connect(String url, {String? returnTo}) async {
+  Future<void> connect(String url) async {
     if (state.value is! UrlInput) return;
     final gen = ++_generation;
-    _pendingReturnTo = returnTo;
     state.value = const Probing();
 
     try {
@@ -213,7 +220,6 @@ class ConnectFlow {
 
   void reset() {
     _generation++;
-    _pendingReturnTo = null;
     state.value = const UrlInput();
   }
 
@@ -302,7 +308,10 @@ class ConnectFlow {
         discoveryUrl: discoveryUrl,
         clientId: provider.clientId,
         createdAt: DateTime.timestamp(),
-        frontendReturnTo: _pendingReturnTo,
+        // Only the server the target was issued for gets it: the address
+        // in the field can differ from the one the link named.
+        frontendReturnTo:
+            _returnTarget?.serverId == serverId ? _returnTarget?.path : null,
         serverName: probeResult.info?.name,
         serverDescription: probeResult.info?.description,
       ));
@@ -381,10 +390,9 @@ class ConnectFlow {
         // exception text is the fork's to keep free of secrets.
         _logger.error('Authentication failed', error: e, stackTrace: st);
       } else {
-        // Anything else is a bug or the PreAuthState constructor's
-        // ArgumentError for an unsafe `returnTo`, whose value is
-        // link-supplied, so only the failure's type is logged, per the
-        // logging rule in CLAUDE.md.
+        // Anything else is a bug. An Error can carry the value it rejected
+        // (`ArgumentError.value`), so it goes through `describeFailure`, per
+        // the logging rule in CLAUDE.md.
         _logger.error(
           'Authentication failed',
           attributes: {'failure': describeFailure(e)},

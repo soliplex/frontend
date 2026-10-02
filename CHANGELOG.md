@@ -109,6 +109,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   room link) shows the home screen instead of leaving the splash screen up.
 - A storage failure while starting a sign-in shows an error instead of
   leaving the spinner up.
+- A re-sign-in's return page applies only to the server it was issued for,
+  and one that can't be decoded is dropped.
 
 ## [0.107.0+93] - 2026-09-29
 

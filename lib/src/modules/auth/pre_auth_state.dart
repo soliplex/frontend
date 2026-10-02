@@ -6,6 +6,22 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.pre_auth_state');
 
+/// Whether [value] is an in-app path a sign-in may return to (open-redirect
+/// defense): it starts with one `/`, and its path and query decode. One that
+/// doesn't decode would throw when the callback navigates to it.
+bool isSafeReturnTo(String value) {
+  if (!value.startsWith('/') || value.startsWith('//')) return false;
+  try {
+    final uri = Uri.parse(value);
+    // Both getters decode, and throw when an escape isn't valid UTF-8.
+    uri.pathSegments;
+    uri.queryParametersAll;
+    return true;
+  } on FormatException {
+    return false;
+  }
+}
+
 /// State saved before OAuth redirect.
 ///
 /// On web, the callback URL only includes tokens, not provider metadata.
@@ -28,11 +44,11 @@ class PreAuthState {
     this.serverName,
     this.serverDescription,
   }) {
-    if (frontendReturnTo != null && !_isSafeReturnTo(frontendReturnTo!)) {
+    if (frontendReturnTo != null && !isSafeReturnTo(frontendReturnTo!)) {
       throw ArgumentError.value(
         frontendReturnTo,
         'frontendReturnTo',
-        'must be an in-app path starting with "/" and not "//"',
+        'must be an in-app path starting with "/", not "//", that decodes',
       );
     }
   }
@@ -50,12 +66,6 @@ class PreAuthState {
     );
   }
 
-  static bool _isSafeReturnTo(String value) {
-    if (value.isEmpty) return false;
-    if (value.startsWith('//')) return false;
-    return value.startsWith('/');
-  }
-
   final Uri serverUrl;
   final String providerId;
   final String discoveryUrl;
@@ -66,9 +76,9 @@ class PreAuthState {
   /// re-auth (e.g. `/room/<alias>/<roomId>`). Null when there's no
   /// specific return target; the callback falls back to the lobby.
   ///
-  /// The constructor rejects anything that isn't a relative in-app
-  /// path (open-redirect defense): absolute URLs and `//host/...`
-  /// values throw [ArgumentError] before they can be persisted.
+  /// The constructor throws [ArgumentError] for a value [isSafeReturnTo]
+  /// rejects, before it can be persisted, so a stored one that no longer
+  /// passes makes [PreAuthStateStorage.load] clear the state.
   final String? frontendReturnTo;
 
   /// Cached human-readable server name probed before redirect, carried across
@@ -170,7 +180,8 @@ class LocalPreAuthStateStorage implements PreAuthStateStorage {
       return state;
     } catch (e, st) {
       // Warning, not info: the state is cleared right after, so a sign-in
-      // already in flight loses its return target.
+      // already in flight fails at the callback, which finds no state to say
+      // which server and provider its tokens belong to.
       _logger.warning(
         'Failed to load pre-auth state',
         attributes: {'failure': describeFailure(e)},
