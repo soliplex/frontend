@@ -6,6 +6,7 @@ import 'consent_notice.dart';
 import 'inactivity_logout_storage.dart';
 import 'platform/auth_flow.dart';
 import 'platform/callback_params.dart';
+import 'pre_auth_state.dart';
 import 'server_manager.dart';
 
 // Required — must be overridden by authModule.
@@ -32,6 +33,10 @@ final discoverProvidersProvider = Provider<DiscoverProviders>(
 );
 
 // Optional — have sensible defaults.
+
+final preAuthStateStorageProvider = Provider<PreAuthStateStorage>(
+  (_) => const LocalPreAuthStateStorage(),
+);
 
 final callbackParamsProvider = Provider<CallbackParams>(
   (_) => const NoCallbackParams(),

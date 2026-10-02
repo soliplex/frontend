@@ -192,7 +192,7 @@ void main() {
         (tester) async {
       final serverManager = _createServerManager();
       final state = _validPreAuthState();
-      await PreAuthStateStorage.save(state);
+      await const LocalPreAuthStateStorage().save(state);
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
@@ -212,7 +212,7 @@ void main() {
         (tester) async {
       const serverId = 'https://api.example.com';
       final serverManager = _createServerManager();
-      await PreAuthStateStorage.save(_validPreAuthState());
+      await const LocalPreAuthStateStorage().save(_validPreAuthState());
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
@@ -230,7 +230,7 @@ void main() {
     testWidgets('persists the connected backend url as the default',
         (tester) async {
       final serverManager = _createServerManager();
-      await PreAuthStateStorage.save(_validPreAuthState());
+      await const LocalPreAuthStateStorage().save(_validPreAuthState());
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
@@ -256,7 +256,7 @@ void main() {
         createdAt: DateTime.timestamp(),
         frontendReturnTo: '/room/server-a/r1',
       );
-      await PreAuthStateStorage.save(state);
+      await const LocalPreAuthStateStorage().save(state);
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
@@ -284,7 +284,7 @@ void main() {
         '//evil.com/x',
       ]) {
         SharedPreferences.setMockInitialValues({
-          PreAuthStateStorage.storageKey: _rawPreAuthJson(
+          LocalPreAuthStateStorage.storageKey: _rawPreAuthJson(
             frontendReturnTo: crafted,
           ),
         });
@@ -324,7 +324,7 @@ void main() {
         clientId: 'soliplex',
         createdAt: DateTime.timestamp().subtract(const Duration(minutes: 31)),
       );
-      await PreAuthStateStorage.save(state);
+      await const LocalPreAuthStateStorage().save(state);
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
@@ -347,7 +347,7 @@ void main() {
       );
 
       final state = _validPreAuthState();
-      await PreAuthStateStorage.save(state);
+      await const LocalPreAuthStateStorage().save(state);
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
@@ -369,7 +369,7 @@ void main() {
       const serverId = 'https://api.example.com';
       final flags = InMemoryInactivityLogoutFlagStorage()..marked.add(serverId);
       final serverManager = _createServerManager();
-      await PreAuthStateStorage.save(_validPreAuthState());
+      await const LocalPreAuthStateStorage().save(_validPreAuthState());
 
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,

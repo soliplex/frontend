@@ -142,7 +142,7 @@ void main() {
     });
   });
 
-  group('PreAuthStateStorage', () {
+  group('LocalPreAuthStateStorage', () {
     setUp(() {
       SharedPreferences.setMockInitialValues({});
     });
@@ -150,8 +150,9 @@ void main() {
     test('save and load round-trip', () async {
       final state = _makeState();
 
-      await PreAuthStateStorage.save(state);
-      final loaded = await PreAuthStateStorage.load(now: _baseTime);
+      await const LocalPreAuthStateStorage().save(state);
+      final loaded =
+          await const LocalPreAuthStateStorage().load(now: _baseTime);
 
       expect(loaded, isNotNull);
       expect(loaded!.serverUrl, state.serverUrl);
@@ -161,41 +162,43 @@ void main() {
     });
 
     test('load returns null when nothing saved', () async {
-      final loaded = await PreAuthStateStorage.load();
+      final loaded = await const LocalPreAuthStateStorage().load();
       expect(loaded, isNull);
     });
 
     test('load returns null and clears expired state', () async {
       final state = _makeState();
-      await PreAuthStateStorage.save(state);
+      await const LocalPreAuthStateStorage().save(state);
 
       final expiredNow = _baseTime.add(const Duration(minutes: 31));
-      final loaded = await PreAuthStateStorage.load(now: expiredNow);
+      final loaded =
+          await const LocalPreAuthStateStorage().load(now: expiredNow);
       expect(loaded, isNull);
 
       // Verify storage was cleaned up.
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString(PreAuthStateStorage.storageKey), isNull);
+      expect(prefs.getString(LocalPreAuthStateStorage.storageKey), isNull);
     });
 
     test('clear removes stored state', () async {
       final state = _makeState();
-      await PreAuthStateStorage.save(state);
-      await PreAuthStateStorage.clear();
+      await const LocalPreAuthStateStorage().save(state);
+      await const LocalPreAuthStateStorage().clear();
 
-      final loaded = await PreAuthStateStorage.load(now: _baseTime);
+      final loaded =
+          await const LocalPreAuthStateStorage().load(now: _baseTime);
       expect(loaded, isNull);
     });
 
     test('load returns null and clears corrupted data', () async {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(PreAuthStateStorage.storageKey, 'not json');
+      await prefs.setString(LocalPreAuthStateStorage.storageKey, 'not json');
 
-      final loaded = await PreAuthStateStorage.load();
+      final loaded = await const LocalPreAuthStateStorage().load();
       expect(loaded, isNull);
 
       // Verify storage was cleaned up.
-      expect(prefs.getString(PreAuthStateStorage.storageKey), isNull);
+      expect(prefs.getString(LocalPreAuthStateStorage.storageKey), isNull);
     });
   });
 }

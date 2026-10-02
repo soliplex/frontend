@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/src/core/app_identity.dart';
 import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
+import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
 
@@ -710,6 +711,33 @@ class InMemoryInactivityLogoutFlagStorage
   Future<void> clear(String serverId) async {
     clearLog.add(serverId);
     marked.remove(serverId);
+  }
+}
+
+/// In-memory [PreAuthStateStorage]. [failSave] and [failClear] make those
+/// calls throw, the way a full or unavailable platform store does.
+class InMemoryPreAuthStateStorage implements PreAuthStateStorage {
+  InMemoryPreAuthStateStorage({this.failSave = false, this.failClear = false});
+
+  final bool failSave;
+  final bool failClear;
+  PreAuthState? saved;
+
+  @override
+  Future<void> save(PreAuthState state) async {
+    if (failSave) {
+      throw Exception('store unavailable');
+    }
+    saved = state;
+  }
+
+  @override
+  Future<PreAuthState?> load({DateTime? now}) async => saved;
+
+  @override
+  Future<void> clear() async {
+    if (failClear) throw Exception('store unavailable');
+    saved = null;
   }
 }
 

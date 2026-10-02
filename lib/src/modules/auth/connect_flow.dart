@@ -89,6 +89,7 @@ class ConnectFlow {
     required this.discover,
     required this.authFlow,
     required this.inactivityLogoutFlags,
+    required this.preAuthStateStorage,
     this.consentNotice,
     this.onServerConnected,
   });
@@ -98,6 +99,7 @@ class ConnectFlow {
   final DiscoverProviders discover;
   final AuthFlow authFlow;
   final InactivityLogoutFlagStorage inactivityLogoutFlags;
+  final PreAuthStateStorage preAuthStateStorage;
   final ConsentNotice? consentNotice;
 
   /// Fired when a server establishes a fresh connection — after an OIDC login
@@ -294,7 +296,7 @@ class ConnectFlow {
     // await this method, so a throw outside it would leave the spinner up.
     try {
       final serverId = serverIdFromUrl(probeResult.serverUrl);
-      await PreAuthStateStorage.save(PreAuthState(
+      await preAuthStateStorage.save(PreAuthState(
         serverUrl: probeResult.serverUrl,
         providerId: provider.id,
         discoveryUrl: discoveryUrl,
@@ -405,8 +407,10 @@ class ConnectFlow {
   /// where a throw would leave the spinner up or bounce a signed-in user.
   Future<void> _clearPreAuthState() async {
     try {
-      await PreAuthStateStorage.clear();
+      await preAuthStateStorage.clear();
     } catch (e, st) {
+      // `error: e` is safe: the key is a constant and no stored value reaches
+      // it; at most a PlatformException or a web storage SecurityError.
       _logger.warning(
         'Failed to clear the pre-auth state',
         error: e,

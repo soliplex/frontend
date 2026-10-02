@@ -79,6 +79,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       discover: ref.read(discoverProvidersProvider),
       authFlow: ref.read(authFlowProvider),
       inactivityLogoutFlags: ref.read(inactivityLogoutFlagsProvider),
+      preAuthStateStorage: ref.read(preAuthStateStorageProvider),
       consentNotice: ref.read(consentNoticeProvider),
       // A fresh connection re-surfaces a maintenance banner the user dismissed
       // earlier in the session for this server.

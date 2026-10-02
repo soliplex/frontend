@@ -73,14 +73,14 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
 
       final accessToken = params.accessToken;
 
-      final preAuth = await PreAuthStateStorage.load();
+      final preAuth = await ref.read(preAuthStateStorageProvider).load();
       if (!mounted) return;
       if (preAuth == null) {
         _fail('Authentication session expired or missing. Please try again.');
         return;
       }
 
-      await PreAuthStateStorage.clear();
+      await ref.read(preAuthStateStorageProvider).clear();
       if (!mounted) return;
 
       final serverId = serverIdFromUrl(preAuth.serverUrl);

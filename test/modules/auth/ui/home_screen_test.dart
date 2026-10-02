@@ -584,7 +584,7 @@ void main() {
       await tester.pump();
 
       // Pre-auth state should have been saved before the redirect.
-      final preAuth = await PreAuthStateStorage.load();
+      final preAuth = await const LocalPreAuthStateStorage().load();
       expect(preAuth, isNotNull);
       expect(preAuth!.providerId, 'keycloak');
       expect(preAuth.clientId, 'soliplex');

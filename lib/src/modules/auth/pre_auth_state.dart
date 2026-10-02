@@ -129,16 +129,32 @@ class PreAuthState {
       'PreAuthState(serverUrl: $serverUrl, providerId: $providerId)';
 }
 
+/// Keeps the [PreAuthState] of the sign-in in flight, so the callback can
+/// tell which server and provider its tokens belong to.
+abstract interface class PreAuthStateStorage {
+  Future<void> save(PreAuthState state);
+
+  /// The saved state, or `null` when there is none, it has expired, or it
+  /// can't be read; an expired or unreadable state is cleared.
+  Future<PreAuthState?> load({DateTime? now});
+
+  Future<void> clear();
+}
+
 /// Stores and retrieves [PreAuthState] via SharedPreferences.
-abstract final class PreAuthStateStorage {
+class LocalPreAuthStateStorage implements PreAuthStateStorage {
+  const LocalPreAuthStateStorage();
+
   static const storageKey = 'soliplex_pre_auth_state';
 
-  static Future<void> save(PreAuthState state) async {
+  @override
+  Future<void> save(PreAuthState state) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(storageKey, jsonEncode(state.toJson()));
   }
 
-  static Future<PreAuthState?> load({DateTime? now}) async {
+  @override
+  Future<PreAuthState?> load({DateTime? now}) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(storageKey);
     if (raw == null) return null;
@@ -165,7 +181,8 @@ abstract final class PreAuthStateStorage {
     }
   }
 
-  static Future<void> clear() async {
+  @override
+  Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(storageKey);
   }
