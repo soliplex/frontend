@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/connect_flow.dart';
@@ -49,6 +52,22 @@ AuthResult _successResult() => AuthResult(
       refreshToken: 'refresh',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
     );
+
+/// A fork's flag store that throws instead of degrading the way
+/// `LocalInactivityLogoutFlagStorage` does.
+/// [gate], when set, holds the failure until it completes.
+class _ThrowingFlagStorage extends InMemoryInactivityLogoutFlagStorage {
+  Completer<void>? gate;
+
+  @override
+  Future<bool> isMarked(String serverId) async {
+    await gate?.future;
+    throw Exception('flag store unavailable');
+  }
+}
+
+Matcher get _connectError =>
+    isA<UrlInput>().having((s) => s.message, 'message', isA<ConnectError>());
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -261,6 +280,68 @@ void main() {
       await pumpEventQueue();
 
       expect(calls, 1);
+    });
+  });
+
+  group('ConnectFlow._authenticate — storage failures', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('a throwing inactivity-flag store ends at an error', () async {
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        inactivityLogoutFlags: _ThrowingFlagStorage(),
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(flow.state.value, _connectError);
+    });
+
+    test('an unsafe returnTo ends at an error and is not logged', () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final flow =
+          _createFlow(authFlow: FakeAuthFlow()..nextResult = _successResult());
+
+      await flow.connect(
+        'https://server.example.com',
+        returnTo: 'https://evil.example/steal',
+      );
+      await pumpEventQueue();
+
+      expect(flow.state.value, _connectError);
+      final record = sink.records
+          .where((r) =>
+              r.loggerName == 'soliplex.connect_flow' &&
+              r.level == LogLevel.error)
+          .single;
+      expect(record.toString(), isNot(contains('evil.example')));
+      expect(record.toString(), isNot(contains('steal')));
+    });
+
+    test('a sign-in reset while its flag check fails stays reset', () async {
+      final flags = _ThrowingFlagStorage()..gate = Completer<void>();
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        inactivityLogoutFlags: flags,
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+      expect(flow.state.value, isA<Authenticating>());
+
+      flow.reset();
+      flags.gate!.complete();
+      await pumpEventQueue();
+
+      expect(
+        flow.state.value,
+        isA<UrlInput>().having((s) => s.message, 'message', isNull),
+      );
     });
   });
 }
