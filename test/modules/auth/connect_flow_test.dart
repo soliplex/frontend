@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_failure_description.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/connect_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/connection_probe.dart';
@@ -36,6 +37,7 @@ ConnectFlow _createFlow({
   ServerManager? serverManager,
   DiscoverProviders? discover,
   void Function(Uri serverUrl)? onServerConnected,
+  PreAuthStateStorage? preAuthStateStorage,
 }) =>
     ConnectFlow(
       serverManager: serverManager ?? _createManager(),
@@ -44,6 +46,7 @@ ConnectFlow _createFlow({
       authFlow: authFlow,
       inactivityLogoutFlags:
           inactivityLogoutFlags ?? InMemoryInactivityLogoutFlagStorage(),
+      preAuthStateStorage: preAuthStateStorage ?? InMemoryPreAuthStateStorage(),
       onServerConnected: onServerConnected,
     );
 
@@ -80,8 +83,10 @@ void main() {
     test(
       'writes returnTo passed to connect() into PreAuthState',
       () async {
+        final storage = InMemoryPreAuthStateStorage();
         final flow = _createFlow(
           authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
+          preAuthStateStorage: storage,
         );
 
         await flow.connect(
@@ -89,10 +94,10 @@ void main() {
           returnTo: '/r/alias/room/thread/t1',
         );
         // _authenticate is invoked without await; pump the event queue so
-        // its PreAuthStateStorage.save and AuthRedirectInitiated branch run.
+        // its preAuthStateStorage.save and AuthRedirectInitiated branch run.
         await pumpEventQueue();
 
-        final saved = await PreAuthStateStorage.load();
+        final saved = storage.saved;
         expect(saved, isNotNull);
         expect(saved!.frontendReturnTo, '/r/alias/room/thread/t1');
       },
@@ -101,14 +106,16 @@ void main() {
     test(
       'writes null frontendReturnTo when connect() is called without returnTo',
       () async {
+        final storage = InMemoryPreAuthStateStorage();
         final flow = _createFlow(
           authFlow: FakeAuthFlow()..throwRedirectInitiated = true,
+          preAuthStateStorage: storage,
         );
 
         await flow.connect('https://server.example.com');
         await pumpEventQueue();
 
-        final saved = await PreAuthStateStorage.load();
+        final saved = storage.saved;
         expect(saved, isNotNull);
         expect(saved!.frontendReturnTo, isNull);
       },
@@ -341,6 +348,93 @@ void main() {
       expect(
         flow.state.value,
         isA<UrlInput>().having((s) => s.message, 'message', isNull),
+      );
+    });
+
+    test('a failed pre-auth save ends at an error, not the spinner', () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        preAuthStateStorage: InMemoryPreAuthStateStorage(failSave: true),
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(flow.state.value, _connectError);
+      expect(
+        sink.records.where((r) =>
+            r.loggerName == 'soliplex.connect_flow' &&
+            r.level == LogLevel.error),
+        hasLength(1),
+      );
+    });
+
+    test('a failed clear after a failed save still ends at an error', () async {
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        preAuthStateStorage:
+            InMemoryPreAuthStateStorage(failSave: true, failClear: true),
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(flow.state.value, _connectError);
+    });
+
+    test('a failed clear after an IdP rejection still shows its message',
+        () async {
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()
+          ..nextError = const AuthException(
+            'denied',
+            kind: AuthFailureKind.idpRejected,
+            oauthError: 'access_denied',
+          ),
+        preAuthStateStorage: InMemoryPreAuthStateStorage(failClear: true),
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(
+        flow.state.value,
+        isA<UrlInput>().having(
+          (s) => s.message?.text,
+          'message',
+          describeAuthFailure(
+            kind: AuthFailureKind.idpRejected,
+            oauthError: 'access_denied',
+            serverUrl: 'https://server.example.com',
+          ),
+        ),
+      );
+    });
+
+    test('a failed post-login clear still connects', () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final manager = _createManager();
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        serverManager: manager,
+        preAuthStateStorage: InMemoryPreAuthStateStorage(failClear: true),
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(flow.state.value, isA<Connected>());
+      expect(manager.servers.value, isNotEmpty);
+      expect(
+        sink.records.where((r) =>
+            r.loggerName == 'soliplex.connect_flow' &&
+            r.level == LogLevel.warning),
+        hasLength(1),
       );
     });
   });

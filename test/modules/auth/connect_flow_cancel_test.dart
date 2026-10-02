@@ -29,6 +29,7 @@ ConnectFlow _createFlow({required FakeAuthFlow authFlow}) => ConnectFlow(
       discover: (_, __) async => [_provider],
       authFlow: authFlow,
       inactivityLogoutFlags: InMemoryInactivityLogoutFlagStorage(),
+      preAuthStateStorage: InMemoryPreAuthStateStorage(),
     );
 
 void main() {
