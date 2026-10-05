@@ -4,10 +4,15 @@ import 'dart:typed_data';
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/api/agui_message_mapper.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
+import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('convertToAgui', () {
+  /// The wire form of each user message, in order.
+  List<Message> convert(List<TextMessage> messages) =>
+      [for (final message in messages) userMessageToAgui(message)];
+
+  group('userMessageToAgui', () {
     group('TextMessage conversion', () {
       test('converts user TextMessage to UserMessage', () {
         final chatMessages = [
@@ -19,7 +24,7 @@ void main() {
           ),
         ];
 
-        final aguiMessages = convertToAgui(chatMessages);
+        final aguiMessages = convert(chatMessages);
 
         expect(aguiMessages, hasLength(1));
         expect(aguiMessages[0], isA<UserMessage>());
@@ -29,44 +34,6 @@ void main() {
         // A message without parts serializes `content` as a bare string, not
         // a one-element array.
         expect(userMsg.toJson()['content'], equals('Hello, assistant!'));
-      });
-
-      test('converts assistant TextMessage to AssistantMessage', () {
-        final chatMessages = [
-          TextMessage(
-            id: 'msg-2',
-            user: ChatUser.assistant,
-            text: 'Hello, user!',
-            createdAt: DateTime.now(),
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, hasLength(1));
-        expect(aguiMessages[0], isA<AssistantMessage>());
-        final assistantMsg = aguiMessages[0] as AssistantMessage;
-        expect(assistantMsg.id, equals('msg-2'));
-        expect(assistantMsg.content, equals('Hello, user!'));
-      });
-
-      test('converts system TextMessage to SystemMessage', () {
-        final chatMessages = [
-          TextMessage(
-            id: 'msg-3',
-            user: ChatUser.system,
-            text: 'System notification',
-            createdAt: DateTime.now(),
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, hasLength(1));
-        expect(aguiMessages[0], isA<SystemMessage>());
-        final systemMsg = aguiMessages[0] as SystemMessage;
-        expect(systemMsg.id, equals('msg-3'));
-        expect(systemMsg.content, equals('System notification'));
       });
     });
 
@@ -79,7 +46,7 @@ void main() {
         final png = Uint8List.fromList([0x89, 0x50, 0x4e, 0x47]);
         final jpeg = Uint8List.fromList([0xff, 0xd8, 0xff, 0xe0]);
 
-        final aguiMessages = convertToAgui([
+        final aguiMessages = convert([
           TextMessage(
             id: 'msg-parts',
             user: ChatUser.user,
@@ -130,7 +97,7 @@ void main() {
       test('omits empty text runs from multimodal content', () {
         final bytes = Uint8List.fromList([0x89, 0x50]);
 
-        final aguiMessages = convertToAgui([
+        final aguiMessages = convert([
           TextMessage(
             id: 'msg-empty-runs',
             user: ChatUser.user,
@@ -155,7 +122,7 @@ void main() {
 
       // An image-less message keeps exactly the wire shape it has today.
       test('falls back to plain text when parts carry no image', () {
-        final aguiMessages = convertToAgui([
+        final aguiMessages = convert([
           TextMessage(
             id: 'msg-text-only',
             user: ChatUser.user,
@@ -176,7 +143,7 @@ void main() {
       test('drops a missing attachment but keeps the images beside it', () {
         final bytes = Uint8List.fromList([0x89, 0x50]);
 
-        final aguiMessages = convertToAgui([
+        final aguiMessages = convert([
           TextMessage.fromParts(
             id: 'msg-rehydrated',
             parts: [
@@ -203,7 +170,7 @@ void main() {
       // string and must not become an empty array either.
       test('falls back to plain text when only a missing attachment remains',
           () {
-        final aguiMessages = convertToAgui([
+        final aguiMessages = convert([
           TextMessage.fromParts(
             id: 'msg-all-missing',
             parts: const [
@@ -222,7 +189,7 @@ void main() {
       // An empty array makes the backend discard the user's turn entirely,
       // with no error anywhere — the one degenerate case that loses data.
       test('never serializes an empty content array', () {
-        final aguiMessages = convertToAgui([
+        final aguiMessages = convert([
           TextMessage(
             id: 'msg-no-parts',
             user: ChatUser.user,
@@ -256,16 +223,10 @@ void main() {
       // here — the part's number is what the model was told and what the
       // bubble shows.
       test('labels each image with the number it carries', () {
-        final agui = convertToAgui([
+        final agui = convert([
           TextMessage.fromParts(
             id: 'm1',
             parts: [const TextPart('these'), image(7), image(8)],
-          ),
-          TextMessage(
-            id: 'a1',
-            user: ChatUser.assistant,
-            text: 'I see two images.',
-            createdAt: DateTime.now(),
           ),
           TextMessage.fromParts(
             id: 'm2',
@@ -280,7 +241,7 @@ void main() {
       // images that remain still answer to the numbers they were given, so
       // nothing needs to be said about the one that is gone.
       test('leaves a gap where an attachment cannot be sent', () {
-        final agui = convertToAgui([
+        final agui = convert([
           TextMessage.fromParts(
             id: 'm1',
             parts: [
@@ -305,7 +266,7 @@ void main() {
       // An image nothing has ever named is sent as it is. Inventing a label
       // would tell the model a name no earlier turn used.
       test('sends an unnumbered image without a label', () {
-        final agui = convertToAgui([
+        final agui = convert([
           TextMessage.fromParts(
             id: 'm1',
             parts: [
@@ -325,7 +286,7 @@ void main() {
       // Left in, it would render in the user's sentence and be labelled again
       // on the next send.
       test('strips its own labels when reading content back', () {
-        final agui = convertToAgui([
+        final agui = convert([
           TextMessage.fromParts(
             id: 'm1',
             parts: [const TextPart('look at '), image(4)],
@@ -364,328 +325,23 @@ void main() {
         expect((read.parts![0] as TextPart).text, equals('Image 1:'));
       });
     });
+  });
 
-    group('ToolCallMessage conversion', () {
-      test('converts ToolCallMessage to AssistantMessage with toolCalls', () {
-        final chatMessages = [
-          ToolCallMessage(
-            id: 'msg-4',
-            createdAt: DateTime.now(),
-            toolCalls: const [
-              ToolCallInfo(
-                id: 'tc-1',
-                name: 'search',
-                arguments: '{"query": "test"}',
-                status: ToolCallStatus.completed,
-                result: 'Found 3 results',
-              ),
-              ToolCallInfo(
-                id: 'tc-2',
-                name: 'calculate',
-                arguments: '{"expression": "2+2"}',
-                status: ToolCallStatus.completed,
-                result: '4',
-              ),
-            ],
-          ),
-        ];
+  group('appendUserMessage', () {
+    test('shows the message and sends it', () {
+      final message =
+          TextMessage.create(id: 'u1', user: ChatUser.user, text: 'Hello');
 
-        final aguiMessages = convertToAgui(chatMessages);
+      final conversation =
+          appendUserMessage(Conversation.empty(threadId: 't'), message);
 
-        // 1 AssistantMessage + 2 ToolMessages for completed tool calls
-        expect(aguiMessages, hasLength(3));
-        expect(aguiMessages[0], isA<AssistantMessage>());
-        final assistantMsg = aguiMessages[0] as AssistantMessage;
-        expect(assistantMsg.id, equals('msg-4'));
-        expect(assistantMsg.toolCalls, isNotNull);
-        expect(assistantMsg.toolCalls, hasLength(2));
-
-        final tc1 = assistantMsg.toolCalls![0];
-        expect(tc1.id, equals('tc-1'));
-        expect(tc1.function.name, equals('search'));
-        expect(tc1.function.arguments, equals('{"query": "test"}'));
-
-        final tc2 = assistantMsg.toolCalls![1];
-        expect(tc2.id, equals('tc-2'));
-        expect(tc2.function.name, equals('calculate'));
-        expect(tc2.function.arguments, equals('{"expression": "2+2"}'));
-
-        // Verify ToolMessages
-        expect(aguiMessages[1], isA<ToolMessage>());
-        expect(aguiMessages[2], isA<ToolMessage>());
-      });
-
-      test('includes ToolMessage for completed tool calls', () {
-        final chatMessages = [
-          ToolCallMessage(
-            id: 'msg-4',
-            createdAt: DateTime.now(),
-            toolCalls: const [
-              ToolCallInfo(
-                id: 'tc-1',
-                name: 'search',
-                arguments: '{"query": "test"}',
-                status: ToolCallStatus.completed,
-                result: 'Found 3 results',
-              ),
-            ],
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        // Should produce AssistantMessage + ToolMessage
-        expect(aguiMessages, hasLength(2));
-        expect(aguiMessages[0], isA<AssistantMessage>());
-        expect(aguiMessages[1], isA<ToolMessage>());
-
-        final toolMsg = aguiMessages[1] as ToolMessage;
-        expect(toolMsg.toolCallId, equals('tc-1'));
-        expect(toolMsg.content, equals('Found 3 results'));
-      });
-
-      test('skips ToolMessage for pending tool calls', () {
-        final chatMessages = [
-          ToolCallMessage(
-            id: 'msg-4',
-            createdAt: DateTime.now(),
-            toolCalls: const [
-              ToolCallInfo(
-                id: 'tc-1',
-                name: 'search',
-                arguments: '{"query": "test"}',
-              ),
-            ],
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        // Only AssistantMessage, no ToolMessage for pending
-        expect(aguiMessages, hasLength(1));
-        expect(aguiMessages[0], isA<AssistantMessage>());
-      });
-    });
-
-    group('GenUiMessage conversion', () {
-      test(
-        'converts GenUiMessage to AssistantMessage with descriptive content',
-        () {
-          final chatMessages = [
-            GenUiMessage(
-              id: 'msg-5',
-              createdAt: DateTime.now(),
-              widgetName: 'WeatherCard',
-              data: const {'temperature': 72, 'condition': 'sunny'},
-            ),
-          ];
-
-          final aguiMessages = convertToAgui(chatMessages);
-
-          expect(aguiMessages, hasLength(1));
-          expect(aguiMessages[0], isA<AssistantMessage>());
-          final assistantMsg = aguiMessages[0] as AssistantMessage;
-          expect(assistantMsg.id, equals('msg-5'));
-          expect(assistantMsg.content, contains('WeatherCard'));
-        },
+      expect(conversation.messages, [message]);
+      expect(
+        conversation.transcript.messages.single,
+        isA<UserMessage>()
+            .having((m) => m.id, 'id', 'u1')
+            .having((m) => m.content, 'content', 'Hello'),
       );
-    });
-
-    group('skipped message types', () {
-      test('skips ErrorMessage', () {
-        final chatMessages = [
-          ErrorMessage(
-            id: 'msg-6',
-            createdAt: DateTime.now(),
-            errorText: 'Something went wrong',
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, isEmpty);
-      });
-
-      test('skips LoadingMessage', () {
-        final chatMessages = [
-          LoadingMessage(id: 'msg-7', createdAt: DateTime.now()),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, isEmpty);
-      });
-
-      test('skips DroppedEventMessage', () {
-        final chatMessages = [
-          DroppedEventMessage(
-            id: 'drop-1',
-            createdAt: DateTime.now(),
-            source: DropSource.decode,
-            reason: 'unknown event type',
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, isEmpty);
-      });
-
-      test('skips NoResponseTile so it never reaches the wire', () {
-        // The synthesized no-response tile is a frontend-only signal.
-        // Sending it back to the backend on a continuation run would
-        // appear as an empty assistant message — exactly the wire-leak
-        // this guard prevents. The exhaustive-switch test catches a
-        // missing case at compile time; this exercises the runtime skip.
-        final chatMessages = [
-          TextMessage(
-            id: 'user-1',
-            user: ChatUser.user,
-            text: 'first',
-            createdAt: DateTime.now(),
-          ),
-          NoResponseTile.cancelled(
-            runId: 'run-1',
-            thinkingText: 'reasoning preserved on cancel',
-          ),
-          TextMessage(
-            id: 'user-2',
-            user: ChatUser.user,
-            text: 'second',
-            createdAt: DateTime.now(),
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, hasLength(2));
-        expect(aguiMessages[0], isA<UserMessage>());
-        expect((aguiMessages[0] as UserMessage).id, equals('user-1'));
-        expect(aguiMessages[1], isA<UserMessage>());
-        expect((aguiMessages[1] as UserMessage).id, equals('user-2'));
-        expect(
-          aguiMessages.any((m) => m.id == 'no-response-run-1'),
-          isFalse,
-        );
-      });
-    });
-
-    group('mixed message list', () {
-      test('converts mixed message types preserving order', () {
-        final chatMessages = [
-          TextMessage(
-            id: 'msg-1',
-            user: ChatUser.user,
-            text: 'Search for something',
-            createdAt: DateTime.now(),
-          ),
-          ToolCallMessage(
-            id: 'msg-2',
-            createdAt: DateTime.now(),
-            toolCalls: const [
-              ToolCallInfo(
-                id: 'tc-1',
-                name: 'search',
-                arguments: '{}',
-                status: ToolCallStatus.completed,
-                result: 'Results',
-              ),
-            ],
-          ),
-          TextMessage(
-            id: 'msg-3',
-            user: ChatUser.assistant,
-            text: 'Here are your results',
-            createdAt: DateTime.now(),
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        // msg-1 (UserMessage) + msg-2 (AssistantMessage) + tc-1 (ToolMessage)
-        // + msg-3 (AssistantMessage) = 4 messages
-        expect(aguiMessages, hasLength(4));
-        expect(aguiMessages[0], isA<UserMessage>());
-        expect(aguiMessages[1], isA<AssistantMessage>());
-        expect(aguiMessages[2], isA<ToolMessage>());
-        expect(aguiMessages[3], isA<AssistantMessage>());
-      });
-
-      test('filters out transient messages while keeping others', () {
-        final chatMessages = [
-          TextMessage(
-            id: 'msg-1',
-            user: ChatUser.user,
-            text: 'Hello',
-            createdAt: DateTime.now(),
-          ),
-          LoadingMessage(id: 'loading-1', createdAt: DateTime.now()),
-          ErrorMessage(
-            id: 'error-1',
-            createdAt: DateTime.now(),
-            errorText: 'Error',
-          ),
-          TextMessage(
-            id: 'msg-2',
-            user: ChatUser.assistant,
-            text: 'Response',
-            createdAt: DateTime.now(),
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, hasLength(2));
-        expect(aguiMessages[0], isA<UserMessage>());
-        expect(aguiMessages[1], isA<AssistantMessage>());
-      });
-    });
-
-    group('edge cases', () {
-      test('handles empty list', () {
-        final aguiMessages = convertToAgui([]);
-
-        expect(aguiMessages, isEmpty);
-      });
-
-      test('handles empty text content', () {
-        final chatMessages = [
-          TextMessage(
-            id: 'msg-1',
-            user: ChatUser.user,
-            text: '',
-            createdAt: DateTime.now(),
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, hasLength(1));
-        expect((aguiMessages[0] as UserMessage).content, equals(''));
-      });
-
-      test('handles empty tool call arguments', () {
-        final chatMessages = [
-          ToolCallMessage(
-            id: 'msg-1',
-            createdAt: DateTime.now(),
-            toolCalls: const [
-              ToolCallInfo(
-                id: 'tc-1',
-                name: 'noArgs',
-                status: ToolCallStatus.completed,
-                result: 'Done',
-              ),
-            ],
-          ),
-        ];
-
-        final aguiMessages = convertToAgui(chatMessages);
-
-        expect(aguiMessages, hasLength(2));
-        final assistantMsg = aguiMessages[0] as AssistantMessage;
-        expect(assistantMsg.toolCalls![0].function.arguments, equals('{}'));
-      });
     });
   });
 }

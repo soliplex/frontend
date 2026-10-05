@@ -17,6 +17,7 @@ import 'package:soliplex_client/src/application/json_patch.dart';
 import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/run_phase.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
+import 'package:soliplex_client/src/application/transcript_events.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
@@ -52,6 +53,9 @@ class EventProcessingResult {
 /// null while live). Both may be null — the message then carries no timestamp
 /// rather than a client-generated one.
 ///
+/// The display state is updated first, then [Conversation.transcript]; an
+/// event the display step throws on reaches neither.
+///
 /// Example usage:
 /// ```dart
 /// final result = processEvent(conversation, streaming, event);
@@ -59,6 +63,27 @@ class EventProcessingResult {
 /// // result.streaming - updated streaming state
 /// ```
 EventProcessingResult processEvent(
+  Conversation conversation,
+  StreamingState streaming,
+  BaseEvent event, {
+  DateTime? runCreated,
+}) {
+  final result = _processForDisplay(
+    conversation,
+    streaming,
+    event,
+    runCreated: runCreated,
+  );
+  final transcript =
+      applyTranscriptEvent(result.conversation.transcript, event);
+  if (identical(transcript, result.conversation.transcript)) return result;
+  return EventProcessingResult(
+    conversation: result.conversation.copyWith(transcript: transcript),
+    streaming: result.streaming,
+  );
+}
+
+EventProcessingResult _processForDisplay(
   Conversation conversation,
   StreamingState streaming,
   BaseEvent event, {
@@ -169,13 +194,6 @@ EventProcessingResult processEvent(
     ActivitySnapshotEvent() =>
       _processActivitySnapshot(conversation, streaming, event),
 
-    // Opaque provider-signed blob anchoring a reasoning message to the LLM
-    // provider on follow-up turns. Round-trip preservation requires an
-    // encryptedValue field on TextMessage (and on ag_ui's Message). See
-    // github.com/soliplex/frontend/issues/117.
-    ReasoningEncryptedValueEvent(:final entityId) =>
-      _processReasoningEncryptedValue(conversation, streaming, entityId),
-
     // JSON Patch against the prior ActivitySnapshot's content,
     // mirroring how StateDeltaEvent patches aguiState.
     ActivityDeltaEvent() =>
@@ -204,6 +222,8 @@ EventProcessingResult processEvent(
     RawEvent() ||
     CustomEvent() ||
     ReasoningMessageChunkEvent() ||
+    // Sent back with its tool call, or dropped, by the transcript.
+    ReasoningEncryptedValueEvent() ||
     MessagesSnapshotEvent() =>
       EventProcessingResult(
         conversation: conversation,
@@ -757,25 +777,6 @@ EventProcessingResult _processStateDelta(
       aguiStateIncomplete:
           conversation.aguiStateIncomplete || !patched.complete,
     ),
-    streaming: streaming,
-  );
-}
-
-// Logged pass-through for events we do not yet integrate into the domain.
-
-EventProcessingResult _processReasoningEncryptedValue(
-  Conversation conversation,
-  StreamingState streaming,
-  String entityId,
-) {
-  _logger.warning(
-    'ReasoningEncryptedValueEvent dropped: round-trip preservation '
-    'requires encryptedValue on TextMessage — see '
-    'github.com/soliplex/frontend/issues/117',
-    attributes: {'entityId': entityId},
-  );
-  return EventProcessingResult(
-    conversation: conversation,
     streaming: streaming,
   );
 }

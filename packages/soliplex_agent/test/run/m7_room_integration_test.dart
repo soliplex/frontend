@@ -299,6 +299,9 @@ void main() {
       var history = ThreadHistory(
         messages:
             (orchestrator.currentState as CompletedState).conversation.messages,
+        transcript: (orchestrator.currentState as CompletedState)
+            .conversation
+            .transcript,
       );
       orchestrator.reset();
 
@@ -313,6 +316,9 @@ void main() {
       history = ThreadHistory(
         messages:
             (orchestrator.currentState as CompletedState).conversation.messages,
+        transcript: (orchestrator.currentState as CompletedState)
+            .conversation
+            .transcript,
       );
       orchestrator.reset();
 
@@ -472,6 +478,9 @@ void main() {
           messages: (orchestrator.currentState as CompletedState)
               .conversation
               .messages,
+          transcript: (orchestrator.currentState as CompletedState)
+              .conversation
+              .transcript,
         );
         orchestrator.reset();
       }

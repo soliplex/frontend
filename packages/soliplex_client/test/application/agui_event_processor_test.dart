@@ -2146,4 +2146,33 @@ void main() {
       });
     });
   });
+
+  group('transcript', () {
+    test('every processed event reaches the transcript', () {
+      var conversation = Conversation.empty(threadId: 'thread-1')
+          .withStatus(const Running(runId: 'run-1'));
+      app_streaming.StreamingState streaming =
+          const app_streaming.AwaitingText();
+      for (final event in const <BaseEvent>[
+        TextMessageStartEvent(messageId: 'p'),
+        TextMessageEndEvent(messageId: 'p'),
+        ToolCallStartEvent(
+          toolCallId: 'call_0',
+          toolCallName: 'search',
+          parentMessageId: 'p',
+        ),
+        ToolCallEndEvent(toolCallId: 'call_0'),
+        ToolCallResultEvent(messageId: 'r', toolCallId: 'call_0', content: 'R'),
+      ]) {
+        final result = processEvent(conversation, streaming, event);
+        conversation = result.conversation;
+        streaming = result.streaming;
+      }
+
+      expect(
+        conversation.transcript.messages.map((m) => m.toJson()['role']),
+        ['assistant', 'tool'],
+      );
+    });
+  });
 }

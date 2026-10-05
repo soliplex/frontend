@@ -958,15 +958,10 @@ void main() {
       );
     });
 
-    test(
-        'continuation run excludes synthesized NoResponseTile, ErrorMessage, '
-        'LoadingMessage, and DroppedEventMessage from prior cachedHistory '
-        '(wire-leak regression for the convertToAgui skip set)', () async {
-      // The wire-leak fix in `agui_message_mapper.convertToAgui` is the
-      // last line of defense, but the only way to verify it through the
-      // orchestrator is to inspect what `_buildInput` actually sends. A
-      // future change that imports cachedHistory unfiltered (or routes
-      // around `convertToAgui`) would silently re-introduce the leak.
+    test("a send carries the history's transcript, never its display tiles",
+        () async {
+      // The display list holds frontend-only tiles beside the real messages;
+      // only the transcript reaches the wire, followed by the new message.
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
@@ -994,6 +989,11 @@ void main() {
             text: 'a',
           ),
         ],
+        transcript: const Transcript()
+            .withAppendedMessage(UserMessage(id: 'prior-user', content: 'q'))
+            .withAppendedMessage(
+              const AssistantMessage(id: 'prior-assistant', content: 'a'),
+            ),
       );
 
       await orchestrator.runToCompletion(
@@ -1014,20 +1014,16 @@ void main() {
       ).captured;
 
       final input = captured.single as SimpleRunAgentInput;
-      final wireMessages = input.messages ?? const [];
-      final wireIds = wireMessages.map((m) => m.id).toList();
-      // Real conversation messages survive.
-      expect(wireIds, contains('prior-user'));
-      expect(wireIds, contains('prior-assistant'));
-      // Frontend-synthesized tiles are filtered out.
+      final wireMessages = input.messages!;
       expect(
-        wireIds,
-        isNot(contains(noResponseMessageId('prior-run'))),
-        reason: 'NoResponseTile is frontend-only; must not reach the backend',
+        wireMessages.map((m) => m.id).take(2),
+        ['prior-user', 'prior-assistant'],
       );
-      expect(wireIds, isNot(contains('run-error-prior')));
-      expect(wireIds, isNot(contains('loading-prior')));
-      expect(wireIds, isNot(contains('dropped-prior')));
+      expect(wireMessages, hasLength(3));
+      expect(
+        wireMessages.last,
+        isA<UserMessage>().having((m) => m.content, 'content', 'follow-up'),
+      );
     });
   });
 
@@ -4187,5 +4183,93 @@ void main() {
         await controller.close();
       },
     );
+  });
+
+  group('history sent', () {
+    test('a resume sends the result after the text that followed its call',
+        () async {
+      // One response: a client tool call, then text. The result must follow
+      // the text, as the events ordered them.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      var call = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        call++;
+        return _wrap(
+          Stream.fromIterable(
+            call == 1
+                ? [
+                    RunStartedEvent(threadId: 'thread-1', runId: _runId),
+                    const TextMessageStartEvent(messageId: 'p'),
+                    const TextMessageEndEvent(messageId: 'p'),
+                    const ToolCallStartEvent(
+                      toolCallId: 'call_0',
+                      toolCallName: 'weather',
+                      parentMessageId: 'p',
+                    ),
+                    const ToolCallArgsEvent(toolCallId: 'call_0', delta: '{}'),
+                    const ToolCallEndEvent(toolCallId: 'call_0'),
+                    const TextMessageStartEvent(messageId: 't'),
+                    const TextMessageContentEvent(
+                      messageId: 't',
+                      delta: 'Checking',
+                    ),
+                    const TextMessageEndEvent(messageId: 't'),
+                    const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+                  ]
+                : _resumeTextEvents(),
+          ),
+        );
+      });
+
+      await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (pending) async => [
+          for (final tc in pending)
+            tc.copyWith(status: ToolCallStatus.completed, result: 'Sunny'),
+        ],
+      );
+
+      final captured = verify(
+        () => agUiStreamClient.runAgent(
+          any(),
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).captured;
+      final resumed = (captured[1]! as SimpleRunAgentInput).messages!;
+      expect(
+        [
+          for (final m in resumed)
+            switch (m) {
+              UserMessage() => 'user',
+              AssistantMessage(:final id, :final toolCalls) =>
+                '$id:${toolCalls?.length ?? 0}',
+              ToolMessage(:final toolCallId, :final content) =>
+                '$toolCallId=$content',
+              _ => m.runtimeType.toString(),
+            },
+        ],
+        ['user', 'p:1', 't:0', 'call_0=Sunny'],
+      );
+    });
   });
 }

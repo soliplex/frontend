@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
+import 'package:soliplex_client/src/domain/transcript.dart';
 
 /// Status of a conversation.
 ///
@@ -124,7 +125,8 @@ class Cancelled extends ConversationStatus {
 ///
 /// A Conversation is 1:1 with a Thread and contains:
 /// - Messages displayed to the user
-/// - Tool calls (history, not displayed)
+/// - This send's tool calls and their execution status (not displayed)
+/// - The AG-UI history it sends
 /// - Run status
 ///
 /// Streaming state is managed separately in the application layer.
@@ -142,6 +144,7 @@ class Conversation {
     this.messageStates = const {},
     this.activities = const [],
     this.runOutcomes = const {},
+    this.transcript = const Transcript(),
   });
 
   /// Creates an empty conversation for the given thread.
@@ -155,7 +158,9 @@ class Conversation {
   /// Messages displayed to the user.
   final List<ChatMessage> messages;
 
-  /// Tool calls history (not displayed to user).
+  /// This send's tool calls and their execution status: which client tools
+  /// are pending, and what they returned. Not displayed; the history sent is
+  /// [transcript].
   final List<ToolCallInfo> toolCalls;
 
   /// Current status of the conversation.
@@ -202,6 +207,10 @@ class Conversation {
   /// One entry per terminal run in the thread. Only [withoutRunOutcome]
   /// removes one, for a run that yielded to a client tool rather than ending.
   final Map<String, NoResponseTile> runOutcomes;
+
+  /// The AG-UI history this conversation sends, built from its events in
+  /// order.
+  final Transcript transcript;
 
   /// Whether a run is currently active.
   bool get isRunning => status is Running;
@@ -292,6 +301,7 @@ class Conversation {
     Map<String, MessageState>? messageStates,
     List<ActivityRecord>? activities,
     Map<String, NoResponseTile>? runOutcomes,
+    Transcript? transcript,
   }) {
     return Conversation(
       threadId: threadId ?? this.threadId,
@@ -303,6 +313,7 @@ class Conversation {
       messageStates: messageStates ?? this.messageStates,
       activities: activities ?? this.activities,
       runOutcomes: runOutcomes ?? this.runOutcomes,
+      transcript: transcript ?? this.transcript,
     );
   }
 
@@ -324,7 +335,8 @@ class Conversation {
         aguiStateIncomplete == other.aguiStateIncomplete &&
         messageStateMapEquals.equals(messageStates, other.messageStates) &&
         activityListEquals.equals(activities, other.activities) &&
-        runOutcomeMapEquals.equals(runOutcomes, other.runOutcomes);
+        runOutcomeMapEquals.equals(runOutcomes, other.runOutcomes) &&
+        transcript == other.transcript;
   }
 
   @override
@@ -338,6 +350,7 @@ class Conversation {
         const MapEquality<String, MessageState>().hash(messageStates),
         const ListEquality<ActivityRecord>().hash(activities),
         const MapEquality<String, NoResponseTile>().hash(runOutcomes),
+        transcript,
       );
 
   @override
