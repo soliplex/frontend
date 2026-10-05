@@ -254,6 +254,27 @@ void main() {
       expect(logs().single.attributes, {'toolCallId': 'call_0'});
     });
 
+    test('a call whose parent is not an assistant message takes no result', () {
+      // The id a call names is already a user message's.
+      final t = _apply(
+        const [
+          ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'search',
+            parentMessageId: 'u1',
+          ),
+          ToolCallEndEvent(toolCallId: 'c1'),
+          ToolCallResultEvent(messageId: 'r1', toolCallId: 'c1', content: 'R'),
+        ],
+        const Transcript().withAppendedMessage(
+          UserMessage(id: 'u1', content: 'Find it'),
+        ),
+      );
+
+      expect(_describe(t), ['user u1']);
+      expect(logs().map((r) => r.attributes['toolCallId']), ['c1', 'c1']);
+    });
+
     group('a call that already has its result', () {
       final answered = _apply(const [
         TextMessageStartEvent(messageId: 'p'),
@@ -310,6 +331,29 @@ void main() {
         ]);
       });
 
+      test('opens a new message for an id an earlier response used', () {
+        // A provider numbering its calls per response gives each round's
+        // call the same id; each round is its own response.
+        const round = [
+          ToolCallStartEvent(toolCallId: 'call_0', toolCallName: 'weather'),
+          ToolCallEndEvent(toolCallId: 'call_0'),
+        ];
+        final first = appendToolResult(
+          _apply(round),
+          messageId: 'tool_result_call_0',
+          toolCallId: 'call_0',
+          content: 'Sunny',
+        );
+
+        final t = _apply(round, first);
+
+        expect(_describe(t), [
+          'assistant tool-calls-0 "" [call_0:weather({})]',
+          'tool call_0 "Sunny"',
+          'assistant tool-calls-2 "" [call_0:weather({})]',
+        ]);
+      });
+
       test('opens an assistant message when the last message is not one', () {
         final t = _apply(
           const [
@@ -325,7 +369,7 @@ void main() {
 
         expect(_describe(t), [
           'user u1',
-          'assistant tool-calls-tc-1 "" [tc-1:weather({}), tc-2:time({})]',
+          'assistant tool-calls-1 "" [tc-1:weather({}), tc-2:time({})]',
         ]);
       });
     });

@@ -246,12 +246,15 @@ Transcript _appendText(
 }
 
 /// The message a call naming no parent joins: the last message when it is an
-/// assistant's, which is the response the call belongs to, else one opened
-/// for it. Only the in-process providers name no parent.
-String _parentOfUnnamedCall(Transcript transcript, String toolCallId) =>
+/// assistant's — for the in-process providers, which emit a response's text
+/// before its calls and name no parent, that is the response the call
+/// belongs to — else one opened for it. The opened id comes from the
+/// message's position, not the call's id: a provider that numbers its calls
+/// per response gives a later response's call an earlier one's id.
+String _parentOfUnnamedCall(Transcript transcript) =>
     switch (transcript.messages.lastOrNull) {
       AssistantMessage(:final id?) => id,
-      _ => 'tool-calls-$toolCallId',
+      _ => 'tool-calls-${transcript.messages.length}',
     };
 
 Transcript _startToolCall(
@@ -267,8 +270,7 @@ Transcript _startToolCall(
       attributes: {'toolCallId': toolCallId},
     );
   }
-  final parentId =
-      parentMessageId ?? _parentOfUnnamedCall(transcript, toolCallId);
+  final parentId = parentMessageId ?? _parentOfUnnamedCall(transcript);
   final withParent = _indexOf(transcript, parentId) >= 0
       ? transcript
       : transcript.withAppendedMessage(
@@ -324,19 +326,20 @@ Transcript _endToolCall(Transcript transcript, String toolCallId, Logger log) {
     );
     return transcript;
   }
-  final ended = transcript.copyWith(
+  final closed = transcript.copyWith(
     openToolCalls: {...transcript.openToolCalls}..remove(toolCallId),
-    unansweredToolCallIds: {...transcript.unansweredToolCallIds, toolCallId},
   );
-  final index = _indexOf(ended, open.parentId);
-  final parent = index < 0 ? null : ended.messages[index];
+  final index = _indexOf(closed, open.parentId);
+  final parent = index < 0 ? null : closed.messages[index];
   if (parent is! AssistantMessage) {
+    // Not sent, so nothing may answer it either: a result for a call the
+    // history does not hold makes pydantic-ai reject the whole history.
     log.warning(
       'Transcript dropped a tool call whose parent is not an assistant '
       'message',
       attributes: {'toolCallId': toolCallId, 'messageId': open.parentId},
     );
-    return ended;
+    return closed;
   }
   final call = open.call.function.arguments.isEmpty
       ? open.call.copyWith(
@@ -344,9 +347,11 @@ Transcript _endToolCall(Transcript transcript, String toolCallId, Logger log) {
         )
       : open.call;
   return _replacedAt(
-    ended,
+    closed,
     index,
     parent.copyWith(toolCalls: [...?parent.toolCalls, call]),
+  ).copyWith(
+    unansweredToolCallIds: {...closed.unansweredToolCallIds, toolCallId},
   );
 }
 
