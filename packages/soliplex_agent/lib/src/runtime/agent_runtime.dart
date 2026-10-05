@@ -480,6 +480,7 @@ class AgentRuntime {
       // backend has nothing to replay it from. Dropping it loses the tile
       // that a run with nothing else to show for itself renders its work on.
       runOutcomes: conversation.runOutcomes,
+      transcript: conversation.transcript,
     );
     final key = session.threadKey;
     final threadState = _threadStateFor(key);

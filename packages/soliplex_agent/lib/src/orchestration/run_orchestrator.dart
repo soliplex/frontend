@@ -840,9 +840,26 @@ class RunOrchestrator {
       toolCalls: executedTools,
       runId: state.runId,
     );
+    // Appended where the result arrived: after whatever its run streamed.
+    final transcript = executedTools
+        .where(
+          (tc) =>
+              tc.status == ToolCallStatus.completed ||
+              tc.status == ToolCallStatus.failed,
+        )
+        .fold(
+          state.conversation.transcript,
+          (transcript, tc) => appendToolResult(
+            transcript,
+            messageId: 'tool_result_${tc.id}',
+            toolCallId: tc.id,
+            content: tc.result,
+          ),
+        );
     return state.conversation.copyWith(
       messages: [...state.conversation.messages, toolMsg],
       toolCalls: updatedToolCalls,
+      transcript: transcript,
     );
   }
 
@@ -896,15 +913,19 @@ class RunOrchestrator {
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
     _turnCitations = const TurnCitations.empty();
     _userMessageId = userMsg.id;
-    return Conversation(
-      threadId: key.threadId,
-      messages: [...priorMessages, userMsg],
-      aguiState: aguiState,
-      aguiStateIncomplete: cachedHistory?.aguiStateIncomplete ?? false,
-      messageStates: cachedHistory?.messageStates ?? const {},
-      // Every send builds this afresh, so a run that ended earlier in the
-      // thread loses its outcome unless it is carried over here.
-      runOutcomes: cachedHistory?.runOutcomes ?? const {},
+    return appendUserMessage(
+      Conversation(
+        threadId: key.threadId,
+        messages: priorMessages,
+        aguiState: aguiState,
+        aguiStateIncomplete: cachedHistory?.aguiStateIncomplete ?? false,
+        messageStates: cachedHistory?.messageStates ?? const {},
+        // Every send builds this afresh, so a run that ended earlier in the
+        // thread loses its outcome unless it is carried over here.
+        runOutcomes: cachedHistory?.runOutcomes ?? const {},
+        transcript: cachedHistory?.transcript ?? const Transcript(),
+      ),
+      userMsg,
     );
   }
 
@@ -933,11 +954,10 @@ class RunOrchestrator {
   }
 
   SimpleRunAgentInput _buildInput(ThreadKey key, Conversation conversation) {
-    final aguiMessages = convertToAgui(conversation.messages);
     return SimpleRunAgentInput(
       threadId: key.threadId,
       runId: '', // Assigned by the provider during startRun.
-      messages: aguiMessages,
+      messages: conversation.transcript.messages,
       tools: _toolRegistry.toolDefinitions,
       state: conversation.aguiState,
     );

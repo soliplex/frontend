@@ -1512,6 +1512,67 @@ void main() {
   });
 
   group('automatic thread history', () {
+    test("second spawn sends the first's server tool call and result",
+        () async {
+      stubCreateThread();
+      stubCreateRun();
+      stubDeleteThread();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          RunStartedEvent(threadId: _threadId, runId: _runId),
+          const TextMessageStartEvent(messageId: 'p'),
+          const TextMessageEndEvent(messageId: 'p'),
+          const ToolCallStartEvent(
+            toolCallId: 'call_0',
+            toolCallName: 'search',
+            parentMessageId: 'p',
+          ),
+          const ToolCallArgsEvent(toolCallId: 'call_0', delta: '{"q":"x"}'),
+          const ToolCallEndEvent(toolCallId: 'call_0'),
+          const ToolCallResultEvent(
+            messageId: 'r',
+            toolCallId: 'call_0',
+            content: 'R',
+          ),
+          const TextMessageStartEvent(messageId: 'a'),
+          const TextMessageContentEvent(messageId: 'a', delta: 'Found'),
+          const TextMessageEndEvent(messageId: 'a'),
+          const RunFinishedEvent(threadId: _threadId, runId: _runId),
+        ]),
+      );
+      final s1 = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Find x')]);
+      await s1.result;
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+      stubCreateRun();
+
+      final s2 = await runtime.spawn(
+        roomId: _roomId,
+        prompt: [const TextPart('Follow up')],
+        threadId: s1.threadKey.threadId,
+      );
+      await s2.result;
+
+      final captured = verify(
+        () => agUiStreamClient.runAgent(
+          any(),
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).captured;
+      final messages = (captured[1] as SimpleRunAgentInput).messages!;
+      expect(
+        [for (final m in messages) m.toJson()['role']],
+        ['user', 'assistant', 'tool', 'assistant', 'user'],
+      );
+      expect(
+        (messages[1] as AssistantMessage).toolCalls!.single.function.arguments,
+        '{"q":"x"}',
+      );
+    });
+
     test('second spawn on same thread includes prior conversation', () async {
       stubCreateThread();
       stubCreateRun();

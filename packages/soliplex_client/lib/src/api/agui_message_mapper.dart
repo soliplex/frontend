@@ -4,67 +4,35 @@ import 'dart:typed_data';
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
+import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.message_mapper');
 
-/// Converts a list of [ChatMessage]s to AG-UI protocol [Message]s.
+/// The AG-UI form of the user's [message], as the transcript carries it.
 ///
-/// This mapper handles the conversion of internal chat message types to the
-/// AG-UI protocol format required by the backend. The conversion rules are:
-///
-/// - [TextMessage] with [ChatUser.user] → [UserMessage]
-/// - [TextMessage] with [ChatUser.assistant] → [AssistantMessage]
-/// - [TextMessage] with [ChatUser.system] → [SystemMessage]
-/// - [ToolCallMessage] → [AssistantMessage] with toolCalls, followed by
-///   [ToolMessage]s for completed tool calls
-/// - [GenUiMessage] → [AssistantMessage] with descriptive content
-/// - [NoResponseTile] is skipped — round-tripping a synthesized empty
-///   assistant tile would re-send it as a real assistant reply on the
-///   next continuation run.
-/// - [ErrorMessage], [LoadingMessage], [DroppedEventMessage] are skipped
-///   (transient or frontend-only messages).
-List<Message> convertToAgui(List<ChatMessage> chatMessages) {
-  final result = <Message>[];
-
-  for (final message in chatMessages) {
-    switch (message) {
-      case TextMessage():
-        result.add(_convertTextMessage(message));
-
-      case ToolCallMessage():
-        result.addAll(_convertToolCallMessage(message));
-
-      case GenUiMessage():
-        result.add(_convertGenUiMessage(message));
-
-      case ErrorMessage():
-      case LoadingMessage():
-      case DroppedEventMessage():
-      case NoResponseTile():
-        // Skip transient or frontend-only messages
-        continue;
-    }
+/// Only a user's message is converted here: everything else a thread sends is
+/// built from the events that produced it.
+UserMessage userMessageToAgui(TextMessage message) {
+  final multimodalParts = _multimodalParts(message.parts);
+  if (multimodalParts == null) {
+    return UserMessage(id: message.id, content: message.text);
   }
-
-  return result;
+  return UserMessage.multimodal(id: message.id, parts: multimodalParts);
 }
 
-Message _convertTextMessage(TextMessage message) {
-  switch (message.user) {
-    case ChatUser.user:
-      final multimodalParts = _multimodalParts(message.parts);
-      if (multimodalParts == null) {
-        return UserMessage(id: message.id, content: message.text);
-      }
-      return UserMessage.multimodal(id: message.id, parts: multimodalParts);
-    case ChatUser.assistant:
-      return AssistantMessage(id: message.id, content: message.text);
-    case ChatUser.system:
-      return SystemMessage(id: message.id, content: message.text);
-  }
-}
+/// Returns [conversation] with the user's [message] added both to what it
+/// shows and to the history it sends — the one way a user's message enters a
+/// conversation, live or rebuilt.
+Conversation appendUserMessage(
+  Conversation conversation,
+  TextMessage message,
+) =>
+    conversation.withAppendedMessage(message).copyWith(
+          transcript: conversation.transcript
+              .withAppendedMessage(userMessageToAgui(message)),
+        );
 
 /// Content parts for a multimodal `UserMessage`, or null when [parts] has
 /// nothing the bare-string form cannot carry.
@@ -215,7 +183,7 @@ void _dropLabelFor(
 
 /// Reads a user message's wire `content` back into the domain — the inbound
 /// counterpart to [_multimodalParts] and the bare-string arm of
-/// [_convertTextMessage].
+/// [userMessageToAgui].
 ///
 /// AG-UI gives `UserMessage.content` as either a bare string or an ordered list
 /// of typed parts. `text` is the message's text either way: the bare string, or
@@ -470,47 +438,4 @@ MessagePart _readImageSource(
         number: number,
       );
   }
-}
-
-List<Message> _convertToolCallMessage(ToolCallMessage message) {
-  final toolCalls = message.toolCalls
-      .map(
-        (tc) => ToolCall(
-          id: tc.id,
-          function: FunctionCall(
-            name: tc.name,
-            arguments: tc.arguments.isEmpty ? '{}' : tc.arguments,
-          ),
-        ),
-      )
-      .toList();
-
-  final result = <Message>[
-    AssistantMessage(id: message.id, toolCalls: toolCalls),
-  ];
-
-  // Add ToolMessage for each completed or failed tool call.
-  // Failed tool calls send their error to the model so it can respond.
-  for (final tc in message.toolCalls) {
-    if (tc.status == ToolCallStatus.completed ||
-        tc.status == ToolCallStatus.failed) {
-      result.add(
-        ToolMessage(
-          id: 'tool_result_${tc.id}',
-          toolCallId: tc.id,
-          content: tc.result,
-        ),
-      );
-    }
-  }
-
-  return result;
-}
-
-Message _convertGenUiMessage(GenUiMessage message) {
-  final dataJson = jsonEncode(message.data);
-  final content =
-      'Displayed ${message.widgetName} component with data: $dataJson';
-
-  return AssistantMessage(id: message.id, content: content);
 }

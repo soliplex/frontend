@@ -269,8 +269,9 @@ Let me check.
       // Not coalesced to `''`: that would pre-decide what the callback should
       // decide, and several chat APIs reject an empty assistant `content`.
       // Mirrors `LlmAssistantMessage.content`, which is nullable. Reachable in
-      // production: `convertToAgui` emits an AssistantMessage carrying only
-      // toolCalls, so an empty toolCalls list lands here.
+      // production: the transcript opens an AssistantMessage with no content
+      // for a tool call's parent, and when that call never ends its empty
+      // toolCalls list lands here.
       List<({String role, String? content})>? capturedMessages;
       final provider = ChatFnLlmProvider(
         chatFn: (messages, {systemPrompt, maxTokens}) async {

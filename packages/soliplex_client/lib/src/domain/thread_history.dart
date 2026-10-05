@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
 import 'package:soliplex_client/src/domain/thread_state_warning.dart';
+import 'package:soliplex_client/src/domain/transcript.dart';
 
 /// Result of loading thread history from the backend.
 ///
@@ -21,6 +22,7 @@ class ThreadHistory {
     this.documentFilter,
     List<String>? databaseSources,
     Set<ThreadStateWarning> storedStateWarnings = const {},
+    this.transcript = const Transcript(),
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -91,6 +93,10 @@ class ThreadHistory {
   /// The scope warning is judged on the newest run input, which is what the
   /// selection UI hydrates from.
   final Set<ThreadStateWarning> storedStateWarnings;
+
+  /// The AG-UI history the thread's next send carries, built from its events
+  /// in order.
+  final Transcript transcript;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.
