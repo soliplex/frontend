@@ -1,4 +1,5 @@
 import 'package:ag_ui/ag_ui.dart';
+import 'package:soliplex_client/src/application/json_patch.dart';
 import 'package:soliplex_client/src/domain/transcript.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -48,14 +49,14 @@ Transcript applyTranscriptEvent(
       ),
     ReasoningEncryptedValueEvent() =>
       _setEncryptedValue(transcript, event, log),
+    ActivitySnapshotEvent() => _applyActivitySnapshot(transcript, event, log),
+    ActivityDeltaEvent() => _applyActivityDelta(transcript, event, log),
     // Listed so a new event type is a compile error here. Nothing in these
     // reaches the history: lifecycle, state, steps, raw and custom events,
     // reasoning (whose round trip is github.com/soliplex/frontend/issues/117),
     // chunk events no supported backend sends, and a messages snapshot, which
     // nothing emits and which would let the history shrink.
     TextMessageEndEvent() ||
-    ActivitySnapshotEvent() ||
-    ActivityDeltaEvent() ||
     RunStartedEvent() ||
     RunFinishedEvent() ||
     RunErrorEvent() ||
@@ -129,6 +130,77 @@ Transcript _setEncryptedValue(
         },
       );
   }
+}
+
+Transcript _applyActivitySnapshot(
+  Transcript transcript,
+  ActivitySnapshotEvent event,
+  Logger log,
+) {
+  final content = event.content;
+  if (content is! Map<String, dynamic>) {
+    log.warning(
+      'Transcript skipped an activity snapshot whose content is not an object',
+      attributes: {'messageId': event.messageId},
+    );
+    return transcript;
+  }
+  final index = _indexOf(transcript, event.messageId);
+  if (index < 0) {
+    return transcript.withAppendedMessage(
+      ActivityMessage(
+        id: event.messageId,
+        activityType: event.activityType,
+        activityContent: content,
+      ),
+    );
+  }
+  final existing = transcript.messages[index];
+  if (existing is! ActivityMessage || !event.replace) {
+    log.warning(
+      'Transcript skipped an activity snapshot for an id it already holds',
+      attributes: {'messageId': event.messageId},
+    );
+    return transcript;
+  }
+  return _replacedAt(
+    transcript,
+    index,
+    existing.copyWith(
+      activityType: event.activityType,
+      activityContent: content,
+    ),
+  );
+}
+
+Transcript _applyActivityDelta(
+  Transcript transcript,
+  ActivityDeltaEvent event,
+  Logger log,
+) {
+  final index = _indexOf(transcript, event.messageId);
+  final existing = index < 0 ? null : transcript.messages[index];
+  if (existing != null && existing is! ActivityMessage) {
+    log.warning(
+      'Transcript skipped an activity delta for a message that is not an '
+      'activity',
+      attributes: {'messageId': event.messageId},
+    );
+    return transcript;
+  }
+  final patched = applyJsonPatch(
+    existing is ActivityMessage ? existing.activityContent : const {},
+    event.patch,
+    logger: log,
+  );
+  final activity = ActivityMessage(
+    id: event.messageId,
+    activityType: event.activityType,
+    activityContent: patched.state,
+  );
+  return existing == null
+      ? transcript.withAppendedMessage(activity)
+      : _replacedAt(transcript, index, activity);
 }
 
 int _indexOf(Transcript transcript, String id) =>

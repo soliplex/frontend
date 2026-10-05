@@ -23,6 +23,12 @@ List<String> _describe(Transcript transcript) => [
           ToolMessage(:final toolCallId, :final content) =>
             'tool $toolCallId "$content"',
           UserMessage(:final id) => 'user $id',
+          ActivityMessage(
+            :final id,
+            :final activityType,
+            :final activityContent
+          ) =>
+            'activity $id $activityType $activityContent',
           _ => m.runtimeType.toString(),
         },
     ];
@@ -370,6 +376,101 @@ void main() {
 
         expect(after, same(before));
         expect(logs().single.attributes, {'entityId': 'm1'});
+      });
+    });
+
+    group('an activity', () {
+      test('takes the place its first snapshot arrived at', () {
+        const type = 'pydantic_ai_tool_availability_delta';
+        final t = _apply(const [
+          TextMessageStartEvent(messageId: 'm1'),
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: type,
+            content: {
+              'added': ['search'],
+            },
+          ),
+          TextMessageStartEvent(messageId: 'm2'),
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: type,
+            content: {
+              'added': ['search', 'fetch'],
+            },
+          ),
+        ]);
+
+        expect(_describe(t), [
+          'assistant m1 ""',
+          'activity a1 $type {added: [search, fetch]}',
+          'assistant m2 ""',
+        ]);
+      });
+
+      test('keeps its content when a snapshot does not replace it', () {
+        final t = _apply(const [
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            content: {'step': 1},
+          ),
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            content: {'step': 2},
+            replace: false,
+          ),
+        ]);
+
+        expect(_describe(t), ['activity a1 progress {step: 1}']);
+        expect(logs().single.attributes, {'messageId': 'a1'});
+      });
+
+      test('is patched by a delta', () {
+        final t = _apply(const [
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            content: {'step': 1},
+          ),
+          ActivityDeltaEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            patch: [
+              {'op': 'replace', 'path': '/step', 'value': 2},
+            ],
+          ),
+        ]);
+
+        expect(_describe(t), ['activity a1 progress {step: 2}']);
+      });
+
+      test('a delta with no snapshot before it creates the activity', () {
+        final t = _apply(const [
+          ActivityDeltaEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            patch: [
+              {'op': 'add', 'path': '/step', 'value': 1},
+            ],
+          ),
+        ]);
+
+        expect(_describe(t), ['activity a1 progress {step: 1}']);
+      });
+
+      test('a snapshot whose content is not an object is skipped', () {
+        final t = _apply(const [
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            content: 'text',
+          ),
+        ]);
+
+        expect(t.messages, isEmpty);
+        expect(logs().single.attributes, {'messageId': 'a1'});
       });
     });
   });
