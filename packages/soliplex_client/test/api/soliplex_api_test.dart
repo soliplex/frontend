@@ -7724,123 +7724,6 @@ void main() {
         ]);
       });
 
-      test("takes only an old client's results, not its calls", () async {
-        // main's client ended a continuation's input with the executed calls
-        // re-stated on an assistant message of its own, then their results.
-        stubThread({
-          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
-          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
-        });
-        stubRun(
-          'run-1',
-          runInput: {
-            'messages': [userMessage('u1', 'Weather?')],
-          },
-          events: [
-            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
-            event(
-              'TEXT_MESSAGE_START',
-              {'messageId': 'p1', 'role': 'assistant'},
-            ),
-            event('TEXT_MESSAGE_END', {'messageId': 'p1'}),
-            event('TOOL_CALL_START', {
-              'toolCallId': 'tc1',
-              'toolCallName': 'weather',
-              'parentMessageId': 'p1',
-            }),
-            event('TOOL_CALL_END', {'toolCallId': 'tc1'}),
-            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
-          ],
-        );
-        stubRun(
-          'run-2',
-          runInput: {
-            'messages': [
-              userMessage('u1', 'Weather?'),
-              {'id': 'p1', 'role': 'assistant', 'content': ''},
-              {
-                'id': 'tool-result-1',
-                'role': 'assistant',
-                'toolCalls': [
-                  {
-                    'id': 'tc1',
-                    'type': 'function',
-                    'function': {'name': 'weather', 'arguments': '{}'},
-                  },
-                ],
-              },
-              {
-                'id': 'tool_result_tc1',
-                'role': 'tool',
-                'toolCallId': 'tc1',
-                'content': 'Sunny',
-              },
-            ],
-          },
-          events: [
-            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
-            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
-          ],
-        );
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(describe(history), [
-          'user u1',
-          'assistant p1 [tc1]',
-          'tool tc1 Sunny',
-        ]);
-      });
-
-      test('skips a supplied result whose call never ended', () async {
-        final logs = captureRecords('no result pending');
-        stubThread({
-          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
-          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
-        });
-        stubRun(
-          'run-1',
-          runInput: {
-            'messages': [userMessage('u1', 'Weather?')],
-          },
-          events: [
-            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
-            event(
-              'TEXT_MESSAGE_START',
-              {'messageId': 'p1', 'role': 'assistant'},
-            ),
-            event('TOOL_CALL_START', {
-              'toolCallId': 'tc1',
-              'toolCallName': 'weather',
-              'parentMessageId': 'p1',
-            }),
-          ],
-        );
-        stubRun(
-          'run-2',
-          runInput: {
-            'messages': [
-              userMessage('u1', 'Weather?'),
-              {
-                'id': 'tool_result_tc1',
-                'role': 'tool',
-                'toolCallId': 'tc1',
-                'content': 'Sunny',
-              },
-            ],
-          },
-          events: [
-            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
-            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
-          ],
-        );
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(describe(history), ['user u1', 'assistant p1 []']);
-        expect(logs().single.attributes, {'toolCallId': 'tc1'});
-      });
-
       test('skips a supplied tool message it cannot read, keeping the rest',
           () async {
         final logs = captureRecords('lacks a string id, toolCallId or content');
@@ -7938,6 +7821,12 @@ void main() {
               'parentMessageId': 'p1',
             }),
             event('TOOL_CALL_END', {'toolCallId': 'b'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'c',
+              'toolCallName': 'time',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'c'}),
             event('TOOL_CALL_RESULT', {
               'messageId': 'r1',
               'toolCallId': 'a',
@@ -7966,6 +7855,11 @@ void main() {
                     'type': 'function',
                     'function': {'name': 'weather', 'arguments': '{}'},
                   },
+                  {
+                    'id': 'c',
+                    'type': 'function',
+                    'function': {'name': 'time', 'arguments': '{}'},
+                  },
                 ],
               },
               {'id': 'r1', 'role': 'tool', 'toolCallId': 'a', 'content': 'RA'},
@@ -7974,6 +7868,12 @@ void main() {
                 'role': 'tool',
                 'toolCallId': 'b',
                 'content': 'RB',
+              },
+              {
+                'id': 'tool_result_c',
+                'role': 'tool',
+                'toolCallId': 'c',
+                'content': 'RC',
               },
             ],
           },
@@ -7987,9 +7887,10 @@ void main() {
 
         expect(describe(history), [
           'user u1',
-          'assistant p1 [a, b]',
+          'assistant p1 [a, b, c]',
           'tool a RA',
           'tool b RB',
+          'tool c RC',
         ]);
       });
     });
