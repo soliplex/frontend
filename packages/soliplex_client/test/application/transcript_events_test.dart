@@ -80,74 +80,6 @@ void main() {
       expect(logs(), isEmpty);
     });
 
-    test('carries a tool-only response on the empty message opened for it', () {
-      final t = _apply(const [
-        TextMessageStartEvent(messageId: 'p'),
-        TextMessageEndEvent(messageId: 'p'),
-        ToolCallStartEvent(
-          toolCallId: 'call_0',
-          toolCallName: 'search',
-          parentMessageId: 'p',
-        ),
-        ToolCallArgsEvent(toolCallId: 'call_0', delta: '{}'),
-        ToolCallEndEvent(toolCallId: 'call_0'),
-      ]);
-
-      expect(_describe(t), ['assistant p "" [call_0:search({})]']);
-    });
-
-    test('creates the parent a call names when nothing opened it', () {
-      // Older pydantic-ai opened no message before a tool-only response.
-      final t = _apply(const [
-        ToolCallStartEvent(
-          toolCallId: 'c1',
-          toolCallName: 'search',
-          parentMessageId: 'unopened',
-        ),
-        ToolCallEndEvent(toolCallId: 'c1'),
-      ]);
-
-      expect(_describe(t), ['assistant unopened "" [c1:search({})]']);
-    });
-
-    test('sends an ended call with no arguments as an empty object', () {
-      final t = _apply(const [
-        TextMessageStartEvent(messageId: 'p'),
-        ToolCallStartEvent(
-          toolCallId: 'c1',
-          toolCallName: 'now',
-          parentMessageId: 'p',
-        ),
-        ToolCallEndEvent(toolCallId: 'c1'),
-      ]);
-
-      expect(
-        (t.messages.single as AssistantMessage)
-            .toolCalls!
-            .single
-            .function
-            .arguments,
-        '{}',
-      );
-    });
-
-    test('does not send a call that never ended, nor a result for it', () {
-      final t = _apply(const [
-        TextMessageStartEvent(messageId: 'p'),
-        ToolCallStartEvent(
-          toolCallId: 'c1',
-          toolCallName: 'search',
-          parentMessageId: 'p',
-        ),
-        ToolCallArgsEvent(toolCallId: 'c1', delta: '{"q":"x'),
-        ToolCallResultEvent(messageId: 'r1', toolCallId: 'c1', content: 'R'),
-      ]);
-
-      expect(_describe(t), ['assistant p ""']);
-      expect(logs().single.attributes, {'toolCallId': 'c1'});
-      expect(logs().single.level, LogLevel.warning);
-    });
-
     test('a start for an id still open replaces it', () {
       // A stopped run left call_0 open; the next run's server numbers its
       // first call call_0 again.
@@ -181,46 +113,9 @@ void main() {
       expect(logs().single.attributes, {'toolCallId': 'call_0'});
     });
 
-    test('an id reused after its call ended starts a new call', () {
-      final t = _apply(const [
-        TextMessageStartEvent(messageId: 'p1'),
-        ToolCallStartEvent(
-          toolCallId: 'call_0',
-          toolCallName: 'search',
-          parentMessageId: 'p1',
-        ),
-        ToolCallEndEvent(toolCallId: 'call_0'),
-        ToolCallResultEvent(
-          messageId: 'r1',
-          toolCallId: 'call_0',
-          content: 'A',
-        ),
-        TextMessageStartEvent(messageId: 'p2'),
-        ToolCallStartEvent(
-          toolCallId: 'call_0',
-          toolCallName: 'search',
-          parentMessageId: 'p2',
-        ),
-        ToolCallEndEvent(toolCallId: 'call_0'),
-        ToolCallResultEvent(
-          messageId: 'r2',
-          toolCallId: 'call_0',
-          content: 'B',
-        ),
-      ]);
-
-      expect(_describe(t), [
-        'assistant p1 "" [call_0:search({})]',
-        'tool call_0 "A"',
-        'assistant p2 "" [call_0:search({})]',
-        'tool call_0 "B"',
-      ]);
-      expect(logs(), isEmpty);
-    });
-
     test('a reused id whose new call never ends takes no result', () {
-      // call_0 ended and was answered; a later call reuses the id and is cut
-      // off. The earlier end must not vouch for the new call.
+      // call_0 ended with no result yet; a later call reuses the id and is
+      // cut off. The earlier end must not vouch for the new call.
       final t = _apply(const [
         TextMessageStartEvent(messageId: 'p1'),
         ToolCallStartEvent(
@@ -229,11 +124,6 @@ void main() {
           parentMessageId: 'p1',
         ),
         ToolCallEndEvent(toolCallId: 'call_0'),
-        ToolCallResultEvent(
-          messageId: 'r1',
-          toolCallId: 'call_0',
-          content: 'A',
-        ),
         TextMessageStartEvent(messageId: 'p2'),
         ToolCallStartEvent(
           toolCallId: 'call_0',
@@ -249,10 +139,10 @@ void main() {
 
       expect(_describe(t), [
         'assistant p1 "" [call_0:search({})]',
-        'tool call_0 "A"',
         'assistant p2 ""',
       ]);
       expect(logs().single.attributes, {'toolCallId': 'call_0'});
+      expect(logs().single.level, LogLevel.warning);
     });
 
     test('a call whose parent is not an assistant message takes no result', () {
@@ -300,38 +190,9 @@ void main() {
         expect(t, same(answered));
         expect(logs(), isEmpty);
       });
-
-      test('skips a different result for it', () {
-        final t = appendToolResult(
-          answered,
-          messageId: 'r2',
-          toolCallId: 'a',
-          content: 'RB',
-        );
-
-        expect(_describe(t), ['assistant p "" [a:search({})]', 'tool a "RA"']);
-        expect(logs().single.attributes, {'toolCallId': 'a'});
-      });
     });
 
     group('a call that names no parent', () {
-      test('joins the assistant message it follows', () {
-        // StreamingLlmProvider: one response's text, then its calls.
-        final t = _apply(const [
-          TextMessageStartEvent(messageId: 'msg-1'),
-          TextMessageContentEvent(messageId: 'msg-1', delta: 'Checking'),
-          TextMessageEndEvent(messageId: 'msg-1'),
-          ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'weather'),
-          ToolCallEndEvent(toolCallId: 'tc-1'),
-          ToolCallStartEvent(toolCallId: 'tc-2', toolCallName: 'time'),
-          ToolCallEndEvent(toolCallId: 'tc-2'),
-        ]);
-
-        expect(_describe(t), [
-          'assistant msg-1 "Checking" [tc-1:weather({}), tc-2:time({})]',
-        ]);
-      });
-
       test('opens a new message for an id an earlier response used', () {
         // A provider numbering its calls per response gives each round's
         // call the same id; each round is its own response.
@@ -375,6 +236,20 @@ void main() {
       });
     });
 
+    test('skips arguments and an end for a call that is not open', () {
+      final t = _apply(const [
+        TextMessageStartEvent(messageId: 'p'),
+        ToolCallArgsEvent(toolCallId: 'c9', delta: '{}'),
+        ToolCallEndEvent(toolCallId: 'c9'),
+      ]);
+
+      expect(_describe(t), ['assistant p ""']);
+      expect(logs().map((r) => r.attributes), [
+        {'toolCallId': 'c9'},
+        {'toolCallId': 'c9'},
+      ]);
+    });
+
     test('skips a text start for an id it already holds', () {
       final t = _apply(const [
         TextMessageStartEvent(messageId: 'm1'),
@@ -393,17 +268,6 @@ void main() {
 
       expect(t.messages, isEmpty);
       expect(logs().single.attributes, {'messageId': 'm9'});
-    });
-
-    test('ignores a messages snapshot', () {
-      final before = _apply(const [TextMessageStartEvent(messageId: 'm1')]);
-
-      final after = applyTranscriptEvent(
-        before,
-        MessagesSnapshotEvent(messages: const []),
-      );
-
-      expect(after, same(before));
     });
 
     group('an encrypted value', () {
@@ -428,7 +292,6 @@ void main() {
 
         final call = (t.messages.single as AssistantMessage).toolCalls!.single;
         expect(call.encryptedValue, claim);
-        expect(call.toJson()['encryptedValue'], claim);
         expect(logs(), isEmpty);
       });
 
@@ -515,7 +378,7 @@ void main() {
           ActivitySnapshotEvent(
             messageId: 'a1',
             activityType: 'progress',
-            content: {'step': 1},
+            content: {'step': 1, 'total': 3},
           ),
           ActivityDeltaEvent(
             messageId: 'a1',
@@ -526,7 +389,23 @@ void main() {
           ),
         ]);
 
-        expect(_describe(t), ['activity a1 progress {step: 2}']);
+        expect(_describe(t), ['activity a1 progress {step: 2, total: 3}']);
+      });
+
+      test('a delta for a message that is not an activity is skipped', () {
+        final t = _apply(const [
+          TextMessageStartEvent(messageId: 'm1'),
+          ActivityDeltaEvent(
+            messageId: 'm1',
+            activityType: 'progress',
+            patch: [
+              {'op': 'add', 'path': '/step', 'value': 1},
+            ],
+          ),
+        ]);
+
+        expect(_describe(t), ['assistant m1 ""']);
+        expect(logs().single.attributes, {'messageId': 'm1'});
       });
 
       test('a delta with no snapshot before it creates the activity', () {

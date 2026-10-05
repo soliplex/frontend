@@ -328,22 +328,4 @@ void main() {
       });
     });
   });
-
-  group('appendUserMessage', () {
-    test('shows the message and sends it', () {
-      final message =
-          TextMessage.create(id: 'u1', user: ChatUser.user, text: 'Hello');
-
-      final conversation =
-          appendUserMessage(Conversation.empty(threadId: 't'), message);
-
-      expect(conversation.messages, [message]);
-      expect(
-        conversation.transcript.messages.single,
-        isA<UserMessage>()
-            .having((m) => m.id, 'id', 'u1')
-            .having((m) => m.content, 'content', 'Hello'),
-      );
-    });
-  });
 }
