@@ -46,6 +46,48 @@ void main() {
   });
 
   group('SoliplexApi', () {
+    void stubRun(
+      String runId, {
+      List<Map<String, dynamic>> events = const [],
+      Map<String, dynamic>? runInput,
+    }) {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          Uri.parse(
+            'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/$runId',
+          ),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer(
+        (_) async => {
+          'run_id': runId,
+          'events': events,
+          if (runInput != null) 'run_input': runInput,
+        },
+      );
+    }
+
+    void stubThread(Map<String, dynamic> runs) {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          Uri.parse(
+            'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+          ),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => {'runs': runs});
+    }
+
     group('constructor', () {
       test('creates with required dependencies', () {
         expect(api, isNotNull);
@@ -5462,41 +5504,6 @@ void main() {
     });
 
     group('getThreadHistory document filter', () {
-      void stubRun(
-        String runId, [
-        List<Map<String, dynamic>> events = const [],
-      ]) {
-        when(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/$runId',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer((_) async => {'run_id': runId, 'events': events});
-      }
-
-      void stubThread(Map<String, dynamic> runs) {
-        when(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer((_) async => {'runs': runs});
-      }
-
       test('surfaces the filter from a run input state', () async {
         stubThread({
           'run-1': {
@@ -5834,17 +5841,20 @@ void main() {
         Map<String, dynamic> state, {
         bool invalid = false,
       }) {
-        stubRun(runId, [
-          {'type': 'STATE_SNAPSHOT', 'snapshot': state},
-          if (invalid)
-            {'type': 'RUN_ERROR', 'message': 'invalid state'}
-          else
-            {
-              'type': 'RUN_FINISHED',
-              'thread_id': 'thread-456',
-              'run_id': runId,
-            },
-        ]);
+        stubRun(
+          runId,
+          events: [
+            {'type': 'STATE_SNAPSHOT', 'snapshot': state},
+            if (invalid)
+              {'type': 'RUN_ERROR', 'message': 'invalid state'}
+            else
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': runId,
+              },
+          ],
+        );
       }
 
       test('a document_filter that is not a string is scope-unreadable',
@@ -7564,6 +7574,313 @@ void main() {
           );
         },
       );
+    });
+
+    group('getThreadHistory transcript', () {
+      Map<String, dynamic> listed(String runId, String created) => {
+            'run_id': runId,
+            'created': created,
+            'finished': created,
+          };
+      Map<String, dynamic> userMessage(String id, String text) =>
+          {'id': id, 'role': 'user', 'content': text};
+      Map<String, dynamic> event(String type, [Map<String, dynamic>? fields]) =>
+          {'type': type, ...?fields};
+      List<String> describe(ThreadHistory history) => [
+            for (final m in history.transcript.messages)
+              switch (m) {
+                UserMessage(:final id) => 'user $id',
+                AssistantMessage(:final id, :final toolCalls) =>
+                  'assistant $id ${toolCalls?.map((c) => c.id).toList() ?? []}',
+                ToolMessage(:final toolCallId, :final content) =>
+                  'tool $toolCallId $content',
+                _ => m.runtimeType.toString(),
+              },
+          ];
+
+      test('replays every run in order, results after their calls', () async {
+        // run-1: a server tool with its result, from a pydantic-ai that
+        // opened no message for the call's parent. run-2: a client tool,
+        // yielded. run-3: the continuation, whose input supplies the client
+        // result after the history the client sent.
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
+          'run-3': listed('run-3', '2026-01-07T01:02:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Find it')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'call_0',
+              'toolCallName': 'search',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'call_0'}),
+            event('TOOL_CALL_RESULT', {
+              'messageId': 'r1',
+              'toolCallId': 'call_0',
+              'content': 'R0',
+            }),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+          ],
+        );
+        stubRun(
+          'run-2',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Find it'),
+              userMessage('u2', 'Weather?'),
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p2', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'p2'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'call_0',
+              'toolCallName': 'weather',
+              'parentMessageId': 'p2',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'call_0'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+          ],
+        );
+        stubRun(
+          'run-3',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Find it'),
+              {
+                'id': 'r1',
+                'role': 'tool',
+                'toolCallId': 'call_0',
+                'content': 'R0',
+              },
+              userMessage('u2', 'Weather?'),
+              {
+                'id': 'tool_result_call_0',
+                'role': 'tool',
+                'toolCallId': 'call_0',
+                'content': 'Sunny',
+              },
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-3'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'a3', 'role': 'assistant'},
+            ),
+            event(
+              'TEXT_MESSAGE_CONTENT',
+              {'messageId': 'a3', 'delta': 'Sunny.'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'a3'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-3'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), [
+          'user u1',
+          'assistant p1 [call_0]',
+          'tool call_0 R0',
+          'user u2',
+          'assistant p2 [call_0]',
+          'tool call_0 Sunny',
+          'assistant a3 []',
+        ]);
+      });
+
+      test("takes only an old client's results, not its calls", () async {
+        // main's client ended a continuation's input with the executed calls
+        // re-stated on an assistant message of its own, then their results.
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Weather?')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p1', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'p1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'tc1',
+              'toolCallName': 'weather',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'tc1'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+          ],
+        );
+        stubRun(
+          'run-2',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Weather?'),
+              {'id': 'p1', 'role': 'assistant', 'content': ''},
+              {
+                'id': 'tool-result-1',
+                'role': 'assistant',
+                'toolCalls': [
+                  {
+                    'id': 'tc1',
+                    'type': 'function',
+                    'function': {'name': 'weather', 'arguments': '{}'},
+                  },
+                ],
+              },
+              {
+                'id': 'tool_result_tc1',
+                'role': 'tool',
+                'toolCallId': 'tc1',
+                'content': 'Sunny',
+              },
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), [
+          'user u1',
+          'assistant p1 [tc1]',
+          'tool tc1 Sunny',
+        ]);
+      });
+
+      test('skips a supplied result whose call never ended', () async {
+        final logs = captureRecords('never ended');
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Weather?')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p1', 'role': 'assistant'},
+            ),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'tc1',
+              'toolCallName': 'weather',
+              'parentMessageId': 'p1',
+            }),
+          ],
+        );
+        stubRun(
+          'run-2',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Weather?'),
+              {
+                'id': 'tool_result_tc1',
+                'role': 'tool',
+                'toolCallId': 'tc1',
+                'content': 'Sunny',
+              },
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), ['user u1', 'assistant p1 []']);
+        expect(logs().single.attributes, {'toolCallId': 'tc1'});
+      });
+
+      test('skips a supplied tool message it cannot read, keeping the rest',
+          () async {
+        final logs = captureRecords('lacks a string id, toolCallId or content');
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Weather and time?')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p1', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'p1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'tc1',
+              'toolCallName': 'weather',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'tc1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'tc2',
+              'toolCallName': 'time',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'tc2'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+          ],
+        );
+        stubRun(
+          'run-2',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Weather and time?'),
+              {
+                'id': 'tool_result_tc1',
+                'role': 'tool',
+                'toolCallId': 'tc1',
+                'content': 'Sunny',
+              },
+              {'id': 'tool_result_tc2', 'role': 'tool', 'toolCallId': 'tc2'},
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), [
+          'user u1',
+          'assistant p1 [tc1, tc2]',
+          'tool tc1 Sunny',
+        ]);
+        expect(logs(), hasLength(1));
+      });
     });
   });
 }
