@@ -172,11 +172,13 @@ class ChatFnLlmProvider implements AgentLlmProvider {
           final toolCalls = m.toolCalls;
           if (toolCalls != null && toolCalls.isNotEmpty) {
             final tc = toolCalls.first;
+            final call = "[Called tool '${tc.function.name}' with arguments: "
+                '${tc.function.arguments}]';
+            final text = m.content;
             result.add(
               (
                 role: 'assistant',
-                content: "[Called tool '${tc.function.name}' with arguments: "
-                    '${tc.function.arguments}]',
+                content: text == null || text.isEmpty ? call : '$text\n$call',
               ),
             );
           } else {

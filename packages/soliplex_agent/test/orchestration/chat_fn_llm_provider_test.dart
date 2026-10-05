@@ -292,6 +292,45 @@ Let me check.
       expect(capturedMessages![0].content, isNull);
     });
 
+    test("keeps a response's text ahead of the tool call it made", () async {
+      // The transcript carries this provider's prefix text and its call as
+      // one assistant message, as the response made them.
+      List<({String role, String? content})>? capturedMessages;
+      final provider = ChatFnLlmProvider(
+        chatFn: (messages, {systemPrompt, maxTokens}) async {
+          capturedMessages = messages;
+          return 'ok';
+        },
+      );
+
+      final input = input0(
+        messages: [
+          const AssistantMessage(
+            id: 'msg-text-1',
+            content: 'Let me check.',
+            toolCalls: [
+              ToolCall(
+                id: 'tc-1',
+                function: FunctionCall(
+                  name: 'weather',
+                  arguments: '{"city":"NYC"}',
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final handle = await provider.startRun(key: key, input: input);
+      await handle.events.toList();
+
+      expect(
+        capturedMessages!.single.content,
+        'Let me check.\n'
+        "[Called tool 'weather' with arguments: {\"city\":\"NYC\"}]",
+      );
+    });
+
     test('tool result messages formatted with prefix', () async {
       List<({String role, String? content})>? capturedMessages;
       final provider = ChatFnLlmProvider(
