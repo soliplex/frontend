@@ -46,13 +46,14 @@ Transcript applyTranscriptEvent(
         content: content,
         logger: log,
       ),
+    ReasoningEncryptedValueEvent() =>
+      _setEncryptedValue(transcript, event, log),
     // Listed so a new event type is a compile error here. Nothing in these
     // reaches the history: lifecycle, state, steps, raw and custom events,
     // reasoning (whose round trip is github.com/soliplex/frontend/issues/117),
     // chunk events no supported backend sends, and a messages snapshot, which
     // nothing emits and which would let the history shrink.
     TextMessageEndEvent() ||
-    ReasoningEncryptedValueEvent() ||
     ActivitySnapshotEvent() ||
     ActivityDeltaEvent() ||
     RunStartedEvent() ||
@@ -89,6 +90,45 @@ Transcript applyTranscriptEvent(
     ThinkingContentEvent() =>
       transcript,
   };
+}
+
+/// A tool call's value goes out with the call: pydantic-ai records in it a
+/// call's kind (a capability load, for one), which the call alone does not
+/// reveal. A message's is dropped: it anchors reasoning
+/// (github.com/soliplex/frontend/issues/117) or carries a tool result's
+/// non-success outcome, and neither is sent.
+Transcript _setEncryptedValue(
+  Transcript transcript,
+  ReasoningEncryptedValueEvent event,
+  Logger log,
+) {
+  switch (event.subtype) {
+    case ReasoningEncryptedValueSubtype.message:
+      log.warning(
+        'Transcript dropped an encrypted value for a message',
+        attributes: {'entityId': event.entityId},
+      );
+      return transcript;
+    case ReasoningEncryptedValueSubtype.toolCall:
+      final open = transcript.openToolCalls[event.entityId];
+      if (open == null) {
+        log.warning(
+          'Transcript dropped an encrypted value for a tool call that is '
+          'not open',
+          attributes: {'toolCallId': event.entityId},
+        );
+        return transcript;
+      }
+      return transcript.copyWith(
+        openToolCalls: {
+          ...transcript.openToolCalls,
+          event.entityId: (
+            call: open.call.copyWith(encryptedValue: event.encryptedValue),
+            parentId: open.parentId,
+          ),
+        },
+      );
+  }
 }
 
 int _indexOf(Transcript transcript, String id) =>

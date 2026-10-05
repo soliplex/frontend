@@ -316,5 +316,61 @@ void main() {
 
       expect(after, same(before));
     });
+
+    group('an encrypted value', () {
+      const claim = '{"pydantic_ai":{"tool_kind":"capability-load"}}';
+
+      test('goes out with the open call it names', () {
+        final t = _apply(const [
+          TextMessageStartEvent(messageId: 'p'),
+          ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'load_capability',
+            parentMessageId: 'p',
+          ),
+          ReasoningEncryptedValueEvent(
+            subtype: ReasoningEncryptedValueSubtype.toolCall,
+            entityId: 'c1',
+            encryptedValue: claim,
+          ),
+          ToolCallArgsEvent(toolCallId: 'c1', delta: '{}'),
+          ToolCallEndEvent(toolCallId: 'c1'),
+        ]);
+
+        final call = (t.messages.single as AssistantMessage).toolCalls!.single;
+        expect(call.encryptedValue, claim);
+        expect(call.toJson()['encryptedValue'], claim);
+        expect(logs(), isEmpty);
+      });
+
+      test('for a call that is not open is dropped', () {
+        final t = _apply(const [
+          ReasoningEncryptedValueEvent(
+            subtype: ReasoningEncryptedValueSubtype.toolCall,
+            entityId: 'c9',
+            encryptedValue: claim,
+          ),
+        ]);
+
+        expect(t.messages, isEmpty);
+        expect(logs().single.attributes, {'toolCallId': 'c9'});
+      });
+
+      test('for a message is dropped', () {
+        final before = _apply(const [TextMessageStartEvent(messageId: 'm1')]);
+
+        final after = applyTranscriptEvent(
+          before,
+          const ReasoningEncryptedValueEvent(
+            subtype: ReasoningEncryptedValueSubtype.message,
+            entityId: 'm1',
+            encryptedValue: 'opaque',
+          ),
+        );
+
+        expect(after, same(before));
+        expect(logs().single.attributes, {'entityId': 'm1'});
+      });
+    });
   });
 }
