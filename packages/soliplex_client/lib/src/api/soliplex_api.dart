@@ -12,6 +12,7 @@ import 'package:soliplex_client/src/application/rag_snapshot.dart'
 import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/application/thread_state_warnings.dart';
+import 'package:soliplex_client/src/application/transcript_events.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/chunk_visualization.dart';
@@ -29,6 +30,7 @@ import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/thread_state_warning.dart';
+import 'package:soliplex_client/src/domain/transcript.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
@@ -53,8 +55,26 @@ typedef _RunUserMessage = ({
   String text,
 });
 
+/// A tool result a run's input newly supplied. For a client tool it is the
+/// only record of the result; no event carries it.
+typedef _RunToolResult = ({
+  String messageId,
+  String toolCallId,
+  String content,
+});
+
 /// What a run's GET yielded: the AG-UI events the backend streamed, plus the
-/// user message that initiated the run, which those events never carry.
+/// user message that initiated the run and the tool results its input newly
+/// supplied, which those events never carry.
+///
+/// `events` is `List<Object?>` rather than `List<dynamic>` deliberately. Items
+/// must survive shape drift as *data* — the replay loop mints a drop tile for
+/// any non-Map entry — but `dynamic` would also switch off the static checking
+/// that forces each consumer to narrow before use, which is the one thing
+/// keeping that drift from becoming a runtime throw.
+/// What a run's GET yielded: the AG-UI events the backend streamed, plus the
+/// user message that initiated the run and the tool results its input newly
+/// supplied, which those events never carry.
 ///
 /// `events` is `List<Object?>` rather than `List<dynamic>` deliberately. Items
 /// must survive shape drift as *data* — the replay loop mints a drop tile for
@@ -64,6 +84,7 @@ typedef _RunUserMessage = ({
 typedef _RunPayload = ({
   List<Object?> events,
   _RunUserMessage? userMessage,
+  List<_RunToolResult> toolResults,
 });
 
 /// A run with nothing to replay. `events` is empty rather than null so the
@@ -75,6 +96,7 @@ typedef _RunPayload = ({
 const _RunPayload _noRunData = (
   events: <Object?>[],
   userMessage: null,
+  toolResults: <_RunToolResult>[],
 );
 
 /// One run as replay sees it: its payload joined with the identity, fetch
@@ -1055,6 +1077,7 @@ class SoliplexApi {
     final run = (
       events: rawEvents is List ? rawEvents : const <Object?>[],
       userMessage: _extractUserMessage(rawRun, threadId, runId),
+      toolResults: _extractToolResults(rawRun, threadId, runId),
     );
     _cacheRunEvents(cacheKey, run);
     return run;
@@ -1144,6 +1167,45 @@ class SoliplexApi {
     );
 
     return (messageId: id, parts: content.parts, text: content.text);
+  }
+
+  /// The tool results run [runId]'s input newly supplied: the tool messages
+  /// after its last other message, in order.
+  ///
+  /// Every input repeats the thread's earlier results ahead of these, and a
+  /// server that numbers its calls per response reuses ids, so a repeated
+  /// result could otherwise land on a later call. An input that ends with the
+  /// user's message supplies none.
+  ///
+  /// A malformed `run_input` or `messages` is already reported by
+  /// [_extractUserMessage], so it reads here as no results.
+  List<_RunToolResult> _extractToolResults(
+    Map<String, dynamic> rawRun,
+    String threadId,
+    String runId,
+  ) {
+    final runInput = rawRun['run_input'];
+    if (runInput is! Map<String, dynamic>) return const [];
+    final rawMessages = runInput['messages'];
+    if (rawMessages is! List) return const [];
+
+    final results = <_RunToolResult>[];
+    for (final raw in rawMessages.reversed) {
+      if (raw is! Map<String, dynamic> || raw['role'] != 'tool') break;
+      final id = raw['id'];
+      final toolCallId = raw['toolCallId'];
+      final content = raw['content'];
+      if (id is! String || toolCallId is! String || content is! String) {
+        _logger.warning(
+          'replay: a tool message in the input of run $runId in thread '
+          '$threadId lacks a string id, toolCallId or content; the call it '
+          'answers keeps no result from it.',
+        );
+        continue;
+      }
+      results.add((messageId: id, toolCallId: toolCallId, content: content));
+    }
+    return results.reversed.toList();
   }
 
   /// The domain message for [userMessage], stamped with [createdAt] and the
@@ -1398,7 +1460,8 @@ class SoliplexApi {
         final appended = appendedUserText[userMessage.messageId];
         if (appended == null) {
           appendedUserText[userMessage.messageId] = userMessage.text;
-          conversation = conversation.withAppendedMessage(
+          conversation = appendUserMessage(
+            conversation,
             _hydratedUserMessage(userMessage, fallbackCreated, threadId, runId),
           );
         } else if (appended == userMessage.text) {
@@ -1428,6 +1491,19 @@ class SoliplexApi {
       // end-of-events rule below record that it finished.
       if (fetchError == null) {
         conversation = conversation.withStatus(Running(runId: runId));
+        // The results this run's input supplied come before its events, as
+        // they did when it was sent.
+        conversation = conversation.copyWith(
+          transcript: payload.toolResults.fold<Transcript>(
+            conversation.transcript,
+            (transcript, result) => appendToolResult(
+              transcript,
+              messageId: result.messageId,
+              toolCallId: result.toolCallId,
+              content: result.content,
+            ),
+          ),
+        );
       }
 
       // Per-event try/catch so one bad event can't abort replay.
@@ -1674,6 +1750,7 @@ class SoliplexApi {
       documentFilter: documentFilter,
       databaseSources: databaseSources,
       storedStateWarnings: storedStateWarnings,
+      transcript: conversation.transcript,
     );
   }
 
