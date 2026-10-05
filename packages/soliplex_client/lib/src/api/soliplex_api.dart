@@ -72,15 +72,6 @@ typedef _RunToolResult = ({
 /// any non-Map entry — but `dynamic` would also switch off the static checking
 /// that forces each consumer to narrow before use, which is the one thing
 /// keeping that drift from becoming a runtime throw.
-/// What a run's GET yielded: the AG-UI events the backend streamed, plus the
-/// user message that initiated the run and the tool results its input newly
-/// supplied, which those events never carry.
-///
-/// `events` is `List<Object?>` rather than `List<dynamic>` deliberately. Items
-/// must survive shape drift as *data* — the replay loop mints a drop tile for
-/// any non-Map entry — but `dynamic` would also switch off the static checking
-/// that forces each consumer to narrow before use, which is the one thing
-/// keeping that drift from becoming a runtime throw.
 typedef _RunPayload = ({
   List<Object?> events,
   _RunUserMessage? userMessage,

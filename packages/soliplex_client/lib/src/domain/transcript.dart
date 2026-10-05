@@ -15,7 +15,7 @@ class Transcript {
   const Transcript({
     this.messages = const [],
     this.openToolCalls = const {},
-    this.endedToolCallIds = const {},
+    this.unansweredToolCallIds = const {},
   });
 
   /// The messages to send.
@@ -25,10 +25,11 @@ class Transcript {
   /// when it ends, so one that never ends is never sent.
   final Map<String, OpenToolCall> openToolCalls;
 
-  /// Ids of calls that ended, which are the calls a result may answer. A
-  /// call starting under an id removes it until that call ends, so an
-  /// earlier call's end never vouches for a later one that reused its id.
-  final Set<String> endedToolCallIds;
+  /// Ids of calls that ended and have no result yet: the calls a result may
+  /// answer. A call starting under an id removes it until that call ends, so
+  /// an earlier call's end never vouches for a later one that reused its id;
+  /// its result removes it again, so a call takes one result.
+  final Set<String> unansweredToolCallIds;
 
   /// Returns a copy with [message] appended.
   Transcript withAppendedMessage(Message message) =>
@@ -38,12 +39,13 @@ class Transcript {
   Transcript copyWith({
     List<Message>? messages,
     Map<String, OpenToolCall>? openToolCalls,
-    Set<String>? endedToolCallIds,
+    Set<String>? unansweredToolCallIds,
   }) =>
       Transcript(
         messages: messages ?? this.messages,
         openToolCalls: openToolCalls ?? this.openToolCalls,
-        endedToolCallIds: endedToolCallIds ?? this.endedToolCallIds,
+        unansweredToolCallIds:
+            unansweredToolCallIds ?? this.unansweredToolCallIds,
       );
 
   /// AG-UI messages have no value equality, so messages compare by identity:
@@ -58,12 +60,12 @@ class Transcript {
           const MapEquality<String, OpenToolCall>()
               .equals(openToolCalls, other.openToolCalls) &&
           const SetEquality<String>()
-              .equals(endedToolCallIds, other.endedToolCallIds);
+              .equals(unansweredToolCallIds, other.unansweredToolCallIds);
 
   @override
   int get hashCode => Object.hash(
         const ListEquality<Message>().hash(messages),
         const MapEquality<String, OpenToolCall>().hash(openToolCalls),
-        const SetEquality<String>().hash(endedToolCallIds),
+        const SetEquality<String>().hash(unansweredToolCallIds),
       );
 }
