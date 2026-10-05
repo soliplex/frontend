@@ -6,12 +6,17 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 final Logger _defaultLogger =
     LogManager.instance.getLogger('soliplex_client.transcript');
 
-/// Folds one AG-UI [event] into [transcript], as the backend's own client
-/// (`soliplex.agui.parser.EventStreamParser`) builds the history it sends.
+/// Folds one AG-UI [event] into [transcript], building the history to send as
+/// the backend's own client (`soliplex.agui.parser.EventStreamParser`) does,
+/// except that a call naming no parent joins the preceding assistant message,
+/// a tool call's encrypted value travels with it, a call takes one result, and
+/// a messages snapshot is ignored.
 ///
-/// Where that parser raises on an event it cannot apply, this logs ids only
-/// and returns [transcript] unchanged: one bad event must not cost the thread
-/// its history.
+/// Where that parser raises, this logs without the event's content and
+/// carries on, so one bad event does not cost the thread its history. Such an
+/// event changes nothing, except that a repeated start replaces the open call
+/// and an end whose parent is not an assistant message closes the call
+/// unsent.
 Transcript applyTranscriptEvent(
   Transcript transcript,
   BaseEvent event, {
@@ -95,9 +100,11 @@ Transcript applyTranscriptEvent(
 
 /// A tool call's value goes out with the call: pydantic-ai records in it a
 /// call's kind (a capability load, for one), which the call alone does not
-/// reveal. A message's is dropped: it anchors reasoning
-/// (github.com/soliplex/frontend/issues/117) or carries a tool result's
-/// non-success outcome, and neither is sent.
+/// reveal. It arrives right after the call's start, so a value for a call no
+/// longer open is dropped. A message's is dropped too: it anchors reasoning,
+/// which this client does not send
+/// (github.com/soliplex/frontend/issues/117), or a tool result's non-success
+/// outcome, which is not sent yet.
 Transcript _setEncryptedValue(
   Transcript transcript,
   ReasoningEncryptedValueEvent event,
@@ -137,13 +144,15 @@ Transcript _applyActivitySnapshot(
   ActivitySnapshotEvent event,
   Logger log,
 ) {
-  final content = event.content;
-  if (content is! Map<String, dynamic>) {
-    log.warning(
-      'Transcript skipped an activity snapshot whose content is not an object',
-      attributes: {'messageId': event.messageId},
-    );
-    return transcript;
+  // `processEvent`'s display step throws on a snapshot whose content is not
+  // an object, so the event reaches neither projection; the other arm is
+  // never taken.
+  final Map<String, dynamic> content;
+  switch (event.content) {
+    case final Map<String, dynamic> map:
+      content = map;
+    default:
+      return transcript;
   }
   final index = _indexOf(transcript, event.messageId);
   if (index < 0) {

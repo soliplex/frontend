@@ -4,11 +4,12 @@
 // THINKING_CONTENT. `ThinkingStartEvent` and `ThinkingEndEvent` carry no
 // @Deprecated, so their cases carry no ignore.
 // No supported backend emits any THINKING_* event live — pydantic-ai emits
-// REASONING_* for ag-ui-protocol 0.1.11 and later — so all of them fall to the
-// pass-through arm, which keeps `processEvent`'s switch over sealed `BaseEvent`
-// exhaustive. A thread an older backend stored may still replay them; its
-// reasoning is not shown. Suppressed per line so the 1.0.0 sweep can enumerate
-// them and an unrelated deprecation here still raises.
+// REASONING_* for ag-ui-protocol 0.1.11 and later — so all of them fall to
+// the pass-through arms, which keep the switches over sealed `BaseEvent` in
+// `_processForDisplay` and `applyTranscriptEvent` exhaustive. A thread an
+// older backend stored may still replay them; its reasoning is not shown.
+// Suppressed per line so the 1.0.0 sweep can enumerate them and an unrelated
+// deprecation here still raises.
 
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
@@ -53,8 +54,8 @@ class EventProcessingResult {
 /// null while live). Both may be null — the message then carries no timestamp
 /// rather than a client-generated one.
 ///
-/// The display state is updated first, then [Conversation.transcript]; an
-/// event the display step throws on reaches neither.
+/// Updates the display state and [Conversation.transcript] from the same
+/// event; if either step throws, neither change is kept.
 ///
 /// Example usage:
 /// ```dart

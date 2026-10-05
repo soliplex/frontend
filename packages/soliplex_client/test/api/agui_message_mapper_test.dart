@@ -9,10 +9,12 @@ import 'package:test/test.dart';
 
 void main() {
   /// The wire form of each user message, in order.
-  List<Message> convert(List<TextMessage> messages) =>
-      [for (final message in messages) userMessageToAgui(message)];
+  List<Message> convert(List<TextMessage> messages) => messages
+      .fold(Conversation.empty(threadId: 't'), appendUserMessage)
+      .transcript
+      .messages;
 
-  group('userMessageToAgui', () {
+  group('appendUserMessage', () {
     group('TextMessage conversion', () {
       test('converts user TextMessage to UserMessage', () {
         final chatMessages = [

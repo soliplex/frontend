@@ -55,8 +55,9 @@ typedef _RunUserMessage = ({
   String text,
 });
 
-/// A tool result a run's input newly supplied. For a client tool it is the
-/// only record of the result; no event carries it.
+/// A tool result from the tool messages that end a run's input. For a client
+/// tool it is the only record of the result; for a server tool it may repeat
+/// one the run's events already carried.
 typedef _RunToolResult = ({
   String messageId,
   String toolCallId,
@@ -64,8 +65,8 @@ typedef _RunToolResult = ({
 });
 
 /// What a run's GET yielded: the AG-UI events the backend streamed, plus the
-/// user message that initiated the run and the tool results its input newly
-/// supplied, which those events never carry.
+/// user message that initiated the run and the tool results that end its
+/// input, which those events do not always carry.
 ///
 /// `events` is `List<Object?>` rather than `List<dynamic>` deliberately. Items
 /// must survive shape drift as *data* — the replay loop mints a drop tile for
@@ -153,12 +154,13 @@ class SoliplexApi {
   /// LRU cache for run events. Completed runs are immutable, so safe to cache.
   /// Uses insertion order - oldest entries are at the front.
   ///
-  /// The reconstructed user message rides the same entry rather than a parallel
-  /// map: a cache hit returns before [_fetchRunEvents] ever sees `run_input`
-  /// again, so parts kept anywhere else would be lost the second time a thread
-  /// is opened in one session. That also means an entry retains its message's
-  /// image bytes until it is evicted — past the close of the thread it belongs
-  /// to — and eviction counts entries, not bytes.
+  /// The reconstructed user message and tool results ride the same entry
+  /// rather than a parallel map: a cache hit returns before [_fetchRunEvents]
+  /// ever sees `run_input` again, so what is kept anywhere else would be lost
+  /// the second time a thread is opened in one session. That also means an
+  /// entry retains its message's image bytes until it is evicted — past the
+  /// close of the thread it belongs to — and eviction counts entries, not
+  /// bytes.
   final _runEventsCache = <String, _RunPayload>{};
 
   String _runCacheKey(String threadId, String runId) => '$threadId:$runId';
@@ -1026,8 +1028,9 @@ class SoliplexApi {
   /// Fetches events for a single run, using cache for completed runs.
   ///
   /// Returns the run's streamed events alongside the user message that
-  /// initiated it, read from `run_input` because the backend stores user input
-  /// separately and never echoes it as AG-UI events.
+  /// initiated it and the tool results that end its input, read from
+  /// `run_input` because the backend stores user input separately and never
+  /// echoes it as AG-UI events.
   ///
   /// `events` is `List<Object?>` rather than `List<Map<String, dynamic>>`:
   /// shape drift on the wire (a non-Map item slipping into `events`)
@@ -1160,8 +1163,8 @@ class SoliplexApi {
     return (messageId: id, parts: content.parts, text: content.text);
   }
 
-  /// The tool results run [runId]'s input newly supplied: the tool messages
-  /// after its last other message, in order.
+  /// The tool messages that end run [runId]'s input, after its last other
+  /// message, in order.
   ///
   /// Every input repeats the thread's earlier results ahead of these, and a
   /// server that numbers its calls per response reuses ids, so a repeated
@@ -1462,11 +1465,12 @@ class SoliplexApi {
           );
         } else {
           // Same id, different message: one of the two turns is now missing
-          // from the transcript, and its citations are keyed onto the other.
+          // from the timeline and the history it sends, and its citations are
+          // keyed onto the other.
           _logger.error(
             'replay: run $runId in thread $threadId reuses message id '
             '${userMessage.messageId} for different text; the user message of '
-            'this run is dropped from the transcript.',
+            'this run is dropped from the timeline and its history.',
           );
         }
       }

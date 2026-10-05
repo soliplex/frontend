@@ -1,4 +1,5 @@
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_client/src/application/transcript_events.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
@@ -540,19 +541,6 @@ void main() {
         ]);
 
         expect(_describe(t), ['activity a1 progress {step: 1}']);
-      });
-
-      test('a snapshot whose content is not an object is skipped', () {
-        final t = _apply(const [
-          ActivitySnapshotEvent(
-            messageId: 'a1',
-            activityType: 'progress',
-            content: 'text',
-          ),
-        ]);
-
-        expect(t.messages, isEmpty);
-        expect(logs().single.attributes, {'messageId': 'a1'});
       });
     });
   });

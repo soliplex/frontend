@@ -10,29 +10,22 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.message_mapper');
 
-/// The AG-UI form of the user's [message], as the transcript carries it.
-///
-/// Only a user's message is converted here: everything else a thread sends is
-/// built from the events that produced it.
-UserMessage userMessageToAgui(TextMessage message) {
-  final multimodalParts = _multimodalParts(message.parts);
-  if (multimodalParts == null) {
-    return UserMessage(id: message.id, content: message.text);
-  }
-  return UserMessage.multimodal(id: message.id, parts: multimodalParts);
-}
-
 /// Returns [conversation] with the user's [message] added both to what it
 /// shows and to the history it sends — the one way a user's message enters a
 /// conversation, live or rebuilt.
 Conversation appendUserMessage(
   Conversation conversation,
   TextMessage message,
-) =>
-    conversation.withAppendedMessage(message).copyWith(
-          transcript: conversation.transcript
-              .withAppendedMessage(userMessageToAgui(message)),
-        );
+) {
+  assert(message.user == ChatUser.user, 'Only a user message is appended');
+  final multimodalParts = _multimodalParts(message.parts);
+  final wire = multimodalParts == null
+      ? UserMessage(id: message.id, content: message.text)
+      : UserMessage.multimodal(id: message.id, parts: multimodalParts);
+  return conversation.withAppendedMessage(message).copyWith(
+        transcript: conversation.transcript.withAppendedMessage(wire),
+      );
+}
 
 /// Content parts for a multimodal `UserMessage`, or null when [parts] has
 /// nothing the bare-string form cannot carry.
@@ -183,7 +176,7 @@ void _dropLabelFor(
 
 /// Reads a user message's wire `content` back into the domain — the inbound
 /// counterpart to [_multimodalParts] and the bare-string arm of
-/// [userMessageToAgui].
+/// [appendUserMessage].
 ///
 /// AG-UI gives `UserMessage.content` as either a bare string or an ordered list
 /// of typed parts. `text` is the message's text either way: the bare string, or
