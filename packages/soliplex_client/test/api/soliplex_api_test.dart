@@ -7659,12 +7659,35 @@ void main() {
             'messages': [
               userMessage('u1', 'Find it'),
               {
+                'id': 'p1',
+                'role': 'assistant',
+                'toolCalls': [
+                  {
+                    'id': 'call_0',
+                    'type': 'function',
+                    'function': {'name': 'search', 'arguments': '{}'},
+                  },
+                ],
+              },
+              {
                 'id': 'r1',
                 'role': 'tool',
                 'toolCallId': 'call_0',
                 'content': 'R0',
               },
               userMessage('u2', 'Weather?'),
+              {
+                'id': 'p2',
+                'role': 'assistant',
+                'content': '',
+                'toolCalls': [
+                  {
+                    'id': 'call_0',
+                    'type': 'function',
+                    'function': {'name': 'weather', 'arguments': '{}'},
+                  },
+                ],
+              },
               {
                 'id': 'tool_result_call_0',
                 'role': 'tool',
@@ -7770,7 +7793,7 @@ void main() {
       });
 
       test('skips a supplied result whose call never ended', () async {
-        final logs = captureRecords('never ended');
+        final logs = captureRecords('no result pending');
         stubThread({
           'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
           'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
@@ -7880,6 +7903,94 @@ void main() {
           'tool tc1 Sunny',
         ]);
         expect(logs(), hasLength(1));
+      });
+
+      test("does not repeat a server result a client tool's input re-sends",
+          () async {
+        // One response ran a server tool and deferred a client tool. The
+        // resume run's input ends with both results, the server's already
+        // carried by run-1's events.
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Find it and the weather')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p1', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'p1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'a',
+              'toolCallName': 'search',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'a'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'b',
+              'toolCallName': 'weather',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'b'}),
+            event('TOOL_CALL_RESULT', {
+              'messageId': 'r1',
+              'toolCallId': 'a',
+              'content': 'RA',
+            }),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+          ],
+        );
+        stubRun(
+          'run-2',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Find it and the weather'),
+              {
+                'id': 'p1',
+                'role': 'assistant',
+                'content': '',
+                'toolCalls': [
+                  {
+                    'id': 'a',
+                    'type': 'function',
+                    'function': {'name': 'search', 'arguments': '{}'},
+                  },
+                  {
+                    'id': 'b',
+                    'type': 'function',
+                    'function': {'name': 'weather', 'arguments': '{}'},
+                  },
+                ],
+              },
+              {'id': 'r1', 'role': 'tool', 'toolCallId': 'a', 'content': 'RA'},
+              {
+                'id': 'tool_result_b',
+                'role': 'tool',
+                'toolCallId': 'b',
+                'content': 'RB',
+              },
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), [
+          'user u1',
+          'assistant p1 [a, b]',
+          'tool a RA',
+          'tool b RB',
+        ]);
       });
     });
   });

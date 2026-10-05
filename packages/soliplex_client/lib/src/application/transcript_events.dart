@@ -283,7 +283,8 @@ Transcript _startToolCall(
       ...withParent.openToolCalls,
       toolCallId: (call: call, parentId: parentId),
     },
-    endedToolCallIds: {...withParent.endedToolCallIds}..remove(toolCallId),
+    unansweredToolCallIds: {...withParent.unansweredToolCallIds}
+      ..remove(toolCallId),
   );
 }
 
@@ -325,7 +326,7 @@ Transcript _endToolCall(Transcript transcript, String toolCallId, Logger log) {
   }
   final ended = transcript.copyWith(
     openToolCalls: {...transcript.openToolCalls}..remove(toolCallId),
-    endedToolCallIds: {...transcript.endedToolCallIds, toolCallId},
+    unansweredToolCallIds: {...transcript.unansweredToolCallIds, toolCallId},
   );
   final index = _indexOf(ended, open.parentId);
   final parent = index < 0 ? null : ended.messages[index];
@@ -352,8 +353,11 @@ Transcript _endToolCall(Transcript transcript, String toolCallId, Logger log) {
 /// Appends the result [content] of the call [toolCallId], whether a
 /// `TOOL_CALL_RESULT` carried it or a client tool produced it.
 ///
-/// Returns [transcript] unchanged, logged, when no call with that id has
-/// ended: pydantic-ai rejects a history whose result precedes its call.
+/// A call takes one result. A result the transcript already holds — the same
+/// message, for the same call — is not appended again: a resumed run's input
+/// re-sends the results its events carried. Any other result for a call with
+/// none pending is skipped and logged: pydantic-ai rejects a history whose
+/// result precedes its call, and a call answered twice is not one it made.
 Transcript appendToolResult(
   Transcript transcript, {
   required String messageId,
@@ -362,14 +366,25 @@ Transcript appendToolResult(
   Logger? logger,
 }) {
   final log = logger ?? _defaultLogger;
-  if (!transcript.endedToolCallIds.contains(toolCallId)) {
-    log.warning(
-      'Transcript skipped a result for a tool call that never ended',
-      attributes: {'toolCallId': toolCallId},
+  if (!transcript.unansweredToolCallIds.contains(toolCallId)) {
+    final held = transcript.messages.any(
+      (m) =>
+          m is ToolMessage && m.id == messageId && m.toolCallId == toolCallId,
     );
+    if (!held) {
+      log.warning(
+        'Transcript skipped a result for a tool call with no result pending',
+        attributes: {'toolCallId': toolCallId},
+      );
+    }
     return transcript;
   }
-  return transcript.withAppendedMessage(
-    ToolMessage(id: messageId, toolCallId: toolCallId, content: content),
-  );
+  return transcript
+      .withAppendedMessage(
+        ToolMessage(id: messageId, toolCallId: toolCallId, content: content),
+      )
+      .copyWith(
+        unansweredToolCallIds: {...transcript.unansweredToolCallIds}
+          ..remove(toolCallId),
+      );
 }

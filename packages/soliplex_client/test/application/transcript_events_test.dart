@@ -254,6 +254,44 @@ void main() {
       expect(logs().single.attributes, {'toolCallId': 'call_0'});
     });
 
+    group('a call that already has its result', () {
+      final answered = _apply(const [
+        TextMessageStartEvent(messageId: 'p'),
+        ToolCallStartEvent(
+          toolCallId: 'a',
+          toolCallName: 'search',
+          parentMessageId: 'p',
+        ),
+        ToolCallEndEvent(toolCallId: 'a'),
+        ToolCallResultEvent(messageId: 'r1', toolCallId: 'a', content: 'RA'),
+      ]);
+
+      test('takes the same result again without a second copy', () {
+        // A resumed run's input re-sends the results its events carried.
+        final t = appendToolResult(
+          answered,
+          messageId: 'r1',
+          toolCallId: 'a',
+          content: 'RA',
+        );
+
+        expect(t, same(answered));
+        expect(logs(), isEmpty);
+      });
+
+      test('skips a different result for it', () {
+        final t = appendToolResult(
+          answered,
+          messageId: 'r2',
+          toolCallId: 'a',
+          content: 'RB',
+        );
+
+        expect(_describe(t), ['assistant p "" [a:search({})]', 'tool a "RA"']);
+        expect(logs().single.attributes, {'toolCallId': 'a'});
+      });
+    });
+
     group('a call that names no parent', () {
       test('joins the assistant message it follows', () {
         // StreamingLlmProvider: one response's text, then its calls.
