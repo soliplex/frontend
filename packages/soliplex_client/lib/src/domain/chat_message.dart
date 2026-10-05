@@ -391,7 +391,8 @@ const _noResponseIdPrefix = 'no-response-';
 /// Carries the run's buffered thinking (if any) and the [reason] the run
 /// ended so the UI can render the appropriate muted "Run
 /// finished/failed/cancelled without a response" tile. Frontend-only —
-/// never sent over the wire (filtered in `agui_message_mapper.dart`).
+/// never sent: a run sends `Conversation.transcript`, which holds no display
+/// tiles.
 ///
 /// Construct via the named factories ([NoResponseTile.failed],
 /// [NoResponseTile.cancelled], [NoResponseTile.finished]); the link between
@@ -539,8 +540,8 @@ class ToolCallMessage extends ChatMessage {
 
   /// Creates a [ToolCallMessage] from a list of executed tool calls.
   ///
-  /// Used after client-side tool execution to append results to the
-  /// conversation before starting a continuation run. The [toolCalls]
+  /// Shows client-side tool results in the timeline; the results sent with
+  /// the continuation run go to `Conversation.transcript`. The [toolCalls]
   /// should have `status: completed` or `status: failed` with results
   /// populated. Stamped with the client clock at creation, since a locally
   /// executed result has no backend time.
@@ -654,8 +655,8 @@ enum DropSource {
 /// in `RunOrchestrator._onEvent` / `SoliplexApi._replayEventsToHistory`
 /// (`processEvent` threw). Citation extraction, historical replay
 /// bridging, and tracker projection log only without minting a tile —
-/// failures there don't lose user-facing content. Never sent over the
-/// wire (filtered in `agui_message_mapper.dart`).
+/// failures there don't lose user-facing content. Never sent: a run sends
+/// `Conversation.transcript`, which holds no display tiles.
 @immutable
 class DroppedEventMessage extends ChatMessage {
   /// Creates a dropped-event message with all properties.

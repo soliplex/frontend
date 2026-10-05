@@ -178,7 +178,7 @@ class ChatFnLlmProvider implements AgentLlmProvider {
             result.add(
               (
                 role: 'assistant',
-                content: text == null || text.isEmpty ? call : '$text\n$call',
+                content: text == null ? call : '$text\n$call'
               ),
             );
           } else {

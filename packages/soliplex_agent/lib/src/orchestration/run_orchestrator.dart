@@ -840,22 +840,17 @@ class RunOrchestrator {
       toolCalls: executedTools,
       runId: state.runId,
     );
-    // Appended where the result arrived: after whatever its run streamed.
-    final transcript = executedTools
-        .where(
-          (tc) =>
-              tc.status == ToolCallStatus.completed ||
-              tc.status == ToolCallStatus.failed,
-        )
-        .fold(
-          state.conversation.transcript,
-          (transcript, tc) => appendToolResult(
-            transcript,
-            messageId: 'tool_result_${tc.id}',
-            toolCallId: tc.id,
-            content: tc.result,
-          ),
-        );
+    // Appended where the result arrived: after whatever its run streamed. A
+    // failed call's error goes too, so the model can respond to it.
+    final transcript = executedTools.fold(
+      state.conversation.transcript,
+      (transcript, tc) => appendToolResult(
+        transcript,
+        messageId: 'tool_result_${tc.id}',
+        toolCallId: tc.id,
+        content: tc.result,
+      ),
+    );
     return state.conversation.copyWith(
       messages: [...state.conversation.messages, toolMsg],
       toolCalls: updatedToolCalls,

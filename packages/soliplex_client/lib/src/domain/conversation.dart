@@ -125,7 +125,8 @@ class Cancelled extends ConversationStatus {
 ///
 /// A Conversation is 1:1 with a Thread and contains:
 /// - Messages displayed to the user
-/// - This send's tool calls and their execution status (not displayed)
+/// - The tool calls of the runs it processed and their execution status (not
+///   displayed)
 /// - The AG-UI history it sends
 /// - Run status
 ///
@@ -158,8 +159,9 @@ class Conversation {
   /// Messages displayed to the user.
   final List<ChatMessage> messages;
 
-  /// This send's tool calls and their execution status: which client tools
-  /// are pending, and what they returned. Not displayed; the history sent is
+  /// The tool calls of the runs this conversation processed — on a live send,
+  /// that send's — and their execution status: which client tools are
+  /// pending, and what they returned. Not displayed; the history sent is
   /// [transcript].
   final List<ToolCallInfo> toolCalls;
 
@@ -208,14 +210,14 @@ class Conversation {
   /// removes one, for a run that yielded to a client tool rather than ending.
   final Map<String, NoResponseTile> runOutcomes;
 
-  /// The AG-UI history this conversation sends, built from its events in
-  /// order.
+  /// The AG-UI history this conversation sends.
   final Transcript transcript;
 
   /// Whether a run is currently active.
   bool get isRunning => status is Running;
 
-  /// Returns a new conversation with the message appended.
+  /// Returns a new conversation with [message] appended to what it shows;
+  /// [transcript] is unchanged.
   Conversation withAppendedMessage(ChatMessage message) {
     return copyWith(messages: [...messages, message]);
   }

@@ -94,8 +94,12 @@ class ThreadHistory {
   /// selection UI hydrates from.
   final Set<ThreadStateWarning> storedStateWarnings;
 
-  /// The AG-UI history the thread's next send carries, built from its events
-  /// in order.
+  /// The AG-UI history the thread's next send carries.
+  ///
+  /// Rebuilt from the backend, it holds what each run stored; captured from a
+  /// session, what the session saw. The two differ after a stopped run: the
+  /// backend finishes the run and stores the rest of it, which only a rebuilt
+  /// history then carries.
   final Transcript transcript;
 }
 

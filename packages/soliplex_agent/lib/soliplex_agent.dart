@@ -24,8 +24,7 @@ export 'package:soliplex_client/soliplex_client.dart'
         UrlBuilder,
         appendUserMessage,
         defaultHttpTimeout,
-        fetchAuthProviders,
-        userMessageToAgui;
+        fetchAuthProviders;
 // Re-export logging types so consumers don't need a direct soliplex_logging
 // dependency just to construct an AgentRuntime.
 export 'package:soliplex_logging/soliplex_logging.dart' show LogManager, Logger;
