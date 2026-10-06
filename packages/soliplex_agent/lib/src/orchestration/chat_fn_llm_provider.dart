@@ -169,15 +169,12 @@ class ChatFnLlmProvider implements AgentLlmProvider {
         case final UserMessage m:
           result.add((role: 'user', content: m.content));
         case final AssistantMessage m:
-          // The transcript holds no text as `''` after a text start and as
-          // null on a message a tool call opened; both mean none.
-          final content = m.content;
-          final text = content == null || content.isEmpty ? null : content;
           final toolCalls = m.toolCalls;
           if (toolCalls != null && toolCalls.isNotEmpty) {
             final tc = toolCalls.first;
             final call = "[Called tool '${tc.function.name}' with arguments: "
                 '${tc.function.arguments}]';
+            final text = m.content;
             result.add(
               (
                 role: 'assistant',
@@ -185,7 +182,7 @@ class ChatFnLlmProvider implements AgentLlmProvider {
               ),
             );
           } else {
-            result.add((role: 'assistant', content: text));
+            result.add((role: 'assistant', content: m.content));
           }
         case final ToolMessage m:
           result.add(
