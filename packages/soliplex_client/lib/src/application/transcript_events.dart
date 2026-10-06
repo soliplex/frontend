@@ -115,8 +115,7 @@ Transcript _setEncryptedValue(
         );
         return transcript;
       }
-      return _replacedAt(
-        transcript,
+      return transcript.withReplacedMessage(
         index,
         message.copyWith(encryptedValue: event.encryptedValue),
       );
@@ -174,8 +173,7 @@ Transcript _applyActivitySnapshot(
     );
     return transcript;
   }
-  return _replacedAt(
-    transcript,
+  return transcript.withReplacedMessage(
     index,
     existing.copyWith(
       activityType: event.activityType,
@@ -219,16 +217,11 @@ Transcript _applyActivityDelta(
   );
   return existing == null
       ? transcript.withAppendedMessage(activity)
-      : _replacedAt(transcript, index, activity);
+      : transcript.withReplacedMessage(index, activity);
 }
 
 int _indexOf(Transcript transcript, String id) =>
     transcript.messages.lastIndexWhere((m) => m.id == id);
-
-Transcript _replacedAt(Transcript transcript, int index, Message message) =>
-    transcript.copyWith(
-      messages: [...transcript.messages]..[index] = message,
-    );
 
 Transcript _startText(Transcript transcript, String messageId) {
   if (_indexOf(transcript, messageId) >= 0) {
@@ -256,8 +249,7 @@ Transcript _appendText(
     );
     return transcript;
   }
-  return _replacedAt(
-    transcript,
+  return transcript.withReplacedMessage(
     index,
     message.copyWith(content: (message.content ?? '') + delta),
   );
@@ -362,11 +354,12 @@ Transcript _endToolCall(Transcript transcript, String toolCallId) {
           function: open.call.function.copyWith(arguments: '{}'),
         )
       : open.call;
-  return _replacedAt(
-    closed,
+  return closed
+      .withReplacedMessage(
     index,
     parent.copyWith(toolCalls: [...?parent.toolCalls, call]),
-  ).copyWith(
+  )
+      .copyWith(
     unansweredToolCallIds: {...closed.unansweredToolCallIds, toolCallId},
   );
 }

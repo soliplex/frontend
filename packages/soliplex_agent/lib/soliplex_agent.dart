@@ -22,6 +22,7 @@ export 'package:soliplex_client/soliplex_client.dart'
         RefreshingHttpClient,
         SoliplexApi,
         UrlBuilder,
+        appendToolResult,
         appendUserMessage,
         defaultHttpTimeout,
         fetchAuthProviders;

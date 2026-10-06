@@ -12,8 +12,8 @@ typedef OpenToolCall = ({ToolCall call, String parentId});
 /// the order they arrived — with what building it carries from one event to
 /// the next.
 ///
-/// Starts empty and only grows: every change appends a message or replaces
-/// one in place, so the count a backend sees never falls.
+/// Its messages start empty and only grow: a change appends a message or
+/// replaces one in place, so the count a backend sees never falls.
 @immutable
 class Transcript {
   /// Creates an empty transcript.
@@ -33,30 +33,44 @@ class Transcript {
 
   /// Calls started and not yet ended, by id. A call joins its parent only
   /// when it ends, so one that never ends is never sent.
+  @internal
   final Map<String, OpenToolCall> openToolCalls;
 
   /// Ids of calls that joined their parent and have no result yet: the calls
   /// a result may answer. A call starting under an id removes it until that
   /// call ends, so an earlier call's end never vouches for a later one that
   /// reused its id; its result removes it again, so a call takes one result.
+  @internal
   final Set<String> unansweredToolCallIds;
 
   /// Returns a copy with [message] appended.
   @internal
-  Transcript withAppendedMessage(Message message) =>
-      copyWith(messages: [...messages, message]);
+  Transcript withAppendedMessage(Message message) => Transcript._(
+        UnmodifiableListView([...messages, message]),
+        openToolCalls,
+        unansweredToolCallIds,
+      );
 
-  /// Creates a copy with the given fields replaced. Only a replaced field is
-  /// wrapped unmodifiable: wrapping a kept one again would nest a view per
-  /// change, and a long thread would exhaust the stack reading through them.
+  /// Returns a copy with the message at [index] replaced by [message].
+  @internal
+  Transcript withReplacedMessage(int index, Message message) => Transcript._(
+        UnmodifiableListView([...messages]..[index] = message),
+        openToolCalls,
+        unansweredToolCallIds,
+      );
+
+  /// Creates a copy with the given call bookkeeping replaced; its messages
+  /// change only through [withAppendedMessage] and [withReplacedMessage]. Only
+  /// a replaced field is wrapped unmodifiable: wrapping a kept one again would
+  /// nest a view per change, and a long thread would exhaust the stack
+  /// reading through them.
   @internal
   Transcript copyWith({
-    List<Message>? messages,
     Map<String, OpenToolCall>? openToolCalls,
     Set<String>? unansweredToolCallIds,
   }) =>
       Transcript._(
-        messages == null ? this.messages : UnmodifiableListView(messages),
+        messages,
         openToolCalls == null
             ? this.openToolCalls
             : UnmodifiableMapView(openToolCalls),
