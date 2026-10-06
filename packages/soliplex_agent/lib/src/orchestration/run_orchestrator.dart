@@ -842,9 +842,9 @@ class RunOrchestrator {
     );
     // Appended where the result arrived: after whatever its run streamed. A
     // failed call's error goes too, as its content, so the model can respond
-    // to it. `ToolMessage.error` is left unset, and pydantic-ai marks a
-    // result failed only when that field is set, so it reads a failed client
-    // call back as a success.
+    // to it. pydantic-ai marks a result failed only from its `error` field or
+    // an encrypted outcome; a client result carries neither, so pydantic-ai
+    // reads a failed client call back as a success.
     final transcript = executedTools.fold(
       state.conversation.transcript,
       (transcript, tc) => appendToolResult(
