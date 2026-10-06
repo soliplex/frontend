@@ -1006,7 +1006,8 @@ class SoliplexApi {
       );
     }
 
-    // 5. Replay events to reconstruct history (messages + AG-UI state)
+    // 5. Replay events to reconstruct history (messages, AG-UI state and the
+    //    transcript)
     return _replayEventsToHistory(
       runsToReplay,
       threadId,
@@ -1092,8 +1093,8 @@ class SoliplexApi {
       if (runInput != null) {
         _logger.warning(
           'replay: run $runId in thread $threadId has `run_input` as '
-          '${runInput.runtimeType}, not an object; its user message is lost, '
-          'and with it the citations for that turn.',
+          '${runInput.runtimeType}, not an object; its user message and tool '
+          'results are lost, and with them the citations for that turn.',
         );
       }
       return null;
@@ -1104,8 +1105,8 @@ class SoliplexApi {
       if (rawMessages != null) {
         _logger.warning(
           'replay: run $runId in thread $threadId has `run_input.messages` as '
-          '${rawMessages.runtimeType}, not a list; its user message is lost, '
-          'and with it the citations for that turn.',
+          '${rawMessages.runtimeType}, not a list; its user message and tool '
+          'results are lost, and with them the citations for that turn.',
         );
       }
       return null;
@@ -1330,7 +1331,8 @@ class SoliplexApi {
     return null;
   }
 
-  /// Replays events to reconstruct thread history (messages + AG-UI state).
+  /// Replays events to reconstruct thread history (messages, AG-UI state and
+  /// the transcript).
   ///
   /// Processes events per-run to properly correlate citations with user
   /// messages. Each run's citations are keyed by the user message ID that
@@ -1445,9 +1447,9 @@ class SoliplexApi {
       // A run that could not be fetched has no user message to append, so its
       // drop tile stands alone.
       //
-      // A repeat id is normally a continuation run, whose `run_input` still
-      // ends with the user message its parent already contributed; the turn
-      // keeps one bubble and later runs fold their events onto it.
+      // A repeat id is normally a continuation run, whose `run_input`'s last
+      // user message is still the one its parent already contributed; the
+      // turn keeps one bubble and later runs fold their events onto it.
       if (userMessage != null) {
         final appended = appendedUserText[userMessage.messageId];
         if (appended == null) {

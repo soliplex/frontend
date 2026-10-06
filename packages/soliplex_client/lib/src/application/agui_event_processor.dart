@@ -223,7 +223,8 @@ EventProcessingResult _processForDisplay(
     RawEvent() ||
     CustomEvent() ||
     ReasoningMessageChunkEvent() ||
-    // Sent back with its tool call, or dropped, by the transcript.
+    // Sent back with the tool call or tool result it names, or dropped, by
+    // the transcript.
     ReasoningEncryptedValueEvent() ||
     MessagesSnapshotEvent() =>
       EventProcessingResult(
