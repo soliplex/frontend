@@ -270,6 +270,31 @@ void main() {
       expect(logs().single.attributes, {'messageId': 'm9'});
     });
 
+    test('stays usable after many events in one thread', () {
+      // A progress activity replaced on every update, then a tool call.
+      final snapshots = [
+        for (var i = 0; i < 100000; i++)
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            content: {'step': i},
+          ),
+      ];
+
+      final t = _apply(
+        const [
+          ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+          ToolCallEndEvent(toolCallId: 'c1'),
+        ],
+        _apply(snapshots),
+      );
+
+      expect(_describe(t), [
+        'activity a1 progress {step: 99999}',
+        'assistant tool-calls-1 "" [c1:search({})]',
+      ]);
+    });
+
     group('an encrypted value', () {
       const claim = '{"pydantic_ai":{"tool_kind":"capability-load"}}';
 
