@@ -96,9 +96,9 @@ Future<void> main() async {
 
 ### Multi-turn conversations
 
-To carry conversation history across turns, pass `cachedHistory` when
-spawning subsequent sessions. The orchestrator prepends the cached messages
-before the new user message in the AG-UI payload.
+Spawn the next turn on the same thread. When a session ends, the runtime
+keeps the thread's history, and the next `spawn` on that thread sends it
+before the new prompt.
 
 ```dart
 // Turn 1
@@ -108,23 +108,23 @@ final s1 = await runtime.spawn(
 );
 final r1 = await s1.result;
 
-// Build history from the completed conversation
-final history = ThreadHistory(
-  messages: (s1.runState.value as CompletedState).conversation.messages,
-);
-
 // Turn 2 — carries forward turn 1 context
 final s2 = await runtime.spawn(
   roomId: 'chat',
   prompt: [const TextPart('What did I just say?')],
   threadId: s1.threadKey.threadId,
-  cachedHistory: history,
 );
 final r2 = await s2.result;
 ```
 
+To continue a thread stored on the server, load it with
+`SoliplexApi.getThreadHistory` and pass it to `runtime.seedThreadHistory`
+before spawning on that thread.
+
 `ThreadHistory` is defined in `soliplex_client` and contains:
 
-- `messages` -- prior `ChatMessage`s in chronological order
+- `transcript` -- the AG-UI messages a run sends as the thread's history,
+  built from the thread's events
+- `messages` -- prior `ChatMessage`s in chronological order, for display
 - `aguiState` -- AG-UI state (e.g. citation history) to restore
 - `messageStates` -- per-message metadata (sources/citations)

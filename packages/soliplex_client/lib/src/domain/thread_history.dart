@@ -32,7 +32,8 @@ class ThreadHistory {
             databaseSources == null ? null : List.unmodifiable(databaseSources),
         storedStateWarnings = Set.unmodifiable(storedStateWarnings);
 
-  /// Messages in the thread, ordered chronologically.
+  /// Messages in the thread, ordered chronologically, for display. A run
+  /// sends [transcript], not these.
   final List<ChatMessage> messages;
 
   /// AG-UI state from STATE_SNAPSHOT and STATE_DELTA events.

@@ -149,8 +149,10 @@ class AgentRuntime {
   /// Stores full thread history loaded from the server.
   ///
   /// Call this when thread history is fetched (e.g. when selecting an
-  /// existing thread) so that messages and AG-UI state are available
-  /// when [spawn] is later called for that thread.
+  /// existing thread) so that the next [spawn] on that thread sends its
+  /// [ThreadHistory.transcript] as the thread's history, with its
+  /// [ThreadHistory.aguiState]. [ThreadHistory.messages] are for display
+  /// and are not sent, so a history built by hand from messages sends none.
   ///
   /// Phase 1 step 3a — keyed by full [ThreadKey] (was bare `threadId`).
   void seedThreadHistory(ThreadKey key, ThreadHistory history) {
