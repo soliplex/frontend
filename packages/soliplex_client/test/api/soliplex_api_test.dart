@@ -7598,9 +7598,11 @@ void main() {
               },
           ];
 
-      // A run's search and its result, stored without the run finishing: no
-      // state snapshot records the search.
-      List<Map<String, dynamic>> searchedThen(Map<String, dynamic>? end) => [
+      // A run's search and its result, then how the stored run ends.
+      List<Map<String, dynamic>> searchedThen(
+        List<Map<String, dynamic>> end,
+      ) =>
+          [
             event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
             event(
               'TEXT_MESSAGE_START',
@@ -7618,10 +7620,12 @@ void main() {
               'toolCallId': 'call_0',
               'content': 'evidence',
             }),
-            if (end != null) end,
+            ...end,
           ];
 
-      test('keeps only what a run the backend ended with an error was sent',
+      // The backend stores the run's state snapshot before its error, so the
+      // state records the search.
+      test('keeps what a run the backend ended with an error streamed',
           () async {
         stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
         stubRun(
@@ -7629,16 +7633,32 @@ void main() {
           runInput: {
             'messages': [userMessage('u1', 'Find it')],
           },
-          events: searchedThen(
+          events: searchedThen([
+            event('STATE_SNAPSHOT', {
+              'snapshot': {
+                'rag': {
+                  'evidence': {
+                    'question': 1,
+                    'in_progress': true,
+                    'latest_evidence_epoch': 1,
+                  },
+                },
+              },
+            }),
             event('RUN_ERROR', {'message': 'provider failed'}),
-          ),
+          ]),
         );
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(describe(history), ['user u1']);
+        expect(describe(history), [
+          'user u1',
+          'assistant p1 [call_0]',
+          'tool call_0 evidence',
+        ]);
       });
 
+      // No state snapshot records the search.
       test('keeps only what a run stored without an ending was sent', () async {
         stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
         stubRun(
@@ -7646,7 +7666,7 @@ void main() {
           runInput: {
             'messages': [userMessage('u1', 'Find it')],
           },
-          events: searchedThen(null),
+          events: searchedThen(const []),
         );
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
