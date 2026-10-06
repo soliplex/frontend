@@ -182,9 +182,7 @@ void main() {
         // A resumed run's input re-sends the results its events carried.
         final t = appendToolResult(
           answered,
-          messageId: 'r1',
-          toolCallId: 'a',
-          content: 'RA',
+          const ToolMessage(id: 'r1', toolCallId: 'a', content: 'RA'),
         );
 
         expect(t, same(answered));
@@ -202,9 +200,11 @@ void main() {
         ];
         final first = appendToolResult(
           _apply(round),
-          messageId: 'tool_result_call_0',
-          toolCallId: 'call_0',
-          content: 'Sunny',
+          const ToolMessage(
+            id: 'tool_result_call_0',
+            toolCallId: 'call_0',
+            content: 'Sunny',
+          ),
         );
 
         final t = _apply(round, first);

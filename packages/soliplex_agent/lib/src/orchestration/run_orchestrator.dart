@@ -846,9 +846,11 @@ class RunOrchestrator {
       state.conversation.transcript,
       (transcript, tc) => appendToolResult(
         transcript,
-        messageId: 'tool_result_${tc.id}',
-        toolCallId: tc.id,
-        content: tc.result,
+        ToolMessage(
+          id: 'tool_result_${tc.id}',
+          toolCallId: tc.id,
+          content: tc.result,
+        ),
       ),
     );
     return state.conversation.copyWith(
