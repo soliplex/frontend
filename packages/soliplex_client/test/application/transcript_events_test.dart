@@ -381,8 +381,9 @@ void main() {
         expect(logs(), isEmpty);
       });
 
-      test('for any other message is dropped', () {
-        // A reasoning message's, which the transcript does not hold.
+      test('for a reasoning message is dropped without a warning', () {
+        // pydantic-ai sends one at the end of every thinking part that has
+        // an id or provider; Ollama's, for one.
         final before = _apply(const [
           ReasoningMessageStartEvent(messageId: 'r1'),
           TextMessageStartEvent(messageId: 'm1'),
@@ -393,12 +394,12 @@ void main() {
           const ReasoningEncryptedValueEvent(
             subtype: ReasoningEncryptedValueSubtype.message,
             entityId: 'r1',
-            encryptedValue: 'opaque',
+            encryptedValue: '{"id": "reasoning", "provider_name": "ollama"}',
           ),
         );
 
         expect(after, same(before));
-        expect(logs().single.attributes, {'entityId': 'r1'});
+        expect(logs(), isEmpty);
       });
     });
 
