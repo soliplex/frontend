@@ -11,8 +11,7 @@ final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.message_mapper');
 
 /// Returns [conversation] with the user's [message] added both to what it
-/// shows and to the history it sends — the one way a user's message enters a
-/// conversation, live or rebuilt.
+/// shows and to the history it sends.
 Conversation appendUserMessage(
   Conversation conversation,
   TextMessage message,
