@@ -13,9 +13,10 @@ typedef OpenToolCall = ({ToolCall call, String parentId});
 /// the next.
 ///
 /// Its messages start empty and only grow: a change appends a message or
-/// replaces one in place, so the count a backend sees never falls.
+/// replaces one in place. A backend that numbers a thread's questions by
+/// message count needs the count to grow.
 @immutable
-class Transcript {
+final class Transcript {
   /// Creates an empty transcript.
   const Transcript()
       : messages = const [],
