@@ -4243,6 +4243,20 @@ void main() {
       ),
     ];
 
+    // The state snapshot the backend sends just before a run's terminal
+    // event, recording the search.
+    const finalState = StateSnapshotEvent(
+      snapshot: {
+        'rag': {
+          'evidence': {
+            'question': 1,
+            'in_progress': true,
+            'latest_evidence_epoch': 1,
+          },
+        },
+      },
+    );
+
     Future<(RunState, List<Message>)> endRun(
       void Function(StreamController<BaseEvent>) end,
     ) async {
@@ -4297,25 +4311,30 @@ void main() {
       expect(transcriptOf(state), sent);
     });
 
+    test('keeps what it streamed when stopped after its state snapshot',
+        () async {
+      final (state, sent) = await endRun((c) {
+        c.add(finalState);
+        unawaited(
+          Future<void>.delayed(Duration.zero)
+              .then((_) => orchestrator.cancelRun()),
+        );
+      });
+
+      expect(state, isA<CancelledState>());
+      expect(
+        transcriptOf(state).map((m) => m.id),
+        [...sent.map((m) => m.id), 'p', 'r'],
+      );
+    });
+
     // The backend sends the run's state snapshot before its error, so the
     // state records the search.
     test('keeps what it streamed when the backend ended it with an error',
         () async {
       final (state, sent) = await endRun(
         (c) => c
-          ..add(
-            const StateSnapshotEvent(
-              snapshot: {
-                'rag': {
-                  'evidence': {
-                    'question': 1,
-                    'in_progress': true,
-                    'latest_evidence_epoch': 1,
-                  },
-                },
-              },
-            ),
-          )
+          ..add(finalState)
           ..add(const RunErrorEvent(message: 'provider failed')),
       );
 

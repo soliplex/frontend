@@ -101,11 +101,12 @@ class RunOrchestrator {
   TurnCitations _turnCitations = const TurnCitations.empty();
   String? _userMessageId;
 
-  /// The history the current run was sent. A run cut off before its terminal
-  /// event keeps this instead of what it streamed: the state that would
-  /// account for that arrives just before that event, and a backend that
-  /// receives a run's results without it, as haiku.rag does its evidence, can
-  /// refuse the history.
+  /// The history the current run was sent, until the run's state snapshot
+  /// arrives. A run cut off before then keeps this instead of what it
+  /// streamed: the snapshot, which the backend sends just before the run's
+  /// terminal event, is the state that accounts for what it streamed, and a
+  /// backend that receives a run's results without it, as haiku.rag does its
+  /// evidence, can refuse the history. Null once the snapshot has arrived.
   Transcript? _sentTranscript;
 
   final StreamController<RunState> _controller =
@@ -709,7 +710,8 @@ class RunOrchestrator {
       );
 
   /// [conversation] with the history its run was sent in place of what the
-  /// run streamed; see [_sentTranscript].
+  /// run streamed, unless the run's state snapshot arrived; see
+  /// [_sentTranscript].
   Conversation _keepingWhatWasSent(Conversation conversation) =>
       conversation.copyWith(transcript: _sentTranscript);
 
@@ -1160,6 +1162,7 @@ class RunOrchestrator {
     EventProcessingResult result,
     BaseEvent event,
   ) {
+    if (event is StateSnapshotEvent) _sentTranscript = null;
     if (event is RunFinishedEvent) {
       _handleRunFinished(previous, result.conversation);
       return;

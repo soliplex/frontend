@@ -7623,6 +7623,41 @@ void main() {
             ...end,
           ];
 
+      // The state snapshot the backend stores just before a run's terminal
+      // event, recording the search.
+      final finalState = event('STATE_SNAPSHOT', {
+        'snapshot': {
+          'rag': {
+            'evidence': {
+              'question': 1,
+              'in_progress': true,
+              'latest_evidence_epoch': 1,
+            },
+          },
+        },
+      });
+
+      test(
+          'keeps what a run stored with its state snapshot but no ending '
+          'streamed', () async {
+        stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Find it')],
+          },
+          events: searchedThen([finalState]),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), [
+          'user u1',
+          'assistant p1 [call_0]',
+          'tool call_0 evidence',
+        ]);
+      });
+
       // The backend stores the run's state snapshot before its error, so the
       // state records the search.
       test('keeps what a run the backend ended with an error streamed',
@@ -7634,17 +7669,31 @@ void main() {
             'messages': [userMessage('u1', 'Find it')],
           },
           events: searchedThen([
-            event('STATE_SNAPSHOT', {
-              'snapshot': {
-                'rag': {
-                  'evidence': {
-                    'question': 1,
-                    'in_progress': true,
-                    'latest_evidence_epoch': 1,
-                  },
-                },
-              },
-            }),
+            finalState,
+            event('RUN_ERROR', {'message': 'provider failed'}),
+          ]),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), [
+          'user u1',
+          'assistant p1 [call_0]',
+          'tool call_0 evidence',
+        ]);
+      });
+
+      // A room without state gets no state snapshot.
+      test(
+          'keeps what a run in a room without state ended with an error '
+          'streamed', () async {
+        stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Find it')],
+          },
+          events: searchedThen([
             event('RUN_ERROR', {'message': 'provider failed'}),
           ]),
         );
