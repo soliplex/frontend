@@ -75,11 +75,10 @@ EventProcessingResult processEvent(
     event,
     runCreated: runCreated,
   );
-  final transcript =
-      applyTranscriptEvent(result.conversation.transcript, event);
-  if (identical(transcript, result.conversation.transcript)) return result;
   return EventProcessingResult(
-    conversation: result.conversation.copyWith(transcript: transcript),
+    conversation: result.conversation.copyWith(
+      transcript: applyTranscriptEvent(result.conversation.transcript, event),
+    ),
     streaming: result.streaming,
   );
 }

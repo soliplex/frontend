@@ -141,15 +141,10 @@ Transcript _applyActivitySnapshot(
   ActivitySnapshotEvent event,
 ) {
   // `processEvent`'s display step throws on a snapshot whose content is not
-  // an object, so the event reaches neither projection; the other arm is
-  // never taken.
-  final Map<String, dynamic> content;
-  switch (event.content) {
-    case final Map<String, dynamic> map:
-      content = map;
-    default:
-      return transcript;
-  }
+  // an object, so the event reaches neither projection; this return is never
+  // taken.
+  final content = event.content;
+  if (content is! Map<String, dynamic>) return transcript;
   final index = _indexOf(transcript, event.messageId);
   if (index < 0) {
     return transcript.withAppendedMessage(
