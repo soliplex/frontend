@@ -7914,6 +7914,115 @@ void main() {
 
         expect(describe(history), ['assistant a1 []']);
       });
+
+      test('keeps every field a supplied tool result carries', () async {
+        // Another client may record a failed result in `error`.
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Weather?')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p1', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'p1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'tc1',
+              'toolCallName': 'weather',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'tc1'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+          ],
+        );
+        stubRun(
+          'run-2',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Weather?'),
+              {
+                'id': 'tool_result_tc1',
+                'role': 'tool',
+                'toolCallId': 'tc1',
+                'content': 'Weather service unavailable',
+                'error': 'Weather service unavailable',
+              },
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(
+          history.transcript.messages.whereType<ToolMessage>().single.error,
+          'Weather service unavailable',
+        );
+      });
+
+      test('reports an input whose tail holds something that is not a message',
+          () async {
+        final logs = captureRecords('not an object');
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Weather?')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p1', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'p1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'tc1',
+              'toolCallName': 'weather',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'tc1'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+          ],
+        );
+        stubRun(
+          'run-2',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Weather?'),
+              {
+                'id': 'tool_result_tc1',
+                'role': 'tool',
+                'toolCallId': 'tc1',
+                'content': 'Sunny',
+              },
+              42,
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-2'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), ['user u1', 'assistant p1 [tc1]']);
+        expect(logs(), hasLength(1));
+      });
     });
   });
 }

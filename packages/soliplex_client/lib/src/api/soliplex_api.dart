@@ -1157,6 +1157,8 @@ class SoliplexApi {
   /// The tool messages that end run [runId]'s input, after its last other
   /// message, in order. For a client tool each is the only record of its
   /// result; for a server tool it may repeat one the run's events carried.
+  /// Each is read whole, as the backend's own client keeps a stored message,
+  /// so an `error` or `encryptedValue` another client recorded goes back too.
   ///
   /// Every input repeats the thread's earlier results ahead of these, and a
   /// server that numbers its calls per response reuses ids, so a repeated
@@ -1177,20 +1179,23 @@ class SoliplexApi {
 
     final results = <ToolMessage>[];
     for (final raw in rawMessages.reversed) {
-      if (raw is! Map<String, dynamic> || raw['role'] != 'tool') break;
-      final id = raw['id'];
-      final toolCallId = raw['toolCallId'];
-      final content = raw['content'];
-      if (id is! String || toolCallId is! String || content is! String) {
+      if (raw is! Map<String, dynamic>) {
+        _logger.warning(
+          'replay: an item in the input of run $runId in thread $threadId is '
+          'not an object; the tool results before it are not read.',
+        );
+        break;
+      }
+      if (raw['role'] != 'tool') break;
+      try {
+        results.add(ToolMessage.fromJson(raw));
+      } on AGUIValidationError {
         _logger.warning(
           'replay: a tool message in the input of run $runId in thread '
           '$threadId lacks a string id, toolCallId or content; the call it '
           'answers keeps no result from it.',
         );
-        continue;
       }
-      results
-          .add(ToolMessage(id: id, toolCallId: toolCallId, content: content));
     }
     return results.reversed.toList();
   }
