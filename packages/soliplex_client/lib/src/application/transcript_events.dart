@@ -3,7 +3,7 @@ import 'package:soliplex_client/src/application/json_patch.dart';
 import 'package:soliplex_client/src/domain/transcript.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-final Logger _defaultLogger =
+final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.transcript');
 
 /// Folds one AG-UI [event] into [transcript], building the history to send as
@@ -17,17 +17,12 @@ final Logger _defaultLogger =
 /// event changes nothing, except that a repeated start replaces the open call
 /// and an end whose parent is not an assistant message closes the call
 /// unsent.
-Transcript applyTranscriptEvent(
-  Transcript transcript,
-  BaseEvent event, {
-  Logger? logger,
-}) {
-  final log = logger ?? _defaultLogger;
+Transcript applyTranscriptEvent(Transcript transcript, BaseEvent event) {
   return switch (event) {
     TextMessageStartEvent(:final messageId) =>
-      _startText(transcript, messageId, log),
+      _startText(transcript, messageId),
     TextMessageContentEvent(:final messageId, :final delta) =>
-      _appendText(transcript, messageId, delta, log),
+      _appendText(transcript, messageId, delta),
     ToolCallStartEvent(
       :final toolCallId,
       :final toolCallName,
@@ -38,24 +33,18 @@ Transcript applyTranscriptEvent(
         toolCallId,
         toolCallName,
         parentMessageId,
-        log,
       ),
     ToolCallArgsEvent(:final toolCallId, :final delta) =>
-      _appendToolCallArgs(transcript, toolCallId, delta, log),
-    ToolCallEndEvent(:final toolCallId) =>
-      _endToolCall(transcript, toolCallId, log),
+      _appendToolCallArgs(transcript, toolCallId, delta),
+    ToolCallEndEvent(:final toolCallId) => _endToolCall(transcript, toolCallId),
     ToolCallResultEvent(:final messageId, :final toolCallId, :final content) =>
       appendToolResult(
         transcript,
-        messageId: messageId,
-        toolCallId: toolCallId,
-        content: content,
-        logger: log,
+        ToolMessage(id: messageId, toolCallId: toolCallId, content: content),
       ),
-    ReasoningEncryptedValueEvent() =>
-      _setEncryptedValue(transcript, event, log),
-    ActivitySnapshotEvent() => _applyActivitySnapshot(transcript, event, log),
-    ActivityDeltaEvent() => _applyActivityDelta(transcript, event, log),
+    ReasoningEncryptedValueEvent() => _setEncryptedValue(transcript, event),
+    ActivitySnapshotEvent() => _applyActivitySnapshot(transcript, event),
+    ActivityDeltaEvent() => _applyActivityDelta(transcript, event),
     // Listed so a new event type is a compile error here. Nothing in these
     // reaches the history: lifecycle, state, steps, raw and custom events,
     // reasoning (whose round trip is github.com/soliplex/frontend/issues/117),
@@ -109,14 +98,13 @@ Transcript applyTranscriptEvent(
 Transcript _setEncryptedValue(
   Transcript transcript,
   ReasoningEncryptedValueEvent event,
-  Logger log,
 ) {
   switch (event.subtype) {
     case ReasoningEncryptedValueSubtype.message:
       final index = _indexOf(transcript, event.entityId);
       final message = index < 0 ? null : transcript.messages[index];
       if (message is! ToolMessage) {
-        log.warning(
+        _logger.warning(
           'Transcript dropped an encrypted value for a message',
           attributes: {'entityId': event.entityId},
         );
@@ -130,7 +118,7 @@ Transcript _setEncryptedValue(
     case ReasoningEncryptedValueSubtype.toolCall:
       final open = transcript.openToolCalls[event.entityId];
       if (open == null) {
-        log.warning(
+        _logger.warning(
           'Transcript dropped an encrypted value for a tool call that is '
           'not open',
           attributes: {'toolCallId': event.entityId},
@@ -152,7 +140,6 @@ Transcript _setEncryptedValue(
 Transcript _applyActivitySnapshot(
   Transcript transcript,
   ActivitySnapshotEvent event,
-  Logger log,
 ) {
   // `processEvent`'s display step throws on a snapshot whose content is not
   // an object, so the event reaches neither projection; the other arm is
@@ -176,7 +163,7 @@ Transcript _applyActivitySnapshot(
   }
   final existing = transcript.messages[index];
   if (existing is! ActivityMessage || !event.replace) {
-    log.warning(
+    _logger.warning(
       'Transcript skipped an activity snapshot for an id it already holds',
       attributes: {'messageId': event.messageId},
     );
@@ -195,12 +182,11 @@ Transcript _applyActivitySnapshot(
 Transcript _applyActivityDelta(
   Transcript transcript,
   ActivityDeltaEvent event,
-  Logger log,
 ) {
   final index = _indexOf(transcript, event.messageId);
   final existing = index < 0 ? null : transcript.messages[index];
   if (existing != null && existing is! ActivityMessage) {
-    log.warning(
+    _logger.warning(
       'Transcript skipped an activity delta for a message that is not an '
       'activity',
       attributes: {'messageId': event.messageId},
@@ -210,7 +196,7 @@ Transcript _applyActivityDelta(
   final patched = applyJsonPatch(
     existing is ActivityMessage ? existing.activityContent : const {},
     event.patch,
-    logger: log,
+    logger: _logger,
   );
   final activity = ActivityMessage(
     id: event.messageId,
@@ -230,9 +216,9 @@ Transcript _replacedAt(Transcript transcript, int index, Message message) =>
       messages: [...transcript.messages]..[index] = message,
     );
 
-Transcript _startText(Transcript transcript, String messageId, Logger log) {
+Transcript _startText(Transcript transcript, String messageId) {
   if (_indexOf(transcript, messageId) >= 0) {
-    log.warning(
+    _logger.warning(
       'Transcript skipped a text message start for an id it already holds',
       attributes: {'messageId': messageId},
     );
@@ -246,12 +232,11 @@ Transcript _appendText(
   Transcript transcript,
   String messageId,
   String delta,
-  Logger log,
 ) {
   final index = _indexOf(transcript, messageId);
   final message = index < 0 ? null : transcript.messages[index];
   if (message is! AssistantMessage) {
-    log.warning(
+    _logger.warning(
       'Transcript skipped text content for a message it does not hold',
       attributes: {'messageId': messageId},
     );
@@ -281,10 +266,9 @@ Transcript _startToolCall(
   String toolCallId,
   String toolCallName,
   String? parentMessageId,
-  Logger log,
 ) {
   if (transcript.openToolCalls.containsKey(toolCallId)) {
-    log.warning(
+    _logger.warning(
       'Transcript replaced an open tool call that never ended',
       attributes: {'toolCallId': toolCallId},
     );
@@ -313,11 +297,10 @@ Transcript _appendToolCallArgs(
   Transcript transcript,
   String toolCallId,
   String delta,
-  Logger log,
 ) {
   final open = transcript.openToolCalls[toolCallId];
   if (open == null) {
-    log.warning(
+    _logger.warning(
       'Transcript skipped arguments for a tool call that is not open',
       attributes: {'toolCallId': toolCallId},
     );
@@ -336,10 +319,10 @@ Transcript _appendToolCallArgs(
   );
 }
 
-Transcript _endToolCall(Transcript transcript, String toolCallId, Logger log) {
+Transcript _endToolCall(Transcript transcript, String toolCallId) {
   final open = transcript.openToolCalls[toolCallId];
   if (open == null) {
-    log.warning(
+    _logger.warning(
       'Transcript skipped the end of a tool call that is not open',
       attributes: {'toolCallId': toolCallId},
     );
@@ -353,7 +336,7 @@ Transcript _endToolCall(Transcript transcript, String toolCallId, Logger log) {
   if (parent is! AssistantMessage) {
     // Not sent, so nothing may answer it either: a result for a call the
     // history does not hold makes pydantic-ai reject the whole history.
-    log.warning(
+    _logger.warning(
       'Transcript dropped a tool call whose parent is not an assistant '
       'message',
       attributes: {'toolCallId': toolCallId, 'messageId': open.parentId},
@@ -374,40 +357,30 @@ Transcript _endToolCall(Transcript transcript, String toolCallId, Logger log) {
   );
 }
 
-/// Appends the result [content] of the call [toolCallId], whether a
-/// `TOOL_CALL_RESULT` carried it or a client tool produced it.
+/// Appends [result], a tool call's result, whether a `TOOL_CALL_RESULT`
+/// carried it or a client tool produced it.
 ///
 /// A call takes one result. A result the transcript already holds — the same
 /// message, for the same call — is not appended again: a resumed run's input
 /// re-sends the results its events carried. Any other result for a call with
 /// none pending is skipped and logged: pydantic-ai rejects a history whose
 /// result precedes its call, and a call answered twice is not one it made.
-Transcript appendToolResult(
-  Transcript transcript, {
-  required String messageId,
-  required String toolCallId,
-  required String content,
-  Logger? logger,
-}) {
-  final log = logger ?? _defaultLogger;
+Transcript appendToolResult(Transcript transcript, ToolMessage result) {
+  final toolCallId = result.toolCallId;
   if (!transcript.unansweredToolCallIds.contains(toolCallId)) {
     final held = transcript.messages.any(
       (m) =>
-          m is ToolMessage && m.id == messageId && m.toolCallId == toolCallId,
+          m is ToolMessage && m.id == result.id && m.toolCallId == toolCallId,
     );
     if (!held) {
-      log.warning(
+      _logger.warning(
         'Transcript skipped a result for a tool call with no result pending',
         attributes: {'toolCallId': toolCallId},
       );
     }
     return transcript;
   }
-  return transcript
-      .withAppendedMessage(
-        ToolMessage(id: messageId, toolCallId: toolCallId, content: content),
-      )
-      .copyWith(
+  return transcript.withAppendedMessage(result).copyWith(
         unansweredToolCallIds: {...transcript.unansweredToolCallIds}
           ..remove(toolCallId),
       );

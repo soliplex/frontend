@@ -55,15 +55,6 @@ typedef _RunUserMessage = ({
   String text,
 });
 
-/// A tool result from the tool messages that end a run's input. For a client
-/// tool it is the only record of the result; for a server tool it may repeat
-/// one the run's events already carried.
-typedef _RunToolResult = ({
-  String messageId,
-  String toolCallId,
-  String content,
-});
-
 /// What a run's GET yielded: the AG-UI events the backend streamed, plus the
 /// user message that initiated the run and the tool results that end its
 /// input, which those events do not always carry.
@@ -76,7 +67,7 @@ typedef _RunToolResult = ({
 typedef _RunPayload = ({
   List<Object?> events,
   _RunUserMessage? userMessage,
-  List<_RunToolResult> toolResults,
+  List<ToolMessage> toolResults,
 });
 
 /// A run with nothing to replay. `events` is empty rather than null so the
@@ -88,7 +79,7 @@ typedef _RunPayload = ({
 const _RunPayload _noRunData = (
   events: <Object?>[],
   userMessage: null,
-  toolResults: <_RunToolResult>[],
+  toolResults: <ToolMessage>[],
 );
 
 /// One run as replay sees it: its payload joined with the identity, fetch
@@ -1164,7 +1155,8 @@ class SoliplexApi {
   }
 
   /// The tool messages that end run [runId]'s input, after its last other
-  /// message, in order.
+  /// message, in order. For a client tool each is the only record of its
+  /// result; for a server tool it may repeat one the run's events carried.
   ///
   /// Every input repeats the thread's earlier results ahead of these, and a
   /// server that numbers its calls per response reuses ids, so a repeated
@@ -1173,7 +1165,7 @@ class SoliplexApi {
   ///
   /// A malformed `run_input` or `messages` is already reported by
   /// [_extractUserMessage], so it reads here as no results.
-  List<_RunToolResult> _extractToolResults(
+  List<ToolMessage> _extractToolResults(
     Map<String, dynamic> rawRun,
     String threadId,
     String runId,
@@ -1183,7 +1175,7 @@ class SoliplexApi {
     final rawMessages = runInput['messages'];
     if (rawMessages is! List) return const [];
 
-    final results = <_RunToolResult>[];
+    final results = <ToolMessage>[];
     for (final raw in rawMessages.reversed) {
       if (raw is! Map<String, dynamic> || raw['role'] != 'tool') break;
       final id = raw['id'];
@@ -1197,7 +1189,8 @@ class SoliplexApi {
         );
         continue;
       }
-      results.add((messageId: id, toolCallId: toolCallId, content: content));
+      results
+          .add(ToolMessage(id: id, toolCallId: toolCallId, content: content));
     }
     return results.reversed.toList();
   }
@@ -1489,15 +1482,8 @@ class SoliplexApi {
         // The results this run's input supplied come before its events, as
         // they did when it was sent.
         conversation = conversation.copyWith(
-          transcript: payload.toolResults.fold<Transcript>(
-            conversation.transcript,
-            (transcript, result) => appendToolResult(
-              transcript,
-              messageId: result.messageId,
-              toolCallId: result.toolCallId,
-              content: result.content,
-            ),
-          ),
+          transcript: payload.toolResults
+              .fold<Transcript>(conversation.transcript, appendToolResult),
         );
       }
 
