@@ -92,14 +92,15 @@ Transcript applyTranscriptEvent(Transcript transcript, BaseEvent event) {
   };
 }
 
-/// A value goes out with what it names. A tool call's records the call's kind
-/// (a capability load, for one), which the call alone does not reveal; it
-/// arrives right after the call's start, so one for a call no longer open is
-/// dropped. A tool result's records a non-success outcome, without which
-/// pydantic-ai reads the result back as a success and sends it to the
-/// provider as one; it arrives right after the result. A value naming any
-/// other message is dropped: it anchors reasoning, which this client does not
-/// send (github.com/soliplex/frontend/issues/117).
+/// A value goes out with what it names. A tool call's value records the
+/// call's kind (a capability load, for one), which the call alone does not
+/// reveal; it arrives right after the call's start, so one for a call that is
+/// not open is dropped. A tool result's value records a non-success outcome,
+/// without which pydantic-ai reads the result back as a success and sends it
+/// to the provider as one; it arrives right after the result. A value naming
+/// any other message is dropped without a warning: pydantic-ai sends one for
+/// every reasoning message with provider metadata, and this client does not
+/// send reasoning (github.com/soliplex/frontend/issues/117).
 Transcript _setEncryptedValue(
   Transcript transcript,
   ReasoningEncryptedValueEvent event,
@@ -108,13 +109,7 @@ Transcript _setEncryptedValue(
     case ReasoningEncryptedValueSubtype.message:
       final index = _indexOf(transcript, event.entityId);
       final message = index < 0 ? null : transcript.messages[index];
-      if (message is! ToolMessage) {
-        _logger.warning(
-          'Transcript dropped an encrypted value for a message',
-          attributes: {'entityId': event.entityId},
-        );
-        return transcript;
-      }
+      if (message is! ToolMessage) return transcript;
       return transcript.withReplacedMessage(
         index,
         message.copyWith(encryptedValue: event.encryptedValue),
