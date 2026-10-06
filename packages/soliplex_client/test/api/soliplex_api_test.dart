@@ -7598,6 +7598,62 @@ void main() {
               },
           ];
 
+      // A run's search and its result, stored without the run finishing: no
+      // state snapshot records the search.
+      List<Map<String, dynamic>> searchedThen(Map<String, dynamic>? end) => [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'p1', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'p1'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'call_0',
+              'toolCallName': 'search',
+              'parentMessageId': 'p1',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'call_0'}),
+            event('TOOL_CALL_RESULT', {
+              'messageId': 'r1',
+              'toolCallId': 'call_0',
+              'content': 'evidence',
+            }),
+            if (end != null) end,
+          ];
+
+      test('keeps only what a run the backend ended with an error was sent',
+          () async {
+        stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Find it')],
+          },
+          events: searchedThen(
+            event('RUN_ERROR', {'message': 'provider failed'}),
+          ),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), ['user u1']);
+      });
+
+      test('keeps only what a run stored without an ending was sent', () async {
+        stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Find it')],
+          },
+          events: searchedThen(null),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), ['user u1']);
+      });
+
       test('replays every run in order, results after their calls', () async {
         // run-1: a server tool with its result, its events naming a parent
         // no event opened, as an older pydantic-ai stored them. run-2: a
