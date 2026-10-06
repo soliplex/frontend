@@ -225,6 +225,7 @@ void main() {
           'tool call_0 "Sunny"',
           'assistant tool-calls-2 "" [call_0:weather({})]',
         ]);
+        expect(logs(), isEmpty);
       });
 
       test('opens an assistant message when the last message is not one', () {
@@ -244,6 +245,7 @@ void main() {
           'user u1',
           'assistant tool-calls-1 "" [tc-1:weather({}), tc-2:time({})]',
         ]);
+        expect(logs(), isEmpty);
       });
     });
 
@@ -282,7 +284,9 @@ void main() {
     });
 
     test('stays usable after many events in one thread', () {
-      // A call whose arguments stream in many deltas.
+      // Each arguments delta replaces the open calls and keeps the unanswered
+      // ids; wrapping the kept set again per change would nest views until
+      // reading it overflows the stack.
       final t = _apply([
         const TextMessageStartEvent(messageId: 'p'),
         const ToolCallStartEvent(
@@ -430,6 +434,7 @@ void main() {
           'activity a1 $type {added: [search, fetch]}',
           'assistant m2 ""',
         ]);
+        expect(logs(), isEmpty);
       });
 
       test('keeps its content when a snapshot does not replace it', () {
@@ -482,6 +487,7 @@ void main() {
         ]);
 
         expect(_describe(t), ['activity a1 progress {step: 2, total: 3}']);
+        expect(logs(), isEmpty);
       });
 
       test('a delta it cannot apply whole is skipped', () {
@@ -534,6 +540,7 @@ void main() {
         ]);
 
         expect(_describe(t), ['activity a1 progress {step: 1}']);
+        expect(logs(), isEmpty);
       });
     });
   });

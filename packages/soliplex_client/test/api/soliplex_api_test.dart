@@ -7599,8 +7599,9 @@ void main() {
           ];
 
       test('replays every run in order, results after their calls', () async {
-        // run-1: a server tool with its result, from a pydantic-ai that
-        // opened no message for the call's parent. run-2: a client tool,
+        // run-1: a server tool with its result, its events naming a parent
+        // no event opened, as an older pydantic-ai stored them. run-2: a
+        // client tool,
         // yielded. run-3: the continuation, whose input supplies the client
         // result after the history the client sent.
         stubThread({
@@ -7790,7 +7791,7 @@ void main() {
 
       test("does not repeat a server result a client tool's input re-sends",
           () async {
-        // One response ran a server tool and deferred a client tool. The
+        // One response ran a server tool and deferred two client tools. The
         // resume run's input ends with both results, the server's already
         // carried by run-1's events.
         stubThread({
@@ -7915,7 +7916,7 @@ void main() {
         expect(describe(history), ['assistant a1 []']);
       });
 
-      test('keeps every field a supplied tool result carries', () async {
+      test('keeps the error a supplied tool result carries', () async {
         // Another client may record a failed result in `error`.
         stubThread({
           'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
