@@ -178,6 +178,17 @@ void main() {
         ToolCallResultEvent(messageId: 'r1', toolCallId: 'a', content: 'RA'),
       ]);
 
+      test('skips a result it does not already hold', () {
+        // A different message for the call, and the same message for another.
+        final t = [
+          const ToolMessage(id: 'r2', toolCallId: 'a', content: 'RB'),
+          const ToolMessage(id: 'r1', toolCallId: 'b', content: 'RA'),
+        ].fold(answered, appendToolResult);
+
+        expect(t, same(answered));
+        expect(logs().map((r) => r.attributes['toolCallId']), ['a', 'b']);
+      });
+
       test('takes the same result again without a second copy', () {
         // A resumed run's input re-sends the results its events carried.
         final t = appendToolResult(
@@ -271,28 +282,38 @@ void main() {
     });
 
     test('stays usable after many events in one thread', () {
-      // A progress activity replaced on every update, then a tool call.
-      final snapshots = [
+      // A call whose arguments stream in many deltas.
+      final t = _apply([
+        const TextMessageStartEvent(messageId: 'p'),
+        const ToolCallStartEvent(
+          toolCallId: 'c1',
+          toolCallName: 'write',
+          parentMessageId: 'p',
+        ),
         for (var i = 0; i < 100000; i++)
-          ActivitySnapshotEvent(
-            messageId: 'a1',
-            activityType: 'progress',
-            content: {'step': i},
-          ),
-      ];
-
-      final t = _apply(
-        const [
-          ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
-          ToolCallEndEvent(toolCallId: 'c1'),
-        ],
-        _apply(snapshots),
-      );
-
-      expect(_describe(t), [
-        'activity a1 progress {step: 99999}',
-        'assistant tool-calls-1 "" [c1:search({})]',
+          const ToolCallArgsEvent(toolCallId: 'c1', delta: 'x'),
+        const ToolCallEndEvent(toolCallId: 'c1'),
       ]);
+
+      final call = (t.messages.single as AssistantMessage).toolCalls!.single;
+      expect(call.function.arguments, hasLength(100000));
+    });
+
+    test('opens a text message with empty content', () {
+      final t = _apply(const [
+        TextMessageStartEvent(messageId: 'm1'),
+        TextMessageEndEvent(messageId: 'm1'),
+      ]);
+
+      expect((t.messages.single as AssistantMessage).content, '');
+    });
+
+    test('opens a parent with no calls for a call that never ends', () {
+      final t = _apply(const [
+        ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+      ]);
+
+      expect((t.messages.single as AssistantMessage).toolCalls, isEmpty);
     });
 
     group('an encrypted value', () {
@@ -361,19 +382,23 @@ void main() {
       });
 
       test('for any other message is dropped', () {
-        final before = _apply(const [TextMessageStartEvent(messageId: 'm1')]);
+        // A reasoning message's, which the transcript does not hold.
+        final before = _apply(const [
+          ReasoningMessageStartEvent(messageId: 'r1'),
+          TextMessageStartEvent(messageId: 'm1'),
+        ]);
 
         final after = applyTranscriptEvent(
           before,
           const ReasoningEncryptedValueEvent(
             subtype: ReasoningEncryptedValueSubtype.message,
-            entityId: 'm1',
+            entityId: 'r1',
             encryptedValue: 'opaque',
           ),
         );
 
         expect(after, same(before));
-        expect(logs().single.attributes, {'entityId': 'm1'});
+        expect(logs().single.attributes, {'entityId': 'r1'});
       });
     });
 
