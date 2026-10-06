@@ -4222,4 +4222,88 @@ void main() {
       );
     });
   });
+
+  group('a run that does not finish keeps only what it was sent', () {
+    // What streamed before the run was cut off: a search and its result,
+    // without the closing state snapshot that would record the search.
+    final searched = <BaseEvent>[
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      const TextMessageStartEvent(messageId: 'p'),
+      const TextMessageEndEvent(messageId: 'p'),
+      const ToolCallStartEvent(
+        toolCallId: 'call_0',
+        toolCallName: 'search',
+        parentMessageId: 'p',
+      ),
+      const ToolCallArgsEvent(toolCallId: 'call_0', delta: '{}'),
+      const ToolCallEndEvent(toolCallId: 'call_0'),
+      const ToolCallResultEvent(
+        messageId: 'r',
+        toolCallId: 'call_0',
+        content: 'evidence',
+      ),
+    ];
+
+    Future<(RunState, List<Message>)> endRun(
+      void Function(StreamController<BaseEvent>) end,
+    ) async {
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+      final done = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('What is an installation?')],
+        toolExecutor: (pending) async => pending,
+      );
+      await Future<void>.delayed(Duration.zero);
+      searched.forEach(controller.add);
+      await Future<void>.delayed(Duration.zero);
+      end(controller);
+      final state = await done;
+      await controller.close();
+      final sent = (verify(
+        () => agUiStreamClient.runAgent(
+          any(),
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).captured.single as SimpleRunAgentInput)
+          .messages!;
+      return (state, sent);
+    }
+
+    List<Message> transcriptOf(RunState state) => switch (state) {
+          CancelledState(:final conversation?) ||
+          FailedState(:final conversation?) =>
+            conversation.transcript.messages,
+          _ => fail('expected a run that did not finish, got $state'),
+        };
+
+    test('a stopped run', () async {
+      final (state, sent) = await endRun((_) => orchestrator.cancelRun());
+
+      expect(state, isA<CancelledState>());
+      expect(transcriptOf(state), sent);
+    });
+
+    test('a run whose stream broke off', () async {
+      final (state, sent) = await endRun(
+        (c) => c.addError(const NetworkException(message: 'connection reset')),
+      );
+
+      expect(state, isA<FailedState>());
+      expect(transcriptOf(state), sent);
+    });
+
+    test('a run the backend ended with an error', () async {
+      final (state, sent) = await endRun(
+        (c) => c.add(const RunErrorEvent(message: 'provider failed')),
+      );
+
+      expect(state, isA<FailedState>());
+      expect(transcriptOf(state), sent);
+    });
+  });
 }

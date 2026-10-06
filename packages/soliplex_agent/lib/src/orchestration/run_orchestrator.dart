@@ -101,6 +101,12 @@ class RunOrchestrator {
   TurnCitations _turnCitations = const TurnCitations.empty();
   String? _userMessageId;
 
+  /// The history the current run was sent. A run cut off before its end keeps
+  /// this instead of what it streamed: the state that would account for that
+  /// arrives only at a run's end, and a backend that receives a run's results
+  /// without it, as haiku.rag does its evidence, can refuse the history.
+  Transcript? _sentTranscript;
+
   final StreamController<RunState> _controller =
       StreamController<RunState>.broadcast();
   final StreamController<BaseEvent> _baseEventController =
@@ -694,12 +700,17 @@ class RunOrchestrator {
     String terminalEvent,
   ) =>
       commitPartialTextOnTerminal(
-        conversation: running.conversation,
+        conversation: _keepingWhatWasSent(running.conversation),
         streaming: running.streaming,
         runId: running.runId,
         terminalEvent: terminalEvent,
         createdAt: _lastEventTime,
       );
+
+  /// [conversation] with the history its run was sent in place of what the
+  /// run streamed; see [_sentTranscript].
+  Conversation _keepingWhatWasSent(Conversation conversation) =>
+      conversation.copyWith(transcript: _sentTranscript);
 
   /// Whether [state] is terminal for the SSE subscription completer.
   ///
@@ -954,6 +965,7 @@ class RunOrchestrator {
   }
 
   SimpleRunAgentInput _buildInput(ThreadKey key, Conversation conversation) {
+    _sentTranscript = conversation.transcript;
     return SimpleRunAgentInput(
       threadId: key.threadId,
       runId: '', // Assigned by the provider during startRun.
@@ -1154,8 +1166,10 @@ class RunOrchestrator {
     if (event is RunErrorEvent) {
       _receivedTerminalEvent = true;
       _cleanup();
-      final withCitations =
-          _extractCitations(result.conversation, previous.runId);
+      final withCitations = _extractCitations(
+        _keepingWhatWasSent(result.conversation),
+        previous.runId,
+      );
       _setState(
         FailedState.duringRun(
           threadKey: previous.threadKey,

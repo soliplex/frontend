@@ -1186,9 +1186,12 @@ void main() {
       );
       await s2.result;
 
-      expect(capturedInput, isNotNull);
-      // Should have 3 messages: user "Hello", assistant "Partial", user "Retry"
-      expect(capturedInput!.messages!.length, 3);
+      // The failed run keeps what it was sent, its user message, but not the
+      // text it streamed before failing.
+      expect(
+        capturedInput!.messages!.map((m) => (m as UserMessage).content),
+        ['Hello', 'Retry'],
+      );
     });
   });
 
