@@ -292,6 +292,39 @@ Let me check.
       expect(capturedMessages![0].content, isNull);
     });
 
+    test('projects a tool call with no text as the call alone', () async {
+      // A call naming no parent opens an assistant message with no content.
+      List<({String role, String? content})>? capturedMessages;
+      final provider = ChatFnLlmProvider(
+        chatFn: (messages, {systemPrompt, maxTokens}) async {
+          capturedMessages = messages;
+          return 'ok';
+        },
+      );
+
+      final input = input0(
+        messages: [
+          const AssistantMessage(
+            id: 'tool-calls-1',
+            toolCalls: [
+              ToolCall(
+                id: 'tc-1',
+                function: FunctionCall(name: 'weather', arguments: '{}'),
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final handle = await provider.startRun(key: key, input: input);
+      await handle.events.toList();
+
+      expect(
+        capturedMessages!.single.content,
+        "[Called tool 'weather' with arguments: {}]",
+      );
+    });
+
     test("keeps a response's text ahead of the tool call it made", () async {
       // The transcript carries this provider's prefix text and its call as
       // one assistant message, as the response made them.

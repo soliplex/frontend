@@ -232,6 +232,16 @@ void main() {
         expect(conv1, isNot(equals(conv2)));
       });
 
+      test('conversations with different transcripts are not equal', () {
+        final conv1 = Conversation.empty(threadId: 'thread-1');
+        final conv2 = processEvent(
+          conv1,
+          const AwaitingText(),
+          const TextMessageStartEvent(messageId: 'm1'),
+        ).conversation;
+        expect(conv1, isNot(equals(conv2)));
+      });
+
       test('conversations with different status are not equal', () {
         final conv1 = Conversation.empty(threadId: 'thread-1');
         final conv2 = conv1.withStatus(const Running(runId: 'run-1'));
