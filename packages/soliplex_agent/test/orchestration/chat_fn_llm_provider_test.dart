@@ -281,7 +281,7 @@ Let me check.
       );
 
       final input = input0(
-        messages: [const AssistantMessage(id: 'a1')],
+        messages: [const AssistantMessage(id: 'a1', toolCalls: [])],
       );
 
       final handle = await provider.startRun(key: key, input: input);
