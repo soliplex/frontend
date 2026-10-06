@@ -7726,7 +7726,7 @@ void main() {
 
       test('skips a supplied tool message it cannot read, keeping the rest',
           () async {
-        final logs = captureRecords('lacks a string id, toolCallId or content');
+        final logs = captureRecords('could not be read as a tool message');
         stubThread({
           'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
           'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),

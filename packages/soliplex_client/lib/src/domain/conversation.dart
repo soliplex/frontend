@@ -338,6 +338,9 @@ class Conversation {
         messageStateMapEquals.equals(messageStates, other.messageStates) &&
         activityListEquals.equals(activities, other.activities) &&
         runOutcomeMapEquals.equals(runOutcomes, other.runOutcomes) &&
+        // By identity, as AG-UI messages have no value equality: transcripts
+        // built apart compare unequal even when alike, which costs at most a
+        // redundant update, never a missed one.
         transcript == other.transcript;
   }
 

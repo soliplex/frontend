@@ -13,15 +13,16 @@ final Logger _logger =
 ///   assistant message, else one opened for it;
 /// - an encrypted value travels with the tool call or result it names;
 /// - a call takes one result;
+/// - an ended call with empty arguments is sent with `{}`;
 /// - a messages snapshot is ignored;
 /// - an activity delta using `move`, `copy` or `test` is skipped, as those
 ///   operations are not applied here.
 ///
-/// Where that parser raises, this logs without the event's content and
-/// carries on, so one bad event does not cost the thread its history. Such an
-/// event changes nothing, except that a repeated start replaces the open call
-/// and an end whose parent is not an assistant message closes the call
-/// unsent.
+/// Where that parser raises on an event that builds a message, this logs ids
+/// only and skips the event, so one bad event does not cost the thread its
+/// history. Two cases differ: a repeated start replaces the open call, and a
+/// call whose parent is not an assistant message stays open until its end,
+/// which drops it.
 Transcript applyTranscriptEvent(Transcript transcript, BaseEvent event) {
   return switch (event) {
     TextMessageStartEvent(:final messageId) =>
@@ -192,8 +193,10 @@ Transcript _applyActivityDelta(
     logger: _logger,
   );
   if (!patched.complete) {
-    // Whole or not at all, as the backend's parser applies a patch: sending
-    // part of one would send content its producer never had.
+    // Each delta whole or not at all, as the backend's parser applies a
+    // patch, so none is sent half applied. A later delta still applies to
+    // the content as it stood before this one, where that parser would have
+    // raised.
     _logger.warning(
       'Transcript skipped an activity delta it could not apply whole',
       attributes: {'messageId': event.messageId},
@@ -234,7 +237,8 @@ Transcript _appendText(
   final message = index < 0 ? null : transcript.messages[index];
   if (message is! AssistantMessage) {
     _logger.warning(
-      'Transcript skipped text content for a message it does not hold',
+      'Transcript skipped text content for a message that is not an '
+      'assistant message it holds',
       attributes: {'messageId': messageId},
     );
     return transcript;
@@ -361,7 +365,7 @@ Transcript _endToolCall(Transcript transcript, String toolCallId) {
 /// message, for the same call — is not appended again: a resumed run's input
 /// re-sends the results its events carried. Any other result for a call with
 /// none pending is skipped and logged: pydantic-ai rejects a history whose
-/// result precedes its call, and a call answered twice is not one it made.
+/// result precedes its call.
 Transcript appendToolResult(Transcript transcript, ToolMessage result) {
   final toolCallId = result.toolCallId;
   if (!transcript.unansweredToolCallIds.contains(toolCallId)) {

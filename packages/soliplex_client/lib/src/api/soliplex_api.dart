@@ -56,8 +56,9 @@ typedef _RunUserMessage = ({
 });
 
 /// What a run's GET yielded: the AG-UI events the backend streamed, plus the
-/// user message that initiated the run and the tool results that end its
-/// input, which those events do not always carry.
+/// user message that initiated the run, which those events never carry, and
+/// the tool results that end its input, which they carry only for server
+/// tools.
 ///
 /// `events` is `List<Object?>` rather than `List<dynamic>` deliberately. Items
 /// must survive shape drift as *data* — the replay loop mints a drop tile for
@@ -1094,7 +1095,7 @@ class SoliplexApi {
         _logger.warning(
           'replay: run $runId in thread $threadId has `run_input` as '
           '${runInput.runtimeType}, not an object; its user message and tool '
-          'results are lost, and with them the citations for that turn.',
+          'results are lost, and with the message the citations for that turn.',
         );
       }
       return null;
@@ -1106,7 +1107,7 @@ class SoliplexApi {
         _logger.warning(
           'replay: run $runId in thread $threadId has `run_input.messages` as '
           '${rawMessages.runtimeType}, not a list; its user message and tool '
-          'results are lost, and with them the citations for that turn.',
+          'results are lost, and with the message the citations for that turn.',
         );
       }
       return null;
@@ -1161,10 +1162,10 @@ class SoliplexApi {
   /// Each is read whole, as the backend's own client keeps a stored message,
   /// so an `error` or `encryptedValue` another client recorded goes back too.
   ///
-  /// Every input repeats the thread's earlier results ahead of these, and a
-  /// server that numbers its calls per response reuses ids, so a repeated
-  /// result could otherwise land on a later call. An input that ends with the
-  /// user's message supplies none.
+  /// Only the tail is read: every input repeats the thread's earlier results,
+  /// and a server that numbers its calls per response reuses ids, so an
+  /// earlier result would answer a later call that reuses its id. An input
+  /// that ends with the user's message supplies none.
   ///
   /// A malformed `run_input` or `messages` is already reported by
   /// [_extractUserMessage], so it reads here as no results.
@@ -1193,7 +1194,7 @@ class SoliplexApi {
       } on AGUIValidationError {
         _logger.warning(
           'replay: a tool message in the input of run $runId in thread '
-          '$threadId lacks a string id, toolCallId or content; the call it '
+          '$threadId could not be read as a tool message; the call it '
           'answers keeps no result from it.',
         );
       }
@@ -1464,13 +1465,13 @@ class SoliplexApi {
             'message ${userMessage.messageId}; not appending it twice.',
           );
         } else {
-          // Same id, different message: one of the two turns is now missing
-          // from the timeline and the history it sends, and its citations are
-          // keyed onto the other.
+          // Same id, different message: one of the two turns is missing from
+          // the timeline and the history sent, and its citations are keyed
+          // onto the other.
           _logger.error(
             'replay: run $runId in thread $threadId reuses message id '
             '${userMessage.messageId} for different text; the user message of '
-            'this run is dropped from the timeline and its history.',
+            'this run is dropped from the timeline and the history sent.',
           );
         }
       }
