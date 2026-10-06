@@ -7893,6 +7893,27 @@ void main() {
           'tool c RC',
         ]);
       });
+
+      test('replays a run whose input has no messages', () async {
+        stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
+        stubRun(
+          'run-1',
+          runInput: {'state': <String, dynamic>{}},
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': 'a1', 'role': 'assistant'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': 'a1'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-1'}),
+          ],
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), ['assistant a1 []']);
+      });
     });
   });
 }

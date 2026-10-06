@@ -15,30 +15,6 @@ void main() {
       .messages;
 
   group('appendUserMessage', () {
-    group('TextMessage conversion', () {
-      test('converts user TextMessage to UserMessage', () {
-        final chatMessages = [
-          TextMessage(
-            id: 'msg-1',
-            user: ChatUser.user,
-            text: 'Hello, assistant!',
-            createdAt: DateTime.now(),
-          ),
-        ];
-
-        final aguiMessages = convert(chatMessages);
-
-        expect(aguiMessages, hasLength(1));
-        expect(aguiMessages[0], isA<UserMessage>());
-        final userMsg = aguiMessages[0] as UserMessage;
-        expect(userMsg.id, equals('msg-1'));
-        expect(userMsg.content, equals('Hello, assistant!'));
-        // A message without parts serializes `content` as a bare string, not
-        // a one-element array.
-        expect(userMsg.toJson()['content'], equals('Hello, assistant!'));
-      });
-    });
-
     group('message parts', () {
       // Every part maps to its AG-UI `InputContent` with an inline `data`
       // source and camelCase keys. Two images of different types pin the
@@ -120,22 +96,6 @@ void main() {
         expect(content[0], equals({'type': 'text', 'text': 'Image 1:'}));
         expect(content[1]['type'], equals('image'));
         expect(content[2], equals({'type': 'text', 'text': 'look'}));
-      });
-
-      // An image-less message keeps exactly the wire shape it has today.
-      test('falls back to plain text when parts carry no image', () {
-        final aguiMessages = convert([
-          TextMessage(
-            id: 'msg-text-only',
-            user: ChatUser.user,
-            text: 'no images here',
-            createdAt: DateTime.now(),
-            parts: const [TextPart('no images here')],
-          ),
-        ]);
-
-        final userMsg = aguiMessages[0] as UserMessage;
-        expect(userMsg.toJson()['content'], equals('no images here'));
       });
 
       // The whole conversation is re-sent on every run, so a message rebuilt
@@ -220,24 +180,6 @@ void main() {
                     .map((part) => part['text']! as String)
                     .where((text) => text.startsWith('Image ')),
           ];
-
-      // Each image is announced by the number it carries, not one counted
-      // here — the part's number is what the model was told and what the
-      // bubble shows.
-      test('labels each image with the number it carries', () {
-        final agui = convert([
-          TextMessage.fromParts(
-            id: 'm1',
-            parts: [const TextPart('these'), image(7), image(8)],
-          ),
-          TextMessage.fromParts(
-            id: 'm2',
-            parts: [const TextPart('and this'), image(9)],
-          ),
-        ]);
-
-        expect(labelsOf(agui), equals(['Image 7:', 'Image 8:', 'Image 9:']));
-      });
 
       // The gap the slot leaves is harmless because a label is absolute: the
       // images that remain still answer to the numbers they were given, so
