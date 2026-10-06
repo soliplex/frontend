@@ -333,7 +333,34 @@ void main() {
         expect(logs().single.attributes, {'toolCallId': 'c9'});
       });
 
-      test('for a message is dropped', () {
+      test('for a tool result goes out with that result', () {
+        // pydantic-ai marks a failed result this way, right after it.
+        const outcome = '{"pydantic_ai":{"outcome":"failed"}}';
+        final t = _apply(const [
+          TextMessageStartEvent(messageId: 'p'),
+          ToolCallStartEvent(
+            toolCallId: 'c1',
+            toolCallName: 'search',
+            parentMessageId: 'p',
+          ),
+          ToolCallEndEvent(toolCallId: 'c1'),
+          ToolCallResultEvent(
+            messageId: 'r1',
+            toolCallId: 'c1',
+            content: 'Search failed',
+          ),
+          ReasoningEncryptedValueEvent(
+            subtype: ReasoningEncryptedValueSubtype.message,
+            entityId: 'r1',
+            encryptedValue: outcome,
+          ),
+        ]);
+
+        expect((t.messages.last as ToolMessage).encryptedValue, outcome);
+        expect(logs(), isEmpty);
+      });
+
+      test('for any other message is dropped', () {
         final before = _apply(const [TextMessageStartEvent(messageId: 'm1')]);
 
         final after = applyTranscriptEvent(

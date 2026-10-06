@@ -9,8 +9,8 @@ final Logger _defaultLogger =
 /// Folds one AG-UI [event] into [transcript], building the history to send as
 /// the backend's own client (`soliplex.agui.parser.EventStreamParser`) does,
 /// except that a call naming no parent joins the preceding assistant message,
-/// a tool call's encrypted value travels with it, a call takes one result, and
-/// a messages snapshot is ignored.
+/// an encrypted value travels with the tool call or result it names, a call
+/// takes one result, and a messages snapshot is ignored.
 ///
 /// Where that parser raises, this logs without the event's content and
 /// carries on, so one bad event does not cost the thread its history. Such an
@@ -98,13 +98,14 @@ Transcript applyTranscriptEvent(
   };
 }
 
-/// A tool call's value goes out with the call: pydantic-ai records in it a
-/// call's kind (a capability load, for one), which the call alone does not
-/// reveal. It arrives right after the call's start, so a value for a call no
-/// longer open is dropped. A message's is dropped too: it anchors reasoning,
-/// which this client does not send
-/// (github.com/soliplex/frontend/issues/117), or a tool result's non-success
-/// outcome, which is not sent yet.
+/// A value goes out with what it names. A tool call's records the call's kind
+/// (a capability load, for one), which the call alone does not reveal; it
+/// arrives right after the call's start, so one for a call no longer open is
+/// dropped. A tool result's records a non-success outcome, without which
+/// pydantic-ai reads the result back as a success and sends it to the
+/// provider as one; it arrives right after the result. A value naming any
+/// other message is dropped: it anchors reasoning, which this client does not
+/// send (github.com/soliplex/frontend/issues/117).
 Transcript _setEncryptedValue(
   Transcript transcript,
   ReasoningEncryptedValueEvent event,
@@ -112,11 +113,20 @@ Transcript _setEncryptedValue(
 ) {
   switch (event.subtype) {
     case ReasoningEncryptedValueSubtype.message:
-      log.warning(
-        'Transcript dropped an encrypted value for a message',
-        attributes: {'entityId': event.entityId},
+      final index = _indexOf(transcript, event.entityId);
+      final message = index < 0 ? null : transcript.messages[index];
+      if (message is! ToolMessage) {
+        log.warning(
+          'Transcript dropped an encrypted value for a message',
+          attributes: {'entityId': event.entityId},
+        );
+        return transcript;
+      }
+      return _replacedAt(
+        transcript,
+        index,
+        message.copyWith(encryptedValue: event.encryptedValue),
       );
-      return transcript;
     case ReasoningEncryptedValueSubtype.toolCall:
       final open = transcript.openToolCalls[event.entityId];
       if (open == null) {
