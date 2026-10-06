@@ -8,9 +8,14 @@ final Logger _logger =
 
 /// Folds one AG-UI [event] into [transcript], building the history to send as
 /// the backend's own client (`soliplex.agui.parser.EventStreamParser`) does,
-/// except that a call naming no parent joins the preceding assistant message,
-/// an encrypted value travels with the tool call or result it names, a call
-/// takes one result, and a messages snapshot is ignored.
+/// except that:
+/// - a call naming no parent joins the last message when that is an
+///   assistant message, else one opened for it;
+/// - an encrypted value travels with the tool call or result it names;
+/// - a call takes one result;
+/// - a messages snapshot is ignored;
+/// - an activity delta using `move`, `copy` or `test` is skipped, as those
+///   operations are not applied here.
 ///
 /// Where that parser raises, this logs without the event's content and
 /// carries on, so one bad event does not cost the thread its history. Such an
@@ -198,6 +203,15 @@ Transcript _applyActivityDelta(
     event.patch,
     logger: _logger,
   );
+  if (!patched.complete) {
+    // Whole or not at all, as the backend's parser applies a patch: sending
+    // part of one would send content its producer never had.
+    _logger.warning(
+      'Transcript skipped an activity delta it could not apply whole',
+      attributes: {'messageId': event.messageId},
+    );
+    return transcript;
+  }
   final activity = ActivityMessage(
     id: event.messageId,
     activityType: event.activityType,

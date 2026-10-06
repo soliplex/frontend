@@ -444,6 +444,28 @@ void main() {
         expect(_describe(t), ['activity a1 progress {step: 2, total: 3}']);
       });
 
+      test('a delta it cannot apply whole is skipped', () {
+        // The backend's parser applies a patch whole or raises.
+        final t = _apply(const [
+          ActivitySnapshotEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            content: {'step': 1},
+          ),
+          ActivityDeltaEvent(
+            messageId: 'a1',
+            activityType: 'progress',
+            patch: [
+              {'op': 'replace', 'path': '/step', 'value': 2},
+              {'op': 'move', 'from': '/step', 'path': '/done'},
+            ],
+          ),
+        ]);
+
+        expect(_describe(t), ['activity a1 progress {step: 1}']);
+        expect(logs().last.attributes, {'messageId': 'a1'});
+      });
+
       test('a delta for a message that is not an activity is skipped', () {
         final t = _apply(const [
           TextMessageStartEvent(messageId: 'm1'),
