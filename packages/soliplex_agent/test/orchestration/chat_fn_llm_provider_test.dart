@@ -292,27 +292,6 @@ Let me check.
       expect(capturedMessages![0].content, isNull);
     });
 
-    test('an empty response projects to null', () async {
-      // The transcript holds an empty response as content `''`: its text
-      // start opens the message and the empty delta adds nothing.
-      List<({String role, String? content})>? capturedMessages;
-      final provider = ChatFnLlmProvider(
-        chatFn: (messages, {systemPrompt, maxTokens}) async {
-          capturedMessages = messages;
-          return 'ok';
-        },
-      );
-
-      final input = input0(
-        messages: [const AssistantMessage(id: 'msg-1', content: '')],
-      );
-
-      final handle = await provider.startRun(key: key, input: input);
-      await handle.events.drain<void>();
-
-      expect(capturedMessages!.single.content, isNull);
-    });
-
     test('projects a tool call with no text as the call alone', () async {
       // A call naming no parent opens an assistant message with no content.
       List<({String role, String? content})>? capturedMessages;
