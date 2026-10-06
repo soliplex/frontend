@@ -4118,10 +4118,11 @@ void main() {
   });
 
   group('history sent', () {
-    test('a resume sends the result after the text that followed its call',
-        () async {
-      // One response: a client tool call, then text. The result must follow
-      // the text, as the events ordered them.
+    // One response: a client tool call, then text. Runs it, has the call
+    // answered by [execute], and describes the history the resume sent.
+    Future<List<String>> resumedHistory(
+      ToolCallInfo Function(ToolCallInfo) execute,
+    ) async {
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
           api: api,
@@ -4172,10 +4173,8 @@ void main() {
       await orchestrator.runToCompletion(
         key: _key,
         userMessage: [const TextPart('Weather?')],
-        toolExecutor: (pending) async => [
-          for (final tc in pending)
-            tc.copyWith(status: ToolCallStatus.completed, result: 'Sunny'),
-        ],
+        toolExecutor: (pending) async =>
+            [for (final tc in pending) execute(tc)],
       );
 
       final captured = verify(
@@ -4188,19 +4187,38 @@ void main() {
         ),
       ).captured;
       final resumed = (captured[1]! as SimpleRunAgentInput).messages!;
+      return [
+        for (final m in resumed)
+          switch (m) {
+            UserMessage() => 'user',
+            AssistantMessage(:final id, :final toolCalls) =>
+              '$id:${toolCalls?.length ?? 0}',
+            ToolMessage(:final toolCallId, :final content) =>
+              '$toolCallId=$content',
+            _ => m.runtimeType.toString(),
+          },
+      ];
+    }
+
+    test('a resume sends the result after the text that followed its call',
+        () async {
+      // The result follows the text, as the events ordered them.
       expect(
-        [
-          for (final m in resumed)
-            switch (m) {
-              UserMessage() => 'user',
-              AssistantMessage(:final id, :final toolCalls) =>
-                '$id:${toolCalls?.length ?? 0}',
-              ToolMessage(:final toolCallId, :final content) =>
-                '$toolCallId=$content',
-              _ => m.runtimeType.toString(),
-            },
-        ],
+        await resumedHistory(
+          (tc) =>
+              tc.copyWith(status: ToolCallStatus.completed, result: 'Sunny'),
+        ),
         ['user', 'p:1', 't:0', 'call_0=Sunny'],
+      );
+    });
+
+    test('a resume sends a failed call its error, so the model can respond',
+        () async {
+      expect(
+        await resumedHistory(
+          (tc) => tc.copyWith(status: ToolCallStatus.failed, result: 'Offline'),
+        ),
+        ['user', 'p:1', 't:0', 'call_0=Offline'],
       );
     });
   });

@@ -450,6 +450,20 @@ void main() {
         expect(logs().single.attributes, {'messageId': 'a1'});
       });
 
+      test('a snapshot for a message that is not an activity is skipped', () {
+        final t = _apply(const [
+          TextMessageStartEvent(messageId: 'm1'),
+          ActivitySnapshotEvent(
+            messageId: 'm1',
+            activityType: 'progress',
+            content: {'step': 1},
+          ),
+        ]);
+
+        expect(_describe(t), ['assistant m1 ""']);
+        expect(logs().single.attributes, {'messageId': 'm1'});
+      });
+
       test('is patched by a delta', () {
         final t = _apply(const [
           ActivitySnapshotEvent(
