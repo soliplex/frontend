@@ -22,13 +22,11 @@ class Transcript {
         openToolCalls = const {},
         unansweredToolCallIds = const {};
 
-  Transcript._(
-    List<Message> messages,
-    Map<String, OpenToolCall> openToolCalls,
-    Set<String> unansweredToolCallIds,
-  )   : messages = UnmodifiableListView(messages),
-        openToolCalls = UnmodifiableMapView(openToolCalls),
-        unansweredToolCallIds = UnmodifiableSetView(unansweredToolCallIds);
+  const Transcript._(
+    this.messages,
+    this.openToolCalls,
+    this.unansweredToolCallIds,
+  );
 
   /// The messages to send.
   final List<Message> messages;
@@ -48,7 +46,9 @@ class Transcript {
   Transcript withAppendedMessage(Message message) =>
       copyWith(messages: [...messages, message]);
 
-  /// Creates a copy with the given fields replaced.
+  /// Creates a copy with the given fields replaced. Only a replaced field is
+  /// wrapped unmodifiable: wrapping a kept one again would nest a view per
+  /// change, and a long thread would exhaust the stack reading through them.
   @internal
   Transcript copyWith({
     List<Message>? messages,
@@ -56,8 +56,12 @@ class Transcript {
     Set<String>? unansweredToolCallIds,
   }) =>
       Transcript._(
-        messages ?? this.messages,
-        openToolCalls ?? this.openToolCalls,
-        unansweredToolCallIds ?? this.unansweredToolCallIds,
+        messages == null ? this.messages : UnmodifiableListView(messages),
+        openToolCalls == null
+            ? this.openToolCalls
+            : UnmodifiableMapView(openToolCalls),
+        unansweredToolCallIds == null
+            ? this.unansweredToolCallIds
+            : UnmodifiableSetView(unansweredToolCallIds),
       );
 }
