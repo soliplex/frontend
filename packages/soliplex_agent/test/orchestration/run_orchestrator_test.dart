@@ -4223,9 +4223,8 @@ void main() {
     });
   });
 
-  group('a run that does not finish keeps only what it was sent', () {
-    // What streamed before the run was cut off: a search and its result,
-    // without the closing state snapshot that would record the search.
+  group('a run that does not finish', () {
+    // What streamed before the run ended: a search and its result.
     final searched = <BaseEvent>[
       RunStartedEvent(threadId: 'thread-1', runId: _runId),
       const TextMessageStartEvent(messageId: 'p'),
@@ -4281,14 +4280,15 @@ void main() {
           _ => fail('expected a run that did not finish, got $state'),
         };
 
-    test('a stopped run', () async {
+    // Cut off before the state snapshot that would record the search.
+    test('keeps only what it was sent when stopped', () async {
       final (state, sent) = await endRun((_) => orchestrator.cancelRun());
 
       expect(state, isA<CancelledState>());
       expect(transcriptOf(state), sent);
     });
 
-    test('a run whose stream broke off', () async {
+    test('keeps only what it was sent when its stream broke off', () async {
       final (state, sent) = await endRun(
         (c) => c.addError(const NetworkException(message: 'connection reset')),
       );
@@ -4297,13 +4297,33 @@ void main() {
       expect(transcriptOf(state), sent);
     });
 
-    test('a run the backend ended with an error', () async {
+    // The backend sends the run's state snapshot before its error, so the
+    // state records the search.
+    test('keeps what it streamed when the backend ended it with an error',
+        () async {
       final (state, sent) = await endRun(
-        (c) => c.add(const RunErrorEvent(message: 'provider failed')),
+        (c) => c
+          ..add(
+            const StateSnapshotEvent(
+              snapshot: {
+                'rag': {
+                  'evidence': {
+                    'question': 1,
+                    'in_progress': true,
+                    'latest_evidence_epoch': 1,
+                  },
+                },
+              },
+            ),
+          )
+          ..add(const RunErrorEvent(message: 'provider failed')),
       );
 
       expect(state, isA<FailedState>());
-      expect(transcriptOf(state), sent);
+      expect(
+        transcriptOf(state).map((m) => m.id),
+        [...sent.map((m) => m.id), 'p', 'r'],
+      );
     });
   });
 }

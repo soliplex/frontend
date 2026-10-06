@@ -96,10 +96,11 @@ class ThreadHistory {
 
   /// The AG-UI history the thread's next send carries.
   ///
-  /// A run that did not finish adds only what it was sent; a finished one adds
-  /// what it streamed too. Rebuilt from the backend, a stopped run counts as
-  /// finished, because the backend finishes it and stores the rest of it;
-  /// captured from the session that stopped it, it does not.
+  /// A run cut off before its terminal event adds only what it was sent; one
+  /// that ended with `RUN_FINISHED` or `RUN_ERROR` adds what it streamed too.
+  /// Rebuilt from the backend, a stopped run ended with `RUN_FINISHED`,
+  /// because the backend finishes it and stores the rest of it; captured from
+  /// the session that stopped it, it was cut off.
   final Transcript transcript;
 }
 

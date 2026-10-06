@@ -1495,9 +1495,10 @@ class SoliplexApi {
         );
       }
 
-      // What the run was sent, which is all it adds to the history when it did
-      // not finish: its state snapshot, which accounts for what it streamed,
-      // comes only with `RUN_FINISHED`, as the live send keeps what it sent.
+      // What the run was sent, which is all it adds to the history when it was
+      // stored without a terminal event: its state snapshot, which accounts
+      // for what it streamed, comes just before `RUN_FINISHED` or `RUN_ERROR`,
+      // as the live send keeps what it sent.
       final sentTranscript = conversation.transcript;
 
       // Per-event try/catch so one bad event can't abort replay.
@@ -1650,7 +1651,8 @@ class SoliplexApi {
         streaming = const AwaitingText();
       }
 
-      if (!decodedEvents.any((e) => e is RunFinishedEvent)) {
+      if (!decodedEvents
+          .any((e) => e is RunFinishedEvent || e is RunErrorEvent)) {
         conversation = conversation.copyWith(transcript: sentTranscript);
       }
 
