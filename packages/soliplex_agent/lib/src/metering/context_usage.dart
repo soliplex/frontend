@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 
 /// The window size at and above which the later warning applies.
-const largeContextWindow = 128000;
+const _largeContextWindow = 128000;
 
 /// A reading of how much context a thread currently occupies.
 ///
@@ -85,9 +85,6 @@ class ContextUsage {
     return window == null || window <= 0 ? null : window;
   }
 
-  /// Whether the reading should be presented with a caveat.
-  bool get isApproximate => !isExact;
-
   /// The occupancy past which a window is worth warning about.
   ///
   /// A small window warns earlier, because the same percentage leaves
@@ -98,16 +95,16 @@ class ContextUsage {
   ///
   /// Null when no window is declared, because there is then no
   /// occupancy to compare against.
-  double? get warningThreshold {
+  double? get _warningThreshold {
     final window = _usableWindow;
     if (window == null) return null;
-    return window < largeContextWindow ? 0.80 : 0.85;
+    return window < _largeContextWindow ? 0.80 : 0.85;
   }
 
   /// Whether the thread is close enough to full to say so unprompted.
   bool get isNearlyFull {
     final fraction = fractionUsed;
-    final threshold = warningThreshold;
+    final threshold = _warningThreshold;
     if (fraction == null || threshold == null) return false;
     return fraction >= threshold;
   }
@@ -115,7 +112,7 @@ class ContextUsage {
   /// The occupancy at which the window is about to stop holding the
   /// conversation, whatever its size.
   ///
-  /// Flat where [warningThreshold] scales, because the two answer
+  /// Flat where the warning threshold scales, because the two answer
   /// different questions. A warning arrives while there is still room to
   /// act, and how much room a fraction leaves depends on the window. This
   /// one says almost none is left, which is the same fraction either way.

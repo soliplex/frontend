@@ -31,7 +31,7 @@ int estimateTranscriptTokens(Iterable<Message> messages) {
 ///
 /// Everything the request carries for it is counted: a tool call's name and
 /// arguments, a tool result's content and error, a pydantic-ai activity as
-/// the JSON it travels as, and each image at the flat [perImageTokens].
+/// the JSON it travels as, and each image at a flat per-image cost.
 int estimateMessageTokens(Message message) => switch (message) {
       UserMessage(:final messageContent) => switch (messageContent) {
           TextContent(:final text) => estimateDraftTokens(text),

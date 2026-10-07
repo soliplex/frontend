@@ -10,18 +10,23 @@ void main() {
   group('the warning threshold', () {
     test('is not reached without a window to be a fraction of', () {
       // No denominator, no occupancy, nothing to warn about.
-      expect(_at(999999).warningThreshold, isNull);
       expect(_at(999999).isNearlyFull, isFalse);
     });
 
     test('is not reached for a nonsensical window', () {
-      expect(_at(10, window: 0).warningThreshold, isNull);
       expect(_at(10, window: 0).isNearlyFull, isFalse);
     });
 
-    test('treats the boundary as large', () {
-      expect(_at(1, window: largeContextWindow).warningThreshold, 0.85);
-      expect(_at(1, window: largeContextWindow - 1).warningThreshold, 0.80);
+    test('is 80% below a window of 128000', () {
+      expect(_at(102400, window: 127999).isNearlyFull, isTrue);
+      expect(_at(102399, window: 127999).isNearlyFull, isFalse);
+    });
+
+    test('is 85% at a window of 128000 or more', () {
+      expect(_at(108800, window: 128000).isNearlyFull, isTrue);
+      expect(_at(108799, window: 128000).isNearlyFull, isFalse);
+      expect(_at(170000, window: 200000).isNearlyFull, isTrue);
+      expect(_at(169999, window: 200000).isNearlyFull, isFalse);
     });
   });
 
@@ -79,11 +84,12 @@ void main() {
       // The gauge asks this first, so a critical fraction below the
       // warning would paint the ring red while the banner stayed silent
       // -- the ring and the banner disagreeing, the other way round.
+      // A reading between the two is nearly full but not critical.
       for (final window in [32768, 200000]) {
-        expect(
-          ContextUsage.criticalThreshold,
-          greaterThanOrEqualTo(_at(1, window: window).warningThreshold!),
-        );
+        final between = _at((window * 0.87).round(), window: window);
+
+        expect(between.isNearlyFull, isTrue);
+        expect(between.isCritical, isFalse);
       }
     });
 

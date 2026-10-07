@@ -9,8 +9,8 @@
 /// typing into a window that is already full, so the failure this must
 /// avoid is under-counting, not over-counting. On text the over-count is
 /// a rounding error: tens of tokens against a window of tens of
-/// thousands. An image is guessed far more coarsely; see
-/// [perImageTokens].
+/// thousands. An image is guessed far more coarsely, at a flat
+/// per-image cost.
 library;
 
 /// Splits the way a BPE pre-tokenizer does: letter runs, digit runs,
@@ -33,7 +33,7 @@ const double _safetyMargin = 1.2;
 /// Tokens a message costs before any of its text: role markers and the
 /// chat template's turn delimiters. Over-stated on purpose, and small
 /// enough against a window that being generous costs nothing.
-const int perMessageOverhead = 8;
+const int _perMessageOverhead = 8;
 
 /// Tokens one image costs, as a flat stand-in for what a vision model
 /// will charge.
@@ -44,7 +44,7 @@ const int perMessageOverhead = 8;
 /// short of the largest, on the same reasoning as everything else here:
 /// reading low is the failure to avoid, and a run's own count replaces
 /// the guess as soon as one arrives.
-const int perImageTokens = 2500;
+const int _perImageTokens = 2500;
 
 /// Estimates the tokens a draft of [text] carrying [images] pictures
 /// will occupy, biased high.
@@ -54,9 +54,9 @@ const int perImageTokens = 2500;
 /// would make the gauge twitch for no reason. An image with no caption
 /// is a message someone is writing, so it carries that overhead.
 int estimateDraftTokens(String text, {int images = 0}) {
-  final pictures = images * perImageTokens;
+  final pictures = images * _perImageTokens;
   if (text.isEmpty) {
-    return pictures == 0 ? 0 : pictures + perMessageOverhead;
+    return pictures == 0 ? 0 : pictures + _perMessageOverhead;
   }
 
   var pieces = 0;
@@ -90,5 +90,5 @@ int estimateDraftTokens(String text, {int images = 0}) {
 
   final base = (pieces * _safetyMargin).ceil() + longRunPenalty;
 
-  return base + wideChars + pictures + perMessageOverhead;
+  return base + wideChars + pictures + _perMessageOverhead;
 }

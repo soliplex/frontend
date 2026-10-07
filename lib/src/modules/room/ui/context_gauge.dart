@@ -88,7 +88,7 @@ class ContextGauge extends StatelessWidget {
 
   String get _tooltip {
     final fraction = usage.fractionUsed;
-    final approx = usage.isApproximate ? '~' : '';
+    final approx = usage.isExact ? '' : '~';
     if (fraction != null) {
       return '$approx${(fraction * 100).round()}% of context used';
     }
