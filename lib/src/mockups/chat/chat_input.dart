@@ -1,5 +1,5 @@
-// A COPY of lib/src/modules/room/ui/chat_input.dart for the mockup harness,
-// with the context ring from feat/server-measured-context applied.
+// A copy of lib/src/modules/room/ui/chat_input.dart for the mockup harness,
+// with the context ring in the composer.
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

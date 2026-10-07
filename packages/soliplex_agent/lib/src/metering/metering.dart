@@ -4,7 +4,8 @@
 /// see the whole request: the agent's instructions, capability
 /// instructions, tool and MCP schemas, the chat template, and any
 /// evidence compaction applied on the way out. What lives here is the
-/// shape a reading arrives in, not the arithmetic that produced it.
+/// context reading a thread presents, and the estimators that fill in
+/// what no run has measured.
 library;
 
 export 'context_usage.dart';
