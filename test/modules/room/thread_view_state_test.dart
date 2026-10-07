@@ -1249,11 +1249,33 @@ void main() {
         expect(state.contextUsage.usage.value.estimatedTokens, 0);
       });
 
+      test('grows with its run in progress', () async {
+        final state = await open();
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        RunningState running(Conversation conversation) => RunningState(
+              threadKey: key,
+              runId: 'run-2',
+              conversation: conversation,
+              streaming: const AwaitingText(),
+            );
+        session.emit(running(asked(['q'])));
+        session.emit(running(asked(['q', 'more'])));
+
+        expect(
+          state.contextUsage.usage.value.estimatedTokens,
+          estimateTranscriptTokens(asked(['q', 'more']).transcript.messages),
+        );
+        expect(state.contextUsage.usage.value.measuredTokens, 1000);
+      });
+
       test('a run that errored keeps what it carried counted', () async {
         // D13.
         final state = await open();
         final session = _FakeAgentSession();
         state.attachSession(session);
+        api.nextRunUsage = measuredRun('run-2', 5000);
 
         session.emit(FailedState.duringRun(
           threadKey: key,
@@ -1270,6 +1292,8 @@ void main() {
           estimateTranscriptTokens(
               asked(['what was asked']).transcript.messages),
         );
+        await Future<void>.delayed(Duration.zero);
+        expect(state.contextUsage.usage.value.measuredTokens, 1000);
       });
 
       test('a stopped run keeps its message counted', () async {
@@ -1292,17 +1316,16 @@ void main() {
         expect(state.contextUsage.usage.value.measuredTokens, 1000);
       });
 
-      test('reads a run restored from the registry by its id', () async {
-        api
-          ..nextThreadHistory = ThreadHistory(messages: const [])
-          ..nextRunUsage = measuredRun('run-restored', 2400);
+      // Registers a session, drives it to its outcome, and waits one tick so
+      // the registry files that outcome; the view then restores it instead of
+      // attaching to a live session.
+      Future<ThreadViewState> restored(
+        void Function(ManualAgentSession session) finish,
+      ) async {
         final session = ManualAgentSession(key);
         registry.register(key, session);
-        session.completeAsCompleted(
-          runId: 'run-restored',
-          conversation: asked(['restored']),
-        );
-
+        finish(session);
+        await Future<void>.delayed(Duration.zero);
         final state = ThreadViewState(
           connection: connection,
           auth: auth,
@@ -1313,9 +1336,76 @@ void main() {
         );
         addTearDown(state.dispose);
         await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        return state;
+      }
+
+      ThreadHistory measuredAt1000() => ThreadHistory(
+            messages: const [],
+            latestMeasurement: MeasuredRun(
+              usage: measuredRun('run-1', 1000),
+              coveredMessages: 0,
+            ),
+          );
+
+      test('reads a run restored from the registry by its id', () async {
+        api
+          ..nextThreadHistory = ThreadHistory(messages: const [])
+          ..nextRunUsage = measuredRun('run-restored', 2400);
+
+        final state = await restored(
+          (session) => session.completeAsCompleted(
+            runId: 'run-restored',
+            conversation: asked(['restored']),
+          ),
+        );
 
         expect(state.contextUsage.usage.value.measuredTokens, 2400);
         expect(state.contextUsage.usage.value.isExact, isTrue);
+      });
+
+      test('a restored failed run keeps what it carried, unread', () async {
+        api
+          ..nextThreadHistory = measuredAt1000()
+          ..nextRunUsage = measuredRun('run-restored', 5000);
+
+        final state = await restored((session) {
+          session.emit(FailedState.duringRun(
+            threadKey: key,
+            runId: 'run-restored',
+            reason: FailureReason.networkLost,
+            error: 'connection lost',
+            conversation: asked(['restored']),
+          ));
+          session.completeWithoutTransition();
+        });
+
+        expect(state.contextUsage.usage.value.measuredTokens, 1000);
+        expect(
+          state.contextUsage.usage.value.estimatedTokens,
+          estimateTranscriptTokens(asked(['restored']).transcript.messages),
+        );
+      });
+
+      test('a restored cancelled run keeps what it carried, unread', () async {
+        api
+          ..nextThreadHistory = measuredAt1000()
+          ..nextRunUsage = measuredRun('run-restored', 5000);
+
+        final state = await restored((session) {
+          session.emit(CancelledState.duringRun(
+            threadKey: key,
+            runId: 'run-restored',
+            conversation: asked(['restored']),
+          ));
+          session.completeWithoutTransition();
+        });
+
+        expect(state.contextUsage.usage.value.measuredTokens, 1000);
+        expect(
+          state.contextUsage.usage.value.estimatedTokens,
+          estimateTranscriptTokens(asked(['restored']).transcript.messages),
+        );
       });
     });
   });

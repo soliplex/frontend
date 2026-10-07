@@ -1858,8 +1858,9 @@ class SoliplexApi {
       databaseSources: databaseSources,
       storedStateWarnings: storedStateWarnings,
       transcript: conversation.transcript,
-      // A measured run replay never reached is placed at the end, which is
-      // what the count meant before the history said where it ended.
+      // Replay never reached the measured run, so where it ended is unknown;
+      // it is taken to cover the whole transcript, which estimates nothing
+      // it may already count.
       latestMeasurement: latestUsage == null
           ? null
           : MeasuredRun(

@@ -237,9 +237,10 @@ class ContextUsageController {
   /// pending estimate — a send clears the composer, and an estimate landing
   /// after that would count the sent message a second time.
   void draftChanged(String draft, {int images = 0}) {
+    if (_disposed) return;
     if (draft.isEmpty && images == 0) {
       _draftDebounce.cancel();
-      if (!_disposed) _draftTokens.value = 0;
+      _draftTokens.value = 0;
       return;
     }
     _draftDebounce.run(() {
