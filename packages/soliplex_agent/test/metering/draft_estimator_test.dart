@@ -12,8 +12,8 @@ void main() {
     test('a short draft costs its overhead plus a little', () {
       final found = estimateDraftTokens('hello');
 
-      expect(found, greaterThan(perMessageOverhead));
-      expect(found, lessThan(perMessageOverhead + 5));
+      expect(found, greaterThan(8));
+      expect(found, lessThan(8 + 5));
     });
 
     test('reads high on English prose rather than low', () {
@@ -61,8 +61,12 @@ void main() {
       expect(
         estimateDraftTokens(draft, images: 2) -
             estimateDraftTokens(draft, images: 1),
-        perImageTokens,
+        2500,
       );
+    });
+
+    test('an image alone costs its flat price plus the message overhead', () {
+      expect(estimateDraftTokens('', images: 1), 2500 + 8);
     });
 
     test('charges long runs more than one token', () {
