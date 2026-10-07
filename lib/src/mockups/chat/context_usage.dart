@@ -1,5 +1,5 @@
-// A copy of packages/soliplex_agent/lib/src/metering/context_usage.dart for
-// the mockup harness.
+// Derived from packages/soliplex_agent/lib/src/metering/context_usage.dart for
+// the mockup harness; it keeps its own thresholds and a share breakdown.
 
 import 'package:flutter/foundation.dart' show immutable;
 

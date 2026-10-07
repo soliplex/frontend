@@ -1397,10 +1397,10 @@ class SoliplexApi {
   ///
   /// A record that is not an object, whose count is not an integer, or whose
   /// run has no `run_id` ends the walk instead of continuing it. The
-  /// thread's messages must not fail to load over an indicator, but the run
-  /// before it is a different exchange — reporting its count
-  /// here would present a stale number as the current one, and as an
-  /// exact one.
+  /// thread's messages must not fail to load over an indicator, but an
+  /// unreadable record may hold the newest count, and nothing tells it apart
+  /// from a run that measured nothing. So the walk stops rather than present
+  /// an older count as the one that stands.
   RunUsage? _extractLatestUsage(Map<String, dynamic> runs) {
     for (final entry in _sortRunsByCreationTime(runs).reversed) {
       final value = entry.value;

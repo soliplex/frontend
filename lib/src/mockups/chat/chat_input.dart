@@ -1,5 +1,6 @@
-// A copy of lib/src/modules/room/ui/chat_input.dart for the mockup harness,
-// with the context ring in the composer.
+// Derived from lib/src/modules/room/ui/chat_input.dart for the mockup harness;
+// it adds the context ring and a thread-panel opener, and has no database
+// filter chips.
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
