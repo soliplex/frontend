@@ -77,5 +77,58 @@ void main() {
 
       expect(many, greaterThan(one + 5));
     });
+
+    group('exact estimates', () {
+      // total = ceil(pieces * 1.2) + longRunPenalty + wideChars + images * 2500
+      //         + 8, where a piece is a letter, digit or punctuation run with
+      //         its leading space, a run over 6 characters adds
+      //         (length - 6) ~/ 6, and every code unit past U+024F adds 1.
+
+      test('plain English: nine pieces, margin 1.2', () {
+        // 'The', ' quick', ' brown', ' fox', ' jumps', ' over', ' the',
+        // ' lazy', ' dog': 9 pieces, none over 6 characters.
+        // ceil(9 * 1.2) = ceil(10.8) = 11, plus the overhead of 8.
+        expect(
+          estimateDraftTokens('The quick brown fox jumps over the lazy dog'),
+          11 + 8,
+        );
+      });
+
+      test('a long run adds one token per six characters past six', () {
+        // One piece each, so ceil(1.2) = 2 plus the overhead of 8.
+        expect(estimateDraftTokens('a' * 6), 2 + 0 + 8);
+        expect(estimateDraftTokens('a' * 11), 2 + (11 - 6) ~/ 6 + 8);
+        expect(estimateDraftTokens('a' * 12), 2 + (12 - 6) ~/ 6 + 8);
+        expect(estimateDraftTokens('a' * 60), 2 + (60 - 6) ~/ 6 + 8);
+      });
+
+      test('CJK charges every character again', () {
+        // Eight Han characters are one piece of length 8: ceil(1.2) = 2,
+        // penalty (8 - 6) ~/ 6 = 0, eight code units past U+024F, plus 8.
+        expect(estimateDraftTokens('这是一段中文文本'), 2 + 0 + 8 + 8);
+      });
+
+      test('the extra charge starts just past Latin Extended-B', () {
+        // One letter is one piece: ceil(1.2) = 2, plus the overhead of 8,
+        // plus 1 only for a code unit above U+024F.
+        expect(estimateDraftTokens('\u00E9'), 2 + 8);
+        expect(estimateDraftTokens('\u024F'), 2 + 8);
+        expect(estimateDraftTokens('\u0250'), 2 + 1 + 8);
+      });
+
+      test('an astral character is charged for both of its code units', () {
+        // One punctuation-class piece: ceil(1.2) = 2, two surrogate units,
+        // plus 8.
+        expect(estimateDraftTokens('\u{1F600}'), 2 + 2 + 8);
+      });
+
+      test('a caption and an image add up', () {
+        // 'what', ' is', ' this', '?': 4 pieces, ceil(4.8) = 5.
+        expect(
+          estimateDraftTokens('what is this?', images: 1),
+          5 + 2500 + 8,
+        );
+      });
+    });
   });
 }

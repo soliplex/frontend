@@ -17,6 +17,11 @@ void main() {
       expect(_at(10, window: 0).isNearlyFull, isFalse);
     });
 
+    test('gives no fraction for a negative window', () {
+      expect(_at(10, window: -1).fractionUsed, isNull);
+      expect(_at(10, window: -1).isNearlyFull, isFalse);
+    });
+
     test('is 80% below a window of 128000', () {
       expect(_at(102400, window: 127999).isNearlyFull, isTrue);
       expect(_at(102399, window: 127999).isNearlyFull, isFalse);
@@ -91,6 +96,11 @@ void main() {
         expect(between.isNearlyFull, isTrue);
         expect(between.isCritical, isFalse);
       }
+    });
+
+    test('is reached at exactly 90% and not a token before', () {
+      expect(_at(9000, window: 10000).isCritical, isTrue);
+      expect(_at(8999, window: 10000).isCritical, isFalse);
     });
 
     test('is false with no window to run out of', () {
