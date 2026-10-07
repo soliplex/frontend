@@ -522,10 +522,6 @@ void main() {
         latestMeasurement: MeasuredRun(
           usage: RunUsage(
             runId: 'run-1',
-            inputTokens: tokens,
-            outputTokens: 1,
-            requests: 1,
-            toolCalls: 0,
             finalInputTokens: tokens,
           ),
           coveredMessages: 0,
@@ -571,10 +567,6 @@ void main() {
       measure(window: 32768, tokens: 1);
       api.nextRunUsage = RunUsage(
         runId: 'run-restored',
-        inputTokens: 27000,
-        outputTokens: 1,
-        requests: 1,
-        toolCalls: 0,
         finalInputTokens: 27000,
       );
       final key = (

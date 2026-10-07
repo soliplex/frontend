@@ -584,29 +584,16 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
 ///
 /// The run id is not on the usage record: it is nested under its run in
 /// the thread listing, and addressed by run in the usage endpoint, so the
-/// caller always knows it. `final_input_tokens`, `resolved_model_name`
-/// and `final_output_tokens` are nullable on the wire and absent from a
-/// backend that predates them.
+/// caller always knows it. `final_input_tokens` and `final_output_tokens`
+/// are nullable on the wire and absent from a backend that predates them.
 RunUsage runUsageFromJson(String runId, Map<String, dynamic> json) {
   return RunUsage(
     runId: runId,
-    inputTokens: _requireInt(json, 'input_tokens', 'usage'),
-    outputTokens: _requireInt(json, 'output_tokens', 'usage'),
-    requests: _requireInt(json, 'requests', 'usage'),
-    toolCalls: _requireInt(json, 'tool_calls', 'usage'),
     finalInputTokens:
         intOrNull(json['final_input_tokens'], 'final_input_tokens'),
-    resolvedModelName:
-        stringOrNull(json['resolved_model_name'], 'resolved_model_name'),
     finalOutputTokens:
         intOrNull(json['final_output_tokens'], 'final_output_tokens'),
   );
-}
-
-int _requireInt(Map<String, dynamic> json, String key, String what) {
-  final value = json[key];
-  if (value is int) return value;
-  throw FormatException('$what missing required "$key"');
 }
 
 // ============================================================

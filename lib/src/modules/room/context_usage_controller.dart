@@ -106,7 +106,7 @@ class ContextUsageController {
   void historyLoaded(ThreadHistory history) {
     if (_disposed) return;
     final latest = history.latestMeasurement;
-    if (latest == null || !latest.usage.isMeasured) {
+    if (latest == null || latest.usage.contextTokens == null) {
       // Without this the gauge is hollow and says nothing about why: no
       // run in the thread has reported what its request cost.
       _logger.info(
@@ -194,10 +194,11 @@ class ContextUsageController {
     }
     if (_disposed) return;
 
-    if (found == null || !found.isMeasured) {
-      // `hasRecord` separates the causes: no record is the backend saying
-      // the run produced no usage, while a record without a count can be a
-      // run whose provider reported no prompt tokens.
+    if (found == null || found.contextTokens == null) {
+      // `hasRecord` separates the causes: no record is a run that errored
+      // before its first request, while a record without a count is a run
+      // the model never answered — or a body that is not the backend's
+      // record at all.
       _logger.info(
         'Run reported no measurement; the run stays estimated',
         attributes: {
@@ -252,7 +253,7 @@ class ContextUsageController {
   /// Adopts [measured] unless the one held covers more of the transcript,
   /// which makes it the newer count.
   void _adopt(MeasuredRun? measured) {
-    if (measured == null || !measured.usage.isMeasured) return;
+    if (measured == null || measured.usage.contextTokens == null) return;
     final held = _measured.value;
     if (held == measured) return;
     if (held != null && held.coveredMessages > measured.coveredMessages) {

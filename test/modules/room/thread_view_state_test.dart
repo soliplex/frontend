@@ -1047,10 +1047,6 @@ void main() {
       final conversation = Conversation(threadId: 'thread-1');
       api.nextRunUsage = RunUsage(
         runId: 'run-1',
-        inputTokens: 1,
-        outputTokens: 1,
-        requests: 1,
-        toolCalls: 0,
         finalInputTokens: 500,
       );
       fakeSession.emit(CompletedState(
@@ -1176,10 +1172,6 @@ void main() {
     group('context reading', () {
       RunUsage measuredRun(String runId, int tokens) => RunUsage(
             runId: runId,
-            inputTokens: tokens,
-            outputTokens: 1,
-            requests: 1,
-            toolCalls: 0,
             finalInputTokens: tokens,
           );
       Conversation asked(List<String> texts) => texts.fold(
@@ -1548,10 +1540,6 @@ void main() {
       state.attachSession(session);
       api.nextRunUsage = RunUsage(
         runId: 'run-7',
-        inputTokens: 700,
-        outputTokens: 1,
-        requests: 1,
-        toolCalls: 0,
         finalInputTokens: 700,
       );
       session.emit(
