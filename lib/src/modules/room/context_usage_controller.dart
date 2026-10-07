@@ -76,8 +76,8 @@ class ContextUsageController {
   late final ReadonlySignal<ContextUsage> usage = computed(
     () => ContextUsage(
       measuredTokens: _measured.value?.usage.contextTokens,
-      estimatedTokens:
-          _unmeasuredTokens.value + _sendingTokens.value + _draftTokens.value,
+      estimatedTokens: _unmeasuredTokens.value + _sendingTokens.value,
+      draftTokens: _draftTokens.value,
       contextWindow: _contextWindow.value,
     ),
   );
