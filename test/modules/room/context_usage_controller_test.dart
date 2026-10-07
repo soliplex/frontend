@@ -293,7 +293,7 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 400));
 
-      expect(controller.usage.value.estimatedTokens, 0);
+      expect(controller.usage.value.draftTokens, 0);
     });
 
     test('counts the draft once typing pauses', () async {
@@ -303,8 +303,9 @@ void main() {
         ..draftChanged('a draft');
       await Future<void>.delayed(Duration.zero);
 
-      expect(controller.usage.value.estimatedTokens,
-          estimateDraftTokens('a draft'));
+      expect(
+          controller.usage.value.draftTokens, estimateDraftTokens('a draft'));
+      expect(controller.usage.value.estimatedTokens, 0);
     });
   });
 

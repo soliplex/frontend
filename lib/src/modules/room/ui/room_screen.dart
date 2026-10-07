@@ -2635,7 +2635,15 @@ class _ContextWarningBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final percent = (usage.fractionUsed! * 100).round();
+    // The conversation alone past the threshold is the thread's problem;
+    // a draft carrying it over is the message's, and shortening it is
+    // enough.
+    final conversation = usage.withoutDraft;
+    final text = conversation.isNearlyFull
+        ? 'This conversation is using '
+            '${(conversation.fractionUsed! * 100).round()}% of the '
+            'model\'s context. Starting a new thread keeps answers complete.'
+        : 'This message may not fit in the remaining context.';
 
     return Container(
       width: double.infinity,
@@ -2652,8 +2660,7 @@ class _ContextWarningBanner extends StatelessWidget {
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
-              '$percent% of the context window is in use. Older messages '
-              'may start dropping out of the conversation.',
+              text,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: context.onWarningContainer,
               ),

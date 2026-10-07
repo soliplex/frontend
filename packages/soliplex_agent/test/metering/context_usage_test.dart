@@ -91,4 +91,34 @@ void main() {
       expect(const ContextUsage(measuredTokens: 999999).isCritical, isFalse);
     });
   });
+
+  group('draft', () {
+    test('is part of the total', () {
+      const usage = ContextUsage(
+        measuredTokens: 1000,
+        estimatedTokens: 200,
+        draftTokens: 50,
+        contextWindow: 8192,
+      );
+
+      expect(usage.tokens, 1250);
+      expect(usage.isExact, isFalse);
+    });
+
+    test('is the only term withoutDraft drops', () {
+      const usage = ContextUsage(
+        measuredTokens: 1000,
+        estimatedTokens: 200,
+        draftTokens: 50,
+        contextWindow: 8192,
+      );
+
+      final conversation = usage.withoutDraft;
+
+      expect(conversation.measuredTokens, 1000);
+      expect(conversation.estimatedTokens, 200);
+      expect(conversation.draftTokens, 0);
+      expect(conversation.contextWindow, 8192);
+    });
+  });
 }

@@ -502,7 +502,8 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    const banner = 'context window is in use';
+    const banner = 'of the model\'s context';
+    const messageBanner = 'This message may not fit in the remaining context.';
 
     /// The window rides on the room; the measurement on the thread's
     /// history. Neither is fetched on its own.
@@ -547,8 +548,8 @@ void main() {
 
       expect(find.textContaining(banner), findsOneWidget);
       expect(
-          find.text('82% of the context window is in use. Older messages '
-              'may start dropping out of the conversation.'),
+          find.text('This conversation is using 82% of the model\'s context. '
+              'Starting a new thread keeps answers complete.'),
           findsOneWidget);
     });
 
@@ -670,12 +671,35 @@ void main() {
 
       await tester.enterText(composer, 'pad ' * 9000);
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.textContaining(banner), findsOneWidget);
+      expect(find.textContaining(messageBanner), findsOneWidget);
+      expect(find.textContaining(banner), findsNothing);
 
       await tester.enterText(composer, '');
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.textContaining(banner), findsNothing);
+      expect(find.textContaining(messageBanner), findsNothing);
+    });
+
+    testWidgets('names the conversation when it is full without the draft',
+        (tester) async {
+      // 27000 of 32768 is 82% before anything is typed.
+      measure(window: 32768, tokens: 27000);
+      await openThread(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 600,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+          find.text('This conversation is using 82% of the model\'s context. '
+              'Starting a new thread keeps answers complete.'),
+          findsOneWidget);
+      expect(find.textContaining(messageBanner), findsNothing);
     });
 
     testWidgets('follows the thread view after leaving the room and returning',

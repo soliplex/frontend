@@ -17,6 +17,7 @@ class ContextUsage {
   const ContextUsage({
     this.measuredTokens,
     this.estimatedTokens = 0,
+    this.draftTokens = 0,
     this.contextWindow,
   });
 
@@ -28,10 +29,15 @@ class ContextUsage {
   /// here can reconstruct.
   final int? measuredTokens;
 
-  /// Tokens guessed locally — a draft in the composer, and a message
-  /// already sent that no run has reported on — and deliberately
-  /// over-stated by the draft estimator.
+  /// Tokens of the conversation guessed locally: what the transcript holds
+  /// after the measured run, and a message sent that no transcript carries
+  /// yet. Deliberately over-stated by the estimators.
   final int estimatedTokens;
+
+  /// Tokens guessed for the draft in the composer, over-stated like
+  /// [estimatedTokens]. Kept apart because it is the one term the user can
+  /// still change before it costs anything.
+  final int draftTokens;
 
   /// The model's window, when the provider reports one.
   final int? contextWindow;
@@ -39,16 +45,24 @@ class ContextUsage {
   /// Tokens the next request is expected to carry, or null when nothing
   /// has counted this thread.
   ///
-  /// Null rather than the estimate alone: a draft is a fragment of a
+  /// Null rather than the estimates alone: they cover a fragment of a
   /// conversation nobody has measured, and showing it as the whole would
   /// read near-empty on a full thread.
   int? get tokens {
     final measured = measuredTokens;
-    return measured == null ? null : measured + estimatedTokens;
+    return measured == null ? null : measured + estimatedTokens + draftTokens;
   }
 
+  /// This reading without the draft: what the conversation alone occupies.
+  ContextUsage get withoutDraft => ContextUsage(
+        measuredTokens: measuredTokens,
+        estimatedTokens: estimatedTokens,
+        contextWindow: contextWindow,
+      );
+
   /// Whether every token in [tokens] was counted by the provider.
-  bool get isExact => measuredTokens != null && estimatedTokens == 0;
+  bool get isExact =>
+      measuredTokens != null && estimatedTokens == 0 && draftTokens == 0;
 
   /// Fraction of the window used, or null without both a count and a
   /// window to put it over.
