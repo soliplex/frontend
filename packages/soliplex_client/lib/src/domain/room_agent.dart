@@ -44,8 +44,8 @@ class DefaultRoomAgent extends RoomAgent {
   /// The model's context window in tokens, or null when nothing knows it.
   ///
   /// Fixed for the life of the backend process, so it is read once with
-  /// the room. Null must not be filled in with a guess: a gauge with an
-  /// invented denominator is worse than one showing a bare count.
+  /// the room. Null rather than a guess: a gauge with an invented
+  /// denominator is worse than one showing a bare count.
   final int? contextWindow;
 
   /// Number of retry attempts for LLM calls, or null when the backend sent

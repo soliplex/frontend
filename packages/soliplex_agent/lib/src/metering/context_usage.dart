@@ -21,7 +21,8 @@ class ContextUsage {
     this.contextWindow,
   });
 
-  /// What the provider counted for the last request it served, or null
+  /// What the provider counted for the last request it served, plus that
+  /// request's reply — the size the next request starts from — or null
   /// when no run has reported on this thread yet.
   ///
   /// Only the backend sees the whole request — instructions, tool and MCP
@@ -67,9 +68,8 @@ class ContextUsage {
   /// Fraction of the window used, or null without both a count and a
   /// window to put it over.
   ///
-  /// Null is deliberate and must not be filled in with a guess: a gauge
-  /// with an invented denominator, or an invented numerator, is worse
-  /// than one showing nothing.
+  /// Null is deliberate: a gauge with an invented denominator, or an
+  /// invented numerator, is worse than one showing nothing.
   double? get fractionUsed {
     final total = tokens;
     final window = _usableWindow;

@@ -38,12 +38,10 @@ const int perMessageOverhead = 8;
 /// Tokens one image costs, as a flat stand-in for what a vision model
 /// will charge.
 ///
-/// Providers price an image by its area and disagree several times over
-/// on the same picture: a 1024x1024 runs about 1,024 tokens on GPT-5.5,
-/// 1,398 on Claude Opus 4.7 and 1,032 on Gemini 3.1 Pro, while a phone
-/// photo reaches 2,451 on the first and 6,636 on the second. No single
-/// number covers that spread, so this clears the common case and falls
-/// short of the worst, on the same reasoning as everything else here:
+/// Providers price an image by its area and by their own rule, so one
+/// picture can cost from about a thousand to several thousand tokens
+/// depending on provider and size. This clears a typical photo and falls
+/// short of the largest, on the same reasoning as everything else here:
 /// reading low is the failure to avoid, and a run's own count replaces
 /// the guess as soon as one arrives.
 const int perImageTokens = 2500;
@@ -79,11 +77,13 @@ int estimateDraftTokens(String text, {int images = 0}) {
   // A run of CJK matches '\p{L}+' as a single piece, which is where a
   // pre-tokenizer-shaped estimate reads catastrophically low: those
   // scripts cost around a token per character. Counting every code unit
-  // past Latin Extended-B again puts that back. Precomposed accented
-  // Latin sits below that cutoff and is untouched; Greek, Cyrillic and
-  // typographic punctuation are over-counted slightly, and anything
-  // outside the basic plane — an emoji, a rare ideograph — is charged
-  // twice, being two code units.
+  // past Latin Extended-B again puts that back. Latin up to Latin
+  // Extended-B — the precomposed accented letters of most European
+  // languages — is untouched; Vietnamese's Latin Extended Additional
+  // letters and decomposed accents sit above it and are charged, as are
+  // Greek, Cyrillic and typographic punctuation, slightly over; and
+  // anything outside the basic plane — an emoji, a rare ideograph — is
+  // charged twice, being two code units.
   for (final unit in text.codeUnits) {
     if (unit > 0x024F) wideChars++;
   }

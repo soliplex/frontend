@@ -20,7 +20,7 @@ const _slotSize = 44.0;
 ///   not said how large the model's context is, or nothing has counted
 ///   what the thread already occupies. Inventing either half would turn
 ///   an honest gap into a confidently wrong percentage.
-/// - **Measured** — a filled arc, tinted neutral, warning, or danger.
+/// - **Measured** — a filled arc, tinted primary, warning, or danger.
 ///
 /// It reports rather than acts: there is nothing behind it to open, so it
 /// is not a button and does not take focus.

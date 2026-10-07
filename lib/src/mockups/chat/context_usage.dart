@@ -1,5 +1,5 @@
-// Copied from packages/soliplex_agent/lib/src/metering/context_usage.dart on
-// feat/server-measured-context; the mockup carries it until that lands.
+// A copy of packages/soliplex_agent/lib/src/metering/context_usage.dart for
+// the mockup harness.
 
 import 'package:flutter/foundation.dart' show immutable;
 
