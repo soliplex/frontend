@@ -88,6 +88,43 @@ class _RoomsPermissionDeniedApi extends FakeSoliplexApi {
   }
 }
 
+/// The room module's route shape: sibling routes whose unkeyed pages update
+/// one another in place, so one [RoomScreen] follows a change of thread
+/// through `didUpdateWidget` — the auto-selected thread, or a direct switch.
+/// [_buildRouted] nests keyed pages instead, mounting a screen per route.
+GoRouter _roomModuleRouter({
+  required ServerEntry entry,
+  required AgentRuntimeManager runtimeManager,
+  required RunRegistry registry,
+  required UploadTrackerRegistry uploadRegistry,
+  String? threadId,
+}) {
+  GoRoute route(String path) => GoRoute(
+        path: path,
+        pageBuilder: (context, state) => NoTransitionPage(
+          child: RoomScreen(
+            appName: 'Test App',
+            serverEntry: entry,
+            roomId: state.pathParameters['roomId']!,
+            threadId: state.pathParameters['threadId'],
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ),
+      );
+  return GoRouter(
+    initialLocation: threadId != null
+        ? '/room/${entry.alias}/room-1/thread/$threadId'
+        : '/room/${entry.alias}/room-1',
+    routes: [
+      route('/room/:alias/:roomId'),
+      route('/room/:alias/:roomId/thread/:threadId'),
+    ],
+  );
+}
+
 Widget _buildRouted({
   required ServerEntry entry,
   required AgentRuntimeManager runtimeManager,
@@ -729,6 +766,95 @@ void main() {
         tester.widget<ContextGauge>(find.byType(ContextGauge)).usage.tokens,
         27000,
       );
+    });
+
+    testWidgets('follows the draft in a thread selected after the room opens',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      measure(window: 32768, tokens: 20000);
+
+      final router = _roomModuleRouter(
+        entry: entry,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+
+      ContextUsage reading() =>
+          tester.widget<ContextGauge>(find.byType(ContextGauge)).usage;
+      expect(reading().tokens, 20000, reason: 'the first thread is shown');
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'a draft the ring has to count',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(reading().draftTokens, greaterThan(0));
+      expect(reading().isExact, isFalse);
+    });
+
+    testWidgets('warns about a draft in a thread switched to directly',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      api.nextThreads = [
+        for (final id in ['thread-a', 'thread-b'])
+          ThreadInfo(
+            id: id,
+            roomId: 'room-1',
+            name: id,
+            createdAt: DateTime(2026, 3, 1),
+          ),
+      ];
+      measure(window: 32768, tokens: 1000);
+      final router = _roomModuleRouter(
+        entry: entry,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        threadId: 'thread-a',
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(banner), findsNothing);
+
+      measure(window: 32768, tokens: 20000);
+      router.go('/room/${entry.alias}/room-1/thread/thread-b');
+      await tester.pumpAndSettle();
+      expect(find.textContaining(messageBanner), findsNothing);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 9000,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        tester
+            .widget<ContextGauge>(find.byType(ContextGauge))
+            .usage
+            .draftTokens,
+        greaterThan(0),
+        reason: 'the reading has the draft',
+      );
+      expect(find.textContaining(messageBanner), findsOneWidget);
     });
   });
 

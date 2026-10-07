@@ -1867,13 +1867,7 @@ class _RoomScreenState extends State<RoomScreen> {
           const ChatClassificationBand(),
           if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
           Expanded(child: _capWidth(body)),
-          // The ring follows the draft, which moves on every typing
-          // pause; `Watch` rebuilds only the composer for it, keeping the
-          // timeline out.
-          Watch(
-            (context) =>
-                _capWidth(_buildChatInput(threadView, room, messagesStatus)),
-          ),
+          _capWidth(_buildChatInput(threadView, room, messagesStatus)),
           // Last in the column so the caveat is the last thing read before
           // sending.
           _capWidth(ChatAiDisclaimer(appName: widget.appName)),
@@ -2375,7 +2369,10 @@ class _RoomScreenState extends State<RoomScreen> {
                 status: reconnectStatus!,
                 onDismiss: threadView.dismissReconnectStatus,
               ),
-            Watch((context) {
+            // Keyed so another thread's view gets a tracked subscription: the
+            // screen does not rebuild while someone types, and `Watch` re-runs
+            // a changed builder without tracking what it reads.
+            Watch(key: ObjectKey(threadView.contextUsage.warning), (context) {
               final warning = threadView.contextUsage.warning.value;
               if (warning == null) return const SizedBox.shrink();
               return _ContextWarningBanner(
@@ -2517,9 +2514,12 @@ class _RoomScreenState extends State<RoomScreen> {
   /// both states keeps the [EditableText] element stable across the
   /// welcome → thread transition; see issue #212.
   ///
-  /// Nothing here may carry a per-thread [Key]: that stability is the point,
-  /// and a key that changes with the thread throws it away. State that has to
-  /// be dropped on a thread change travels as a value instead.
+  /// Nothing at or above the text field may carry a per-thread [Key]: that
+  /// stability is the point, and a key that changes with the thread throws
+  /// the field's element away. State that has to be dropped on a thread
+  /// change travels as a value instead. The gauge beside the field is keyed
+  /// per thread inside [ChatInput], below an unkeyed slot that keeps the
+  /// field matched.
   Widget _buildChatInput(
     ThreadViewState? threadView,
     Room? room,
@@ -2550,13 +2550,11 @@ class _RoomScreenState extends State<RoomScreen> {
       },
     );
 
-    // Only a thread that exists has a request to measure. The welcome
-    // composer has nothing to count, and the gauge stays hidden there
-    // rather than showing a confident zero.
-    final contextUsage = threadView?.contextUsage.usage.value;
-
     return ChatInput(
-      contextUsage: contextUsage,
+      // Only a thread that exists has a request to measure. The welcome
+      // composer has nothing to count, and the gauge stays hidden there
+      // rather than showing a confident zero.
+      contextUsage: threadView?.contextUsage.usage,
       // The composer's transient state belongs to the thread it is composing
       // for, and what the composer is saying about that state is held in widget
       // state, so a notice about a pick made into one thread would otherwise

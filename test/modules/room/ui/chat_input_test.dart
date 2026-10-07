@@ -1446,7 +1446,11 @@ void main() {
   });
 
   group('the context gauge', () {
-    Future<void> pumpWith(WidgetTester tester, ContextUsage? usage) async {
+    Future<void> pumpWith(
+      WidgetTester tester,
+      ReadonlySignal<ContextUsage>? usage, {
+      VoidCallback? onFilterTap,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: soliplexLightTheme(),
@@ -1454,8 +1458,8 @@ void main() {
             body: ChatInput(
               onSend: (_) {},
               onCancel: () {},
-              sessionState: signal<AgentSessionState?>(null),
               contextUsage: usage,
+              onFilterTap: onFilterTap,
             ),
           ),
         ),
@@ -1473,10 +1477,73 @@ void main() {
     testWidgets('sits beside send once there is one', (tester) async {
       await pumpWith(
         tester,
-        const ContextUsage(measuredTokens: 1800, contextWindow: 8192),
+        signal(const ContextUsage(measuredTokens: 1800, contextWindow: 8192)),
       );
 
       expect(find.byType(ContextGauge), findsOneWidget);
+    });
+
+    ContextUsage shown(WidgetTester tester) =>
+        tester.widget<ContextGauge>(find.byType(ContextGauge)).usage;
+
+    testWidgets('follows the reading without the parent rebuilding',
+        (tester) async {
+      final usage = signal(
+        const ContextUsage(measuredTokens: 1800, contextWindow: 8192),
+      );
+      await pumpWith(tester, usage);
+
+      usage.value = const ContextUsage(
+        measuredTokens: 1800,
+        draftTokens: 40,
+        contextWindow: 8192,
+      );
+      await tester.pump();
+
+      expect(shown(tester).draftTokens, 40);
+    });
+
+    testWidgets('follows a reading that replaces the one it was built with',
+        (tester) async {
+      // A thread switch hands the composer another thread's reading.
+      await pumpWith(
+        tester,
+        signal(const ContextUsage(measuredTokens: 1800, contextWindow: 8192)),
+      );
+      final next = signal(
+        const ContextUsage(measuredTokens: 500, contextWindow: 8192),
+      );
+      await pumpWith(tester, next);
+
+      next.value = const ContextUsage(
+        measuredTokens: 500,
+        draftTokens: 40,
+        contextWindow: 8192,
+      );
+      await tester.pump();
+
+      expect(shown(tester).draftTokens, 40);
+    });
+
+    testWidgets(
+        'keeps the text field when a new reading and fewer controls '
+        'arrive together', (tester) async {
+      // A room switch hands over another thread's reading and can drop the
+      // filter in the same build. A re-created field closes the platform text
+      // input connection (#212).
+      await pumpWith(
+        tester,
+        signal(const ContextUsage(measuredTokens: 1800, contextWindow: 8192)),
+        onFilterTap: () {},
+      );
+      final field = tester.state(find.byType(EditableText));
+
+      await pumpWith(
+        tester,
+        signal(const ContextUsage(measuredTokens: 500, contextWindow: 8192)),
+      );
+
+      expect(tester.state(find.byType(EditableText)), same(field));
     });
   });
 }
