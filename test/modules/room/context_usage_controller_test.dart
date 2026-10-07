@@ -18,10 +18,6 @@ const _noDebounce = Duration.zero;
 
 RunUsage _usage(String runId, int finalInputTokens) => RunUsage(
       runId: runId,
-      inputTokens: 9999,
-      outputTokens: 1,
-      requests: 1,
-      toolCalls: 0,
       finalInputTokens: finalInputTokens,
     );
 

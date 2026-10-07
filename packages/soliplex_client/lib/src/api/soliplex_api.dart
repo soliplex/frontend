@@ -715,16 +715,18 @@ class SoliplexApi {
   /// the run just driven — the listing is not re-read after a run, and the
   /// full run detail would bring every event with it. Null is an answer,
   /// not a failure: a run that errored before its first request recorded
-  /// nothing, and the previous run's reading still stands. A run that did
-  /// reach the model answers with a record instead, whose
-  /// [RunUsage.finalInputTokens] is null when no request completed.
+  /// nothing, and the previous run's reading still stands. A run that made a
+  /// request answers with a record instead, whose
+  /// [RunUsage.finalInputTokens] is null when the model never answered. A JSON
+  /// object without the backend's counts reads the same way: a record with no
+  /// count.
   ///
   /// Throws:
   /// - [ArgumentError] if any ID is empty
   /// - [NotFoundException] if the room, thread or run is not found (404)
   /// - [AuthException] if not authenticated (401)
   /// - [PermissionDeniedException] if the room is not permitted (403)
-  /// - [MalformedResponseException] if the body is not a usage record
+  /// - [MalformedResponseException] if the body is not a JSON object
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
@@ -1383,9 +1385,9 @@ class SoliplexApi {
   /// The newest run's usage that measured the context, or null.
   ///
   /// Walks runs newest-first and stops at the first with a
-  /// `final_input_tokens`, so a run that errored before reaching the model
-  /// — which records no usage, or one with no measurement — is skipped in
-  /// favour of the one before it.
+  /// `final_input_tokens`, so a run the model never answered — which records
+  /// no usage, or one without a count — is skipped in favour of the one
+  /// before it.
   ///
   /// A run with no `created` is passed over rather than read. The sort
   /// puts it at the end, so this walk would otherwise meet it first —
@@ -1393,9 +1395,10 @@ class SoliplexApi {
   /// unfinished run is read: its usage is written once, when the stream
   /// completes, so a row that exists is a whole measurement.
   ///
-  /// A record that cannot be parsed ends the walk instead of continuing
-  /// it. The thread's messages must not fail to load over an indicator,
-  /// but the run before it is a different exchange — reporting its count
+  /// A record that is not an object, whose count is not an integer, or whose
+  /// run has no `run_id` ends the walk instead of continuing it. The
+  /// thread's messages must not fail to load over an indicator, but the run
+  /// before it is a different exchange — reporting its count
   /// here would present a stale number as the current one, and as an
   /// exact one.
   RunUsage? _extractLatestUsage(Map<String, dynamic> runs) {
@@ -1404,22 +1407,28 @@ class SoliplexApi {
       if (value is! Map<String, dynamic>) continue;
       if (value['created'] is! String) continue;
       final usage = value['usage'];
-      if (usage is! Map<String, dynamic>) continue;
-      if (usage['final_input_tokens'] is! int) continue;
-      final runId = value['run_id'];
-      if (runId is! String || runId.isEmpty) continue;
-      try {
-        return runUsageFromJson(runId, usage);
-      } on FormatException catch (e) {
-        // The thread reports no measurement from here, which on its own
-        // reads as a thread nobody has counted. This says the record was
-        // there and could not be read, and names which one.
-        _logger.warning(
-          'Usage record could not be read; the thread reports none',
-          attributes: {'runId': runId, 'failure': describeFailure(e)},
-        );
-        return null;
+      // A run the model never answered recorded no usage, or one without a
+      // count; the run before it still stands.
+      if (usage == null ||
+          (usage is Map<String, dynamic> &&
+              usage['final_input_tokens'] == null)) {
+        continue;
       }
+      final runId = value['run_id'];
+      if (usage is Map<String, dynamic> &&
+          usage['final_input_tokens'] is int &&
+          runId is String &&
+          runId.isNotEmpty) {
+        return runUsageFromJson(runId, usage);
+      }
+      // The thread reports no measurement from here, which on its own
+      // reads as a thread nobody has counted. This says the record was
+      // there and could not be read, and names which one.
+      _logger.warning(
+        'Usage record could not be read; the thread reports none',
+        attributes: {'runId': entry.key},
+      );
+      return null;
     }
     return null;
   }

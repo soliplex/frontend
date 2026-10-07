@@ -1401,12 +1401,7 @@ void main() {
           found,
           const RunUsage(
             runId: 'run-789',
-            inputTokens: 5400,
-            outputTokens: 300,
-            requests: 3,
-            toolCalls: 2,
             finalInputTokens: 1800,
-            resolvedModelName: 'gpt-oss:latest',
             finalOutputTokens: 120,
           ),
         );
@@ -1439,8 +1434,18 @@ void main() {
             await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
 
         expect(found?.finalInputTokens, isNull);
-        expect(found?.isMeasured, isFalse);
         expect(found?.contextTokens, isNull);
+      });
+
+      test('reads a JSON object without the backend counts as no count',
+          () async {
+        answerWithJson('{}');
+
+        final found =
+            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
+
+        expect(found, const RunUsage(runId: 'run-789'));
+        expect(found?.finalInputTokens, isNull);
       });
 
       test('reads one reply short of a backend without the reply count',
@@ -6236,11 +6241,10 @@ void main() {
         expect(history.latestMeasurement?.usage.runId, 'run-1');
       });
 
-      test(
-          'reports nothing rather than an older run when the newest '
-          'record is malformed', () async {
-        // Substituting the previous exchange's count would present a
-        // stale number as the current one, and as an exact one.
+      test('reads the newest record when a field beside its count is malformed',
+          () async {
+        // The older run's count would be a stale number presented as the
+        // current one; the malformed field costs only itself.
         stubThread({
           'run-1': run(
             'run-1',
@@ -6250,11 +6254,83 @@ void main() {
           'run-2': run(
             'run-2',
             '2026-01-07T02:00:00.000Z',
-            usage: {'final_input_tokens': 5, 'input_tokens': 'not a number'},
+            usage: {
+              'final_input_tokens': 5,
+              'final_output_tokens': 'not a number',
+            },
           ),
         });
         stubRun('run-1');
         stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestMeasurement?.usage.runId, 'run-2');
+        expect(history.latestMeasurement?.usage.finalInputTokens, 5);
+        expect(history.latestMeasurement?.usage.finalOutputTokens, isNull);
+      });
+
+      test(
+          'reports nothing rather than an older run when the newest usage '
+          'is not an object', () async {
+        stubThread({
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+          'run-2': {
+            ...run('run-2', '2026-01-07T02:00:00.000Z'),
+            'usage': 'not an object',
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestMeasurement, isNull);
+      });
+
+      test(
+          'reports nothing rather than an older run when the newest '
+          'final_input_tokens is not a number', () async {
+        stubThread({
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+          'run-2': run(
+            'run-2',
+            '2026-01-07T02:00:00.000Z',
+            usage: {'final_input_tokens': 'many'},
+          ),
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestMeasurement, isNull);
+      });
+
+      test(
+          'reports nothing rather than an older run when the newest '
+          'measured run has no run_id', () async {
+        stubThread({
+          'run-1': run(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            usage: usage(finalInputTokens: 1000),
+          ),
+          'run-2': {
+            'created': '2026-01-07T02:00:00.000Z',
+            'finished': '2026-01-07T02:00:00.000Z',
+            'usage': usage(finalInputTokens: 5),
+          },
+        });
+        stubRun('run-1');
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
