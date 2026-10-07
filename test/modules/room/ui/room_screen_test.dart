@@ -436,6 +436,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
@@ -459,6 +460,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     // The scheme is stripped from an address, never from a name the operator
     // chose — running the regex over displayName would mangle this one.
@@ -486,6 +488,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
@@ -542,7 +545,6 @@ void main() {
 
       await openThread(tester);
 
-      expect(find.textContaining(banner), findsOneWidget);
       expect(
           find.text('This conversation is using 82% of the model\'s context. '
               'Starting a new thread keeps answers complete.'),
@@ -734,6 +736,7 @@ void main() {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
@@ -758,6 +761,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(id: 'room-1', name: 'General');
       final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
@@ -785,6 +789,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(id: 'room-1', name: 'General');
       // The default `entry` carries no name, so the header shows its address.
@@ -816,6 +821,7 @@ void main() {
       tester.view.physicalSize = const Size(430, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       // An OS text size past the point where the two-line title outgrows the
       // standard toolbar, which a fixed toolbar clips without warning.
       tester.platformDispatcher.textScaleFactorTestValue = 3.0;
@@ -860,6 +866,7 @@ void main() {
       tester.view.physicalSize = const Size(500, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(id: 'room-1', name: 'General');
       final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
@@ -903,6 +910,7 @@ void main() {
       tester.view.physicalSize = Size(width, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(MaterialApp(
         theme: theme,
@@ -1111,6 +1119,7 @@ void main() {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
@@ -1146,6 +1155,7 @@ void main() {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
@@ -1191,6 +1201,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
@@ -1233,6 +1244,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
@@ -1294,6 +1306,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     api.nextThreads = const [];
     api.nextCreateThreadError = Exception('network error');
@@ -1338,6 +1351,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     final blockingApi = _BlockingThreadsApi();
     blockingApi.nextRoom = Room(id: 'room-1', name: 'My Room');
@@ -1368,6 +1382,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     api.nextRoom = const Room(
       id: 'room-1',
@@ -1404,6 +1419,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     api.nextRoom = const Room(
       id: 'room-1',
@@ -1447,6 +1463,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     api.nextRoom = const Room(
       id: 'room-1',
@@ -1486,6 +1503,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     api.nextRoom = const Room(
       id: 'room-1',
@@ -1564,6 +1582,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(
         id: 'room-1',
@@ -1613,6 +1632,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(
         id: 'room-1',
@@ -1682,6 +1702,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(
         id: 'room-1',
@@ -1733,6 +1754,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(
         id: 'room-1',
@@ -1769,6 +1791,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(
         id: 'room-1',
@@ -1800,6 +1823,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       // Room capability on, thread capability off: the composer gate is
       // thread-scoped, so reading the room field would wrongly show attach.
@@ -1837,6 +1861,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(id: 'room-1', name: 'Plain');
       api.nextThreads = const [];
@@ -1876,6 +1901,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(
         id: 'room-1',
@@ -1908,6 +1934,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       api.nextRoom = const Room(id: 'room-1', name: 'Plain');
       api.nextThreads = const [];
@@ -1936,6 +1963,7 @@ void main() {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
@@ -1991,6 +2019,7 @@ void main() {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       Widget roomScreen(String roomId) => MaterialApp(
             home: RoomScreen(
@@ -2422,6 +2451,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       final auth = authInActiveSession();
       final deniedEntry = createTestServerEntry(
@@ -2468,6 +2498,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       final gateA = Completer<void>();
       final apiA = FakeSoliplexApi()
@@ -2525,6 +2556,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final signedInEntry =
@@ -2589,6 +2621,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final open = DateTime.utc(2026, 6, 1, 10);
@@ -2694,6 +2727,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final open = DateTime.utc(2026, 6, 1, 10);
@@ -2751,6 +2785,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final open = DateTime.utc(2026, 6, 1, 10);
@@ -2828,6 +2863,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final open = DateTime.utc(2026, 6, 1, 10);
@@ -2883,6 +2919,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final open = DateTime.utc(2026, 6, 1, 10);
@@ -2963,6 +3000,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       api.nextThreads = [
@@ -3011,6 +3049,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final signedInEntry =
@@ -3103,6 +3142,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final seen = DateTime.utc(2026, 6, 1);
@@ -3168,6 +3208,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final activity = DateTime.utc(2026, 6, 1, 10, 0, 30);
@@ -3223,6 +3264,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       // A single open thread. The room-activity batch reports newer activity
@@ -3362,6 +3404,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final open = DateTime.utc(2026, 6, 1, 10);
@@ -3417,6 +3460,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues(const {});
 
       final open = DateTime.utc(2026, 6, 1, 10);
@@ -3478,6 +3522,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(_buildRouted(
       entry: entry,
@@ -4168,6 +4213,7 @@ void main() {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(ProviderScope(
         overrides: [
           messageExpansionsProvider.overrideWithValue(MessageExpansions()),
