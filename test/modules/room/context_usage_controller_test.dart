@@ -359,6 +359,37 @@ void main() {
 
       expect(controller.warning.value, isNotNull);
     });
+
+    test(
+        'a dismissed message warning returns as the conversation warning '
+        'once the message is sent', () async {
+      final text = 'pad ' * 1000;
+      final controller = at(6000)..draftChanged(text);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.warning.value, isNotNull);
+      expect(controller.warning.value!.withoutDraft.isNearlyFull, isFalse);
+
+      controller.dismissWarning();
+      expect(controller.warning.value, isNull);
+
+      controller
+        ..sendStarted([TextPart(text)])
+        ..draftChanged('');
+
+      expect(controller.warning.value, isNotNull);
+      expect(controller.warning.value!.withoutDraft.isNearlyFull, isTrue);
+    });
+
+    test(
+        'a dismissed conversation warning stays dismissed while a draft is '
+        'typed', () async {
+      final controller = at(7000)
+        ..dismissWarning()
+        ..draftChanged('a draft');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.warning.value, isNull);
+    });
   });
 
   test('an answer after dispose writes nothing and does not throw', () async {

@@ -41,11 +41,10 @@ class ContextUsageController {
         _threadId = threadId,
         _contextWindow = contextWindow,
         _draftDebounce = Debouncer(draftDebounce) {
-    // Re-arms a dismissed warning once the reading falls back under the
-    // threshold, so a warning dismissed at 81% returns if the thread
-    // climbs again.
+    // Clears the dismissal once the reading falls back under the threshold,
+    // so a warning dismissed at 81% returns if the thread climbs again.
     _disposeRearm = effect(() {
-      if (!usage.value.isNearlyFull) _warningDismissed.value = false;
+      if (!usage.value.isNearlyFull) _dismissedKind.value = null;
     });
   }
 
@@ -59,7 +58,7 @@ class ContextUsageController {
   final Signal<MeasuredRun?> _measured = Signal<MeasuredRun?>(null);
   final Signal<int> _sendingTokens = Signal<int>(0);
   final Signal<int> _draftTokens = Signal<int>(0);
-  final Signal<bool> _warningDismissed = Signal<bool>(false);
+  final Signal<bool?> _dismissedKind = Signal<bool?>(null);
   late final void Function() _disposeRearm;
   bool _disposed = false;
 
@@ -82,17 +81,26 @@ class ContextUsageController {
     ),
   );
 
-  /// The reading while the thread is nearly full and the warning has not
-  /// been dismissed; null otherwise.
+  /// The reading while the thread is nearly full, unless a dismissal of the
+  /// current kind is held; null otherwise.
+  ///
+  /// The kind is whether the conversation alone is nearly full
+  /// (`withoutDraft.isNearlyFull`) or only the conversation with the draft.
+  /// Dismissing the draft's warning leaves the conversation's to appear once
+  /// the message is sent.
   late final ReadonlySignal<ContextUsage?> warning = computed(() {
     final current = usage.value;
-    return current.isNearlyFull && !_warningDismissed.value ? current : null;
+    if (!current.isNearlyFull) return null;
+    return _dismissedKind.value == current.withoutDraft.isNearlyFull
+        ? null
+        : current;
   });
 
-  /// Hides the warning until the reading next falls under the threshold.
+  /// Hides the warning of the kind showing, until the reading next falls
+  /// under the threshold. A warning of the other kind still shows.
   void dismissWarning() {
     if (_disposed) return;
-    _warningDismissed.value = true;
+    _dismissedKind.value = usage.value.withoutDraft.isNearlyFull;
   }
 
   /// Takes the transcript and measurement of a freshly loaded [history].
@@ -287,6 +295,6 @@ class ContextUsageController {
     _measured.dispose();
     _sendingTokens.dispose();
     _draftTokens.dispose();
-    _warningDismissed.dispose();
+    _dismissedKind.dispose();
   }
 }
