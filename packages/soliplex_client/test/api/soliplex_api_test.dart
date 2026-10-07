@@ -6284,11 +6284,12 @@ void main() {
         String runId,
         String created, {
         int? finalInputTokens,
+        bool finished = true,
       }) =>
           {
             'run_id': runId,
             'created': created,
-            'finished': created,
+            'finished': finished ? created : null,
             if (finalInputTokens != null)
               'usage': {
                 'input_tokens': 9999,
@@ -6388,6 +6389,56 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
+        expect(history.latestMeasurement?.coveredMessages, 2);
+      });
+
+      test('covers nothing when no run was replayed', () async {
+        // The only listed run is still in flight, so nothing is replayed.
+        stubThread({
+          'run-1': listed(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            finalInputTokens: 1000,
+            finished: false,
+          ),
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestMeasurement?.usage.runId, 'run-1');
+        expect(history.latestMeasurement?.coveredMessages, 0);
+      });
+
+      test(
+          'covers the whole transcript when replay never reached the '
+          'measured run', () async {
+        // run-2 carries usage but is unfinished, so only run-1 is replayed.
+        stubThread({
+          'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': listed(
+            'run-2',
+            '2026-01-07T02:00:00.000Z',
+            finalInputTokens: 1000,
+            finished: false,
+          ),
+        });
+        stubRun(
+          'run-1',
+          runInput: input('u1', 'first'),
+          events: replied(
+            'run-1',
+            'a1',
+            event('RUN_FINISHED', {
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+            }),
+          ),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.transcript.messages, hasLength(2));
+        expect(history.latestMeasurement?.usage.runId, 'run-2');
         expect(history.latestMeasurement?.coveredMessages, 2);
       });
     });

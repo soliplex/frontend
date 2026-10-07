@@ -2497,12 +2497,14 @@ class _RoomScreenState extends State<RoomScreen> {
 
   /// Forwards the composer's draft to the active thread's reading.
   ///
-  /// The draft is the one term of a reading nothing has measured, so it is
-  /// the only one that moves while someone types. A reading starts with no
-  /// draft, which holds because every way a thread becomes active — a route
-  /// change in [didUpdateWidget], a room switch, or a fresh mount — clears
-  /// or creates the composer first; text typed before then is not
-  /// forwarded.
+  /// The draft is the one term of the reading that moves while someone
+  /// types. A reading starts with no draft. The composer is empty at mount (a
+  /// persisted draft restored afterwards is forwarded) and is cleared on a
+  /// room switch and on a route change to another thread, both in
+  /// [didUpdateWidget]. A thread [RoomState] activates itself (a new thread,
+  /// a spawned send, the successor of a deleted one) is selected before its
+  /// route change arrives, so it starts at no draft and the clear that
+  /// follows keeps it there.
   void _onDraftChanged() {
     _state.activeThreadView?.contextUsage.draftChanged(
       _chatController.text,
