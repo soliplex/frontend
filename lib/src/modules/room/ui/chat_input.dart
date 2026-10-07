@@ -123,10 +123,12 @@ class ChatInput extends StatefulWidget {
   /// drops and typing goes nowhere until the field is tapped again.
   final Object? composerScope;
 
-  /// Current context-window reading, shown as a ring beside send.
-  /// Null hides the gauge entirely, which is what a composer with no
-  /// thread behind it should do — there is nothing yet to measure.
-  final ContextUsage? contextUsage;
+  /// The context-window reading, shown as a ring beside send. Only the ring
+  /// subscribes to it, so the reading moving with the draft rebuilds the ring
+  /// and not the composer. Null hides the gauge entirely, which is what a
+  /// composer with no thread behind it should do — there is nothing yet to
+  /// measure.
+  final ReadonlySignal<ContextUsage>? contextUsage;
 
   @override
   State<ChatInput> createState() => _ChatInputState();
@@ -695,7 +697,7 @@ class _ChatInputState extends State<ChatInput> {
                   ),
                 ),
                 if (widget.contextUsage case final usage?)
-                  ContextGauge(usage: usage)
+                  _ContextGaugeSlot(usage: usage)
                 else
                   const SizedBox(width: SoliplexSpacing.s2),
                 if (active)
@@ -719,6 +721,29 @@ class _ChatInputState extends State<ChatInput> {
       ),
     );
   }
+}
+
+/// The ring beside send, subscribed to [usage] on its own.
+///
+/// The key that gives each reading its own subscription sits inside this
+/// unkeyed slot rather than on the row's child: a keyed child whose key
+/// changes in the same build that the leading controls change in would stop
+/// the row matching its children from either end, and the text field between
+/// them would be re-created (#212).
+class _ContextGaugeSlot extends StatelessWidget {
+  const _ContextGaugeSlot({required this.usage});
+
+  final ReadonlySignal<ContextUsage> usage;
+
+  @override
+  Widget build(BuildContext context) => Watch(
+        (context) => ContextGauge(usage: usage.value),
+        // Keyed by the signal so another thread's reading gets a fresh
+        // subscription: `Watch` re-runs a changed builder without tracking
+        // what it reads, and would stay subscribed to the signal it first
+        // read.
+        key: ObjectKey(usage),
+      );
 }
 
 /// The room's RAG databases as filter chips: a tap narrows the thread's
