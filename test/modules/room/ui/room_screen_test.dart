@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_client/soliplex_client.dart' show appendUserMessage;
 import 'package:soliplex_frontend/src/modules/room/ui/context_gauge.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -517,13 +518,16 @@ void main() {
       );
       api.nextThreadHistory = ThreadHistory(
         messages: const [],
-        latestUsage: RunUsage(
-          runId: 'run-1',
-          inputTokens: tokens,
-          outputTokens: 1,
-          requests: 1,
-          toolCalls: 0,
-          finalInputTokens: tokens,
+        latestMeasurement: MeasuredRun(
+          usage: RunUsage(
+            runId: 'run-1',
+            inputTokens: tokens,
+            outputTokens: 1,
+            requests: 1,
+            toolCalls: 0,
+            finalInputTokens: tokens,
+          ),
+          coveredMessages: 0,
         ),
       );
     }
@@ -579,7 +583,17 @@ void main() {
       );
       final session = ManualAgentSession(key);
       registry.register(key, session);
-      session.completeAsCompleted(runId: 'run-restored');
+      session.completeAsCompleted(
+        runId: 'run-restored',
+        conversation: appendUserMessage(
+          Conversation.empty(threadId: 'thread-1'),
+          TextMessage.create(
+            id: 'u-restored',
+            user: ChatUser.user,
+            text: 'the restored question',
+          ),
+        ),
+      );
       await tester.pump();
 
       await openThread(tester);
@@ -642,6 +656,61 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('hides when the draft that raised it is cleared',
+        (tester) async {
+      // C2: 20000 of 32768 is 61%; the draft pushes it past 80%.
+      measure(window: 32768, tokens: 20000);
+      await openThread(tester);
+      final composer = find.descendant(
+        of: find.byType(ChatInput),
+        matching: find.byType(TextField),
+      );
+
+      await tester.enterText(composer, 'pad ' * 9000);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining(banner), findsOneWidget);
+
+      await tester.enterText(composer, '');
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('follows the thread view after leaving the room and returning',
+        (tester) async {
+      // C1: a room showing no thread keeps the screen from rebuilding the
+      // reading, so returning used to reuse the one bound to the disposed
+      // view. A fresh view must read the fresh history.
+      measure(window: 32768, tokens: 1000);
+      api.nextThreads = const [];
+      await openThread(tester);
+
+      Future<void> show({required String roomId, String? threadId}) async {
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            appName: 'Test App',
+            serverEntry: entry,
+            roomId: roomId,
+            threadId: threadId,
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+      }
+
+      await show(roomId: 'room-2');
+      measure(window: 32768, tokens: 27000);
+      await show(roomId: 'room-1', threadId: 'thread-1');
+
+      expect(
+        tester.widget<ContextGauge>(find.byType(ContextGauge)).usage.tokens,
+        27000,
+      );
     });
   });
 

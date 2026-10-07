@@ -6188,7 +6188,7 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestUsage?.runId, 'run-1');
+        expect(history.latestMeasurement?.usage.runId, 'run-1');
       });
 
       test('orders by creation, not by map position', () async {
@@ -6209,8 +6209,8 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestUsage?.runId, 'run-2');
-        expect(history.latestUsage?.finalInputTokens, 2400);
+        expect(history.latestMeasurement?.usage.runId, 'run-2');
+        expect(history.latestMeasurement?.usage.finalInputTokens, 2400);
       });
 
       test('ignores a run that cannot be placed in time', () async {
@@ -6233,7 +6233,7 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestUsage?.runId, 'run-1');
+        expect(history.latestMeasurement?.usage.runId, 'run-1');
       });
 
       test(
@@ -6258,7 +6258,7 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestUsage, isNull);
+        expect(history.latestMeasurement, isNull);
       });
 
       test('survives on a thread with no completed runs', () async {
@@ -6275,7 +6275,120 @@ void main() {
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
         expect(history.messages, isEmpty);
-        expect(history.latestUsage?.finalInputTokens, 1000);
+        expect(history.latestMeasurement?.usage.finalInputTokens, 1000);
+      });
+    });
+
+    group('getThreadHistory latest measurement covers', () {
+      Map<String, dynamic> listed(
+        String runId,
+        String created, {
+        int? finalInputTokens,
+      }) =>
+          {
+            'run_id': runId,
+            'created': created,
+            'finished': created,
+            if (finalInputTokens != null)
+              'usage': {
+                'input_tokens': 9999,
+                'output_tokens': 1,
+                'requests': 1,
+                'tool_calls': 0,
+                'final_input_tokens': finalInputTokens,
+              },
+          };
+      Map<String, dynamic> event(String type, [Map<String, dynamic>? f]) =>
+          {'type': type, ...?f};
+      List<Map<String, dynamic>> replied(
+        String runId,
+        String messageId,
+        Map<String, dynamic> end,
+      ) =>
+          [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': runId}),
+            event(
+              'TEXT_MESSAGE_START',
+              {'messageId': messageId, 'role': 'assistant'},
+            ),
+            event(
+              'TEXT_MESSAGE_CONTENT',
+              {'messageId': messageId, 'delta': 'an answer'},
+            ),
+            event('TEXT_MESSAGE_END', {'messageId': messageId}),
+            end,
+          ];
+      Map<String, dynamic> input(String id, String text) => {
+            'messages': [
+              {'id': id, 'role': 'user', 'content': text},
+            ],
+          };
+
+      test('stops at the end of the measured run', () async {
+        // run-2 errored and recorded no usage, but what it carried stays
+        // in the transcript after run-1's count.
+        stubThread({
+          'run-1': listed(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            finalInputTokens: 1000,
+          ),
+          'run-2': listed('run-2', '2026-01-07T02:00:00.000Z'),
+        });
+        stubRun(
+          'run-1',
+          runInput: input('u1', 'first'),
+          events: replied(
+            'run-1',
+            'a1',
+            event('RUN_FINISHED', {
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+            }),
+          ),
+        );
+        stubRun(
+          'run-2',
+          runInput: input('u2', 'second'),
+          events: replied(
+            'run-2',
+            'a2',
+            event('RUN_ERROR', {'message': 'provider failed'}),
+          ),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.transcript.messages, hasLength(4));
+        expect(history.latestMeasurement?.usage.runId, 'run-1');
+        expect(history.latestMeasurement?.coveredMessages, 2);
+      });
+
+      test('covers the whole transcript when the newest run is measured',
+          () async {
+        stubThread({
+          'run-1': listed(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            finalInputTokens: 1000,
+          ),
+        });
+        stubRun(
+          'run-1',
+          runInput: input('u1', 'first'),
+          events: replied(
+            'run-1',
+            'a1',
+            event('RUN_FINISHED', {
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+            }),
+          ),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestMeasurement?.coveredMessages, 2);
       });
     });
 

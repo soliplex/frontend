@@ -123,6 +123,19 @@ class RoomState {
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
 
+  /// The room's model's context window, or null until the room loads or
+  /// when nothing knows it. Only a default agent has a model to have a
+  /// window; a factory agent chooses one when the run starts, and
+  /// reports none.
+  late final ReadonlySignal<int?> _contextWindow = computed(() {
+    final status = _room.value;
+    if (status is! RoomLoaded) return null;
+    return switch (status.room.agent) {
+      DefaultRoomAgent(:final contextWindow) => contextWindow,
+      _ => null,
+    };
+  });
+
   late final ReadonlySignal<Set<String>> runningThreadIds =
       computed<Set<String>>(
     () => _registry.activeKeys.value
@@ -191,6 +204,7 @@ class RoomState {
       roomId: _roomId,
       threadId: threadId,
       registry: _registry,
+      contextWindow: _contextWindow,
       onHistoryLoaded: (id, history) {
         runtime.seedThreadHistory(
           (
@@ -340,6 +354,7 @@ class RoomState {
     _threadRefresh.cancel();
     threadList.dispose();
     _activeThreadView?.dispose();
+    _contextWindow.dispose();
     _sessionState.dispose();
     runningThreadIds.dispose();
   }

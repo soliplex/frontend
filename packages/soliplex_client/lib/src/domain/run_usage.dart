@@ -97,3 +97,34 @@ class RunUsage {
   String toString() => 'RunUsage($runId, final: ${finalInputTokens ?? "?"}'
       '+${finalOutputTokens ?? "?"}, model: $resolvedModelName)';
 }
+
+/// A run's usage, and how much of the thread's transcript it counted.
+///
+/// The usage is the provider's count of the run's last request and its
+/// reply. That request and reply are the transcript's first
+/// [coveredMessages] messages: the transcript's length when the run ended.
+/// Whatever the transcript gains after that is not in the count.
+@immutable
+class MeasuredRun {
+  /// Creates a measurement of [usage] covering [coveredMessages].
+  const MeasuredRun({required this.usage, required this.coveredMessages});
+
+  /// The run's recorded usage.
+  final RunUsage usage;
+
+  /// How many of the transcript's messages [usage] counted.
+  final int coveredMessages;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MeasuredRun &&
+          other.usage == usage &&
+          other.coveredMessages == coveredMessages;
+
+  @override
+  int get hashCode => Object.hash(usage, coveredMessages);
+
+  @override
+  String toString() => 'MeasuredRun($usage, covers $coveredMessages)';
+}

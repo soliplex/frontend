@@ -1,8 +1,13 @@
 import 'dart:async';
 
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
+// `soliplex_agent` hides `SoliplexApi` and `appendUserMessage`.
+import 'package:soliplex_client/soliplex_client.dart'
+    show SoliplexApi, appendUserMessage;
 import 'package:soliplex_frontend/src/modules/room/context_usage_controller.dart';
 
 class MockSoliplexApi extends Mock implements SoliplexApi {}
@@ -11,507 +16,369 @@ const _roomId = 'room-1';
 const _threadId = 'thread-1';
 const _noDebounce = Duration.zero;
 
-RunUsage _usage(
-  String runId, {
-  int? finalInputTokens,
-  int? finalOutputTokens,
-}) =>
-    RunUsage(
+RunUsage _usage(String runId, int finalInputTokens) => RunUsage(
       runId: runId,
       inputTokens: 9999,
       outputTokens: 1,
       requests: 1,
       toolCalls: 0,
       finalInputTokens: finalInputTokens,
-      finalOutputTokens: finalOutputTokens,
     );
 
-ThreadHistory _history(RunUsage? latest) =>
-    ThreadHistory(messages: const [], latestUsage: latest);
+/// A transcript of one user message per text, as a send appends them.
+Transcript _transcript(List<String> texts) => texts
+    .fold(
+      Conversation.empty(threadId: _threadId),
+      (conversation, text) => appendUserMessage(
+        conversation,
+        TextMessage.create(id: 'u-$text', user: ChatUser.user, text: text),
+      ),
+    )
+    .transcript;
+
+ThreadHistory _history(
+  List<String> texts, {
+  RunUsage? measured,
+  int covered = 0,
+}) =>
+    ThreadHistory(
+      messages: const [],
+      transcript: _transcript(texts),
+      latestMeasurement: measured == null
+          ? null
+          : MeasuredRun(usage: measured, coveredMessages: covered),
+    );
+
+/// What the transcript of [texts] holds past its first [covered] messages.
+int _after(List<String> texts, int covered) =>
+    estimateTranscriptTokens(_transcript(texts).messages.skip(covered));
 
 void main() {
   late MockSoliplexApi api;
+  late Signal<int?> window;
 
-  ContextUsageController build({int? window = 8192, Duration? debounce}) =>
-      ContextUsageController(
-        api: api,
-        roomId: _roomId,
-        threadId: _threadId,
-        contextWindow: window,
-        draftDebounce: debounce ?? _noDebounce,
-      );
-
-  void runAnswers(String runId, RunUsage? usage) {
-    when(() => api.getRunUsage(_roomId, _threadId, runId))
-        .thenAnswer((_) async => usage);
+  ContextUsageController build({int? windowSize = 8192, Duration? debounce}) {
+    window = Signal<int?>(windowSize);
+    final controller = ContextUsageController(
+      api: api,
+      roomId: _roomId,
+      threadId: _threadId,
+      contextWindow: window,
+      draftDebounce: debounce ?? _noDebounce,
+    );
+    addTearDown(controller.dispose);
+    return controller;
   }
 
-  setUp(() {
-    api = MockSoliplexApi();
+  void answers(String runId, Future<RunUsage?> Function() answer) {
+    when(() => api.getRunUsage(_roomId, _threadId, runId))
+        .thenAnswer((_) => answer());
+  }
+
+  setUp(() => api = MockSoliplexApi());
+
+  test('offers no total before anything is measured', () {
+    final controller = build()..sendStarted([const TextPart('hello')]);
+
+    expect(controller.usage.value.tokens, isNull);
   });
 
-  group('before anything is known', () {
-    test('reads as nothing measured', () {
-      final usage = build().usage;
+  group('history', () {
+    test('seeds the measurement it carries', () {
+      final controller = build()
+        ..historyLoaded(
+            _history(['a'], measured: _usage('run-1', 1800), covered: 1));
 
-      expect(usage.tokens, isNull);
-      expect(usage.fractionUsed, isNull);
+      expect(controller.usage.value.tokens, 1800);
+      expect(controller.usage.value.isExact, isTrue);
     });
 
-    test('a draft alone yields no percentage, even against a known window',
+    test('estimates what its transcript holds after the measurement', () {
+      // Q2: a newer run that recorded no count still carried its messages.
+      final texts = ['a', 'b', 'c'];
+      expect(_after(texts, 1), greaterThan(0));
+
+      final controller = build()
+        ..historyLoaded(
+            _history(texts, measured: _usage('run-1', 1800), covered: 1));
+
+      expect(controller.usage.value.measuredTokens, 1800);
+      expect(controller.usage.value.estimatedTokens, _after(texts, 1));
+    });
+
+    test('does not replace a longer transcript it is older than', () {
+      final controller = build()
+        ..historyLoaded(
+            _history(['a', 'b'], measured: _usage('run-1', 1800), covered: 1))
+        ..historyLoaded(
+            _history(['a'], measured: _usage('run-1', 1800), covered: 1));
+
+      expect(controller.usage.value.estimatedTokens, _after(['a', 'b'], 1));
+    });
+  });
+
+  group('a send', () {
+    ContextUsageController measured() => build()
+      ..historyLoaded(
+          _history(['a'], measured: _usage('run-1', 1000), covered: 1));
+
+    test('is counted from the moment it is sent', () {
+      final controller = measured()..sendStarted([const TextPart('hello')]);
+
+      expect(
+          controller.usage.value.estimatedTokens, estimateDraftTokens('hello'));
+    });
+
+    test('counts its images', () {
+      final controller = measured()
+        ..sendStarted([
+          const TextPart('look'),
+          ImagePart(bytes: Uint8List(0), mimeType: 'image/png'),
+        ]);
+
+      expect(controller.usage.value.estimatedTokens,
+          estimateDraftTokens('look', images: 1));
+    });
+
+    test('is counted once its run starts, from the transcript', () {
+      final controller = measured()
+        ..sendStarted([const TextPart('hello')])
+        ..runProgressed(_transcript(['a', 'hello']));
+
+      expect(controller.usage.value.estimatedTokens, _after(['a', 'hello'], 1));
+    });
+
+    test('grows with its run\'s tool calls and results', () {
+      // Live progress: the run's own later requests are where a window
+      // overflows.
+      final texts = ['a', 'hello', 'tool call', 'tool result'];
+      final controller = measured()
+        ..runProgressed(_transcript(['a', 'hello']))
+        ..runProgressed(_transcript(texts));
+
+      expect(controller.usage.value.estimatedTokens, _after(texts, 1));
+    });
+
+    test('ignores a transcript holding no more messages', () {
+      // Streamed text replaces a message in place; re-estimating it per
+      // token would buy nothing the run's end does not settle.
+      final controller = measured()
+        ..runProgressed(_transcript(['a', 'hello']))
+        ..runProgressed(_transcript(['a', 'a much longer replacement']));
+
+      expect(controller.usage.value.estimatedTokens, _after(['a', 'hello'], 1));
+    });
+
+    test('is covered by its run\'s count once the run completes', () async {
+      answers('run-2', () async => _usage('run-2', 1500));
+      final controller = measured()
+        ..sendStarted([const TextPart('hello')])
+        ..runProgressed(_transcript(['a', 'hello']));
+
+      await controller.runCompleted('run-2', _transcript(['a', 'hello']));
+
+      expect(controller.usage.value.tokens, 1500);
+      expect(controller.usage.value.isExact, isTrue);
+    });
+
+    test('stays estimated when its run records no count', () async {
+      answers('run-2', () async => null);
+      final controller = measured()..runProgressed(_transcript(['a', 'hello']));
+
+      await controller.runCompleted('run-2', _transcript(['a', 'hello']));
+
+      expect(controller.usage.value.measuredTokens, 1000);
+      expect(controller.usage.value.estimatedTokens, _after(['a', 'hello'], 1));
+    });
+
+    test('stays estimated when the count cannot be fetched', () async {
+      answers(
+          'run-2',
+          () async => throw const NetworkException(
+                message: 'offline',
+              ));
+      final controller = measured()..runProgressed(_transcript(['a', 'hello']));
+
+      await controller.runCompleted('run-2', _transcript(['a', 'hello']));
+
+      expect(controller.usage.value.estimatedTokens, _after(['a', 'hello'], 1));
+    });
+  });
+
+  group('a send that ends without a count', () {
+    ContextUsageController measured() => build()
+      ..historyLoaded(
+          _history(['a'], measured: _usage('run-1', 1000), covered: 1));
+
+    test('keeps counting what its transcript carried forward', () {
+      // D13 / D14: an errored run keeps what it streamed, a stopped one its
+      // message; either way the next request carries it.
+      final controller = measured()
+        ..sendStarted([const TextPart('hello')])
+        ..sendEnded(_transcript(['a', 'hello']));
+
+      expect(controller.usage.value.estimatedTokens, _after(['a', 'hello'], 1));
+    });
+
+    test('takes a stopped run\'s shorter transcript', () {
+      // A run cut off before its final state reverts to what it was sent.
+      // A guard that kept the longer, live transcript would freeze the
+      // reading high.
+      final controller = measured()
+        ..runProgressed(_transcript(['a', 'q', 'tool call', 'tool result']))
+        ..sendEnded(_transcript(['a', 'q']));
+
+      expect(controller.usage.value.estimatedTokens, _after(['a', 'q'], 1));
+    });
+
+    test('counts nothing when nothing was carried forward', () {
+      // A spawn that failed or was cancelled before any run.
+      final controller = measured()
+        ..sendStarted([const TextPart('hello')])
+        ..sendEnded(null);
+
+      expect(controller.usage.value.estimatedTokens, 0);
+    });
+  });
+
+  group('order', () {
+    test('an older answer arriving late does not replace a newer count',
         () async {
-      // Nothing has counted the instructions, tool schemas or chat
-      // template, so the draft is not a fraction of the window — showing
-      // it as one reads catastrophically low on a full thread.
-      final controller = build(window: 8192)
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-
-      expect(controller.usage.estimatedTokens, greaterThan(0));
-      expect(controller.usage.tokens, isNull);
-      expect(controller.usage.fractionUsed, isNull);
-    });
-  });
-
-  group('the window', () {
-    test('can arrive after the controller does', () async {
-      // The room loads on its own schedule.
-      final controller = build(window: null)
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-      expect(controller.usage.fractionUsed, isNull);
-
-      controller.contextWindow = 8192;
-
-      expect(controller.usage.fractionUsed, closeTo(1800 / 8192, 1e-9));
-    });
-
-    test('absent leaves the reading windowless', () async {
-      // Ollama and an OpenAI-compatible base URL report none. A bare
-      // count is shown, never a percentage against a guess.
-      final controller = build(window: null)
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      expect(controller.usage.tokens, 1800);
-      expect(controller.usage.contextWindow, isNull);
-      expect(controller.usage.fractionUsed, isNull);
-    });
-  });
-
-  group('the history', () {
-    test('supplies the measurement, exactly', () async {
+      final older = Completer<RunUsage?>();
+      answers('run-2', () => older.future);
+      answers('run-3', () async => _usage('run-3', 3000));
       final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+        ..historyLoaded(
+            _history(['a'], measured: _usage('run-1', 1000), covered: 1));
 
-      expect(controller.usage.tokens, 1800);
-      expect(controller.usage.isExact, isTrue);
-      expect(controller.measured?.runId, 'run-1');
-    });
-
-    test('counts the reply the next request will carry', () async {
-      // The last request's input is what the model saw; its reply is
-      // what the thread now ends with, and rides in the next request.
-      final controller = build()
-        ..historyLoaded(_history(
-          _usage('run-1', finalInputTokens: 1800, finalOutputTokens: 200),
-        ));
-
-      expect(controller.usage.tokens, 2000);
-      expect(controller.usage.isExact, isTrue);
-    });
-
-    test('notifies once when the reading moves', () async {
-      final controller = build();
-      var notifications = 0;
-      controller.addListener(() => notifications++);
-
-      controller.historyLoaded(_history(_usage('run-1', finalInputTokens: 1)));
-
-      expect(notifications, 1);
-    });
-
-    test('does not notify for the same run again', () async {
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1)));
-      var notifications = 0;
-      controller.addListener(() => notifications++);
-
-      controller.historyLoaded(_history(_usage('run-1', finalInputTokens: 1)));
-
-      expect(notifications, 0);
-    });
-  });
-
-  group('a run ending', () {
-    test('adopts the run\'s own usage', () async {
-      runAnswers('run-2', _usage('run-2', finalInputTokens: 2400));
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      await controller.runEnded('run-2');
-
-      expect(controller.usage.tokens, 2400);
-      expect(controller.measured?.runId, 'run-2');
-    });
-
-    test('that measured nothing keeps the previous reading', () async {
-      // It never reached the model, so the previous run's request is
-      // still the last one the model saw.
-      runAnswers('run-2', null);
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      await controller.runEnded('run-2');
-
-      expect(controller.usage.tokens, 1800);
-      expect(controller.measured?.runId, 'run-1');
-    });
-
-    test('recorded without a measurement is treated the same', () async {
-      runAnswers('run-2', _usage('run-2'));
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      await controller.runEnded('run-2');
-
-      expect(controller.measured?.runId, 'run-1');
-    });
-
-    test('keeps the last honest reading when the backend fails', () async {
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
-          .thenThrow(const NetworkException(message: 'down'));
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      await controller.runEnded('run-2');
-
-      expect(controller.usage.tokens, 1800);
-    });
-
-    test('keeps it when the fetch fails with an Error', () async {
-      // The call is started with `unawaited`, so anything this throws
-      // has nowhere to go. An empty run id reaches `ArgumentError`,
-      // which is not an `Exception`.
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
-          .thenThrow(ArgumentError.value('', 'runId', 'must not be empty'));
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      await expectLater(controller.runEnded('run-2'), completes);
-
-      expect(controller.usage.tokens, 1800);
-    });
-  });
-
-  group('the newest measurement', () {
-    test('is not displaced by a slower answer about an older run', () async {
-      // Two runs end in quick succession and their fetches race. The
-      // reading is about the last request the model saw, so the older
-      // run's answer is not news however late it arrives.
-      final slowAnswer = Completer<RunUsage?>();
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
-          .thenAnswer((_) => slowAnswer.future);
-      runAnswers('run-3', _usage('run-3', finalInputTokens: 4000));
-      final controller = build();
-
-      final pending = controller.runEnded('run-2');
-      await controller.runEnded('run-3');
-      slowAnswer.complete(_usage('run-2', finalInputTokens: 1000));
+      final pending = controller.runCompleted('run-2', _transcript(['a', 'b']));
+      await controller.runCompleted('run-3', _transcript(['a', 'b', 'c']));
+      older.complete(_usage('run-2', 2000));
       await pending;
 
-      expect(controller.usage.tokens, 4000);
-      expect(controller.measured?.runId, 'run-3');
+      expect(controller.usage.value.tokens, 3000);
     });
 
-    test('is not displaced by a history load that resolves later', () async {
-      // The history is a seed, not a correction: it was fetched before
-      // this run ended, so it cannot be newer than it.
-      runAnswers('run-2', _usage('run-2', finalInputTokens: 2400));
-      final controller = build();
-      await controller.runEnded('run-2');
+    test('a newer fetch that fails does not block an older answer', () async {
+      // Q1.
+      final older = Completer<RunUsage?>();
+      answers('run-2', () => older.future);
+      answers(
+          'run-3',
+          () async => throw const NetworkException(
+                message: 'offline',
+              ));
+      final controller = build()
+        ..historyLoaded(
+            _history(['a'], measured: _usage('run-1', 1000), covered: 1));
 
-      controller
-          .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
+      final pending = controller.runCompleted('run-2', _transcript(['a', 'b']));
+      await controller.runCompleted('run-3', _transcript(['a', 'b', 'c']));
+      older.complete(_usage('run-2', 2000));
+      await pending;
 
-      expect(controller.usage.tokens, 2400);
-      expect(controller.measured?.runId, 'run-2');
-    });
-
-    test('is taken from the history when a fetch produced none', () async {
-      // A fetch that failed measured nothing, so it displaces nothing:
-      // the history's record is the only reading there is, and an
-      // indicator that asked once must not go blank for good.
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
-          .thenThrow(const NetworkException(message: 'down'));
-      final controller = build();
-      await controller.runEnded('run-2');
-
-      controller
-          .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      expect(controller.usage.tokens, 1800);
-      expect(controller.measured?.runId, 'run-1');
+      expect(controller.usage.value.measuredTokens, 2000);
+      expect(
+          controller.usage.value.estimatedTokens, _after(['a', 'b', 'c'], 2));
     });
   });
 
-  group('a draft sent before the debounce elapses', () {
-    test('is banked whole', () async {
-      // Paste and hit send: both land inside the 300ms window, so the
-      // stored draft is still empty when the message goes.
+  group('draft', () {
+    test('clearing it cancels a pending estimate at once', () async {
       final controller = build(debounce: const Duration(milliseconds: 300))
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)));
+        ..historyLoaded(
+            _history(['a'], measured: _usage('run-1', 1000), covered: 1))
+        ..draftChanged('typed and sent inside the debounce window')
+        ..draftChanged('');
 
-      final pasted = 'a long message pasted and sent in one motion. ' * 20;
-      controller
-        ..draftChanged(pasted)
-        ..draftSent(pasted);
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
-      expect(controller.usage.tokens, greaterThan(1100));
-    });
-  });
-
-  group('an estimate a measurement does account for', () {
-    test('is released by the run its seed already named', () async {
-      // The history walk is slow, so it can answer after the run it names
-      // has finished -- seeding the reading with the very run whose usage
-      // is still in flight. That answer covers the message sent, so the
-      // estimate standing in for it still has to come out.
-      final answer = Completer<RunUsage?>();
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-1'))
-          .thenAnswer((_) => answer.future);
-      final controller = build();
-
-      controller.draftSent('a message already on its way');
-      final banked = controller.usage.estimatedTokens;
-      final pending = controller.runEnded('run-1');
-
-      controller
-          .historyLoaded(_history(_usage('run-1', finalInputTokens: 5000)));
-
-      answer.complete(_usage('run-1', finalInputTokens: 5000));
-      await pending;
-
-      expect(banked, greaterThan(0));
-      expect(controller.usage.tokens, 5000);
-    });
-  });
-
-  group('an estimate a measurement cannot account for', () {
-    test('survives an answer whose fetch predates the send', () async {
-      // The fetch went out before this message was sent, so the count it
-      // brings back cannot include it.
-      final answer = Completer<RunUsage?>();
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-1'))
-          .thenAnswer((_) => answer.future);
-      final controller = build();
-
-      final pending = controller.runEnded('run-1');
-      controller.draftChanged('a message sent while the fetch was open');
-      await Future<void>.delayed(Duration.zero);
-      controller.draftSent('a message sent while the fetch was open');
-      final banked = controller.usage.estimatedTokens;
-
-      answer.complete(_usage('run-1', finalInputTokens: 5000));
-      await pending;
-
-      expect(banked, greaterThan(0));
-      expect(controller.usage.tokens, 5000 + banked);
+      expect(controller.usage.value.estimatedTokens, 0);
     });
 
-    test('survives a history seed, which measured none of it', () async {
-      // The history was fetched when the thread opened; a message sent
-      // since is not in it.
-      final controller = build()..draftChanged('a message on its way');
-      await Future<void>.delayed(Duration.zero);
-      controller.draftSent('a message on its way');
-      final banked = controller.usage.estimatedTokens;
-
-      controller
-          .historyLoaded(_history(_usage('run-1', finalInputTokens: 1800)));
-
-      expect(banked, greaterThan(0));
-      expect(controller.usage.tokens, 1800 + banked);
-    });
-  });
-
-  group('the draft', () {
-    test('adds to the measurement', () async {
+    test('counts the draft once typing pauses', () async {
       final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('a draft with several words in it');
+        ..historyLoaded(
+            _history(['a'], measured: _usage('run-1', 1000), covered: 1))
+        ..draftChanged('a draft');
       await Future<void>.delayed(Duration.zero);
 
-      expect(controller.usage.tokens, greaterThan(1000));
+      expect(controller.usage.value.estimatedTokens,
+          estimateDraftTokens('a draft'));
+    });
+  });
+
+  test('a window that arrives later moves the reading', () {
+    final controller = build(windowSize: null)
+      ..historyLoaded(
+          _history(['a'], measured: _usage('run-1', 1800), covered: 1));
+    expect(controller.usage.value.fractionUsed, isNull);
+
+    window.value = 8192;
+
+    expect(controller.usage.value.fractionUsed, closeTo(1800 / 8192, 1e-9));
+  });
+
+  group('warning', () {
+    // 8192 is under 128k, so the threshold is 80%: 6554 tokens.
+    ContextUsageController at(int tokens) => build()
+      ..historyLoaded(
+          _history(['a'], measured: _usage('run-1', tokens), covered: 1));
+
+    test('is null while there is room', () {
+      expect(at(1000).warning.value, isNull);
     });
 
-    test('makes the reading no longer exact', () async {
-      // The measurement is the provider's own count; the draft is not.
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)));
-      expect(controller.usage.isExact, isTrue);
-
-      controller.draftChanged('unsent');
-      await Future<void>.delayed(Duration.zero);
-
-      expect(controller.usage.isExact, isFalse);
+    test('carries the reading once nearly full', () {
+      expect(at(7000).warning.value?.tokens, 7000);
     });
 
-    test('coalesces a burst of keystrokes into one reading', () async {
-      final controller = build(debounce: const Duration(milliseconds: 20));
-      var notifications = 0;
-      controller.addListener(() => notifications++);
+    test('hides once the reading falls back under the threshold', () {
+      // C2 at the source: the warning is derived, so nothing can skip it.
+      final controller = at(6000)..sendStarted([TextPart('pad ' * 1000)]);
+      expect(controller.warning.value, isNotNull);
+
+      controller.sendEnded(null);
+
+      expect(controller.warning.value, isNull);
+    });
+
+    test('stays hidden after dismissal while still nearly full', () {
+      final controller = at(7000)..dismissWarning();
+
+      expect(controller.warning.value, isNull);
+    });
+
+    test('returns after a dismissal once the reading dips and climbs again',
+        () {
+      final controller = at(6000)
+        ..sendStarted([TextPart('pad ' * 1000)])
+        ..dismissWarning();
+      expect(controller.warning.value, isNull);
 
       controller
-        ..draftChanged('a')
-        ..draftChanged('ab')
-        ..draftChanged('abc');
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+        ..sendEnded(null)
+        ..sendStarted([TextPart('pad ' * 1000)]);
 
-      expect(notifications, 1);
-    });
-
-    test('sending holds the estimate until a run reports', () async {
-      // Dropping it here would make the gauge read low for the whole
-      // length of the run, which is the one direction it must not.
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-      final withDraft = controller.usage.tokens;
-
-      controller.draftSent('something being typed');
-
-      expect(controller.usage.tokens, withDraft);
-      expect(controller.usage.isExact, isFalse);
-    });
-
-    test('the run\'s measurement releases the held estimate', () async {
-      runAnswers('run-2', _usage('run-2', finalInputTokens: 1200));
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-      controller.draftSent('something being typed');
-
-      await controller.runEnded('run-2');
-
-      expect(controller.usage.tokens, 1200);
-      expect(controller.usage.isExact, isTrue);
-    });
-
-    test('a run that measured nothing releases it too', () async {
-      // Holding an estimate against a run that has ended would read
-      // high for good. The message either never reached the model or is
-      // inside the previous reading already.
-      runAnswers('run-2', null);
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-      controller.draftSent('something being typed');
-
-      await controller.runEnded('run-2');
-
-      expect(controller.usage.tokens, 1000);
-      expect(controller.usage.isExact, isTrue);
-    });
-
-    test('a failed fetch keeps it, because the message did reach the model',
-        () async {
-      // The measurement is what went missing, not the message. Dropping
-      // the estimate here would move the reading *down* after a send —
-      // the one direction it must never move.
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
-          .thenThrow(const NetworkException(message: 'down'));
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-      final sent = controller.usage.tokens;
-      controller.draftSent('something being typed');
-
-      await controller.runEnded('run-2');
-
-      expect(controller.usage.tokens, sent);
-      expect(controller.usage.isExact, isFalse);
-    });
-
-    test('a later measurement clears the estimate the failure kept', () async {
-      when(() => api.getRunUsage(_roomId, _threadId, 'run-2'))
-          .thenThrow(const NetworkException(message: 'down'));
-      runAnswers('run-3', _usage('run-3', finalInputTokens: 4000));
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-      controller.draftSent('something being typed');
-      await controller.runEnded('run-2');
-
-      await controller.runEnded('run-3');
-
-      expect(controller.usage.tokens, 4000);
-      expect(controller.usage.isExact, isTrue);
+      expect(controller.warning.value, isNotNull);
     });
   });
 
-  group('a send that never reached a run', () {
-    test('notifies nothing when there is no estimate to drop', () async {
-      // The ending subscription calls this from inside a build, where a
-      // notification is a rebuild begun inside one. It is safe only
-      // because a controller holding no estimate has none to release.
-      final controller = build();
-      var notifications = 0;
-      controller.addListener(() => notifications++);
+  test('an answer after dispose writes nothing and does not throw', () async {
+    final answer = Completer<RunUsage?>();
+    answers('run-1', () => answer.future);
+    final controller = ContextUsageController(
+      api: api,
+      roomId: _roomId,
+      threadId: _threadId,
+      contextWindow: Signal<int?>(8192),
+      draftDebounce: _noDebounce,
+    );
 
-      controller.sendFailed();
+    final pending = controller.runCompleted('run-1', _transcript(['a']));
+    controller.dispose();
+    answer.complete(_usage('run-1', 1800));
 
-      expect(notifications, 0);
-    });
-
-    test('releases the estimate holding its place', () async {
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-      controller.draftSent('something being typed');
-      expect(controller.usage.tokens, greaterThan(1000));
-
-      controller.sendFailed();
-
-      expect(controller.usage.tokens, 1000);
-    });
-
-    test('does not double-count once the composer restores the draft',
-        () async {
-      // The estimate and the restored draft are the same message. Nothing
-      // will report on it, so the estimate has to come out before the
-      // draft is counted again.
-      final controller = build()
-        ..historyLoaded(_history(_usage('run-1', finalInputTokens: 1000)))
-        ..draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-      final withDraft = controller.usage.tokens;
-      controller.draftSent('something being typed');
-
-      controller.sendFailed();
-      controller.draftChanged('something being typed');
-      await Future<void>.delayed(Duration.zero);
-
-      expect(controller.usage.tokens, withDraft);
-    });
-  });
-
-  test('a disposed controller stops answering', () async {
-    final controller = build(debounce: const Duration(milliseconds: 20))
-      ..dispose();
-
-    controller
-      ..draftChanged('typed after disposal')
-      ..historyLoaded(_history(_usage('run-1', finalInputTokens: 10)));
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-
-    // No notification is dispatched, which would throw on a disposed
-    // ChangeNotifier; reaching here is the assertion.
-    expect(controller.usage.tokens, isNull);
-    expect(controller.usage.estimatedTokens, 0);
+    await expectLater(pending, completes);
   });
 }

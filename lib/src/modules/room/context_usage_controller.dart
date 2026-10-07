@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:signals_flutter/signals_flutter.dart' show batch, effect;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -12,135 +12,177 @@ final Logger _logger =
 
 /// Holds the context reading for one thread.
 ///
-/// Two numbers, from two places, neither computed here:
+/// The reading predicts the thread's next request, and that request is the
+/// thread's transcript: the history the next send carries. So the reading is
+/// derived from the transcript rather than kept beside it.
 ///
-/// - The window is the room's, and arrives with the room, so it is
-///   handed in rather than fetched.
 /// - The measurement is the provider's own count for the last request of
-///   the newest measured run, plus its reply, which the next request will
-///   carry. It arrives with the thread's history, and after each run from
-///   that run's usage record. The backend is the only
-///   vantage point that sees the whole request — instructions, tool and
-///   MCP schemas, the chat template, images, evidence compaction — so
-///   reconstructing it here would necessarily read low.
+///   the newest measured run, plus its reply. It covers the transcript up
+///   to where that run ended. The backend is the only vantage point that
+///   sees the whole request — instructions, tool and MCP schemas, the chat
+///   template, evidence compaction — so nothing here recounts that part.
+/// - What the transcript holds after the measured run is estimated: a run
+///   that recorded no count, what an errored run streamed, a stopped
+///   message. So is a send no transcript carries yet, and the draft.
 ///
-/// What this adds locally is the estimate: the draft in the composer, and
-/// a message already sent that no run has reported on yet. Both are biased
-/// high on purpose; see [estimateDraftTokens]. Until a run has measured
-/// something the reading offers no total at all — an estimate is a
-/// fragment of a conversation nobody has counted, not a reading of it.
-class ContextUsageController extends ChangeNotifier {
+/// Estimates are biased high on purpose; see [estimateDraftTokens]. Until
+/// a run has measured something the reading offers no total at all — an
+/// estimate is a fragment of a conversation nobody has counted.
+class ContextUsageController {
   /// Creates a controller for [threadId] in [roomId].
   ContextUsageController({
     required SoliplexApi api,
     required String roomId,
     required String threadId,
-    this.contextWindow,
+    required ReadonlySignal<int?> contextWindow,
     Duration draftDebounce = const Duration(milliseconds: 300),
   })  : _api = api,
         _roomId = roomId,
         _threadId = threadId,
-        _draftDebounce = Debouncer(draftDebounce);
+        _contextWindow = contextWindow,
+        _draftDebounce = Debouncer(draftDebounce) {
+    // Re-arms a dismissed warning once the reading falls back under the
+    // threshold, so a warning dismissed at 81% returns if the thread
+    // climbs again.
+    _disposeRearm = effect(() {
+      if (!usage.value.isNearlyFull) _warningDismissed.value = false;
+    });
+  }
 
   final SoliplexApi _api;
   final String _roomId;
   final String _threadId;
+  final ReadonlySignal<int?> _contextWindow;
   final Debouncer _draftDebounce;
 
-  /// The room's model's window, or null when nothing knows it — in which
-  /// case the reading carries no percentage and the gauge shows a hollow
-  /// ring rather than render against an invented denominator.
-  ///
-  /// Settable because the room loads on its own schedule and may arrive
-  /// after this controller exists. Setting it does not notify: it is
-  /// assigned from a build that reads [usage] straight after, and a
-  /// notification there would be a rebuild inside a build.
-  int? contextWindow;
-
-  RunUsage? _measured;
-  int _draftTokens = 0;
-  int _inFlightTokens = 0;
+  final Signal<Transcript> _transcript = Signal<Transcript>(const Transcript());
+  final Signal<MeasuredRun?> _measured = Signal<MeasuredRun?>(null);
+  final Signal<int> _sendingTokens = Signal<int>(0);
+  final Signal<int> _draftTokens = Signal<int>(0);
+  final Signal<bool> _warningDismissed = Signal<bool>(false);
+  late final void Function() _disposeRearm;
   bool _disposed = false;
 
-  /// How many measurements have been asked for, which is the only order
-  /// available: a usage record carries no time of its own, and runs end
-  /// in the order this is called.
-  int _fetches = 0;
+  /// Tokens of the transcript the measurement does not cover. Apart from
+  /// [usage] so that a keystroke does not re-estimate the transcript.
+  late final ReadonlySignal<int> _unmeasuredTokens = computed(() {
+    final messages = _transcript.value.messages;
+    final covered = _measured.value?.coveredMessages ?? messages.length;
+    if (covered >= messages.length) return 0;
+    return estimateTranscriptTokens(messages.skip(covered));
+  });
 
   /// The current reading.
-  ///
-  /// The terms go in apart: what the backend counted, and what is
-  /// guessed here. What may be shown of them, and whether a percentage
-  /// exists at all, is the reading's own to work out.
-  ContextUsage get usage => ContextUsage(
-        measuredTokens: _measured?.contextTokens,
-        estimatedTokens: _draftTokens + _inFlightTokens,
-        contextWindow: contextWindow,
-      );
+  late final ReadonlySignal<ContextUsage> usage = computed(
+    () => ContextUsage(
+      measuredTokens: _measured.value?.usage.contextTokens,
+      estimatedTokens:
+          _unmeasuredTokens.value + _sendingTokens.value + _draftTokens.value,
+      contextWindow: _contextWindow.value,
+    ),
+  );
 
-  /// The newest measured run's usage, or null before any run has been.
-  RunUsage? get measured => _measured;
+  /// The reading while the thread is nearly full and the warning has not
+  /// been dismissed; null otherwise.
+  late final ReadonlySignal<ContextUsage?> warning = computed(() {
+    final current = usage.value;
+    return current.isNearlyFull && !_warningDismissed.value ? current : null;
+  });
 
-  /// Takes the measurement from a freshly loaded [history].
+  /// Hides the warning until the reading next falls under the threshold.
+  void dismissWarning() {
+    if (_disposed) return;
+    _warningDismissed.value = true;
+  }
+
+  /// Takes the transcript and measurement of a freshly loaded [history].
   ///
-  /// Called when the thread's history loads. The history already carries
-  /// the newest measured run, so this costs no request.
-  ///
-  /// A seed, not a correction: the fetch behind it was issued before any
-  /// run this controller watched, so a measurement already in hand is at
-  /// least as new and the history has nothing to add. A history carrying
-  /// no measurement leaves the reading where it was.
+  /// The history is what the next send carries — it seeds the runtime — so
+  /// its transcript is taken unless the one held is longer, and its
+  /// measurement unless the one held covers more. Of every transcript the
+  /// reading receives, only this one can arrive out of order: it is fetched
+  /// when the thread opens and may land after a send, missing what the send
+  /// added.
   void historyLoaded(ThreadHistory history) {
-    if (_disposed || _measured != null) return;
-
-    final latest = history.latestUsage;
-    if (latest == null || !latest.isMeasured) {
+    if (_disposed) return;
+    final latest = history.latestMeasurement;
+    if (latest == null || !latest.usage.isMeasured) {
       // Without this the gauge is hollow and says nothing about why: no
       // run in the thread has reported what its request cost.
       _logger.info(
         'Thread history carried no measurement',
-        attributes: {'threadId': _threadId, 'contextWindow': contextWindow},
+        attributes: {
+          'threadId': _threadId,
+          'contextWindow': _contextWindow.value,
+        },
       );
     }
-
-    // Releases nothing: a seed says which run was measured, not which
-    // messages an estimate here stands for. The run's own answer is what
-    // releases it -- including when the seed named that same run.
-    _measure(latest, releasing: 0);
+    batch(() {
+      if (history.transcript.messages.length >=
+          _transcript.value.messages.length) {
+        _transcript.value = history.transcript;
+      }
+      _adopt(latest);
+    });
   }
 
-  /// Re-reads the measurement once [runId] has ended.
-  ///
-  /// The history is not re-read after a run, so the run's own usage is
-  /// fetched. Failure is quiet by design: a context indicator that cannot
-  /// refresh should keep showing its last honest reading, not interrupt
-  /// the conversation. It keeps the in-flight estimate too — the message
-  /// did reach the model, so dropping the term standing in for it would
-  /// move the reading down after a send. A later run's measurement
-  /// supersedes it. So does a run the backend has no count for, which
-  /// can mean it never reached the model or that its provider reported
-  /// no prompt tokens for the request it made. The previous reading
-  /// stands either way.
-  Future<void> runEnded(String runId) async {
-    final fetch = ++_fetches;
-    // What this answer can speak for: the run had started, so the model
-    // saw everything held now. Anything banked while the request is open
-    // is a later message it never saw.
-    final heldAtRequest = _inFlightTokens;
-    final RunUsage? found;
+  /// Counts [prompt], just sent, until a transcript carrying it arrives or
+  /// the send ends.
+  void sendStarted(List<MessagePart> prompt) {
+    if (_disposed) return;
+    final text = [
+      for (final part in prompt)
+        if (part is TextPart) part.text,
+    ].join('\n');
+    _sendingTokens.value = estimateDraftTokens(
+      text,
+      images: prompt.whereType<ImagePart>().length,
+    );
+  }
 
+  /// Takes the [transcript] of a run in progress.
+  ///
+  /// Called on every state the run reports. A transcript holding as many
+  /// messages as the one held is ignored: streamed text replaces a message
+  /// in place, and re-estimating it per token buys nothing the run's end
+  /// does not settle. The prompt, then each tool call and result, add
+  /// messages, so the reading grows with the run's own requests — which is
+  /// where a window overflows.
+  void runProgressed(Transcript transcript) {
+    if (_disposed) return;
+    if (transcript.messages.length == _transcript.value.messages.length) {
+      return;
+    }
+    batch(() {
+      _sendingTokens.value = 0;
+      _transcript.value = transcript;
+    });
+  }
+
+  /// Takes the [transcript] [runId] completed with, then reads the run's
+  /// count, which covers that transcript whole.
+  ///
+  /// Without a count — no record, or a failed fetch — what the run added
+  /// stays estimated. Failure is quiet by design: the gauge keeps its last
+  /// honest reading rather than interrupt the conversation.
+  Future<void> runCompleted(String runId, Transcript transcript) async {
+    if (_disposed) return;
+    batch(() {
+      _sendingTokens.value = 0;
+      _transcript.value = transcript;
+    });
+    final RunUsage? found;
     try {
       found = await _api.getRunUsage(_roomId, _threadId, runId);
     } on Object catch (e, stackTrace) {
+      if (_disposed) return;
       // Catches an Error as well as an Exception: this is started with
-      // `unawaited`, so whatever escapes has no caller to reach, only
-      // the zone's handler.
-      //
-      // A network failure travels whole, because it renders as the host
-      // and the OS error and that is the diagnosis. Anything else can
-      // carry the value it failed on, so it is described instead.
+      // `unawaited`, so whatever escapes has no caller to reach, only the
+      // zone's handler. A network failure travels whole, because it renders
+      // as the host and the OS error and that is the diagnosis. Anything
+      // else can carry the value it failed on, so it is described instead.
       _logger.warning(
-        'Run usage fetch failed; keeping the previous reading',
+        'Run usage fetch failed; the run stays estimated',
         error: e is NetworkException ? e : null,
         stackTrace: stackTrace,
         attributes: {
@@ -150,131 +192,99 @@ class ContextUsageController extends ChangeNotifier {
       );
       return;
     }
-
-    // A later run ended while this was in flight, so this answer is about
-    // a request the model has since moved past.
-    if (_disposed || fetch != _fetches) return;
+    if (_disposed) return;
 
     if (found == null || !found.isMeasured) {
-      // The reading goes stale here without changing, which looks from
-      // the outside exactly like a reading that was already current.
-      // `hasRecord` separates the causes: no record is the backend
-      // saying the run produced no usage, while a record without a count
-      // can be a run the model did see whose provider reported no prompt
-      // tokens.
+      // `hasRecord` separates the causes: no record is the backend saying
+      // the run produced no usage, while a record without a count can be a
+      // run whose provider reported no prompt tokens.
       _logger.info(
-        'Run reported no measurement; the previous reading stands',
+        'Run reported no measurement; the run stays estimated',
         attributes: {
           'threadId': _threadId,
           'runId': runId,
           'hasRecord': found != null,
         },
       );
-    }
-
-    _measure(found, releasing: heldAtRequest);
-  }
-
-  /// Records that a send ended with no run to report on it.
-  ///
-  /// Nothing will ever measure the message, so the estimate standing in
-  /// for it has to come back out — and where the composer puts the text
-  /// back, before the same message is counted again as a draft.
-  void sendFailed() => _releaseEstimate(_inFlightTokens);
-
-  /// Adopts [found], dropping the [releasing] tokens of estimate it
-  /// accounts for and leaving any banked since it was asked for.
-  void _measure(RunUsage? found, {required int releasing}) {
-    // A run that measured nothing releases the estimate standing in for
-    // the sent message: it either never reached the model or is already
-    // inside the previous reading, and holding an estimate against a run
-    // that has ended would read high for good.
-    if (found == null || !found.isMeasured) {
-      _releaseEstimate(releasing);
       return;
     }
 
-    // Already the reading, so the number does not move -- but the answer
-    // still covers the message this run carried, and that estimate comes
-    // out whether or not the reading changes.
-    if (found.runId == _measured?.runId) {
-      _releaseEstimate(releasing);
-      return;
-    }
-
-    _measured = found;
-    _inFlightTokens = _afterReleasing(releasing);
-    // The window is here because a null one is why an otherwise measured
-    // thread shows no percentage — whether the model declares none or
-    // the room has not loaded yet, which this cannot tell apart.
-    _logger.info(
-      'Context reading measured',
-      attributes: {
-        'threadId': _threadId,
-        'runId': found.runId,
-        'finalInputTokens': found.finalInputTokens,
-        'finalOutputTokens': found.finalOutputTokens,
-        'contextWindow': contextWindow,
-      },
+    _adopt(
+      MeasuredRun(usage: found, coveredMessages: transcript.messages.length),
     );
-    notifyListeners();
   }
 
-  int _afterReleasing(int tokens) {
-    final remaining = _inFlightTokens - tokens;
-    return remaining < 0 ? 0 : remaining;
-  }
-
-  /// Drops [tokens] of the in-flight estimate without a new measurement.
-  void _releaseEstimate(int tokens) {
+  /// Takes the [transcript] of a send that ended with no count to read.
+  ///
+  /// An errored run's transcript keeps what it streamed, a cut-off run's
+  /// keeps its message, and both are carried into the next request, so both
+  /// stay estimated. A cut-off run's count is not read even if the backend
+  /// later records one: the backend finishes the run and counts more than
+  /// this transcript kept. A send that never reached a run passes null and
+  /// leaves nothing behind.
+  void sendEnded(Transcript? transcript) {
     if (_disposed) return;
-    final remaining = _afterReleasing(tokens);
-    if (remaining == _inFlightTokens) return;
-
-    _inFlightTokens = remaining;
-    notifyListeners();
+    batch(() {
+      _sendingTokens.value = 0;
+      if (transcript != null) _transcript.value = transcript;
+    });
   }
 
   /// Records what is currently in the composer.
   ///
-  /// Debounced: the draft is the only term that moves while someone is
-  /// typing, and it costs a rebuild rather than a request.
+  /// Debounced while there is text: the draft is the only term that moves
+  /// while someone types. An empty composer applies at once and cancels any
+  /// pending estimate — a send clears the composer, and an estimate landing
+  /// after that would count the sent message a second time.
   void draftChanged(String draft, {int images = 0}) {
+    if (draft.isEmpty && images == 0) {
+      _draftDebounce.cancel();
+      if (!_disposed) _draftTokens.value = 0;
+      return;
+    }
     _draftDebounce.run(() {
       if (_disposed) return;
-
-      final estimate = estimateDraftTokens(draft, images: images);
-
-      if (estimate == _draftTokens) return;
-
-      _draftTokens = estimate;
-      notifyListeners();
+      _draftTokens.value = estimateDraftTokens(draft, images: images);
     });
   }
 
-  /// Records that the draft has been sent.
-  ///
-  /// The message is on its way to the model but no run has reported on
-  /// it yet, so simply dropping the draft term would make the gauge read
-  /// *low* for as long as the run takes — the one direction it must
-  /// never read. The estimate holds the sent message's place instead,
-  /// and is released when the run's measurement arrives.
-  void draftSent(String text, {int images = 0}) {
-    // Estimated from what is being sent, not from what the debounce last
-    // stored: a paste and an immediate send both land inside the window,
-    // and the stored draft is still empty when the message goes.
-    _draftDebounce.cancel();
-
-    _inFlightTokens += estimateDraftTokens(text, images: images);
-    _draftTokens = 0;
-
-    notifyListeners();
+  /// Adopts [measured] unless the one held covers more of the transcript,
+  /// which makes it the newer count.
+  void _adopt(MeasuredRun? measured) {
+    if (measured == null || !measured.usage.isMeasured) return;
+    final held = _measured.value;
+    if (held == measured) return;
+    if (held != null && held.coveredMessages > measured.coveredMessages) {
+      return;
+    }
+    _measured.value = measured;
+    // The window is here because a null one is why an otherwise measured
+    // thread shows no percentage.
+    _logger.info(
+      'Context reading measured',
+      attributes: {
+        'threadId': _threadId,
+        'runId': measured.usage.runId,
+        'finalInputTokens': measured.usage.finalInputTokens,
+        'finalOutputTokens': measured.usage.finalOutputTokens,
+        'coveredMessages': measured.coveredMessages,
+        'contextWindow': _contextWindow.value,
+      },
+    );
   }
 
-  @override
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     _draftDebounce.cancel();
-    super.dispose();
+    _disposeRearm();
+    warning.dispose();
+    usage.dispose();
+    _unmeasuredTokens.dispose();
+    _transcript.dispose();
+    _measured.dispose();
+    _sendingTokens.dispose();
+    _draftTokens.dispose();
+    _warningDismissed.dispose();
   }
 }

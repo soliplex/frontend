@@ -962,7 +962,11 @@ class SoliplexApi {
         documentFilter: documentFilter,
         databaseSources: databaseSources,
         storedStateWarnings: scopeWarnings,
-        latestUsage: latestUsage,
+        // Nothing was replayed, so the transcript is empty and the count
+        // covers none of it.
+        latestMeasurement: latestUsage == null
+            ? null
+            : MeasuredRun(usage: latestUsage, coveredMessages: 0),
       );
     }
 
@@ -1439,7 +1443,9 @@ class SoliplexApi {
         messages: const [],
         documentFilter: documentFilter,
         databaseSources: databaseSources,
-        latestUsage: latestUsage,
+        latestMeasurement: latestUsage == null
+            ? null
+            : MeasuredRun(usage: latestUsage, coveredMessages: 0),
       );
     }
 
@@ -1464,6 +1470,8 @@ class SoliplexApi {
     // two different messages. Both drop the second message; only the first is
     // harmless, and without the text they are indistinguishable.
     final appendedUserText = <String, String>{};
+    // Where the measured run ended in the transcript, once replay reaches it.
+    int? coveredByLatest;
 
     for (final (:runId, :payload, :fetchError, :fetchStackTrace, :created)
         in runsToReplay) {
@@ -1751,6 +1759,10 @@ class SoliplexApi {
         conversation = conversation.copyWith(transcript: sentTranscript);
       }
 
+      if (runId == latestUsage?.runId) {
+        coveredByLatest = conversation.transcript.messages.length;
+      }
+
       runs.add(RunEventBundle(runId: runId, events: decodedEvents));
 
       // Every run's end state, not only the thread's final one: each turn's
@@ -1846,7 +1858,15 @@ class SoliplexApi {
       databaseSources: databaseSources,
       storedStateWarnings: storedStateWarnings,
       transcript: conversation.transcript,
-      latestUsage: latestUsage,
+      // A measured run replay never reached is placed at the end, which is
+      // what the count meant before the history said where it ended.
+      latestMeasurement: latestUsage == null
+          ? null
+          : MeasuredRun(
+              usage: latestUsage,
+              coveredMessages:
+                  coveredByLatest ?? conversation.transcript.messages.length,
+            ),
     );
   }
 

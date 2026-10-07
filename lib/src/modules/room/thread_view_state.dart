@@ -6,6 +6,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../auth/auth_session.dart';
 import '../auth/auth_tokens.dart';
 import 'composer_draft.dart';
+import 'context_usage_controller.dart';
 import 'composer_persistence.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
@@ -85,11 +86,13 @@ class ThreadViewState {
     required String roomId,
     required this.threadId,
     required RunRegistry registry,
+    required ReadonlySignal<int?> contextWindow,
     this.onHistoryLoaded,
   })  : _connection = connection,
         _auth = auth,
         _roomId = roomId,
-        _registry = registry {
+        _registry = registry,
+        _contextWindow = contextWindow {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
     // What the registry holds shows at once. It is only what this app saw of
     // the thread's last run, so the fetch still runs, and replaces every run
@@ -104,6 +107,17 @@ class ThreadViewState {
   final String threadId;
   final HistoryLoadedCallback? onHistoryLoaded;
   final RunRegistry _registry;
+  final ReadonlySignal<int?> _contextWindow;
+
+  /// This thread's context reading. Created with the view and disposed
+  /// with it, so it can never outlive, or be shared across, the view
+  /// whose history, runs and sends feed it.
+  late final ContextUsageController contextUsage = ContextUsageController(
+    api: _connection.api,
+    roomId: _roomId,
+    threadId: threadId,
+    contextWindow: _contextWindow,
+  );
 
   ThreadKey get threadKey => (
         serverId: _connection.serverId,
@@ -143,25 +157,6 @@ class ThreadViewState {
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
-
-  /// How a send in this thread last ended: a count of endings so far, and
-  /// the id of the run behind the latest one when the backend named one.
-  ///
-  /// A run's usage is only recorded once it is over, so an ending that
-  /// carries an id is the moment a subscriber can go and read it. Carried
-  /// as the id rather than the outcome because the outcome does not say
-  /// what the run cost — that is the backend's record, fetched by id.
-  ///
-  /// An ending with no id says only that nothing will ever report on the
-  /// send. The count is what separates two of those in a row, which a
-  /// bare null could not: it starts at zero, meaning nothing has ended.
-  final Signal<(int, String?)> _endedRun = Signal<(int, String?)>((0, null));
-  ReadonlySignal<(int, String?)> get endedRun => _endedRun;
-
-  int _endings = 0;
-
-  /// Publishes an ending, whether or not a run was ever named for it.
-  void _endRun(String? runId) => _endedRun.value = (++_endings, runId);
 
   /// Mirror of the active session's reconnect lifecycle. `null` means
   /// no reconnect activity. UI surfaces this for [Reconnecting] and
@@ -352,6 +347,9 @@ class ThreadViewState {
     // The spawner's own re-entrancy guard only covers in-flight spawns;
     // this blocks overlapping sends when a prior session is attached.
     if (_sessionState.value != null) return Future<void>.value();
+    // Counted here, past the guard, rather than where the composer sends:
+    // a suggestion tap is a send too, and a send turned away is not.
+    contextUsage.sendStarted(prompt);
     // The next run is seeded from the runtime's cached history, with its
     // run-scoped keys emptied, and any run that ends with a conversation
     // replaces that cache with the state it ended with. So once one such run
@@ -392,7 +390,7 @@ class ThreadViewState {
         // The spawner comes back to null when a spawn did not succeed --
         // no session, or one that threw on the way to being attached. A
         // session that attached hands off to its own terminal state.
-        if (state == null) _endRun(null);
+        if (state == null) contextUsage.sendEnded(null);
       },
     );
   }
@@ -408,7 +406,7 @@ class ThreadViewState {
       // Cancelled before the spawn returned, so its id never reaches us
       // even if the backend went on to name one. Nothing here will
       // report on the send.
-      _endRun(null);
+      contextUsage.sendEnded(null);
       return;
     }
     _activeSession.value?.cancel();
@@ -444,12 +442,15 @@ class ThreadViewState {
           _messages.value = _messagesLoaded(conversation);
         }
         _streamingState.value = streaming;
+        // The reading takes it only when the message count moved, so
+        // streamed text costs a comparison, not an estimate.
+        contextUsage.runProgressed(conversation.transcript);
         _activeRunId.value = runId;
         _sessionState.value = AgentSessionState.running;
       case CompletedState(:final conversation, :final runId):
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
-        _endRun(runId);
+        unawaited(contextUsage.runCompleted(runId, conversation.transcript));
       case FailedState(
           :final conversation,
           :final reason,
@@ -457,7 +458,7 @@ class ThreadViewState {
           :final runId,
         ):
         _detachSession();
-        _endRun(runId);
+        contextUsage.sendEnded(conversation?.transcript);
         if (reason == FailureReason.authExpired) {
           // Funnel to the per-server auth funnel so the route guard
           // (and any lobby UX) can react. The screen also surfaces a
@@ -478,12 +479,12 @@ class ThreadViewState {
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
-      case CancelledState(:final conversation, :final runId):
+      case CancelledState(:final conversation):
         _detachSession();
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
-        _endRun(runId);
+        contextUsage.sendEnded(conversation?.transcript);
       case IdleState():
       case ToolYieldingState():
         break;
@@ -558,7 +559,7 @@ class ThreadViewState {
     switch (outcome) {
       case CompletedRun(:final conversation, :final runId):
         _messages.value = _messagesLoaded(conversation);
-        _endRun(runId);
+        unawaited(contextUsage.runCompleted(runId, conversation.transcript));
       case FailedRun(:final conversation, :final error, :final reason):
         // Apply friendly copy on re-attach, same as the live FailedState arm.
         _lastSendError.value =
@@ -566,14 +567,12 @@ class ThreadViewState {
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
-        // Neither outcome carries a run id, so neither can be read by
-        // one; both still say the send is over.
-        _endRun(null);
+        contextUsage.sendEnded(conversation?.transcript);
       case CancelledRun(:final conversation):
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
-        _endRun(null);
+        contextUsage.sendEnded(conversation?.transcript);
     }
   }
 
@@ -653,6 +652,7 @@ class ThreadViewState {
         }
         _stateWarnings.value = {..._stateWarnings.value, ...warnings};
       }
+      contextUsage.historyLoaded(history);
       onHistoryLoaded?.call(threadId, history);
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
@@ -699,6 +699,7 @@ class ThreadViewState {
     _authUnsub = null;
     _cancelToken?.cancel('disposed');
     _detachSession();
+    contextUsage.dispose();
     _sessionState.dispose();
     _reconnectStatus.dispose();
     _stateWarnings.dispose();
