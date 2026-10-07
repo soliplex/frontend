@@ -24,7 +24,7 @@ class ThreadHistory {
     List<String>? databaseSources,
     Set<ThreadStateWarning> storedStateWarnings = const {},
     this.transcript = const Transcript(),
-    this.latestUsage,
+    this.latestMeasurement,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -107,13 +107,14 @@ class ThreadHistory {
   /// the session that stopped it, it was cut off.
   final Transcript transcript;
 
-  /// The newest run's usage that measured the context, or null when no run
-  /// in the thread has reached the model yet.
+  /// The newest run that measured the context, and how much of
+  /// [transcript] its count covers; null when no run in the thread has
+  /// reached the model yet.
   ///
-  /// Newest by creation, skipping runs that recorded no measurement — an
-  /// errored run says nothing about the window, and the one before it is
-  /// still the honest reading.
-  final RunUsage? latestUsage;
+  /// Newest by creation, skipping runs that recorded no measurement. What
+  /// those runs carried is in [transcript] after the covered messages, and
+  /// is the reader's to estimate.
+  final MeasuredRun? latestMeasurement;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.

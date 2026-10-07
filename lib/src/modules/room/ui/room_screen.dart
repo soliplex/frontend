@@ -12,7 +12,6 @@ import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
         CancelToken,
-        DefaultRoomAgent,
         FeedbackType,
         MalformedResponseException,
         PermissionDeniedException,
@@ -57,7 +56,6 @@ import '../workdir_controller.dart';
 import 'approval_handler.dart';
 import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
-import '../context_usage_controller.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
 import 'copy_button.dart';
@@ -275,21 +273,6 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Disposer for the active thread's message subscription that advances the
   /// anchor. Re-wired on thread switch, cancelled on dispose.
   void Function()? _anchorAdvanceUnsub;
-
-  /// Context accounting for the thread on screen.
-  ///
-  /// Scoped to the thread, not just the room: the measurement is one
-  /// thread's, and carrying it across would show the previous
-  /// conversation's fullness against the new one.
-  ContextUsageController? _contextUsage;
-  (String, String, String)? _contextUsageKey;
-  void Function()? _contextRunUnsub;
-
-  /// Whether the context warning has been dismissed for the thread on
-  /// screen. Re-arms when the thread changes, and when usage falls back
-  /// under the threshold — a warning that never returns is one someone
-  /// silenced once and then sailed past.
-  bool _contextWarningDismissed = false;
 
   /// Disposer for the thread-list subscription that keeps the room read marker
   /// in sync with thread-unread state. Re-wired on room change, cancelled on
@@ -864,14 +847,6 @@ class _RoomScreenState extends State<RoomScreen> {
     if (!mounted) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
     _applyHydratedDatabases(threadId, history.databaseSources);
-    // The history carries the newest measured run, so the reading is
-    // taken from it rather than fetched again. Keyed on the thread the
-    // controller was built for, not the one on screen: a controller is
-    // rebuilt on thread change, and this fetch may have been for the old
-    // one.
-    if (_contextUsageKey == (_serverId, widget.roomId, threadId)) {
-      _contextUsage?.historyLoaded(history);
-    }
     if (!_filterEnabled) return;
     _filterHydrator.setFilter(threadId, history.documentFilter);
   }
@@ -1266,8 +1241,6 @@ class _RoomScreenState extends State<RoomScreen> {
     _state.dispose();
     unawaited(_anchorTracker.dispose());
     unawaited(_threadReadTracker.dispose());
-    _contextRunUnsub?.call();
-    _contextUsage?.dispose();
     _chatController.removeListener(_onDraftChanged);
     _chatController.dispose();
     _chatFocusNode.dispose();
@@ -1895,13 +1868,10 @@ class _RoomScreenState extends State<RoomScreen> {
           if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
           Expanded(child: _capWidth(body)),
           // The ring follows the draft, which moves on every typing
-          // pause. Rebuilding it here rather than through `setState`
-          // keeps the timeline out of it. `body` above is built first,
-          // so a thread change has already swapped the controller by
-          // the time this reads which one to listen to.
-          ListenableBuilder(
-            listenable: Listenable.merge([_contextUsage]),
-            builder: (_, __) =>
+          // pause; `Watch` rebuilds only the composer for it, keeping the
+          // timeline out.
+          Watch(
+            (context) =>
                 _capWidth(_buildChatInput(threadView, room, messagesStatus)),
           ),
           // Last in the column so the caveat is the last thing read before
@@ -2391,10 +2361,6 @@ class _RoomScreenState extends State<RoomScreen> {
     final stateWarnings = threadView.stateWarnings.watch(context);
     _restoreUnsentText(sendError?.unsentText);
 
-    final usage = _contextUsageFor(threadView, room).usage;
-    final contextWarning =
-        usage.isNearlyFull && !_contextWarningDismissed ? usage : null;
-
     return Stack(
       children: [
         ApprovalHandler(
@@ -2409,12 +2375,14 @@ class _RoomScreenState extends State<RoomScreen> {
                 status: reconnectStatus!,
                 onDismiss: threadView.dismissReconnectStatus,
               ),
-            if (contextWarning != null)
-              _ContextWarningBanner(
-                usage: contextWarning,
-                onDismiss: () =>
-                    setState(() => _contextWarningDismissed = true),
-              ),
+            Watch((context) {
+              final warning = threadView.contextUsage.warning.value;
+              if (warning == null) return const SizedBox.shrink();
+              return _ContextWarningBanner(
+                usage: warning,
+                onDismiss: threadView.contextUsage.dismissWarning,
+              );
+            }),
             Expanded(
               child: switch (status) {
                 MessagesLoading() => const Center(
@@ -2449,11 +2417,6 @@ class _RoomScreenState extends State<RoomScreen> {
                   ).tiles.isEmpty
                       ? RoomWelcome(
                           room: room,
-                          // Deliberately unbanked, unlike the
-                          // composer's own send: banking clears the
-                          // draft term, and the composer below keeps
-                          // its text through this. One suggestion goes
-                          // uncounted until the run reports.
                           onSuggestionTapped: (suggestion) =>
                               threadView.sendMessage(
                             [TextPart(suggestion)],
@@ -2532,104 +2495,19 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  void _onContextUsageChanged() {
-    if (!mounted) return;
-
-    final nearlyFull = _contextUsage?.usage.isNearlyFull ?? false;
-
-    // The banner is the only thing this build takes from the reading,
-    // and neither it nor the flag re-arming it has moved. The ring
-    // rebuilds through its own listener.
-    if (!nearlyFull && !_contextWarningDismissed) return;
-
-    setState(() {
-      // Re-arm the warning once the thread drops back under the
-      // threshold, so a banner dismissed at 81% returns if the
-      // conversation climbs again. Done here rather than in 'build',
-      // which must not mutate state.
-      if (!nearlyFull) _contextWarningDismissed = false;
-    });
-  }
-
-  /// Forwards the composer's draft to the current context controller.
+  /// Forwards the composer's draft to the active thread's reading.
   ///
-  /// The draft is the one term of a reading nothing has measured, so it
-  /// is the only one that moves while someone types. The controller
-  /// debounces it.
+  /// The draft is the one term of a reading nothing has measured, so it is
+  /// the only one that moves while someone types. A reading starts with no
+  /// draft, which holds because every way a thread becomes active — a route
+  /// change in [didUpdateWidget], a room switch, or a fresh mount — clears
+  /// or creates the composer first; text typed before then is not
+  /// forwarded.
   void _onDraftChanged() {
-    _contextUsage?.draftChanged(
+    _state.activeThreadView?.contextUsage.draftChanged(
       _chatController.text,
       images: _chatController.draftImageCount,
     );
-  }
-
-  /// The context controller for [threadView], rebuilt when it changes.
-  ///
-  /// The window is the room's and is re-supplied on each build, since
-  /// the room may load after this does. The measurement arrives with
-  /// the thread's history and after each run ends, which are the only
-  /// moments it can move: it is the provider's own count for the
-  /// last request of a completed run.
-  ContextUsageController _contextUsageFor(
-    ThreadViewState threadView,
-    Room? room,
-  ) {
-    final key = (_serverId, widget.roomId, threadView.threadId);
-    // Only a default agent has a model to have a window. A factory agent
-    // chooses one when the run starts, and reports none.
-    final contextWindow = switch (room?.agent) {
-      DefaultRoomAgent(:final contextWindow) => contextWindow,
-      _ => null,
-    };
-
-    if (_contextUsageKey != key || _contextUsage == null) {
-      _contextRunUnsub?.call();
-      _contextRunUnsub = null;
-      _contextUsage?.dispose();
-
-      _contextUsageKey = key;
-      _contextWarningDismissed = false;
-      final controller = ContextUsageController(
-        api: widget.serverEntry.connection.api,
-        roomId: widget.roomId,
-        threadId: threadView.threadId,
-        contextWindow: contextWindow,
-      );
-      _contextUsage = controller;
-      // Never fires during a build. `draftSent` notifies synchronously
-      // but only a send calls it; everything else notifies from a timer
-      // or after an await. The subscription below does run inside this
-      // build: its release no-ops on a controller holding no estimate,
-      // and its fetch notifies nothing before the first await.
-      controller.addListener(_onContextUsageChanged);
-      controller.draftChanged(
-        _chatController.text,
-        images: _chatController.draftImageCount,
-      );
-
-      // `subscribe` fires with the current value. A thread restored
-      // from a completed outcome already carries that ending, so the run
-      // named there is read at once. Its history is fetched as well, but
-      // only seeds a reading nothing has measured yet, so whichever
-      // answers first, a count for the run replaces the history's. A
-      // thread restored while still running, or not restored at all, has
-      // had no ending yet and stops at the count.
-      _contextRunUnsub = threadView.endedRun.subscribe((ending) {
-        if (!mounted) return;
-        final (endings, runId) = ending;
-        if (endings == 0) return;
-        // No run was ever named, so nothing will report on the send and
-        // the estimate standing in for it has to come back out.
-        if (runId == null) {
-          controller.sendFailed();
-          return;
-        }
-        unawaited(controller.runEnded(runId));
-      });
-    }
-
-    // The room may have loaded since the controller was built.
-    return _contextUsage!..contextWindow = contextWindow;
   }
 
   /// Renders the single ChatInput at the bottom of the room layout. Dispatches
@@ -2673,9 +2551,7 @@ class _RoomScreenState extends State<RoomScreen> {
     // Only a thread that exists has a request to measure. The welcome
     // composer has nothing to count, and the gauge stays hidden there
     // rather than showing a confident zero.
-    final contextController =
-        threadView == null ? null : _contextUsageFor(threadView, room);
-    final contextUsage = contextController?.usage;
+    final contextUsage = threadView?.contextUsage.usage.value;
 
     return ChatInput(
       contextUsage: contextUsage,
@@ -2689,13 +2565,6 @@ class _RoomScreenState extends State<RoomScreen> {
       // [ChatInput.composerScope] for what that would cost.
       composerScope: (_serverId, widget.roomId, threadView?.threadId),
       onSend: (parts) {
-        // Before the composer clears: the estimate has to hold the sent
-        // message's place until a run reports on it, or the gauge reads
-        // low for the length of the run.
-        contextController?.draftSent(
-          _chatController.text,
-          images: _chatController.draftImageCount,
-        );
         if (threadView != null) {
           threadView.sendMessage(
             parts,
@@ -2766,7 +2635,7 @@ class _ContextWarningBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final percent = ((usage.fractionUsed ?? 0) * 100).round();
+    final percent = (usage.fractionUsed! * 100).round();
 
     return Container(
       width: double.infinity,

@@ -96,6 +96,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
     addTearDown(() {
       if (!left.remove(view)) view.dispose();

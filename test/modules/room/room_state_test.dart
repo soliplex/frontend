@@ -178,6 +178,37 @@ void main() {
     state.dispose();
   });
 
+  test('hands the loaded room window to the thread view', () async {
+    api.nextThreads = const [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+    api.nextRoom = Room(
+      id: 'room-1',
+      name: 'General',
+      agent: DefaultRoomAgent(
+        id: 'room-room-1',
+        providerType: 'ollama',
+        contextWindow: 16384,
+      ),
+    );
+    final state = RoomState(
+      serverEntry: serverEntry,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+    addTearDown(state.dispose);
+    state.selectThread('thread-1');
+
+    expect(
+        state.activeThreadView!.contextUsage.usage.value.contextWindow, isNull,
+        reason: 'the room has not loaded yet');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+        state.activeThreadView!.contextUsage.usage.value.contextWindow, 16384);
+  });
+
   test('createThread error surfaces lastError', () async {
     api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];

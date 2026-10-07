@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_client/soliplex_client.dart' show appendUserMessage;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
@@ -185,6 +186,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
       state.dismissStateWarnings();
@@ -202,6 +204,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
       state.dispose();
@@ -225,6 +228,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
 
     expect(state.messages.value, isA<MessagesLoading>());
@@ -263,6 +267,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
       onHistoryLoaded: (threadId, history) {
         capturedHistory = history;
       },
@@ -286,6 +291,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -311,6 +317,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -340,6 +347,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
     await Future<void>.delayed(Duration.zero);
     final sink = MemorySink();
@@ -370,6 +378,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -390,6 +399,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -509,6 +519,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      contextWindow: Signal<int?>(null),
     );
 
     // Registry outcome should be applied synchronously.
@@ -557,6 +568,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
       runtime.seedThreadHistory(state.threadKey, legacy);
@@ -578,6 +590,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
       runtime.seedThreadHistory(state.threadKey, legacy);
@@ -597,6 +610,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       runtime.seedThreadHistory(
         state.threadKey,
@@ -634,6 +648,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
       expect(state.stateWarnings.value, {ThreadStateWarning.legacyCitations});
@@ -646,9 +661,10 @@ void main() {
       state.dispose();
     });
 
-    test('a spawn that never produced a session reports an ending', () async {
-      // Nothing will ever report on the send, so a subscriber holding an
-      // estimate in its place has to hear that it is over.
+    test('a spawn that never produced a session leaves nothing counted',
+        () async {
+      // Nothing will ever report on the send, so the estimate standing in
+      // for it has to come back out.
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -657,6 +673,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -667,13 +684,13 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      expect(state.endedRun.value.$1, 1);
-      expect(state.endedRun.value.$2, isNull);
+      expect(state.contextUsage.usage.value.estimatedTokens, 0);
 
       state.dispose();
     });
 
-    test('a cancel before the backend names a run reports an ending', () async {
+    test('a cancel before the backend names a run leaves nothing counted',
+        () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -682,6 +699,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -692,8 +710,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      expect(state.endedRun.value.$1, 1);
-      expect(state.endedRun.value.$2, isNull);
+      expect(state.contextUsage.usage.value.estimatedTokens, 0);
 
       state.dispose();
     });
@@ -708,6 +725,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -746,6 +764,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -782,6 +801,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -819,6 +839,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -854,6 +875,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -876,6 +898,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -901,6 +924,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -936,6 +960,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -961,6 +986,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -990,6 +1016,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1007,6 +1034,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1017,6 +1045,14 @@ void main() {
       state.attachSession(fakeSession);
 
       final conversation = Conversation(threadId: 'thread-1');
+      api.nextRunUsage = RunUsage(
+        runId: 'run-1',
+        inputTokens: 1,
+        outputTokens: 1,
+        requests: 1,
+        toolCalls: 0,
+        finalInputTokens: 500,
+      );
       fakeSession.emit(CompletedState(
         threadKey: (
           serverId: 'test-server',
@@ -1029,10 +1065,10 @@ void main() {
 
       // CompletedState triggers _detachSession, which clears sessionState.
       expect(state.sessionState.value, isNull);
-      // The id is the whole point of the ending: it is what a subscriber
-      // fetches the run's cost by. Without one it reads as a send nothing
-      // will ever report on.
-      expect(state.endedRun.value, (1, 'run-1'));
+      // A completed run is read by its id, so its own record replaces
+      // the reading.
+      await Future<void>.delayed(Duration.zero);
+      expect(state.contextUsage.usage.value.measuredTokens, 500);
 
       state.dispose();
     });
@@ -1065,6 +1101,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1120,6 +1157,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1134,6 +1172,152 @@ void main() {
       state.dispose();
       expect(state.executionTrackers, isEmpty);
     });
+
+    group('context reading', () {
+      RunUsage measuredRun(String runId, int tokens) => RunUsage(
+            runId: runId,
+            inputTokens: tokens,
+            outputTokens: 1,
+            requests: 1,
+            toolCalls: 0,
+            finalInputTokens: tokens,
+          );
+      Conversation asked(List<String> texts) => texts.fold(
+            Conversation.empty(threadId: 'thread-1'),
+            (conversation, text) => appendUserMessage(
+              conversation,
+              TextMessage.create(
+                  id: 'u-$text', user: ChatUser.user, text: text),
+            ),
+          );
+      final key = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+
+      Future<ThreadViewState> open({int measured = 1000}) async {
+        api.nextThreadHistory = ThreadHistory(
+          messages: const [],
+          latestMeasurement: MeasuredRun(
+            usage: measuredRun('run-1', measured),
+            coveredMessages: 0,
+          ),
+        );
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+          contextWindow: Signal<int?>(8192),
+        );
+        addTearDown(state.dispose);
+        await Future<void>.delayed(Duration.zero);
+        return state;
+      }
+
+      test('is seeded by the loaded history', () async {
+        final state = await open(measured: 1800);
+
+        expect(state.contextUsage.usage.value.tokens, 1800);
+        expect(state.contextUsage.usage.value.contextWindow, 8192);
+      });
+
+      test('a send counts its message', () async {
+        // SUG: every send counts, suggestion taps included, because the
+        // count starts in the send and not in the composer.
+        final state = await open();
+        await runtimeManager.dispose();
+
+        final sending = state.sendMessage([TextPart('a suggestion')], runtime);
+
+        expect(state.contextUsage.usage.value.estimatedTokens,
+            estimateDraftTokens('a suggestion'));
+        await sending;
+      });
+
+      test('a send refused because a run is active counts nothing', () async {
+        // C33.
+        final state = await open();
+        state.attachSession(_FakeAgentSession());
+        expect(state.sessionState.value, isNotNull,
+            reason: 'precondition: a session is attached');
+
+        await state.sendMessage([TextPart('refused')], runtime);
+
+        expect(state.contextUsage.usage.value.estimatedTokens, 0);
+      });
+
+      test('a run that errored keeps what it carried counted', () async {
+        // D13.
+        final state = await open();
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(FailedState.duringRun(
+          threadKey: key,
+          runId: 'run-2',
+          // A reason the view does not log as an error, so the test
+          // output stays clean; the reading treats every failure alike.
+          reason: FailureReason.networkLost,
+          error: 'connection lost',
+          conversation: asked(['what was asked']),
+        ));
+
+        expect(
+          state.contextUsage.usage.value.estimatedTokens,
+          estimateTranscriptTokens(
+              asked(['what was asked']).transcript.messages),
+        );
+      });
+
+      test('a stopped run keeps its message counted', () async {
+        // D14.
+        final state = await open();
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(CancelledState.duringRun(
+          threadKey: key,
+          runId: 'run-2',
+          conversation: asked(['what was asked']),
+        ));
+
+        expect(
+          state.contextUsage.usage.value.estimatedTokens,
+          estimateTranscriptTokens(
+              asked(['what was asked']).transcript.messages),
+        );
+        expect(state.contextUsage.usage.value.measuredTokens, 1000);
+      });
+
+      test('reads a run restored from the registry by its id', () async {
+        api
+          ..nextThreadHistory = ThreadHistory(messages: const [])
+          ..nextRunUsage = measuredRun('run-restored', 2400);
+        final session = ManualAgentSession(key);
+        registry.register(key, session);
+        session.completeAsCompleted(
+          runId: 'run-restored',
+          conversation: asked(['restored']),
+        );
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+          contextWindow: Signal<int?>(8192),
+        );
+        addTearDown(state.dispose);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(state.contextUsage.usage.value.measuredTokens, 2400);
+        expect(state.contextUsage.usage.value.isExact, isTrue);
+      });
+    });
   });
 
   group('approval surface', () {
@@ -1145,6 +1329,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1161,6 +1346,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1187,6 +1373,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1225,6 +1412,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1251,11 +1439,9 @@ void main() {
   });
 
   group('reconnect status', () {
-    test('a run cancelled after it was named reports it under that id',
-        () async {
-      // The model saw the request and the backend recorded what it cost,
-      // so the reading is there to be fetched -- unlike a cancel taken
-      // before the run was named.
+    test('a run stopped mid-run is not read by its id', () async {
+      // A cut-off run's count is never read: the backend finishes the run
+      // and records more than the transcript kept.
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -1264,11 +1450,20 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
       final session = _FakeAgentSession();
       state.attachSession(session);
+      api.nextRunUsage = RunUsage(
+        runId: 'run-7',
+        inputTokens: 700,
+        outputTokens: 1,
+        requests: 1,
+        toolCalls: 0,
+        finalInputTokens: 700,
+      );
       session.emit(
         CancelledState.duringRun(
           threadKey: (
@@ -1280,12 +1475,14 @@ void main() {
         ),
       );
 
-      expect(state.endedRun.value, (1, 'run-7'));
+      await Future<void>.delayed(Duration.zero);
+      expect(state.contextUsage.usage.value.measuredTokens, isNull);
 
       state.dispose();
     });
 
-    test('a run that failed before it was named reports an ending', () async {
+    test('a run that failed before it was named leaves nothing counted',
+        () async {
       // The run never reached the backend, so no usage will ever be
       // recorded for it and no id can be fetched by.
       api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -1296,10 +1493,13 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
       final session = _FakeAgentSession();
+      state.contextUsage.sendStarted([TextPart('Hello')]);
+      expect(state.contextUsage.usage.value.estimatedTokens, greaterThan(0));
       state.attachSession(session);
       session.emit(
         FailedState.preRun(
@@ -1313,8 +1513,7 @@ void main() {
         ),
       );
 
-      expect(state.endedRun.value.$1, 1);
-      expect(state.endedRun.value.$2, isNull);
+      expect(state.contextUsage.usage.value.estimatedTokens, 0);
 
       state.dispose();
     });
@@ -1331,6 +1530,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1369,6 +1569,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1408,6 +1609,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         addTearDown(state.dispose);
         await Future<void>.delayed(Duration.zero);
@@ -1459,6 +1661,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1500,6 +1703,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1543,6 +1747,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1596,6 +1801,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1630,6 +1836,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1662,6 +1869,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1691,6 +1899,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
 
@@ -1734,6 +1943,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1757,6 +1967,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1794,6 +2005,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1850,6 +2062,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1883,6 +2096,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1903,6 +2117,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1943,6 +2158,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1980,6 +2196,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
       addTearDown(state.dispose);
@@ -2079,6 +2296,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
       await Future<void>.delayed(Duration.zero);
@@ -2195,6 +2413,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
       await Future<void>.delayed(Duration.zero);
@@ -2241,6 +2460,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
       await Future<void>.delayed(Duration.zero);
@@ -2266,6 +2486,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
       await Future<void>.delayed(Duration.zero);
@@ -2365,6 +2586,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        contextWindow: Signal<int?>(null),
       );
       addTearDown(restored.dispose);
       await Future<void>.delayed(Duration.zero);
