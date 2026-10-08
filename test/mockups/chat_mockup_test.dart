@@ -2,11 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/mockups/chat/chat_mockup.dart';
+import 'package:soliplex_frontend/src/mockups/chat/sample_data.dart';
 import 'package:soliplex_frontend/src/mockups/mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup_app.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('the static backend records no run usage', () async {
+    // The thread view reads each completed run's count; the mockup has none to
+    // give, so the gauge stays estimated rather than failing a fetch.
+    final usage = await sampleApi().getRunUsage('research', 'thread', 'run-1');
+
+    expect(usage, isNull);
+  });
 
   testWidgets('the chat mockup opens on a conversation and replies to a send',
       (tester) async {

@@ -3,7 +3,8 @@
 
 import 'package:flutter/foundation.dart' show immutable;
 
-/// The window size at and above which the later warning applies.
+/// The window size at and above which the warning waits for 85% rather than
+/// 80%.
 const largeContextWindow = 128000;
 
 /// A reading of how much context a thread currently occupies.

@@ -2622,7 +2622,7 @@ class _RoomScreenState extends State<RoomScreen> {
 /// Says the context window is filling up, while there is still room to
 /// act on it.
 ///
-/// Shares its shape with the send-error and reconnect banners above:
+/// Shares its shape with the send-error and reconnect banners:
 /// same padding, same 16px leading icon, same 'bodySmall' on a container
 /// surface, same flush dismiss button. A warning that looked like a
 /// different kind of object would read as a different kind of problem.

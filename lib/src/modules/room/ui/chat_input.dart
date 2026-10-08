@@ -696,10 +696,7 @@ class _ChatInputState extends State<ChatInput> {
                     ),
                   ),
                 ),
-                if (widget.contextUsage case final usage?)
-                  _ContextGaugeSlot(usage: usage)
-                else
-                  const SizedBox(width: SoliplexSpacing.s2),
+                _ContextGaugeSlot(usage: widget.contextUsage),
                 if (active)
                   IconButton(
                     icon: const Icon(Icons.stop),
@@ -723,27 +720,32 @@ class _ChatInputState extends State<ChatInput> {
   }
 }
 
-/// The ring beside send, subscribed to [usage] on its own.
+/// The ring beside send, subscribed to [usage] on its own, or a gap when
+/// there is no reading.
 ///
-/// The key that gives each reading its own subscription sits inside this
-/// unkeyed slot rather than on the row's child: a keyed child whose key
-/// changes in the same build that the leading controls change in would stop
-/// the row matching its children from either end, and the text field between
-/// them would be re-created (#212).
+/// The row holds this slot whether or not there is a reading, and the key
+/// that gives each reading its own subscription sits inside it rather than on
+/// the row's child: a row child whose type or key changes in the same build
+/// that the leading controls change in would stop the row matching its
+/// children from either end, and the text field between them would be
+/// re-created (#212).
 class _ContextGaugeSlot extends StatelessWidget {
   const _ContextGaugeSlot({required this.usage});
 
-  final ReadonlySignal<ContextUsage> usage;
+  final ReadonlySignal<ContextUsage>? usage;
 
   @override
-  Widget build(BuildContext context) => Watch(
-        (context) => ContextGauge(usage: usage.value),
-        // Keyed by the signal so another thread's reading gets a fresh
-        // subscription: `Watch` re-runs a changed builder without tracking
-        // what it reads, and would stay subscribed to the signal it first
-        // read.
-        key: ObjectKey(usage),
-      );
+  Widget build(BuildContext context) => switch (usage) {
+        null => const SizedBox(width: SoliplexSpacing.s2),
+        final usage => Watch(
+            (context) => ContextGauge(usage: usage.value),
+            // Keyed by the signal so another thread's reading gets a fresh
+            // subscription: `Watch` re-runs a changed builder without
+            // tracking what it reads, and would stay subscribed to the
+            // signal it first read.
+            key: ObjectKey(usage),
+          ),
+      };
 }
 
 /// The room's RAG databases as filter chips: a tap narrows the thread's

@@ -88,7 +88,7 @@ class ContextUsageController {
   /// back and climbs to the dismissed level again stays hidden.
   late final ReadonlySignal<ContextUsage?> warning = computed(() {
     final current = usage.value;
-    return current.level.index > _acknowledged.value.index ? current : null;
+    return current.level.isWorseThan(_acknowledged.value) ? current : null;
   });
 
   /// Hides the warning until the reading reaches a worse level than it has
@@ -149,7 +149,7 @@ class ContextUsageController {
 
   /// Takes the [transcript] of a run in progress.
   ///
-  /// Called on every state the run reports. A transcript holding as many
+  /// Called on every running state. A transcript holding as many
   /// messages as the one held is ignored: streamed text replaces a message
   /// in place, and re-estimating it per token buys nothing the run's end
   /// does not settle. The prompt, then each tool call and result, add
@@ -182,21 +182,26 @@ class ContextUsageController {
     try {
       found = await _api.getRunUsage(_roomId, _threadId, runId);
     } on Object catch (e, stackTrace) {
-      if (_disposed) return;
       // Catches an Error as well as an Exception: this is started with
       // `unawaited`, so whatever escapes has no caller to reach, only the
       // zone's handler. A network failure travels whole, because it renders
       // as the host and the OS error and that is the diagnosis. Anything
-      // else can carry the value it failed on, so it is described instead.
+      // else can carry the value it failed on, so it is described instead;
+      // an ApiException's message and body are the server's text, so only
+      // its status code goes beside the description.
       _logger.warning(
         'Run usage fetch failed; the run stays estimated',
         error: e is NetworkException ? e : null,
         stackTrace: stackTrace,
         attributes: {
+          'threadId': _threadId,
           'runId': runId,
           if (e is! NetworkException) 'failure': describeFailure(e),
+          if (e is ApiException) 'statusCode': e.statusCode,
         },
       );
+      // Logged whether or not the thread was left meanwhile; nothing is
+      // written to the readings either way.
       return;
     }
     if (_disposed) return;
@@ -267,6 +272,17 @@ class ContextUsageController {
       return;
     }
     _measured.value = measured;
+    if (measured.usage.finalOutputTokens == null) {
+      // A backend that predates the field, or a run recorded before it
+      // upgraded, leaves the reading one reply short while it shows as exact.
+      _logger.warning(
+        'Measured run has no reply count; the reading omits the last reply',
+        attributes: {
+          'threadId': _threadId,
+          'runId': measured.usage.runId,
+        },
+      );
+    }
     // The window is here because a null one is why an otherwise measured
     // thread shows no percentage.
     _logger.info(

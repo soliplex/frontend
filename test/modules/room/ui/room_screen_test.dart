@@ -39,6 +39,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
 import '../../../helpers/fakes.dart';
+import '../image_fixtures.dart';
 import '../../../helpers/test_server_entry.dart';
 
 class _BlockingThreadsApi extends FakeSoliplexApi {
@@ -521,7 +522,10 @@ void main() {
   });
 
   group('the context warning banner', () {
-    Future<void> openThread(WidgetTester tester) async {
+    Future<void> openThread(
+      WidgetTester tester, {
+      String? threadId = 'thread-1',
+    }) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -532,7 +536,7 @@ void main() {
           appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
-          threadId: 'thread-1',
+          threadId: threadId,
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
@@ -631,6 +635,7 @@ void main() {
       await openThread(tester);
 
       expect(find.textContaining(banner), findsOneWidget);
+      expect(api.runUsageRequests, ['run-restored']);
     });
 
     testWidgets('drops the estimate when a send never starts a run',
@@ -639,6 +644,10 @@ void main() {
       // be reported for it. Held, the estimate keeps the reading high by a
       // whole message for as long as the screen lives.
       measure(window: 32768, tokens: 20000);
+      final gate = api.createRunGate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
 
       await openThread(tester);
 
@@ -663,10 +672,180 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.send));
       await tester.pump();
+      expect(
+        reading(),
+        greaterThan(20000),
+        reason: 'the sent message is counted while its run is starting',
+      );
       await tester.pump(const Duration(milliseconds: 400));
+      gate.complete();
       await tester.pumpAndSettle();
 
       expect(reading(), 20000);
+    });
+
+    testWidgets('counts a message sent inside the debounce once',
+        (tester) async {
+      measure(window: 32768, tokens: 20000);
+      final gate = api.createRunGate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      await openThread(tester);
+      const message = 'a message sent before the draft estimate settles';
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        message,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final usage =
+          tester.widget<ContextGauge>(find.byType(ContextGauge)).usage;
+      expect(usage.draftTokens, 0);
+      expect(usage.estimatedTokens, estimateDraftTokens(message));
+    });
+
+    testWidgets('counts an image in the composer', (tester) async {
+      measure(window: 32768, tokens: 1000);
+      await openThread(tester);
+
+      tester
+          .widget<ChatInput>(find.byType(ChatInput))
+          .controller!
+          .insertImagesAtCaret([
+        ImagePart(bytes: onePixelPng, mimeType: 'image/png'),
+      ]);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        tester
+            .widget<ContextGauge>(find.byType(ContextGauge))
+            .usage
+            .draftTokens,
+        greaterThan(2000),
+      );
+    });
+
+    testWidgets('leaves a thread switched to without the draft typed elsewhere',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      api.nextThreads = [
+        for (final id in ['thread-a', 'thread-b'])
+          ThreadInfo(
+            id: id,
+            roomId: 'room-1',
+            name: id,
+            createdAt: DateTime(2026, 3, 1),
+          ),
+      ];
+      measure(window: 32768, tokens: 1000);
+      final router = _roomModuleRouter(
+        entry: entry,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        threadId: 'thread-a',
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 600,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        tester
+            .widget<ContextGauge>(find.byType(ContextGauge))
+            .usage
+            .draftTokens,
+        greaterThan(0),
+        reason: 'the draft registers in thread A',
+      );
+
+      router.go('/room/${entry.alias}/room-1/thread/thread-b');
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        tester
+            .widget<ContextGauge>(find.byType(ContextGauge))
+            .usage
+            .draftTokens,
+        0,
+      );
+      expect(
+        tester.widget<ChatInput>(find.byType(ChatInput)).controller!.text,
+        isEmpty,
+        reason: 'the gauge and the composer agree that thread B has no draft',
+      );
+    });
+
+    testWidgets('is not shown by the welcome composer', (tester) async {
+      api.nextThreads = const [];
+
+      await openThread(tester, threadId: null);
+
+      expect(find.byType(ChatInput), findsOneWidget);
+      expect(find.byType(ContextGauge), findsNothing);
+    });
+
+    testWidgets('fits the composer at the narrowest width with its buttons',
+        (tester) async {
+      api.nextRoom = Room(
+        id: 'room-1',
+        name: 'General',
+        acceptsThreadUploads: true,
+        agent: const DefaultRoomAgent(
+          id: 'room-room-1',
+          providerType: 'ollama',
+          contextWindow: 32768,
+        ),
+      );
+      api.nextDocuments = const [RagDocument(id: '1', title: 'Report.pdf')];
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        latestMeasurement: MeasuredRun(
+          usage: RunUsage(runId: 'run-1', finalInputTokens: 27000),
+          coveredMessages: 0,
+        ),
+      );
+      tester.view.physicalSize = Size(SoliplexBreakpoints.mobile, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          enableDocumentFilter: true,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ContextGauge), findsOneWidget);
+      expect(find.byTooltip('More actions'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('can be dismissed', (tester) async {
@@ -692,7 +871,7 @@ void main() {
 
     testWidgets('hides when the draft that raised it is cleared',
         (tester) async {
-      // C2: 20000 of 32768 is 61%; the draft pushes it past 80%.
+      // 20000 of 32768 is 61%; the draft pushes it past 80%.
       measure(window: 32768, tokens: 20000);
       await openThread(tester);
       final composer = find.descendant(
@@ -767,8 +946,8 @@ void main() {
 
     testWidgets('follows the thread view after leaving the room and returning',
         (tester) async {
-      // C1: a room showing no thread keeps the screen from rebuilding the
-      // reading, so returning used to reuse the one bound to the disposed
+      // A room showing no thread keeps the screen from rebuilding the
+      // reading, so returning must not reuse the one bound to the disposed
       // view. A fresh view must read the fresh history.
       measure(window: 32768, tokens: 1000);
       api.nextThreads = const [];
