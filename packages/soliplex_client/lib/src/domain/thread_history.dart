@@ -108,8 +108,10 @@ class ThreadHistory {
   final Transcript transcript;
 
   /// The newest run that measured the context, and how much of
-  /// [transcript] its count covers; null when no run in the thread has
-  /// reached the model yet.
+  /// [transcript] its count covers. Null when no run in the thread has
+  /// reached the model yet, when the newest usage record could not be read,
+  /// and when the only runs that measured have no `created` time to order
+  /// them by.
   ///
   /// Newest by creation, skipping runs that recorded no measurement. What
   /// those runs carried is in [transcript] after the covered messages, and

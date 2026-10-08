@@ -1770,6 +1770,16 @@ class SoliplexApi {
 
       if (runId == latestUsage?.runId) {
         coveredByLatest = conversation.transcript.messages.length;
+        // The count includes what the run was sent and what it replied, and
+        // neither reaches the transcript or the next request: the reading
+        // over-reads while it is shown as exact.
+        if (fetchError != null) {
+          _logger.warning(
+            'Measured run was replayed without its events; its count covers '
+            'messages the transcript does not carry',
+            attributes: {'threadId': threadId, 'runId': runId},
+          );
+        }
       }
 
       runs.add(RunEventBundle(runId: runId, events: decodedEvents));

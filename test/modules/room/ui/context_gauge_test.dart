@@ -29,6 +29,31 @@ void main() {
       );
     });
 
+    testWidgets('reads out "about" when the reading includes an estimate',
+        (tester) async {
+      Future<String?> labelFor(ContextUsage usage) async {
+        await tester.pumpWidget(_host(ContextGauge(usage: usage)));
+        return tester.getSemantics(find.byType(ContextGauge)).label;
+      }
+
+      expect(
+        await labelFor(
+          const ContextUsage(
+            measuredTokens: 4000,
+            estimatedTokens: 320,
+            contextWindow: 8000,
+          ),
+        ),
+        'Context usage: about 54 percent of the context window.',
+      );
+      expect(
+        await labelFor(
+          const ContextUsage(measuredTokens: 4000, draftTokens: 321),
+        ),
+        'Context usage: about 4321 tokens; no percentage available.',
+      );
+    });
+
     testWidgets('says so rather than inventing a denominator', (tester) async {
       // A room with no reported window must not be shown as a percentage;
       // a guessed limit would make a wrong number look authoritative.
@@ -36,7 +61,7 @@ void main() {
         _host(const ContextGauge(usage: ContextUsage(estimatedTokens: 1234))),
       );
 
-      // The draft is a fragment of a conversation nothing has counted,
+      // The estimate is a fragment of a conversation nothing has counted,
       // so reciting it would present a part as the whole.
       final unmeasured = tester.getSemantics(find.byType(ContextGauge)).label;
       expect(unmeasured, isNot(contains('1234')));

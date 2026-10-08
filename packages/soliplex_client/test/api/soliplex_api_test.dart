@@ -6403,6 +6403,9 @@ void main() {
 
       test('stops at the end of the measured run', () async {
         final notReplayed = captureRecords('Measured run was not replayed');
+        final withoutEvents = captureRecords(
+          'Measured run was replayed without its events',
+        );
         // run-2 errored and recorded no usage, but what it carried stays
         // in the transcript after run-1's count.
         stubThread({
@@ -6441,6 +6444,7 @@ void main() {
         expect(history.latestMeasurement?.usage.runId, 'run-1');
         expect(history.latestMeasurement?.coveredMessages, 2);
         expect(notReplayed(), isEmpty);
+        expect(withoutEvents(), isEmpty);
       });
 
       test('covers the whole transcript when the newest run is measured',
@@ -6524,6 +6528,42 @@ void main() {
         expect(record.attributes, {
           'threadId': 'thread-456',
           'runId': 'run-2',
+        });
+      });
+
+      test('warns when the measured run could not be fetched', () async {
+        final withoutEvents = captureRecords(
+          'Measured run was replayed without its events',
+        );
+        stubThread({
+          'run-1': listed(
+            'run-1',
+            '2026-01-07T01:00:00.000Z',
+            finalInputTokens: 1000,
+          ),
+        });
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenThrow(const NetworkException(message: 'Connection failed'));
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.latestMeasurement?.usage.runId, 'run-1');
+        final record = withoutEvents().single;
+        expect(record.level, LogLevel.warning);
+        expect(record.attributes, {
+          'threadId': 'thread-456',
+          'runId': 'run-1',
         });
       });
     });

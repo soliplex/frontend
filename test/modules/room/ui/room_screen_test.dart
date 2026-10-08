@@ -27,6 +27,7 @@ import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
@@ -87,6 +88,21 @@ class _RoomsPermissionDeniedApi extends FakeSoliplexApi {
     throw const PermissionDeniedException(
         statusCode: 403, message: 'forbidden');
   }
+}
+
+/// A stream client whose every run streams what a test adds to [events].
+class _ScriptedAgUiStreamClient extends FakeAgUiStreamClient {
+  final events = StreamController<BaseEvent>();
+
+  @override
+  Stream<DecodeOutcome> runAgent(
+    String endpoint,
+    SimpleRunAgentInput input, {
+    CancelToken? cancelToken,
+    ResumePolicy? resumePolicy,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      events.stream.map((event) => DecodedEvent(event, const {}));
 }
 
 /// The room module's route shape: sibling routes whose unkeyed pages update
@@ -521,58 +537,58 @@ void main() {
     expect(find.text('https://prod (legacy)'), findsOneWidget);
   });
 
+  Future<void> openThread(
+    WidgetTester tester, {
+    String? threadId = 'thread-1',
+  }) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: threadId,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+  }
+
+  const banner = 'of the model\'s context';
+  const messageBanner = 'This message may not fit in the remaining context.';
+
+  /// The window rides on the room; the measurement on the thread's
+  /// history. Neither is fetched on its own.
+  void measure({required int? window, required int tokens}) {
+    api.nextRoom = Room(
+      id: 'room-1',
+      name: 'General',
+      agent: DefaultRoomAgent(
+        id: 'room-room-1',
+        providerType: 'ollama',
+        contextWindow: window,
+      ),
+    );
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      latestMeasurement: MeasuredRun(
+        usage: RunUsage(
+          runId: 'run-1',
+          finalInputTokens: tokens,
+        ),
+        coveredMessages: 0,
+      ),
+    );
+  }
+
   group('the context warning banner', () {
-    Future<void> openThread(
-      WidgetTester tester, {
-      String? threadId = 'thread-1',
-    }) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(MaterialApp(
-        home: RoomScreen(
-          appName: 'Test App',
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: threadId,
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pumpAndSettle();
-    }
-
-    const banner = 'of the model\'s context';
-    const messageBanner = 'This message may not fit in the remaining context.';
-
-    /// The window rides on the room; the measurement on the thread's
-    /// history. Neither is fetched on its own.
-    void measure({required int? window, required int tokens}) {
-      api.nextRoom = Room(
-        id: 'room-1',
-        name: 'General',
-        agent: DefaultRoomAgent(
-          id: 'room-room-1',
-          providerType: 'ollama',
-          contextWindow: window,
-        ),
-      );
-      api.nextThreadHistory = ThreadHistory(
-        messages: const [],
-        latestMeasurement: MeasuredRun(
-          usage: RunUsage(
-            runId: 'run-1',
-            finalInputTokens: tokens,
-          ),
-          coveredMessages: 0,
-        ),
-      );
-    }
-
     testWidgets('stays away while there is room', (tester) async {
       measure(window: 32768, tokens: 1000);
 
@@ -593,8 +609,8 @@ void main() {
     });
 
     testWidgets('stays away when no window is reported', (tester) async {
-      // Ollama and the OpenAI API report none. Without a denominator
-      // there is no occupancy to warn about.
+      // A model that declares no window reports none. Without a
+      // denominator there is no occupancy to warn about.
       measure(window: null, tokens: 999999);
 
       await openThread(tester);
@@ -605,8 +621,9 @@ void main() {
     testWidgets('reads the run a restored thread already finished',
         (tester) async {
       // Re-entering a thread that ran this session restores it from the
-      // registry, which skips the history fetch the reading would
-      // otherwise arrive with. The ended run is the only source left.
+      // registry. The history fetch still runs, but its measurement covers
+      // fewer messages than the restored run's, so the ended run's count is
+      // the one read.
       measure(window: 32768, tokens: 1);
       api.nextRunUsage = RunUsage(
         runId: 'run-restored',
@@ -638,6 +655,277 @@ void main() {
       expect(api.runUsageRequests, ['run-restored']);
     });
 
+    testWidgets('can be dismissed', (tester) async {
+      measure(window: 32768, tokens: 27000);
+      await openThread(tester);
+      expect(find.textContaining(banner), findsOneWidget);
+
+      await tester.tap(
+        find.descendant(
+          of: find
+              .ancestor(
+                of: find.textContaining(banner),
+                matching: find.byType(Row),
+              )
+              .first,
+          matching: find.byIcon(Icons.close),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets('appearing leaves a pinned question where it is',
+        (tester) async {
+      // The run's usage carries the reading past 80% only once it ends,
+      // after its question is pinned at the top above a long reply.
+      final stream = _ScriptedAgUiStreamClient();
+      addTearDown(stream.events.close);
+      entry = createTestServerEntry(api: api, agUiStreamClient: stream);
+      measure(window: 32768, tokens: 1000);
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          TextMessage(
+            id: 'u-1',
+            user: ChatUser.user,
+            createdAt: DateTime(2026, 3, 1),
+            text: 'First question',
+          ),
+          TextMessage(
+            id: 'a-1',
+            user: ChatUser.assistant,
+            createdAt: DateTime(2026, 3, 1, 0, 1),
+            text: 'First answer',
+          ),
+        ],
+        latestMeasurement: MeasuredRun(
+          usage: RunUsage(runId: 'run-1', finalInputTokens: 1000),
+          coveredMessages: 2,
+        ),
+      );
+      api.nextCreateRun = RunInfo(
+        id: 'run-2',
+        threadId: 'thread-1',
+        createdAt: DateTime(2026, 3, 1, 0, 2),
+      );
+      api.nextRunUsage = RunUsage(runId: 'run-2', finalInputTokens: 27000);
+      await openThread(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'The pinned question',
+      );
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      stream.events
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: 'run-2'))
+        ..add(const TextMessageStartEvent(messageId: 'a-2'))
+        ..add(
+          TextMessageContentEvent(
+            messageId: 'a-2',
+            delta: 'A long reply. ' * 400,
+          ),
+        )
+        ..add(const TextMessageEndEvent(messageId: 'a-2'));
+      // A running reply animates and never settles; this outlasts the
+      // pin's scroll.
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+
+      final question = find.text('The pinned question');
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(MessageTimeline),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      final pinnedPixels = position.pixels;
+      final pinnedTop = tester.getTopLeft(question).dy;
+      expect(find.textContaining(banner), findsNothing);
+      expect(
+        position.maxScrollExtent - pinnedPixels,
+        greaterThan(100),
+        reason: 'the reply runs on below the fold under the pinned question',
+      );
+
+      stream.events
+          .add(const RunFinishedEvent(threadId: 'thread-1', runId: 'run-2'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining(banner), findsOneWidget);
+      expect(position.pixels, pinnedPixels);
+      expect(tester.getTopLeft(question).dy, pinnedTop);
+    });
+
+    testWidgets('hides when the draft that raised it is cleared',
+        (tester) async {
+      // 20000 of 32768 is 61%; the draft pushes it past 80%.
+      measure(window: 32768, tokens: 20000);
+      await openThread(tester);
+      final composer = find.descendant(
+        of: find.byType(ChatInput),
+        matching: find.byType(TextField),
+      );
+
+      await tester.enterText(composer, 'pad ' * 9000);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining(messageBanner), findsOneWidget);
+      expect(find.textContaining(banner), findsNothing);
+
+      await tester.enterText(composer, '');
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.textContaining(messageBanner), findsNothing);
+    });
+
+    testWidgets('names the conversation when it is full without the draft',
+        (tester) async {
+      // 27000 of 32768 is 82% before anything is typed.
+      measure(window: 32768, tokens: 27000);
+      await openThread(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 600,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+          find.text('This conversation is using 82% of the model\'s context. '
+              'Starting a new thread keeps answers complete.'),
+          findsOneWidget);
+      expect(find.textContaining(messageBanner), findsNothing);
+    });
+
+    testWidgets('names the message when its draft fills the window',
+        (tester) async {
+      // 27000 of 32768 is 82%; the draft carries it over the window.
+      measure(window: 32768, tokens: 27000);
+      await openThread(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 9000,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(messageBanner), findsOneWidget);
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets(
+        'says the conversation exceeds the window when it alone is over',
+        (tester) async {
+      measure(window: 32768, tokens: 40000);
+
+      await openThread(tester);
+
+      expect(
+          find.text('This conversation exceeds the model\'s context. '
+              'Starting a new thread keeps answers complete.'),
+          findsOneWidget);
+    });
+
+    testWidgets('marks a conversation share that is partly estimated',
+        (tester) async {
+      // The measurement covers none of the transcript, so its one message
+      // is estimated on top of it.
+      measure(window: 32768, tokens: 27000);
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        transcript: appendUserMessage(
+          Conversation.empty(threadId: 'thread-1'),
+          TextMessage.create(
+            id: 'u-1',
+            user: ChatUser.user,
+            text: 'A question the measurement does not cover',
+          ),
+        ).transcript,
+        latestMeasurement: MeasuredRun(
+          usage: RunUsage(runId: 'run-1', finalInputTokens: 27000),
+          coveredMessages: 0,
+        ),
+      );
+
+      await openThread(tester);
+
+      expect(
+          find.text('This conversation is using ~82% of the model\'s context. '
+              'Starting a new thread keeps answers complete.'),
+          findsOneWidget);
+    });
+
+    testWidgets('warns about a draft in a thread switched to directly',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      api.nextThreads = [
+        for (final id in ['thread-a', 'thread-b'])
+          ThreadInfo(
+            id: id,
+            roomId: 'room-1',
+            name: id,
+            createdAt: DateTime(2026, 3, 1),
+          ),
+      ];
+      measure(window: 32768, tokens: 1000);
+      final router = _roomModuleRouter(
+        entry: entry,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        threadId: 'thread-a',
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(banner), findsNothing);
+
+      measure(window: 32768, tokens: 20000);
+      router.go('/room/${entry.alias}/room-1/thread/thread-b');
+      await tester.pumpAndSettle();
+      expect(find.textContaining(messageBanner), findsNothing);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 9000,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        tester
+            .widget<ContextGauge>(find.byType(ContextGauge))
+            .usage
+            .draftTokens,
+        greaterThan(0),
+        reason: 'the reading has the draft',
+      );
+      expect(find.textContaining(messageBanner), findsOneWidget);
+    });
+  });
+
+  group('the context gauge', () {
     testWidgets('drops the estimate when a send never starts a run',
         (tester) async {
       // The run fails before the backend names one, so no usage will ever
@@ -848,102 +1136,6 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('can be dismissed', (tester) async {
-      measure(window: 32768, tokens: 27000);
-      await openThread(tester);
-      expect(find.textContaining(banner), findsOneWidget);
-
-      await tester.tap(
-        find.descendant(
-          of: find
-              .ancestor(
-                of: find.textContaining(banner),
-                matching: find.byType(Row),
-              )
-              .first,
-          matching: find.byIcon(Icons.close),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining(banner), findsNothing);
-    });
-
-    testWidgets('hides when the draft that raised it is cleared',
-        (tester) async {
-      // 20000 of 32768 is 61%; the draft pushes it past 80%.
-      measure(window: 32768, tokens: 20000);
-      await openThread(tester);
-      final composer = find.descendant(
-        of: find.byType(ChatInput),
-        matching: find.byType(TextField),
-      );
-
-      await tester.enterText(composer, 'pad ' * 9000);
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.textContaining(messageBanner), findsOneWidget);
-      expect(find.textContaining(banner), findsNothing);
-
-      await tester.enterText(composer, '');
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(find.textContaining(messageBanner), findsNothing);
-    });
-
-    testWidgets('names the conversation when it is full without the draft',
-        (tester) async {
-      // 27000 of 32768 is 82% before anything is typed.
-      measure(window: 32768, tokens: 27000);
-      await openThread(tester);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byType(ChatInput),
-          matching: find.byType(TextField),
-        ),
-        'pad ' * 600,
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(
-          find.text('This conversation is using 82% of the model\'s context. '
-              'Starting a new thread keeps answers complete.'),
-          findsOneWidget);
-      expect(find.textContaining(messageBanner), findsNothing);
-    });
-
-    testWidgets('names the message when its draft fills the window',
-        (tester) async {
-      // 27000 of 32768 is 82%; the draft carries it over the window.
-      measure(window: 32768, tokens: 27000);
-      await openThread(tester);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byType(ChatInput),
-          matching: find.byType(TextField),
-        ),
-        'pad ' * 9000,
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(find.text(messageBanner), findsOneWidget);
-      expect(find.textContaining(banner), findsNothing);
-    });
-
-    testWidgets(
-        'names the conversation at 100% when it alone is over the '
-        'window', (tester) async {
-      measure(window: 32768, tokens: 40000);
-
-      await openThread(tester);
-
-      expect(
-          find.text('This conversation is using 100% of the model\'s context. '
-              'Starting a new thread keeps answers complete.'),
-          findsOneWidget);
-    });
-
     testWidgets('follows the thread view after leaving the room and returning',
         (tester) async {
       // A room showing no thread keeps the screen from rebuilding the
@@ -1013,59 +1205,6 @@ void main() {
 
       expect(reading().draftTokens, greaterThan(0));
       expect(reading().isExact, isFalse);
-    });
-
-    testWidgets('warns about a draft in a thread switched to directly',
-        (tester) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      api.nextThreads = [
-        for (final id in ['thread-a', 'thread-b'])
-          ThreadInfo(
-            id: id,
-            roomId: 'room-1',
-            name: id,
-            createdAt: DateTime(2026, 3, 1),
-          ),
-      ];
-      measure(window: 32768, tokens: 1000);
-      final router = _roomModuleRouter(
-        entry: entry,
-        runtimeManager: runtimeManager,
-        registry: registry,
-        uploadRegistry: uploadRegistry,
-        threadId: 'thread-a',
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-      await tester.pumpAndSettle();
-      expect(find.textContaining(banner), findsNothing);
-
-      measure(window: 32768, tokens: 20000);
-      router.go('/room/${entry.alias}/room-1/thread/thread-b');
-      await tester.pumpAndSettle();
-      expect(find.textContaining(messageBanner), findsNothing);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byType(ChatInput),
-          matching: find.byType(TextField),
-        ),
-        'pad ' * 9000,
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(
-        tester
-            .widget<ContextGauge>(find.byType(ContextGauge))
-            .usage
-            .draftTokens,
-        greaterThan(0),
-        reason: 'the reading has the draft',
-      );
-      expect(find.textContaining(messageBanner), findsOneWidget);
     });
   });
 

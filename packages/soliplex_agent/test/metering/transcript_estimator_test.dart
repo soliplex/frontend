@@ -27,6 +27,26 @@ void main() {
       );
     });
 
+    test('a multimodal user message costs its other media as images', () {
+      final message = UserMessage.multimodal(
+        id: 'u1',
+        parts: [
+          const TextInputContent('listen and read'),
+          const AudioInputContent(
+            source: DataSource(value: 'AAAA', mimeType: 'audio/wav'),
+          ),
+          const DocumentInputContent(
+            source: DataSource(value: 'AAAA', mimeType: 'application/pdf'),
+          ),
+        ],
+      );
+
+      expect(
+        estimateMessageTokens(message),
+        estimateDraftTokens('listen and read', images: 2),
+      );
+    });
+
     test('an assistant message costs its text and its tool calls', () {
       const message = AssistantMessage(
         id: 'a1',

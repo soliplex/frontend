@@ -245,10 +245,10 @@ class ContextUsageController {
 
   /// Records what is currently in the composer.
   ///
-  /// Debounced while there is text: the draft is the only term that moves
-  /// while someone types. An empty composer applies at once and cancels any
-  /// pending estimate — a send clears the composer, and an estimate landing
-  /// after that would count the sent message a second time.
+  /// Debounced while the composer holds text or images: the draft is the only
+  /// term that moves while someone types. An empty composer applies at once
+  /// and cancels any pending estimate — a send clears the composer, and an
+  /// estimate landing after that would count the sent message a second time.
   void draftChanged(String draft, {int images = 0}) {
     if (_disposed) return;
     if (draft.isEmpty && images == 0) {

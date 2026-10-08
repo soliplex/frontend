@@ -6,7 +6,6 @@ import 'package:soliplex_client/soliplex_client.dart'
         ActivityMessage,
         AssistantMessage,
         DeveloperMessage,
-        ImageInputContent,
         Message,
         MultimodalContent,
         ReasoningMessage,
@@ -31,7 +30,9 @@ int estimateTranscriptTokens(Iterable<Message> messages) {
 ///
 /// Everything the request carries for it is counted: a tool call's name and
 /// arguments, a tool result's content and error, a pydantic-ai activity as
-/// the JSON it travels as, and each image at a flat per-image cost.
+/// the JSON it travels as, and each part of a user message that is not text
+/// (image, audio, video, document or binary, all of which pydantic-ai sends
+/// to the model) at a flat per-image cost.
 int estimateMessageTokens(Message message) => switch (message) {
       UserMessage(:final messageContent) => switch (messageContent) {
           TextContent(:final text) => estimateDraftTokens(text),
@@ -40,7 +41,7 @@ int estimateMessageTokens(Message message) => switch (message) {
                 for (final part in parts)
                   if (part is TextInputContent) part.text,
               ].join('\n'),
-              images: parts.whereType<ImageInputContent>().length,
+              images: parts.where((part) => part is! TextInputContent).length,
             ),
         },
       AssistantMessage(:final content, :final toolCalls) => estimateDraftTokens(
