@@ -3,6 +3,19 @@ import 'package:meta/meta.dart';
 /// The window size at and above which the later warning applies.
 const _largeContextWindow = 128000;
 
+/// How close a reading is to running out of window, from most room to
+/// least: a later value is a worse one.
+enum ContextLevel {
+  /// Under the warning threshold, or nothing to compare against.
+  room,
+
+  /// At or over the warning threshold, and under the window.
+  nearlyFull,
+
+  /// At or over the window.
+  full,
+}
+
 /// A reading of how much context a thread currently occupies.
 ///
 /// Carries its own confidence rather than leaving the UI to infer it. A
@@ -101,13 +114,24 @@ class ContextUsage {
     return window < _largeContextWindow ? 0.80 : 0.85;
   }
 
-  /// Whether the thread is close enough to full to say so unprompted.
-  bool get isNearlyFull {
-    final fraction = fractionUsed;
+  /// Where this reading stands between room and a full window.
+  ///
+  /// [ContextLevel.full] compares the total with the window directly
+  /// rather than through [fractionUsed], which is clamped at 1.
+  ContextLevel get level {
+    final total = tokens;
+    final window = _usableWindow;
     final threshold = _warningThreshold;
-    if (fraction == null || threshold == null) return false;
-    return fraction >= threshold;
+    if (total == null || window == null || threshold == null) {
+      return ContextLevel.room;
+    }
+    if (total >= window) return ContextLevel.full;
+    if (total / window >= threshold) return ContextLevel.nearlyFull;
+    return ContextLevel.room;
   }
+
+  /// Whether the thread is close enough to full to say so unprompted.
+  bool get isNearlyFull => level != ContextLevel.room;
 
   /// The occupancy at which the window is about to stop holding the
   /// conversation, whatever its size.

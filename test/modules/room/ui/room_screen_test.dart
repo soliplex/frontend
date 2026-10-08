@@ -733,6 +733,38 @@ void main() {
       expect(find.textContaining(messageBanner), findsNothing);
     });
 
+    testWidgets('names the message when its draft fills the window',
+        (tester) async {
+      // 27000 of 32768 is 82%; the draft carries it over the window.
+      measure(window: 32768, tokens: 27000);
+      await openThread(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 9000,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(messageBanner), findsOneWidget);
+      expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets(
+        'names the conversation at 100% when it alone is over the '
+        'window', (tester) async {
+      measure(window: 32768, tokens: 40000);
+
+      await openThread(tester);
+
+      expect(
+          find.text('This conversation is using 100% of the model\'s context. '
+              'Starting a new thread keeps answers complete.'),
+          findsOneWidget);
+    });
+
     testWidgets('follows the thread view after leaving the room and returning',
         (tester) async {
       // C1: a room showing no thread keeps the screen from rebuilding the

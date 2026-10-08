@@ -346,16 +346,76 @@ void main() {
       expect(controller.warning.value, isNull);
     });
 
-    test('returns after a dismissal once the reading dips and climbs again',
-        () {
-      final controller = at(6000)
-        ..sendStarted([TextPart('pad ' * 1000)])
-        ..dismissWarning();
-      expect(controller.warning.value, isNull);
+    test('stays hidden after dismissal while a draft grows within nearly full',
+        () async {
+      final controller = at(7000)
+        ..dismissWarning()
+        ..draftChanged('a draft');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.usage.value.level, ContextLevel.nearlyFull,
+          reason: 'precondition: the draft stays under the window');
 
+      expect(controller.warning.value, isNull);
+    });
+
+    test('returns after a nearly-full dismissal once a draft fills the window',
+        () async {
+      final controller = at(7000)
+        ..dismissWarning()
+        ..draftChanged('pad ' * 2000);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.usage.value.level, ContextLevel.full,
+          reason: 'precondition: the draft carries the reading over');
+
+      expect(controller.warning.value, isNotNull);
+    });
+
+    test(
+        'returns after a nearly-full dismissal once a measurement fills the '
+        'window', () async {
+      answers('run-2', () async => _usage('run-2', 9000));
+      final controller = at(7000)..dismissWarning();
+
+      await controller.runCompleted('run-2', _transcript(['a', 'b']));
+      expect(controller.usage.value.level, ContextLevel.full,
+          reason: 'precondition: the measurement is over the window');
+
+      expect(controller.warning.value, isNotNull);
+    });
+
+    test('stays hidden after a full dismissal while still full', () async {
+      final controller = at(9000)
+        ..dismissWarning()
+        ..draftChanged('a draft');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.warning.value, isNull);
+    });
+
+    test('stays hidden after a dismissal when the reading dips and climbs back',
+        () async {
+      final controller = at(6000)..draftChanged('pad ' * 1000);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.usage.value.level, ContextLevel.nearlyFull,
+          reason: 'precondition: the draft carries the reading past 80%');
       controller
-        ..sendEnded(null)
-        ..sendStarted([TextPart('pad ' * 1000)]);
+        ..dismissWarning()
+        ..draftChanged('');
+      expect(controller.usage.value.level, ContextLevel.room);
+
+      controller.draftChanged('pad ' * 1000);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.usage.value.level, ContextLevel.nearlyFull,
+          reason: 'precondition: the reading climbed back');
+
+      expect(controller.warning.value, isNull);
+    });
+
+    test('returns after a dismissal once a message is sent', () {
+      final controller = at(7000)
+        ..dismissWarning()
+        ..sendStarted([TextPart('short')]);
+      expect(controller.usage.value.level, ContextLevel.nearlyFull);
 
       expect(controller.warning.value, isNotNull);
     });
@@ -380,15 +440,10 @@ void main() {
       expect(controller.warning.value!.withoutDraft.isNearlyFull, isTrue);
     });
 
-    test(
-        'a dismissed conversation warning stays dismissed while a draft is '
-        'typed', () async {
-      final controller = at(7000)
-        ..dismissWarning()
-        ..draftChanged('a draft');
-      await Future<void>.delayed(Duration.zero);
+    test('starts with nothing dismissed in another thread view', () {
+      at(7000).dismissWarning();
 
-      expect(controller.warning.value, isNull);
+      expect(at(7000).warning.value, isNotNull);
     });
   });
 

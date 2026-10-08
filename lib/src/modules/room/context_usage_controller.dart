@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:signals_flutter/signals_flutter.dart' show batch, effect;
+import 'package:signals_flutter/signals_flutter.dart' show batch;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -28,6 +28,9 @@ final Logger _logger =
 /// Estimates are biased high on purpose; see [estimateDraftTokens]. Until
 /// a run has measured something the reading offers no total at all — an
 /// estimate is a fragment of a conversation nobody has counted.
+///
+/// Each thread view owns its controller, and selecting a thread creates a
+/// new view, so leaving a thread clears a dismissed warning.
 class ContextUsageController {
   /// Creates a controller for [threadId] in [roomId].
   ContextUsageController({
@@ -40,13 +43,7 @@ class ContextUsageController {
         _roomId = roomId,
         _threadId = threadId,
         _contextWindow = contextWindow,
-        _draftDebounce = Debouncer(draftDebounce) {
-    // Clears the dismissal once the reading falls back under the threshold,
-    // so a warning dismissed at 81% returns if the thread climbs again.
-    _disposeRearm = effect(() {
-      if (!usage.value.isNearlyFull) _dismissedKind.value = null;
-    });
-  }
+        _draftDebounce = Debouncer(draftDebounce);
 
   final SoliplexApi _api;
   final String _roomId;
@@ -58,8 +55,8 @@ class ContextUsageController {
   final Signal<MeasuredRun?> _measured = Signal<MeasuredRun?>(null);
   final Signal<int> _sendingTokens = Signal<int>(0);
   final Signal<int> _draftTokens = Signal<int>(0);
-  final Signal<bool?> _dismissedKind = Signal<bool?>(null);
-  late final void Function() _disposeRearm;
+  final Signal<ContextLevel> _acknowledged =
+      Signal<ContextLevel>(ContextLevel.room);
   bool _disposed = false;
 
   /// Tokens of the transcript the measurement does not cover. Apart from
@@ -81,26 +78,24 @@ class ContextUsageController {
     ),
   );
 
-  /// The reading while the thread is nearly full, unless a dismissal of the
-  /// current kind is held; null otherwise.
+  /// The reading while its level is above the level acknowledged; null
+  /// otherwise. Dismissing acknowledges the current level and a send
+  /// clears it.
   ///
-  /// The kind is whether the conversation alone is nearly full
-  /// (`withoutDraft.isNearlyFull`) or only the conversation with the draft.
-  /// Dismissing the draft's warning leaves the conversation's to appear once
-  /// the message is sent.
+  /// With nothing dismissed that is any level above
+  /// [ContextLevel.room]. A dismissed warning returns when the reading
+  /// reaches a worse level, or after the next send; a reading that falls
+  /// back and climbs to the dismissed level again stays hidden.
   late final ReadonlySignal<ContextUsage?> warning = computed(() {
     final current = usage.value;
-    if (!current.isNearlyFull) return null;
-    return _dismissedKind.value == current.withoutDraft.isNearlyFull
-        ? null
-        : current;
+    return current.level.index > _acknowledged.value.index ? current : null;
   });
 
-  /// Hides the warning of the kind showing, until the reading next falls
-  /// under the threshold. A warning of the other kind still shows.
+  /// Hides the warning until the reading reaches a worse level than it has
+  /// now, or the next send starts.
   void dismissWarning() {
     if (_disposed) return;
-    _dismissedKind.value = usage.value.withoutDraft.isNearlyFull;
+    _acknowledged.value = usage.value.level;
   }
 
   /// Takes the transcript and measurement of a freshly loaded [history].
@@ -135,17 +130,21 @@ class ContextUsageController {
   }
 
   /// Counts [prompt], just sent, until a transcript carrying it arrives or
-  /// the send ends.
+  /// the send ends, and clears a dismissed warning: whatever level the
+  /// reading is at after the send shows again.
   void sendStarted(List<MessagePart> prompt) {
     if (_disposed) return;
     final text = [
       for (final part in prompt)
         if (part is TextPart) part.text,
     ].join('\n');
-    _sendingTokens.value = estimateDraftTokens(
-      text,
-      images: prompt.whereType<ImagePart>().length,
-    );
+    batch(() {
+      _acknowledged.value = ContextLevel.room;
+      _sendingTokens.value = estimateDraftTokens(
+        text,
+        images: prompt.whereType<ImagePart>().length,
+      );
+    });
   }
 
   /// Takes the [transcript] of a run in progress.
@@ -287,7 +286,6 @@ class ContextUsageController {
     if (_disposed) return;
     _disposed = true;
     _draftDebounce.cancel();
-    _disposeRearm();
     warning.dispose();
     usage.dispose();
     _unmeasuredTokens.dispose();
@@ -295,6 +293,6 @@ class ContextUsageController {
     _measured.dispose();
     _sendingTokens.dispose();
     _draftTokens.dispose();
-    _dismissedKind.dispose();
+    _acknowledged.dispose();
   }
 }
