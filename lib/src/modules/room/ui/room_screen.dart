@@ -2661,7 +2661,12 @@ class _ContextWarningBanner extends StatelessWidget {
     final approximate = conversation.isExact ? '' : '~';
     final text = switch (conversation.level) {
       _ when conversation.level != usage.level =>
-        'This message may not fit in the remaining context.',
+        usage.level == ContextLevel.nearlyFull
+            // The draft is an estimate, so the total always carries a "~".
+            ? 'This message brings the conversation to '
+                '~${math.min((usage.fractionUsed! * 100).round(), 99)}% of the '
+                'model\'s context.'
+            : 'This message may not fit in the remaining context.',
       ContextLevel.full => 'This conversation exceeds the model\'s context. '
           'Starting a new thread keeps answers complete.',
       ContextLevel.nearlyFull ||
