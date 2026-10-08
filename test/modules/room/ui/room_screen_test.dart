@@ -608,6 +608,18 @@ void main() {
           findsOneWidget);
     });
 
+    testWidgets('never reads 100% before the window is exceeded',
+        (tester) async {
+      measure(window: 16384, tokens: 16310);
+
+      await openThread(tester);
+
+      expect(
+          find.text('This conversation is using 99% of the model\'s context. '
+              'Starting a new thread keeps answers complete.'),
+          findsOneWidget);
+    });
+
     testWidgets('stays away when no window is reported', (tester) async {
       // A model that declares no window reports none. Without a
       // denominator there is no occupancy to warn about.
