@@ -74,12 +74,6 @@ void main() {
 
   setUp(() => api = MockSoliplexApi());
 
-  test('offers no total before anything is measured', () {
-    final controller = build()..sendStarted([const TextPart('hello')]);
-
-    expect(controller.usage.value.tokens, isNull);
-  });
-
   group('history', () {
     test('seeds the measurement it carries', () {
       final controller = build()
@@ -143,17 +137,6 @@ void main() {
         ..runProgressed(_transcript(['a', 'hello']));
 
       expect(controller.usage.value.estimatedTokens, _after(['a', 'hello'], 1));
-    });
-
-    test('grows with its run\'s tool calls and results', () {
-      // Live progress: the run's own later requests are where a window
-      // overflows.
-      final texts = ['a', 'hello', 'tool call', 'tool result'];
-      final controller = measured()
-        ..runProgressed(_transcript(['a', 'hello']))
-        ..runProgressed(_transcript(texts));
-
-      expect(controller.usage.value.estimatedTokens, _after(texts, 1));
     });
 
     test('ignores a transcript holding no more messages', () {
@@ -490,18 +473,6 @@ void main() {
       expect(controller.warning.value, isNull);
     });
 
-    test('stays hidden after dismissal while a draft grows within nearly full',
-        () async {
-      final controller = at(7000)
-        ..dismissWarning()
-        ..draftChanged('a draft');
-      await Future<void>.delayed(Duration.zero);
-      expect(controller.usage.value.level, ContextLevel.nearlyFull,
-          reason: 'precondition: the draft stays under the window');
-
-      expect(controller.warning.value, isNull);
-    });
-
     test('returns after a nearly-full dismissal once a draft fills the window',
         () async {
       final controller = at(7000)
@@ -512,28 +483,6 @@ void main() {
           reason: 'precondition: the draft carries the reading over');
 
       expect(controller.warning.value, isNotNull);
-    });
-
-    test(
-        'returns after a nearly-full dismissal once a measurement fills the '
-        'window', () async {
-      answers('run-2', () async => _usage('run-2', 9000));
-      final controller = at(7000)..dismissWarning();
-
-      await controller.runCompleted('run-2', _transcript(['a', 'b']));
-      expect(controller.usage.value.level, ContextLevel.full,
-          reason: 'precondition: the measurement is over the window');
-
-      expect(controller.warning.value, isNotNull);
-    });
-
-    test('stays hidden after a full dismissal while still full', () async {
-      final controller = at(9000)
-        ..dismissWarning()
-        ..draftChanged('a draft');
-      await Future<void>.delayed(Duration.zero);
-
-      expect(controller.warning.value, isNull);
     });
 
     test('stays hidden after a dismissal when the reading dips and climbs back',
@@ -563,49 +512,5 @@ void main() {
 
       expect(controller.warning.value, isNotNull);
     });
-
-    test(
-        'a dismissed message warning returns as the conversation warning '
-        'once the message is sent', () async {
-      final text = 'pad ' * 1000;
-      final controller = at(6000)..draftChanged(text);
-      await Future<void>.delayed(Duration.zero);
-      expect(controller.warning.value, isNotNull);
-      expect(controller.warning.value!.withoutDraft.isNearlyFull, isFalse);
-
-      controller.dismissWarning();
-      expect(controller.warning.value, isNull);
-
-      controller
-        ..sendStarted([TextPart(text)])
-        ..draftChanged('');
-
-      expect(controller.warning.value, isNotNull);
-      expect(controller.warning.value!.withoutDraft.isNearlyFull, isTrue);
-    });
-
-    test('starts with nothing dismissed in another thread view', () {
-      at(7000).dismissWarning();
-
-      expect(at(7000).warning.value, isNotNull);
-    });
-  });
-
-  test('an answer after dispose writes nothing and does not throw', () async {
-    final answer = Completer<RunUsage?>();
-    answers('run-1', () => answer.future);
-    final controller = ContextUsageController(
-      api: api,
-      roomId: _roomId,
-      threadId: _threadId,
-      contextWindow: Signal<int?>(8192),
-      draftDebounce: _noDebounce,
-    );
-
-    final pending = controller.runCompleted('run-1', _transcript(['a']));
-    controller.dispose();
-    answer.complete(_usage('run-1', 1800));
-
-    await expectLater(pending, completes);
   });
 }

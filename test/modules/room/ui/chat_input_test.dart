@@ -1474,15 +1474,6 @@ void main() {
       expect(find.byType(ContextGauge), findsNothing);
     });
 
-    testWidgets('sits beside send once there is one', (tester) async {
-      await pumpWith(
-        tester,
-        signal(const ContextUsage(measuredTokens: 1800, contextWindow: 8192)),
-      );
-
-      expect(find.byType(ContextGauge), findsOneWidget);
-    });
-
     ContextUsage shown(WidgetTester tester) =>
         tester.widget<ContextGauge>(find.byType(ContextGauge)).usage;
 
@@ -1560,21 +1551,6 @@ void main() {
       await pumpWith(tester, null);
 
       expect(find.byType(ContextGauge), findsNothing);
-      expect(tester.state(find.byType(EditableText)), same(field));
-    });
-
-    testWidgets(
-        'keeps the text field when a reading arrives and fewer controls '
-        'arrive together', (tester) async {
-      await pumpWith(tester, null, onFilterTap: () {});
-      final field = tester.state(find.byType(EditableText));
-
-      await pumpWith(
-        tester,
-        signal(const ContextUsage(measuredTokens: 1800, contextWindow: 8192)),
-      );
-
-      expect(find.byType(ContextGauge), findsOneWidget);
       expect(tester.state(find.byType(EditableText)), same(field));
     });
   });

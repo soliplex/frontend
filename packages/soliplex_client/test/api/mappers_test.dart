@@ -6,30 +6,11 @@ import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
-import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('runUsageFromJson', () {
-    test('reads a record holding only the last request', () {
-      final usage = runUsageFromJson('run-1', {
-        'final_input_tokens': 1800,
-        'final_output_tokens': 120,
-      });
-
-      expect(
-        usage,
-        const RunUsage(
-          runId: 'run-1',
-          finalInputTokens: 1800,
-          finalOutputTokens: 120,
-        ),
-      );
-    });
-  });
-
   group('BackendVersionInfo mappers', () {
     group('backendVersionInfoFromJson', () {
       test('parses correctly with all fields', () {

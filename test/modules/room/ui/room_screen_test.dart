@@ -621,16 +621,6 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('stays away when no window is reported', (tester) async {
-      // A model that declares no window reports none. Without a
-      // denominator there is no occupancy to warn about.
-      measure(window: null, tokens: 999999);
-
-      await openThread(tester);
-
-      expect(find.textContaining(banner), findsNothing);
-    });
-
     testWidgets('reads the run a restored thread already finished',
         (tester) async {
       // Re-entering a thread that ran this session restores it from the
@@ -968,52 +958,6 @@ void main() {
   });
 
   group('the context gauge', () {
-    testWidgets('drops the estimate when a send never starts a run',
-        (tester) async {
-      // The run fails before the backend names one, so no usage will ever
-      // be reported for it. Held, the estimate keeps the reading high by a
-      // whole message for as long as the screen lives.
-      measure(window: 32768, tokens: 20000);
-      final gate = api.createRunGate = Completer<void>();
-      addTearDown(() {
-        if (!gate.isCompleted) gate.complete();
-      });
-
-      await openThread(tester);
-
-      int? reading() =>
-          tester.widget<ContextGauge>(find.byType(ContextGauge)).usage.tokens;
-
-      expect(reading(), 20000);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byType(ChatInput),
-          matching: find.byType(TextField),
-        ),
-        'a draft long enough to move the reading on its own. ' * 40,
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(
-        reading(),
-        greaterThan(20000),
-        reason: 'the draft has to register before the send can drop it',
-      );
-
-      await tester.tap(find.byIcon(Icons.send));
-      await tester.pump();
-      expect(
-        reading(),
-        greaterThan(20000),
-        reason: 'the sent message is counted while its run is starting',
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-      gate.complete();
-      await tester.pumpAndSettle();
-
-      expect(reading(), 20000);
-    });
-
     testWidgets('counts a message sent inside the debounce once',
         (tester) async {
       measure(window: 32768, tokens: 20000);

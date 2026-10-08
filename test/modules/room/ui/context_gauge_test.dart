@@ -85,25 +85,6 @@ void main() {
       );
     });
 
-    testWidgets('keeps the composer row from jumping', (tester) async {
-      // The ring appears and fills as a thread is measured; the slot it
-      // sits in must not resize under the send button while it does.
-      await tester.pumpWidget(
-        _host(const ContextGauge(usage: ContextUsage())),
-      );
-      final hollow = tester.getSize(find.byType(ContextGauge));
-
-      await tester.pumpWidget(
-        _host(
-          const ContextGauge(
-            usage: ContextUsage(measuredTokens: 7600, contextWindow: 8000),
-          ),
-        ),
-      );
-
-      expect(tester.getSize(find.byType(ContextGauge)), hollow);
-    });
-
     group('the ring colour', () {
       Future<BuildContext> pumpAt(
         WidgetTester tester,

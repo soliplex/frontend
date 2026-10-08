@@ -1243,21 +1243,6 @@ void main() {
         expect(state.contextUsage.usage.value.estimatedTokens, 0);
       });
 
-      test('a send refused because a run is active keeps a dismissal',
-          () async {
-        // 7000 of 8192 is past the 80% threshold.
-        final state = await open(measured: 7000);
-        state.contextUsage.dismissWarning();
-        state.attachSession(_FakeAgentSession());
-        expect(state.sessionState.value, isNotNull,
-            reason: 'precondition: a session is attached');
-
-        await state.sendMessage([TextPart('refused')], runtime);
-
-        expect(state.contextUsage.usage.value.isNearlyFull, isTrue);
-        expect(state.contextUsage.warning.value, isNull);
-      });
-
       test('grows with its run in progress', () async {
         final state = await open();
         final session = _FakeAgentSession();

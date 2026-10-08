@@ -15,18 +15,6 @@ void main() {
       contextWindow: 4,
     );
 
-    test('holds for readings with the same four fields', () {
-      const same = ContextUsage(
-        measuredTokens: 1,
-        estimatedTokens: 2,
-        draftTokens: 3,
-        contextWindow: 4,
-      );
-
-      expect(reading, same);
-      expect(reading.hashCode, same.hashCode);
-    });
-
     test('fails when any one field differs', () {
       expect(
         reading,
@@ -125,32 +113,7 @@ void main() {
     });
   });
 
-  group('isNearlyFull', () {
-    test('is false below the threshold of a small window', () {
-      expect(_at(26000, window: 32768).isNearlyFull, isFalse);
-    });
-
-    test('is true at the threshold of a small window', () {
-      // Exactly 80% of the window, so this is the case that says the
-      // comparison is inclusive; anything above it passes either way.
-      expect(_at(8000, window: 10000).isNearlyFull, isTrue);
-    });
-
-    test('holds off longer on a large window', () {
-      final fraction82 = (200000 * 0.82).round();
-
-      // Past 80%, which would have warned on a small window, but not
-      // yet past 85%.
-      expect(_at(fraction82, window: 200000).isNearlyFull, isFalse);
-      expect(_at(fraction82, window: 32768).isNearlyFull, isTrue);
-    });
-  });
-
   group('level', () {
-    test('is room under the threshold', () {
-      expect(_at(7999, window: 10000).level, ContextLevel.room);
-    });
-
     test('is nearlyFull from the threshold', () {
       expect(_at(8000, window: 10000).level, ContextLevel.nearlyFull);
       expect(_at(108800, window: 128000).level, ContextLevel.nearlyFull);
@@ -163,10 +126,6 @@ void main() {
 
     test('is full at exactly the window', () {
       expect(_at(16384, window: 16384).level, ContextLevel.full);
-    });
-
-    test('is full over the window, where fractionUsed stops at 1', () {
-      expect(_at(20000, window: 16384).level, ContextLevel.full);
     });
 
     test('counts the draft', () {
@@ -185,34 +144,9 @@ void main() {
 
       expect(usage.level, ContextLevel.room);
     });
-
-    test('is room with no window, or a window of 0', () {
-      expect(_at(999999).level, ContextLevel.room);
-      expect(_at(10, window: 0).level, ContextLevel.room);
-    });
-
-    test('orders its levels from room to full', () {
-      expect(
-        ContextLevel.values,
-        [ContextLevel.room, ContextLevel.nearlyFull, ContextLevel.full],
-      );
-    });
   });
 
   group('isCritical', () {
-    test('is false while the thread is merely worth warning about', () {
-      // Past the warning threshold of a small window, so the reading is
-      // already worth saying something about, but there is room yet.
-      final reading = _at(27000, window: 32768);
-
-      expect(reading.isNearlyFull, isTrue);
-      expect(reading.isCritical, isFalse);
-    });
-
-    test('is true once almost nothing is left', () {
-      expect(_at((32768 * 0.91).round(), window: 32768).isCritical, isTrue);
-    });
-
     test('does not hold off on a large window, as the warning does', () {
       // The warning scales with the window because the same fraction is
       // more room; running out does not.

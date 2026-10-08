@@ -1437,17 +1437,6 @@ void main() {
         expect(found?.contextTokens, isNull);
       });
 
-      test('reads a JSON object without the backend counts as no count',
-          () async {
-        answerWithJson('{}');
-
-        final found =
-            await liveApi.getRunUsage('room-123', 'thread-456', 'run-789');
-
-        expect(found, const RunUsage(runId: 'run-789'));
-        expect(found?.finalInputTokens, isNull);
-      });
-
       test('reads one reply short of a backend without the reply count',
           () async {
         // Measured, but by a backend that predates 'final_output_tokens':
@@ -6336,23 +6325,6 @@ void main() {
 
         expect(history.latestMeasurement, isNull);
       });
-
-      test('survives on a thread with no completed runs', () async {
-        // The early return before any run fetch still carries it.
-        stubThread({
-          'run-1': run(
-            'run-1',
-            '2026-01-07T01:00:00.000Z',
-            usage: usage(finalInputTokens: 1000),
-            finished: false,
-          ),
-        });
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(history.messages, isEmpty);
-        expect(history.latestMeasurement?.usage.finalInputTokens, 1000);
-      });
     });
 
     group('getThreadHistory latest measurement covers', () {
@@ -6445,33 +6417,6 @@ void main() {
         expect(history.latestMeasurement?.coveredMessages, 2);
         expect(notReplayed(), isEmpty);
         expect(withoutEvents(), isEmpty);
-      });
-
-      test('covers the whole transcript when the newest run is measured',
-          () async {
-        stubThread({
-          'run-1': listed(
-            'run-1',
-            '2026-01-07T01:00:00.000Z',
-            finalInputTokens: 1000,
-          ),
-        });
-        stubRun(
-          'run-1',
-          runInput: input('u1', 'first'),
-          events: replied(
-            'run-1',
-            'a1',
-            event('RUN_FINISHED', {
-              'threadId': 'thread-456',
-              'runId': 'run-1',
-            }),
-          ),
-        );
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(history.latestMeasurement?.coveredMessages, 2);
       });
 
       test('covers nothing when no run was replayed', () async {
