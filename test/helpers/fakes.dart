@@ -283,9 +283,13 @@ class FakeSoliplexApi extends SoliplexApi {
   String? nextMcpToken;
   Exception? nextMcpTokenError;
 
-  /// The record [getRunUsage] answers with. Null means the run recorded
-  /// none, which is what a run that never reached the model produces.
+  /// The record [getRunUsage] answers with, for the run it names only. Null,
+  /// or a request for another run, means the run recorded none, which is what
+  /// a run that never reached the model produces.
   RunUsage? nextRunUsage;
+
+  /// The run ids [getRunUsage] was asked about, in order.
+  final List<String> runUsageRequests = [];
 
   @override
   Future<RunUsage?> getRunUsage(
@@ -293,8 +297,11 @@ class FakeSoliplexApi extends SoliplexApi {
     String threadId,
     String runId, {
     CancelToken? cancelToken,
-  }) async =>
-      nextRunUsage;
+  }) async {
+    runUsageRequests.add(runId);
+    final usage = nextRunUsage;
+    return usage != null && usage.runId == runId ? usage : null;
+  }
 
   List<ThreadInfo>? nextThreads;
   Exception? nextThreadsError;
@@ -386,12 +393,16 @@ class FakeSoliplexApi extends SoliplexApi {
 
   RunInfo? nextCreateRun;
 
+  /// When set, [createRun] waits for it, holding a send before its run starts.
+  Completer<void>? createRunGate;
+
   @override
   Future<RunInfo> createRun(
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
   }) async {
+    if (createRunGate != null) await createRunGate!.future;
     if (nextCreateRun != null) return nextCreateRun!;
     throw StateError('FakeSoliplexApi: set nextCreateRun');
   }

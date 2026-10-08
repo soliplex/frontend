@@ -1065,6 +1065,7 @@ void main() {
       // the reading.
       await Future<void>.delayed(Duration.zero);
       expect(state.contextUsage.usage.value.measuredTokens, 500);
+      expect(api.runUsageRequests, ['run-1']);
 
       state.dispose();
     });
@@ -1217,8 +1218,8 @@ void main() {
       });
 
       test('a send counts its message', () async {
-        // SUG: every send counts, suggestion taps included, because the
-        // count starts in the send and not in the composer.
+        // Every send counts, suggestion taps included, because the count
+        // starts in the send and not in the composer.
         final state = await open();
         await runtimeManager.dispose();
 
@@ -1230,7 +1231,8 @@ void main() {
       });
 
       test('a send refused because a run is active counts nothing', () async {
-        // C33.
+        // The view turns this send away, so the next request never carries
+        // it.
         final state = await open();
         state.attachSession(_FakeAgentSession());
         expect(state.sessionState.value, isNotNull,
@@ -1278,7 +1280,9 @@ void main() {
       });
 
       test('a run that errored keeps what it carried counted', () async {
-        // D13.
+        // An errored run keeps what it streamed, and the next request
+        // carries it; a failed run is not read for a count, so the
+        // measurement stays where it was.
         final state = await open();
         final session = _FakeAgentSession();
         state.attachSession(session);
@@ -1304,7 +1308,7 @@ void main() {
       });
 
       test('a stopped run keeps its message counted', () async {
-        // D14.
+        // A stopped run keeps its message, and the next request carries it.
         final state = await open();
         final session = _FakeAgentSession();
         state.attachSession(session);
@@ -1369,6 +1373,7 @@ void main() {
 
         expect(state.contextUsage.usage.value.measuredTokens, 2400);
         expect(state.contextUsage.usage.value.isExact, isTrue);
+        expect(api.runUsageRequests, ['run-restored']);
       });
 
       test('a restored failed run keeps what it carried, unread', () async {

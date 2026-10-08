@@ -46,6 +46,15 @@ void main() {
       expect(line, '[INFO] Test: hello {k x=a b c}\n');
     });
 
+    test('keeps an attribute from writing terminal escapes', () {
+      final line = formatStdoutRecord(
+        _record(attributes: {'k': 'a\x1B[2Jb'}),
+        useColors: false,
+      );
+
+      expect(line, '[INFO] Test: hello {k=a [2Jb}\n');
+    });
+
     test('writes the span suffix before the attributes', () {
       final line = formatStdoutRecord(
         _record(

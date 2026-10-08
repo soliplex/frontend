@@ -9,6 +9,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show SoliplexApi, appendUserMessage;
 import 'package:soliplex_frontend/src/modules/room/context_usage_controller.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
@@ -90,7 +91,7 @@ void main() {
     });
 
     test('estimates what its transcript holds after the measurement', () {
-      // Q2: a newer run that recorded no count still carried its messages.
+      // A newer run that recorded no count still carried its messages.
       final texts = ['a', 'b', 'c'];
       expect(_after(texts, 1), greaterThan(0));
 
@@ -199,6 +200,136 @@ void main() {
 
       expect(controller.usage.value.estimatedTokens, _after(['a', 'hello'], 1));
     });
+
+    test('logs a failed fetch with its thread and status, not the server text',
+        () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      answers(
+          'run-2',
+          () async => throw const ApiException(
+                message: 'Bad gateway',
+                statusCode: 502,
+                serverMessage: 'upstream said no',
+                body: '<html>upstream said no</html>',
+              ));
+      final controller = measured()..runProgressed(_transcript(['a', 'hello']));
+
+      await controller.runCompleted('run-2', _transcript(['a', 'hello']));
+
+      final record = sink.records.singleWhere(
+        (r) => r.message == 'Run usage fetch failed; the run stays estimated',
+      );
+      expect(record.attributes['threadId'], _threadId);
+      expect(record.attributes['runId'], 'run-2');
+      expect(record.attributes['statusCode'], 502);
+      expect(record.error, isNull);
+      expect(record.attributes.values.join(' '), isNot(contains('upstream')));
+    });
+
+    test('still logs a failed fetch that lands after the thread is left',
+        () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final fetch = Completer<RunUsage?>();
+      answers('run-2', () => fetch.future);
+      final controller = measured();
+      final before = sink.records.length;
+
+      final completed =
+          controller.runCompleted('run-2', _transcript(['a', 'hello']));
+      controller.dispose();
+      fetch.completeError(const NetworkException(message: 'offline'));
+      await completed;
+
+      expect(
+        sink.records.skip(before).map((r) => r.message),
+        ['Run usage fetch failed; the run stays estimated'],
+      );
+    });
+
+    test('adopts nothing from a count that lands after the thread is left',
+        () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final fetch = Completer<RunUsage?>();
+      answers('run-2', () => fetch.future);
+      final controller = measured();
+      final before = sink.records.length;
+
+      final completed =
+          controller.runCompleted('run-2', _transcript(['a', 'hello']));
+      controller.dispose();
+      fetch.complete(_usage('run-2', 1500));
+      await completed;
+
+      expect(sink.records.skip(before), isEmpty);
+    });
+  });
+
+  group('a measured run with no reply count', () {
+    const message =
+        'Measured run has no reply count; the reading omits the last reply';
+
+    Iterable<LogRecord> captureWarnings() {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      return sink.records.where((r) => r.message == message);
+    }
+
+    test('is logged with its thread and run when adopted', () async {
+      final warnings = captureWarnings();
+      answers('run-1', () async => _usage('run-1', 1000));
+      final controller = build();
+
+      await controller.runCompleted('run-1', _transcript(['a']));
+
+      final record = warnings.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.attributes, {'threadId': _threadId, 'runId': 'run-1'});
+    });
+
+    test('is not logged when the run has a reply count', () async {
+      final warnings = captureWarnings();
+      answers(
+        'run-1',
+        () async => const RunUsage(
+          runId: 'run-1',
+          finalInputTokens: 1000,
+          finalOutputTokens: 50,
+        ),
+      );
+      final controller = build();
+
+      await controller.runCompleted('run-1', _transcript(['a']));
+
+      expect(warnings, isEmpty);
+    });
+
+    test('is not logged when an older measurement is ignored', () async {
+      final warnings = captureWarnings();
+      answers('run-1', () async => _usage('run-1', 900));
+      final controller = build()
+        ..historyLoaded(
+          _history(
+            ['a', 'b'],
+            measured: const RunUsage(
+              runId: 'run-2',
+              finalInputTokens: 1000,
+              finalOutputTokens: 50,
+            ),
+            covered: 2,
+          ),
+        );
+
+      await controller.runCompleted('run-1', _transcript(['a']));
+
+      expect(warnings, isEmpty);
+    });
   });
 
   group('a send that ends without a count', () {
@@ -207,7 +338,7 @@ void main() {
           _history(['a'], measured: _usage('run-1', 1000), covered: 1));
 
     test('keeps counting what its transcript carried forward', () {
-      // D13 / D14: an errored run keeps what it streamed, a stopped one its
+      // An errored run keeps what it streamed, a stopped one its
       // message; either way the next request carries it.
       final controller = measured()
         ..sendStarted([const TextPart('hello')])
@@ -256,7 +387,8 @@ void main() {
     });
 
     test('a newer fetch that fails does not block an older answer', () async {
-      // Q1.
+      // A failed fetch for a newer run leaves the order of answers alone:
+      // the older run's count still lands when it arrives.
       final older = Completer<RunUsage?>();
       answers('run-2', () => older.future);
       answers(
@@ -290,6 +422,17 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 400));
 
       expect(controller.usage.value.draftTokens, 0);
+    });
+
+    test('counts its images, which carry no text', () async {
+      final controller = build()
+        ..historyLoaded(
+            _history(['a'], measured: _usage('run-1', 1000), covered: 1))
+        ..draftChanged('', images: 1);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.usage.value.draftTokens,
+          estimateDraftTokens('', images: 1));
     });
 
     test('counts the draft once typing pauses', () async {
@@ -331,7 +474,8 @@ void main() {
     });
 
     test('hides once the reading falls back under the threshold', () {
-      // C2 at the source: the warning is derived, so nothing can skip it.
+      // The warning is derived from the reading, so no path that lowers the
+      // reading can leave it showing.
       final controller = at(6000)..sendStarted([TextPart('pad ' * 1000)]);
       expect(controller.warning.value, isNotNull);
 

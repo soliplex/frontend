@@ -7,6 +7,87 @@ ContextUsage _at(int tokens, {int? window}) => ContextUsage(
     );
 
 void main() {
+  group('equality', () {
+    const reading = ContextUsage(
+      measuredTokens: 1,
+      estimatedTokens: 2,
+      draftTokens: 3,
+      contextWindow: 4,
+    );
+
+    test('holds for readings with the same four fields', () {
+      const same = ContextUsage(
+        measuredTokens: 1,
+        estimatedTokens: 2,
+        draftTokens: 3,
+        contextWindow: 4,
+      );
+
+      expect(reading, same);
+      expect(reading.hashCode, same.hashCode);
+    });
+
+    test('fails when any one field differs', () {
+      expect(
+        reading,
+        isNot(
+          const ContextUsage(
+            estimatedTokens: 2,
+            draftTokens: 3,
+            contextWindow: 4,
+          ),
+        ),
+      );
+      expect(
+        reading,
+        isNot(
+          const ContextUsage(
+            measuredTokens: 1,
+            draftTokens: 3,
+            contextWindow: 4,
+          ),
+        ),
+      );
+      expect(
+        reading,
+        isNot(
+          const ContextUsage(
+            measuredTokens: 1,
+            estimatedTokens: 2,
+            contextWindow: 4,
+          ),
+        ),
+      );
+      expect(
+        reading,
+        isNot(
+          const ContextUsage(
+            measuredTokens: 1,
+            estimatedTokens: 2,
+            draftTokens: 3,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('ContextLevel.isWorseThan', () {
+    test('orders room, nearlyFull, full', () {
+      expect(ContextLevel.nearlyFull.isWorseThan(ContextLevel.room), isTrue);
+      expect(ContextLevel.full.isWorseThan(ContextLevel.nearlyFull), isTrue);
+      expect(ContextLevel.full.isWorseThan(ContextLevel.room), isTrue);
+      expect(ContextLevel.room.isWorseThan(ContextLevel.nearlyFull), isFalse);
+      expect(ContextLevel.nearlyFull.isWorseThan(ContextLevel.full), isFalse);
+      expect(ContextLevel.room.isWorseThan(ContextLevel.full), isFalse);
+    });
+
+    test('is false against itself', () {
+      for (final level in ContextLevel.values) {
+        expect(level.isWorseThan(level), isFalse);
+      }
+    });
+  });
+
   group('the warning threshold', () {
     test('is not reached without a window to be a fraction of', () {
       // No denominator, no occupancy, nothing to warn about.

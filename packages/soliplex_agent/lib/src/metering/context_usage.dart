@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
-/// The window size at and above which the later warning applies.
+/// The window size at and above which the warning waits for 85% rather than
+/// 80%.
 const _largeContextWindow = 128000;
 
 /// How close a reading is to running out of window, from most room to
@@ -13,7 +14,10 @@ enum ContextLevel {
   nearlyFull,
 
   /// At or over the window.
-  full,
+  full;
+
+  /// Whether this level is closer to a full window than [other].
+  bool isWorseThan(ContextLevel other) => index > other.index;
 }
 
 /// A reading of how much context a thread currently occupies.
@@ -148,6 +152,18 @@ class ContextUsage {
     final fraction = fractionUsed;
     return fraction != null && fraction >= criticalThreshold;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ContextUsage &&
+      other.measuredTokens == measuredTokens &&
+      other.estimatedTokens == estimatedTokens &&
+      other.draftTokens == draftTokens &&
+      other.contextWindow == contextWindow;
+
+  @override
+  int get hashCode =>
+      Object.hash(measuredTokens, estimatedTokens, draftTokens, contextWindow);
 
   @override
   String toString() => 'ContextUsage(${tokens ?? "?"} / '

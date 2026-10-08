@@ -303,6 +303,15 @@ class StaticSoliplexApi extends SoliplexApi {
       null;
 
   @override
+  Future<RunUsage?> getRunUsage(
+    String roomId,
+    String threadId,
+    String runId, {
+    CancelToken? cancelToken,
+  }) async =>
+      null;
+
+  @override
   Future<void> submitFeedback(
     String roomId,
     String threadId,

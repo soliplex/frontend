@@ -97,10 +97,11 @@ String formatStdoutRecord(LogRecord record, {required bool useColors}) {
   return buffer.toString();
 }
 
-/// Collapses line breaks to a single space. A bare `\r` would otherwise paint
-/// the rest of the record over the start of its own line.
+/// Collapses line breaks and ESC to a single space. A bare `\r` would
+/// otherwise paint the rest of the record over the start of its own line, and
+/// an ESC would let a value write terminal escape sequences.
 String _singleLine(String value) => value.replaceAll(
-      RegExp(r'[\r\n\v\f\u0085\u001c-\u001e\u2028\u2029]+'),
+      RegExp(r'[\r\n\v\f\u001b\u0085\u001c-\u001e\u2028\u2029]+'),
       ' ',
     );
 

@@ -109,8 +109,8 @@ class ThreadViewState {
   final RunRegistry _registry;
   final ReadonlySignal<int?> _contextWindow;
 
-  /// This thread's context reading. Created with the view and disposed
-  /// with it, so it can never outlive, or be shared across, the view
+  /// This thread's context reading. Built on first use and disposed with
+  /// the view, so it can never outlive, or be shared across, the view
   /// whose history, runs and sends feed it.
   late final ContextUsageController contextUsage = ContextUsageController(
     api: _connection.api,
@@ -652,8 +652,8 @@ class ThreadViewState {
         }
         _stateWarnings.value = {..._stateWarnings.value, ...warnings};
       }
-      contextUsage.historyLoaded(history);
       onHistoryLoaded?.call(threadId, history);
+      contextUsage.historyLoaded(history);
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;

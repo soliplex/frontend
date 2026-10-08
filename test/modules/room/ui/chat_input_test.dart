@@ -1545,5 +1545,38 @@ void main() {
 
       expect(tester.state(find.byType(EditableText)), same(field));
     });
+
+    testWidgets(
+        'keeps the text field when the reading goes away and fewer controls '
+        'arrive together', (tester) async {
+      // A room switch from a thread to a room without one drops the reading
+      // and can drop the filter in the same build.
+      await pumpWith(
+        tester,
+        signal(const ContextUsage(measuredTokens: 1800, contextWindow: 8192)),
+        onFilterTap: () {},
+      );
+      final field = tester.state(find.byType(EditableText));
+
+      await pumpWith(tester, null);
+
+      expect(find.byType(ContextGauge), findsNothing);
+      expect(tester.state(find.byType(EditableText)), same(field));
+    });
+
+    testWidgets(
+        'keeps the text field when a reading arrives and fewer controls '
+        'arrive together', (tester) async {
+      await pumpWith(tester, null, onFilterTap: () {});
+      final field = tester.state(find.byType(EditableText));
+
+      await pumpWith(
+        tester,
+        signal(const ContextUsage(measuredTokens: 1800, contextWindow: 8192)),
+      );
+
+      expect(find.byType(ContextGauge), findsOneWidget);
+      expect(tester.state(find.byType(EditableText)), same(field));
+    });
   });
 }

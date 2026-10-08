@@ -6402,6 +6402,7 @@ void main() {
           };
 
       test('stops at the end of the measured run', () async {
+        final notReplayed = captureRecords('Measured run was not replayed');
         // run-2 errored and recorded no usage, but what it carried stays
         // in the transcript after run-1's count.
         stubThread({
@@ -6439,6 +6440,7 @@ void main() {
         expect(history.transcript.messages, hasLength(4));
         expect(history.latestMeasurement?.usage.runId, 'run-1');
         expect(history.latestMeasurement?.coveredMessages, 2);
+        expect(notReplayed(), isEmpty);
       });
 
       test('covers the whole transcript when the newest run is measured',
@@ -6489,6 +6491,7 @@ void main() {
           'covers the whole transcript when replay never reached the '
           'measured run', () async {
         // run-2 carries usage but is unfinished, so only run-1 is replayed.
+        final notReplayed = captureRecords('Measured run was not replayed');
         stubThread({
           'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
           'run-2': listed(
@@ -6516,6 +6519,12 @@ void main() {
         expect(history.transcript.messages, hasLength(2));
         expect(history.latestMeasurement?.usage.runId, 'run-2');
         expect(history.latestMeasurement?.coveredMessages, 2);
+        final record = notReplayed().single;
+        expect(record.level, LogLevel.warning);
+        expect(record.attributes, {
+          'threadId': 'thread-456',
+          'runId': 'run-2',
+        });
       });
     });
 

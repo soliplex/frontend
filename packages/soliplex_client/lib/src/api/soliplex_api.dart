@@ -1856,6 +1856,14 @@ class SoliplexApi {
       }
     }
 
+    if (latestUsage != null && coveredByLatest == null) {
+      _logger.warning(
+        'Measured run was not replayed; its count is taken to cover the '
+        'whole transcript',
+        attributes: {'threadId': threadId, 'runId': latestUsage.runId},
+      );
+    }
+
     return ThreadHistory(
       messages: conversation.messages,
       aguiState: conversation.aguiState,
