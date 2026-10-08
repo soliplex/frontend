@@ -158,6 +158,32 @@ void main() {
       });
     });
 
+    testWidgets('says over 100 percent past the window, estimate or not',
+        (tester) async {
+      Future<String> labelFor(ContextUsage usage) async {
+        await tester.pumpWidget(_host(ContextGauge(usage: usage)));
+        return tester.getSemantics(find.byType(ContextGauge)).label;
+      }
+
+      const over = 'Context usage: over 100 percent of the context window.';
+      expect(
+        await labelFor(
+          const ContextUsage(
+            measuredTokens: 16000,
+            estimatedTokens: 1000,
+            contextWindow: 16384,
+          ),
+        ),
+        over,
+      );
+      expect(
+        await labelFor(
+          const ContextUsage(measuredTokens: 20000, contextWindow: 16384),
+        ),
+        over,
+      );
+    });
+
     group('the tooltip', () {
       Future<String> tooltipFor(WidgetTester tester, ContextUsage usage) async {
         await tester.pumpWidget(_host(ContextGauge(usage: usage)));
@@ -198,6 +224,38 @@ void main() {
             const ContextUsage(measuredTokens: 4000, draftTokens: 321),
           ),
           '~4321 tokens used',
+        );
+      });
+
+      testWidgets('says over 100% past the window, estimate or not',
+          (tester) async {
+        expect(
+          await tooltipFor(
+            tester,
+            const ContextUsage(
+              measuredTokens: 16000,
+              estimatedTokens: 1000,
+              contextWindow: 16384,
+            ),
+          ),
+          '>100% of context used',
+        );
+        expect(
+          await tooltipFor(
+            tester,
+            const ContextUsage(measuredTokens: 20000, contextWindow: 16384),
+          ),
+          '>100% of context used',
+        );
+      });
+
+      testWidgets('says 100% at exactly the window', (tester) async {
+        expect(
+          await tooltipFor(
+            tester,
+            const ContextUsage(measuredTokens: 16384, contextWindow: 16384),
+          ),
+          '100% of context used',
         );
       });
     });
