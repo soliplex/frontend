@@ -73,8 +73,9 @@ class ContextGauge extends StatelessWidget {
 
   String get _semanticsLabel {
     final fraction = usage.fractionUsed;
+    final about = usage.isExact ? '' : 'about ';
     if (fraction != null) {
-      return 'Context usage: ${(fraction * 100).round()} percent of the '
+      return 'Context usage: $about${(fraction * 100).round()} percent of the '
           'context window.';
     }
     final counted = usage.tokens;
@@ -83,7 +84,7 @@ class ContextGauge extends StatelessWidget {
     if (counted == null) return 'Context usage has not been measured yet.';
     // Reports the missing percentage without naming a cause: a model
     // that declares no window lands here with a real count.
-    return 'Context usage: $counted tokens; no percentage available.';
+    return 'Context usage: $about$counted tokens; no percentage available.';
   }
 
   String get _tooltip {

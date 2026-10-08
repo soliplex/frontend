@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart'
-    show AgentSessionState, ContextUsage, ThreadKey;
+    show AgentSessionState, ContextLevel, ContextUsage, ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
@@ -2369,102 +2369,120 @@ class _RoomScreenState extends State<RoomScreen> {
                 status: reconnectStatus!,
                 onDismiss: threadView.dismissReconnectStatus,
               ),
-            // Keyed so another thread's view gets a tracked subscription: the
-            // screen does not rebuild while someone types, and `Watch` re-runs
-            // a changed builder without tracking what it reads.
-            Watch(key: ObjectKey(threadView.contextUsage.warning), (context) {
-              final warning = threadView.contextUsage.warning.value;
-              if (warning == null) return const SizedBox.shrink();
-              return _ContextWarningBanner(
-                usage: warning,
-                onDismiss: threadView.contextUsage.dismissWarning,
-              );
-            }),
             Expanded(
-              child: switch (status) {
-                MessagesLoading() => const Center(
-                    child: CircularProgressIndicator(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  switch (status) {
+                    MessagesLoading() => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    MessagesFailed(:final error) => ErrorRetryPanel(
+                        title: error is MalformedResponseException
+                            ? "Couldn't display thread history"
+                            : 'Failed to load messages',
+                        error: error,
+                        // Shape-drift is a backend bug — retry won't help, so
+                        // hide the button rather than misleading the user.
+                        onRetry: error is MalformedResponseException
+                            ? null
+                            : threadView.refresh,
+                        onReauthenticate: _onReauthenticate,
+                      ),
+                    MessagesLoaded(
+                      :final messages,
+                      :final messageStates,
+                      :final runOutcomes,
+                    ) =>
+                      // A thread with nothing to show is a thread with no
+                      // tiles, which is not the same as a thread with no
+                      // messages: a run may have left only a record of how it
+                      // ended.
+                      layOutTimeline(
+                        messages: messages,
+                        bands: const {},
+                        outcomes: runOutcomes,
+                        streaming: streaming,
+                        activeRunId: null,
+                      ).tiles.isEmpty
+                          ? RoomWelcome(
+                              room: room,
+                              onSuggestionTapped: (suggestion) =>
+                                  threadView.sendMessage(
+                                [TextPart(suggestion)],
+                                _state.runtime,
+                                stateOverlay: _buildStateOverlay(),
+                              ),
+                              onQuizTapped: _onQuizTapped,
+                              fallback: _threadEmptyFallback(context),
+                            )
+                          : MessageTimeline(
+                              key: ValueKey(threadView.threadId),
+                              roomId: widget.roomId,
+                              messages: messages,
+                              messageStates: messageStates,
+                              streamingState: streaming,
+                              unreadBoundary: _anchorTracker.boundary,
+                              executionTrackers: threadView.executionTrackers,
+                              runOutcomes: runOutcomes,
+                              activeRunId: activeRunId,
+                              onFeedbackSubmit: threadView.submitFeedback,
+                              onReportRun: (runId) =>
+                                  _reportRun(threadView, runId),
+                              onInspect: (runId) => context.push(
+                                AppRoutes.diagnosticsForRun(runId),
+                              ),
+                              onShowChunkVisualization: (ref) =>
+                                  ChunkVisualizationPage.show(
+                                context: context,
+                                api: widget.serverEntry.connection.api,
+                                roomId: widget.roomId,
+                                chunkId: ref.chunkId,
+                                documentTitle: ref.displayTitle,
+                                pageNumbers: ref.pageNumbers,
+                                docItemRefs: ref.docItemRefs,
+                                database: ref.database,
+                              ),
+                              onFetchWorkdirFiles: (runId) => _workdirs
+                                  .fetchFiles(threadView.threadId, runId),
+                              onDownloadWorkdirFile: (runId, file) =>
+                                  _workdirs.download(
+                                threadView.threadId,
+                                runId,
+                                file,
+                              ),
+                              onPreviewWorkdirFile: (runId, file) =>
+                                  _workdirs.fetchBytes(
+                                threadView.threadId,
+                                runId,
+                                file,
+                              ),
+                            ),
+                  },
+                  // Painted over the timeline rather than above it: the
+                  // timeline reads a shorter viewport as the keyboard opening
+                  // and moves a pinned question to the end of its reply.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    // Keyed so another thread's view gets a tracked
+                    // subscription: the screen does not rebuild while someone
+                    // types, and `Watch` re-runs a changed builder without
+                    // tracking what it reads.
+                    child:
+                        Watch(key: ObjectKey(threadView.contextUsage.warning),
+                            (context) {
+                      final warning = threadView.contextUsage.warning.value;
+                      if (warning == null) return const SizedBox.shrink();
+                      return _ContextWarningBanner(
+                        usage: warning,
+                        onDismiss: threadView.contextUsage.dismissWarning,
+                      );
+                    }),
                   ),
-                MessagesFailed(:final error) => ErrorRetryPanel(
-                    title: error is MalformedResponseException
-                        ? "Couldn't display thread history"
-                        : 'Failed to load messages',
-                    error: error,
-                    // Shape-drift is a backend bug — retry won't help, so
-                    // hide the button rather than misleading the user.
-                    onRetry: error is MalformedResponseException
-                        ? null
-                        : threadView.refresh,
-                    onReauthenticate: _onReauthenticate,
-                  ),
-                MessagesLoaded(
-                  :final messages,
-                  :final messageStates,
-                  :final runOutcomes,
-                ) =>
-                  // A thread with nothing to show is a thread with no tiles,
-                  // which is not the same as a thread with no messages: a run
-                  // may have left only a record of how it ended.
-                  layOutTimeline(
-                    messages: messages,
-                    bands: const {},
-                    outcomes: runOutcomes,
-                    streaming: streaming,
-                    activeRunId: null,
-                  ).tiles.isEmpty
-                      ? RoomWelcome(
-                          room: room,
-                          onSuggestionTapped: (suggestion) =>
-                              threadView.sendMessage(
-                            [TextPart(suggestion)],
-                            _state.runtime,
-                            stateOverlay: _buildStateOverlay(),
-                          ),
-                          onQuizTapped: _onQuizTapped,
-                          fallback: _threadEmptyFallback(context),
-                        )
-                      : MessageTimeline(
-                          key: ValueKey(threadView.threadId),
-                          roomId: widget.roomId,
-                          messages: messages,
-                          messageStates: messageStates,
-                          streamingState: streaming,
-                          unreadBoundary: _anchorTracker.boundary,
-                          executionTrackers: threadView.executionTrackers,
-                          runOutcomes: runOutcomes,
-                          activeRunId: activeRunId,
-                          onFeedbackSubmit: threadView.submitFeedback,
-                          onReportRun: (runId) => _reportRun(threadView, runId),
-                          onInspect: (runId) => context.push(
-                            AppRoutes.diagnosticsForRun(runId),
-                          ),
-                          onShowChunkVisualization: (ref) =>
-                              ChunkVisualizationPage.show(
-                            context: context,
-                            api: widget.serverEntry.connection.api,
-                            roomId: widget.roomId,
-                            chunkId: ref.chunkId,
-                            documentTitle: ref.displayTitle,
-                            pageNumbers: ref.pageNumbers,
-                            docItemRefs: ref.docItemRefs,
-                            database: ref.database,
-                          ),
-                          onFetchWorkdirFiles: (runId) =>
-                              _workdirs.fetchFiles(threadView.threadId, runId),
-                          onDownloadWorkdirFile: (runId, file) =>
-                              _workdirs.download(
-                            threadView.threadId,
-                            runId,
-                            file,
-                          ),
-                          onPreviewWorkdirFile: (runId, file) =>
-                              _workdirs.fetchBytes(
-                            threadView.threadId,
-                            runId,
-                            file,
-                          ),
-                        ),
-              },
+                ],
+              ),
             ),
             if (sendError != null)
               _SendErrorBanner(
@@ -2639,11 +2657,18 @@ class _ContextWarningBanner extends StatelessWidget {
     // a draft carrying it to a worse level is the message's, and shortening
     // it is enough.
     final conversation = usage.withoutDraft;
-    final text = conversation.level == usage.level
-        ? 'This conversation is using '
-            '${(conversation.fractionUsed! * 100).round()}% of the '
-            'model\'s context. Starting a new thread keeps answers complete.'
-        : 'This message may not fit in the remaining context.';
+    final approximate = conversation.isExact ? '' : '~';
+    final text = switch (conversation.level) {
+      _ when conversation.level != usage.level =>
+        'This message may not fit in the remaining context.',
+      ContextLevel.full => 'This conversation exceeds the model\'s context. '
+          'Starting a new thread keeps answers complete.',
+      ContextLevel.nearlyFull ||
+      ContextLevel.room =>
+        'This conversation is using '
+            '$approximate${(conversation.fractionUsed! * 100).round()}% of the '
+            'model\'s context. Starting a new thread keeps answers complete.',
+    };
 
     return Container(
       width: double.infinity,

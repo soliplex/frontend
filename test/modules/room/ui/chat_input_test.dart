@@ -1486,8 +1486,7 @@ void main() {
     ContextUsage shown(WidgetTester tester) =>
         tester.widget<ContextGauge>(find.byType(ContextGauge)).usage;
 
-    testWidgets('follows the reading without the parent rebuilding',
-        (tester) async {
+    testWidgets('shows a change to the reading it was given', (tester) async {
       final usage = signal(
         const ContextUsage(measuredTokens: 1800, contextWindow: 8192),
       );

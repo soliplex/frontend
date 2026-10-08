@@ -1,6 +1,6 @@
-// Derived from lib/src/modules/room/ui/chat_input.dart for the mockup harness;
-// it adds the context ring and a thread-panel opener, and has no database
-// filter chips.
+// The mockup harness's composer: a message with inline images, an add menu
+// (files, a folder, the document filter), a thread-panel opener, and the
+// mockup's own context ring.
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
