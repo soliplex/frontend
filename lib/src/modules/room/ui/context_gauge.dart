@@ -71,9 +71,18 @@ class ContextGauge extends StatelessWidget {
     );
   }
 
+  /// Whether the total is past the window. [ContextUsage.fractionUsed] is
+  /// clamped at 1, so it cannot tell this from exactly full; it is null
+  /// when the window is unusable, which keeps the unchecked reads safe.
+  bool get _overWindow =>
+      usage.fractionUsed != null && usage.tokens! > usage.contextWindow!;
+
   String get _semanticsLabel {
     final fraction = usage.fractionUsed;
     final about = usage.isExact ? '' : 'about ';
+    if (_overWindow) {
+      return 'Context usage: over 100 percent of the context window.';
+    }
     if (fraction != null) {
       return 'Context usage: $about${(fraction * 100).round()} percent of the '
           'context window.';
@@ -90,6 +99,7 @@ class ContextGauge extends StatelessWidget {
   String get _tooltip {
     final fraction = usage.fractionUsed;
     final approx = usage.isExact ? '' : '~';
+    if (_overWindow) return '>100% of context used';
     if (fraction != null) {
       return '$approx${(fraction * 100).round()}% of context used';
     }
