@@ -563,6 +563,7 @@ void main() {
 
   const banner = 'of the model\'s context';
   const messageBanner = 'This message may not fit in the remaining context.';
+  const totalBanner = 'This message brings the conversation to';
 
   /// The window rides on the room; the measurement on the thread's
   /// history. Neither is fetched on its own.
@@ -791,13 +792,13 @@ void main() {
 
       await tester.enterText(composer, 'pad ' * 9000);
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.textContaining(messageBanner), findsOneWidget);
-      expect(find.textContaining(banner), findsNothing);
+      expect(find.textContaining(totalBanner), findsOneWidget);
+      expect(find.textContaining('This conversation'), findsNothing);
 
       await tester.enterText(composer, '');
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.textContaining(messageBanner), findsNothing);
+      expect(find.textContaining(totalBanner), findsNothing);
     });
 
     testWidgets('names the conversation when it is full without the draft',
@@ -839,6 +840,35 @@ void main() {
 
       expect(find.text(messageBanner), findsOneWidget);
       expect(find.textContaining(banner), findsNothing);
+    });
+
+    testWidgets(
+        'gives the total share when its draft brings it near the window',
+        (tester) async {
+      // 20000 of 32768 is 61%; the draft carries the total past 80% and
+      // short of the window, so the request fits.
+      measure(window: 32768, tokens: 20000);
+      await openThread(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'pad ' * 7000,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final total = tester
+          .widget<ContextGauge>(find.byType(ContextGauge))
+          .usage
+          .fractionUsed!;
+      expect(total, inInclusiveRange(0.8, 0.99));
+      expect(
+          find.text('This message brings the conversation to '
+              '~${(total * 100).round()}% of the model\'s context.'),
+          findsOneWidget);
+      expect(find.text(messageBanner), findsNothing);
     });
 
     testWidgets(
@@ -914,7 +944,7 @@ void main() {
       measure(window: 32768, tokens: 20000);
       router.go('/room/${entry.alias}/room-1/thread/thread-b');
       await tester.pumpAndSettle();
-      expect(find.textContaining(messageBanner), findsNothing);
+      expect(find.textContaining(totalBanner), findsNothing);
 
       await tester.enterText(
         find.descendant(
@@ -933,7 +963,7 @@ void main() {
         greaterThan(0),
         reason: 'the reading has the draft',
       );
-      expect(find.textContaining(messageBanner), findsOneWidget);
+      expect(find.textContaining(totalBanner), findsOneWidget);
     });
   });
 
