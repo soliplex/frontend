@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
@@ -2665,8 +2666,9 @@ class _ContextWarningBanner extends StatelessWidget {
           'Starting a new thread keeps answers complete.',
       ContextLevel.nearlyFull ||
       ContextLevel.room =>
-        'This conversation is using '
-            '$approximate${(conversation.fractionUsed! * 100).round()}% of the '
+        'This conversation is using $approximate'
+            // 100% is the full level's, which says "exceeds".
+            '${math.min((conversation.fractionUsed! * 100).round(), 99)}% of the '
             'model\'s context. Starting a new thread keeps answers complete.',
     };
 
