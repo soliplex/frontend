@@ -65,6 +65,59 @@ void main() {
     });
   });
 
+  group('level', () {
+    test('is room under the threshold', () {
+      expect(_at(7999, window: 10000).level, ContextLevel.room);
+    });
+
+    test('is nearlyFull from the threshold', () {
+      expect(_at(8000, window: 10000).level, ContextLevel.nearlyFull);
+      expect(_at(108800, window: 128000).level, ContextLevel.nearlyFull);
+      expect(_at(108799, window: 128000).level, ContextLevel.room);
+    });
+
+    test('is nearlyFull a token under the window', () {
+      expect(_at(16383, window: 16384).level, ContextLevel.nearlyFull);
+    });
+
+    test('is full at exactly the window', () {
+      expect(_at(16384, window: 16384).level, ContextLevel.full);
+    });
+
+    test('is full over the window, where fractionUsed stops at 1', () {
+      expect(_at(20000, window: 16384).level, ContextLevel.full);
+    });
+
+    test('counts the draft', () {
+      const usage = ContextUsage(
+        measuredTokens: 8000,
+        draftTokens: 2000,
+        contextWindow: 10000,
+      );
+
+      expect(usage.level, ContextLevel.full);
+      expect(usage.withoutDraft.level, ContextLevel.nearlyFull);
+    });
+
+    test('is room with nothing measured', () {
+      const usage = ContextUsage(estimatedTokens: 20000, contextWindow: 16384);
+
+      expect(usage.level, ContextLevel.room);
+    });
+
+    test('is room with no window, or a window of 0', () {
+      expect(_at(999999).level, ContextLevel.room);
+      expect(_at(10, window: 0).level, ContextLevel.room);
+    });
+
+    test('orders its levels from room to full', () {
+      expect(
+        ContextLevel.values,
+        [ContextLevel.room, ContextLevel.nearlyFull, ContextLevel.full],
+      );
+    });
+  });
+
   group('isCritical', () {
     test('is false while the thread is merely worth warning about', () {
       // Past the warning threshold of a small window, so the reading is

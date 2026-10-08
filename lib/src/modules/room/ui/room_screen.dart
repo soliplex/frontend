@@ -2635,11 +2635,11 @@ class _ContextWarningBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // The conversation alone past the threshold is the thread's problem;
-    // a draft carrying it over is the message's, and shortening it is
-    // enough.
+    // The conversation alone at the reading's level is the thread's problem;
+    // a draft carrying it to a worse level is the message's, and shortening
+    // it is enough.
     final conversation = usage.withoutDraft;
-    final text = conversation.isNearlyFull
+    final text = conversation.level == usage.level
         ? 'This conversation is using '
             '${(conversation.fractionUsed! * 100).round()}% of the '
             'model\'s context. Starting a new thread keeps answers complete.'
