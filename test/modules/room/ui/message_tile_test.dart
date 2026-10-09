@@ -130,7 +130,14 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _wrap(MessageTile(roomId: 'r', message: msg, isStreaming: true)),
+        _wrap(
+          MessageTile(
+            roomId: 'r',
+            message: msg,
+            besideReply: false,
+            isStreaming: true,
+          ),
+        ),
       );
 
       expect(find.byType(SoliplexShimmer), findsOneWidget);
@@ -269,6 +276,7 @@ void main() {
         ),
         runId: 'run-4',
         onReportRun: reported.add,
+        besideReply: false,
       )));
 
       await tester.tap(find.text('View or add a note'));

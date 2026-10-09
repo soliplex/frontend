@@ -386,11 +386,12 @@ String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
 const _noResponseIdPrefix = 'no-response-';
 
 /// Synthesized assistant tile shown when a run reached a terminal state
-/// without producing a `TextMessageStart`/`Content`/`End` reply.
+/// without producing a `TextMessageStart`/`Content`/`End` reply, or with work
+/// no reply spoke for, and, for a run that failed, beside the reply it did
+/// produce.
 ///
 /// Carries the run's buffered thinking (if any) and the [reason] the run
-/// ended so the UI can render the appropriate muted "Run
-/// finished/failed/cancelled without a response" tile. Frontend-only —
+/// ended so the UI can render the matching muted notice. Frontend-only —
 /// never sent: a run sends `Conversation.transcript`, which holds no display
 /// tiles.
 ///
