@@ -618,7 +618,7 @@ class ThreadViewState {
               keysOfReadRuns.contains(key) ||
               read.contains(runOfHeldMessage[key]),
         )
-        ..addAll(replayToTrackers(history.runs));
+        ..addAll(replayToTrackers(history));
       _messages.value = MessagesLoaded(
         // The view's own messages keep a run history has not read, and a turn
         // whose run has not started yet. Both are later than anything history

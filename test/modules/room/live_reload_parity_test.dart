@@ -16,9 +16,10 @@ import '../../helpers/live_session.dart';
 /// not shared is what reaches it: live, an orchestrator accumulating a
 /// conversation while a tracker registry keys bands off streaming states;
 /// reloaded, a replay of stored events into a `ThreadHistory` while
-/// `replayToTrackers` buckets the same events by shape. Those are one rule
-/// written twice against different inputs, and the seam between them is where
-/// a thread renders one way live and another way after a refresh.
+/// `replayToTrackers` buckets the same events against that history's messages.
+/// Those are one rule written twice against different inputs, and the seam
+/// between them is where a thread renders one way live and another way after a
+/// refresh.
 ///
 /// Narrow on purpose: the message list, the band map and the parked outcomes.
 /// There is nothing else left that can diverge.
@@ -158,7 +159,7 @@ Future<_Inputs> _reloaded(List<BaseEvent> sequence) async {
   return (
     messages: history.messages,
     messageStates: history.messageStates,
-    bands: replayToTrackers(history.runs),
+    bands: replayToTrackers(history),
     outcomes: history.runOutcomes,
   );
 }
@@ -849,13 +850,25 @@ void main() {
     });
   });
 
+  test('a reply the run fails partway through', () async {
+    // No TEXT_MESSAGE_END is stored, but the terminal is: both paths commit
+    // the partial text, so the reply is shown and its band has to reach it.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'weighing it'),
+      const TextMessageStartEvent(messageId: 'm1'),
+      const TextMessageContentEvent(messageId: 'm1', delta: 'Partial answ'),
+      const RunErrorEvent(message: 'upstream said no'),
+    ]);
+  });
+
   test('a reply interrupted mid-stream keeps its work after a reload',
       () async {
-    // Stored with no TEXT_MESSAGE_END: the stream stopped mid-reply. Reload
-    // never commits a reply without its end, so a band keyed to that reply
-    // would name a tile that does not exist. Live commits the partial text on
-    // every terminal, so the two paths legitimately differ here and this is
-    // checked on reload alone.
+    // Stored with no terminal event at all: the stream stopped mid-reply.
+    // Reload records how the run ended but not the half-written reply, so a
+    // band keyed to that reply would name a tile that does not exist. Live
+    // commits the partial text when the stream ends, so the two paths
+    // legitimately differ here and this is checked on reload alone.
     final reloaded = await _reloaded([
       RunStartedEvent(threadId: 't', runId: _runId),
       ..._reasoning('r1', 'weighing it'),

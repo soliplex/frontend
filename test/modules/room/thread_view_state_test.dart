@@ -1079,7 +1079,14 @@ void main() {
 
       // Seed history so _fetch installs a historical tracker for 'asst-1'.
       api.nextThreadHistory = ThreadHistory(
-        messages: const [],
+        messages: [
+          TextMessage(
+            id: 'asst-1',
+            user: ChatUser.assistant,
+            createdAt: DateTime(2026, 3, 1),
+            text: 'historical',
+          ),
+        ],
         runs: [
           RunEventBundle(
             runId: 'run-prior',
