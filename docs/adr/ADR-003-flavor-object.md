@@ -1,12 +1,13 @@
 # ADR-003: Reify the Flavor — a Declaration Object Between Composition and Boot
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented in #428 and #430)
 - **Date:** 2026-07-16
 - **Authors:** William Karol Di Cioccio
 - **Supersedes:** —
 - **Amends:** ADR-002 §2 (barrel-boundary change shipped in #426) and §3.9/§5.2
   (link contrast policy)
 - **Superseded by:** —
+- **Amended by:** #536 (`runSoliplexShell` takes a builder; §2, §4)
 
 ---
 
@@ -156,9 +157,9 @@ final flavor = await standardFlavor(
 runSoliplexShell(flavor.build());
 ```
 
-> Since superseded: `runSoliplexShell` takes the builder — `await
-> runSoliplexShell(flavor.build)` — so a configuration failure reaches the
-> screen rather than stalling the launch. The rest of this record stands.
+> **Amended by #536 (2026-09-02):** `runSoliplexShell` takes the builder —
+> `await runSoliplexShell(flavor.build)` — so a configuration failure reaches
+> the screen rather than stalling the launch. The rest of this record stands.
 
 ---
 
@@ -225,7 +226,8 @@ construction, failing even earlier with the same message. Deferred until the
   sits on top of it, not instead of it. (This change renames #426's
   `StandardModules` / `buildStandardModules` to `StandardKit` /
   `buildStandardKit` and relocates it beside `standard.dart`; §6.)
-- `runSoliplexShell(ShellConfig)` and the shell widget tree.
+- The shell widget tree. (`runSoliplexShell` itself changed later: it takes
+  a `ShellConfig` builder since #536; see §2.)
 - The shipped Soliplex app's behavior, byte for byte.
 
 ---
