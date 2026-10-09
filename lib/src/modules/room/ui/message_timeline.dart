@@ -485,6 +485,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           sourceReferences: _sourceReferencesMap[message.id],
                           onFeedbackSubmit: widget.onFeedbackSubmit,
                           onReportRun: widget.onReportRun,
+                          besideReply: entry.besideReply,
                           onInspect: widget.onInspect,
                           onShowChunkVisualization:
                               widget.onShowChunkVisualization,

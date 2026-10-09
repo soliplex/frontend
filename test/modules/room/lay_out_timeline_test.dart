@@ -351,7 +351,7 @@ void main() {
     test('a failed run with work after its reply reports the failure once', () {
       // The reply spoke in an earlier response; the run's last response thought
       // and then failed, so that work has no reply of its own and the outcome
-      // tile hosts it. That tile already says the run failed — an error row
+      // tile hosts it. That tile already says the run failed — a second notice
       // beside it would say so twice, and it appears only once a later message
       // makes the layout settle the run a second time.
       final trailing = ExecutionTracker.historical(
@@ -365,6 +365,14 @@ void main() {
         logger: testLogger(),
       );
       addTearDown(trailing.dispose);
+      final spoken = ExecutionTracker.historical(
+        unfinishedAs: StepStatus.completed,
+        events: const [],
+        origin: null,
+        activities: const [],
+        logger: testLogger(),
+      );
+      addTearDown(spoken.dispose);
 
       final tiles = layOut(
         messages: [
@@ -373,7 +381,7 @@ void main() {
           user('u2', run: 'run-1'),
           assistant('m2', text: 'Hi.', run: 'run-1'),
         ],
-        bands: {noResponseMessageId('run-0'): trailing},
+        bands: {'m1': spoken, noResponseMessageId('run-0'): trailing},
         outcomes: {
           'run-0': NoResponseTile.failed(
             runId: 'run-0',
@@ -388,6 +396,9 @@ void main() {
         idsOf(tiles),
         equals(['u1', 'm1', noResponseMessageId('run-0'), 'u2', 'm2']),
       );
+      final outcomeTile = tiles[2];
+      expect(outcomeTile.besideReply, isFalse);
+      expect(outcomeTile.band, same(trailing));
     });
 
     test('the outcome closes its run, after its other rows', () {
@@ -418,8 +429,8 @@ void main() {
           );
 
       test('a failed run with nothing to show says so once', () {
-        // One failure, one row. A failed outcome beside a separate error row
-        // reports the same thing twice.
+        // One failure, one row. A failed outcome beside a second report of it
+        // says the same thing twice.
         final tiles = layOut(
           messages: [user('u1'), assistant('m1', named: true, run: 'run-0')],
           outcomes: {'run-0': failed('run-0')},
@@ -431,18 +442,22 @@ void main() {
       test(
           'a failed run that answered keeps the answer and reports the '
           'failure beside it', () {
-        // The reply stands for the run, so the outcome tile is suppressed —
-        // but the run still failed, and saying nothing about it loses the
-        // only account of why.
+        // The reply stands for the run, but the run still failed, and saying
+        // nothing about it loses the only account of why. Its own outcome
+        // tile says so.
         final tiles = layOut(
           messages: [user('u1'), assistant('m1', text: 'Here.', run: 'run-0')],
           outcomes: {'run-0': failed('run-0')},
         );
 
-        expect(idsOf(tiles), equals(['u1', 'm1', runErrorMessageId('run-0')]));
-        final error = tiles.last.message as ErrorMessage;
-        expect(error.errorText, equals('upstream said no'));
-        expect(error.runId, equals('run-0'));
+        expect(
+          idsOf(tiles),
+          equals(['u1', 'm1', noResponseMessageId('run-0')]),
+        );
+        final notice = tiles.last.message as NoResponseTile;
+        expect(notice.reason, equals(TerminalReason.failed));
+        expect(notice.errorDetail, equals('upstream said no'));
+        expect(tiles.last.besideReply, isTrue);
       });
 
       test('a failed run already reporting itself is not reported twice', () {
@@ -749,6 +764,37 @@ void main() {
 
       expect(idsOf(tiles), equals(['m1', noResponseMessageId('run-0')]));
       expect(bandsOf(tiles), equals({noResponseMessageId('run-0'): b}));
+    });
+
+    test(
+        "a failed run's open band goes to its last response, never to the "
+        'notice beside the reply', () {
+      // The shape both paths produce when the response after a tool result
+      // says only whitespace and the run then fails: the reply keeps
+      // its band, and the band still open is keyed to the run, which is also
+      // the notice's id.
+      final spoken = band();
+      final open = band();
+
+      final tiles = layOut(
+        messages: [
+          user('u1'),
+          assistant('m1', text: 'Let me look.', run: 'run-0'),
+          assistant('m2', text: ' ', run: 'run-0'),
+        ],
+        bands: {'m1': spoken, noResponseMessageId('run-0'): open},
+        outcomes: {
+          'run-0': NoResponseTile.failed(
+            runId: 'run-0',
+            thinkingText: '',
+            errorDetail: 'upstream said no',
+          ),
+        },
+      );
+
+      expect(idsOf(tiles).last, equals(noResponseMessageId('run-0')));
+      expect(bandsOf(tiles), equals({'m1': spoken, 'm2': open}));
+      expect(dropped, isEmpty);
     });
 
     test('an unclaimed band is dropped, never hoisted onto the next run', () {

@@ -79,7 +79,7 @@ class _BandWatch {
     if (layout == null) return;
     expect(layout.dropped, isEmpty, reason: '$when: bands dropped');
     final tileOf = {
-      for (final (:message, :band) in layout.tiles)
+      for (final (:message, :band, besideReply: _) in layout.tiles)
         if (band != null) band: message,
     };
     for (final MapEntry(key: band, value: tile) in tileOf.entries) {

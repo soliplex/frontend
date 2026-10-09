@@ -180,4 +180,48 @@ void main() {
 
     expect(inspected, 'segment-2');
   });
+
+  testWidgets(
+      'a failed run that answered reports the failure beside the reply, '
+      'under one author label', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: MessageTimeline(
+            roomId: 'r',
+            messages: [
+              const TextMessage(
+                id: 'u1',
+                user: ChatUser.user,
+                createdAt: null,
+                text: 'ask',
+                runId: 'run-0',
+              ),
+              const TextMessage(
+                id: 'm1',
+                user: ChatUser.assistant,
+                createdAt: null,
+                text: 'Here.',
+                runId: 'run-0',
+              ),
+            ],
+            messageStates: const {},
+            runOutcomes: {
+              'run-0': NoResponseTile.failed(
+                runId: 'run-0',
+                thinkingText: '',
+                errorDetail: 'upstream said no',
+              ),
+            },
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.text('Run failed: upstream said no'), findsOneWidget);
+    expect(find.text('Assistant'), findsOneWidget);
+  });
 }

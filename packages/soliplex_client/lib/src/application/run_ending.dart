@@ -6,10 +6,6 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.run_ending');
 
-/// Id of the row that reports a failed run which has something else to show
-/// for itself, and so shows no outcome tile of its own to carry the failure.
-String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
-
 /// Id for an `ErrorMessage` synthesized when `RunErrorEvent` arrives on
 /// `Idle` status (no preceding `RunStartedEvent` — backend protocol
 /// violation). Hashed from [threadId] + [message] so a repeated event
@@ -18,7 +14,6 @@ String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
 String preRunErrorMessageId(String threadId, String message) =>
     '$_preRunErrorIdPrefix$threadId-${message.hashCode}';
 
-const _runErrorIdPrefix = 'run-error-';
 const _preRunErrorIdPrefix = 'pre-run-error-';
 
 /// Records how a run that finished normally ended, for a thread that may have
@@ -88,7 +83,9 @@ Conversation parkCancelledOutcome({
 ///
 /// The reasoning travels with the candidate, from whichever state the run was
 /// in when it stopped. A reply already committed carries its own copy, and a
-/// candidate whose run has a reply to stand for it is simply not shown.
+/// candidate whose run has a reply to stand for it is shown only when the run
+/// failed, beside that reply, to carry the failure, or when the run has work
+/// no message spoke for, as its stand-in.
 Conversation _park({
   required Conversation conversation,
   required StreamingState streaming,

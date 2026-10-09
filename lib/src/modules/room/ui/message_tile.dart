@@ -21,6 +21,7 @@ class MessageTile extends StatelessWidget {
     this.sourceReferences,
     this.onFeedbackSubmit,
     this.onReportRun,
+    required this.besideReply,
     this.onInspect,
     this.onShowChunkVisualization,
     this.onFetchWorkdirFiles,
@@ -38,6 +39,10 @@ class MessageTile extends StatelessWidget {
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
   final void Function(String runId)? onReportRun;
+
+  /// Whether a [NoResponseTile] reports its run beside the run's reply.
+  /// Ignored for every other message kind.
+  final bool besideReply;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
@@ -81,6 +86,7 @@ class MessageTile extends StatelessWidget {
             onReportRun: onReportRun,
             executionTracker: executionTracker,
             streamingPhase: streamingPhase,
+            besideReply: besideReply,
           ),
         final ToolCallMessage m => ToolCallTile(message: m),
         final ErrorMessage m => ErrorMessageTile(message: m),

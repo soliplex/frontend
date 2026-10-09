@@ -5,6 +5,7 @@ import '../execution_tracker.dart';
 import 'execution/phase_indicator.dart';
 import 'execution/execution_timeline.dart';
 import 'execution/static_thinking_block.dart';
+import 'copy_button.dart';
 import 'execution/thinking_block.dart';
 import 'message_caption.dart';
 import 'notice_bubble.dart';
@@ -19,6 +20,7 @@ class NoResponseTileWidget extends StatelessWidget {
     this.onReportRun,
     this.executionTracker,
     this.streamingPhase,
+    required this.besideReply,
   });
 
   final String roomId;
@@ -33,44 +35,26 @@ class NoResponseTileWidget extends StatelessWidget {
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
 
+  /// Whether this reports how a run ended beside the reply that stands in for
+  /// it. The reply carries the run's work and its author, so this shows only
+  /// the reason, the note affordance, the time and the copy button. Reasoning
+  /// after the reply renders in a band: the reply's own within its response,
+  /// or, in a later response, the run's unclaimed band, which makes the
+  /// outcome stand in for the run instead.
+  final bool besideReply;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hasTracker = executionTracker != null;
     final reportLabel = _reportLabel(message.reason);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
-        if (hasTracker)
-          ExecutionTimeline(
-            roomId: roomId,
-            messageId: message.id,
-            tracker: executionTracker!,
-          ),
-        if (hasTracker)
-          ExecutionThinkingBlock(
-            roomId: roomId,
-            messageId: message.id,
-            tracker: executionTracker!,
-          )
-        else if (message.hasThinkingText)
-          StaticThinkingBlock(
-            roomId: roomId,
-            messageId: message.id,
-            text: message.thinkingText,
-          ),
-        Text(
-          'Assistant',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: SoliplexSpacing.s1),
+        if (!besideReply) ..._standingIn(Theme.of(context)),
         _TerminalReasonBubble(
           reason: message.reason,
           errorDetail: message.errorDetail,
+          besideReply: besideReply,
         ),
         if (reportLabel != null && runId != null && onReportRun != null)
           SoliplexButton.text(
@@ -79,8 +63,47 @@ class NoResponseTileWidget extends StatelessWidget {
             child: Text(reportLabel),
           ),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
+        if (message.errorDetail case final detail?
+            when detail.trim().isNotEmpty) ...[
+          const SizedBox(height: SoliplexSpacing.s1),
+          CopyButton(text: detail),
+        ],
       ],
     );
+  }
+
+  /// What the tile shows when it stands in for its run: the run's work, its
+  /// reasoning, and who the notice speaks for.
+  List<Widget> _standingIn(ThemeData theme) {
+    final hasTracker = executionTracker != null;
+    return [
+      if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
+      if (hasTracker)
+        ExecutionTimeline(
+          roomId: roomId,
+          messageId: message.id,
+          tracker: executionTracker!,
+        ),
+      if (hasTracker)
+        ExecutionThinkingBlock(
+          roomId: roomId,
+          messageId: message.id,
+          tracker: executionTracker!,
+        )
+      else if (message.hasThinkingText)
+        StaticThinkingBlock(
+          roomId: roomId,
+          messageId: message.id,
+          text: message.thinkingText,
+        ),
+      Text(
+        'Assistant',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      const SizedBox(height: SoliplexSpacing.s1),
+    ];
   }
 }
 
@@ -106,10 +129,15 @@ String? _reportLabel(TerminalReason reason) => switch (reason) {
     };
 
 class _TerminalReasonBubble extends StatelessWidget {
-  const _TerminalReasonBubble({required this.reason, this.errorDetail});
+  const _TerminalReasonBubble({
+    required this.reason,
+    this.errorDetail,
+    required this.besideReply,
+  });
 
   final TerminalReason reason;
   final String? errorDetail;
+  final bool besideReply;
 
   @override
   Widget build(BuildContext context) {
@@ -120,9 +148,13 @@ class _TerminalReasonBubble extends StatelessWidget {
         ),
       TerminalReason.failed => (
           Icons.error_outline,
-          (errorDetail != null && errorDetail!.isNotEmpty)
-              ? 'Run failed: $errorDetail'
-              : 'Run failed without a response',
+          switch ((errorDetail, besideReply)) {
+            (final detail?, _) when detail.trim().isNotEmpty =>
+              'Run failed: $detail',
+            // The reply above it is the run's response.
+            (_, true) => 'Run failed',
+            (_, false) => 'Run failed without a response',
+          },
         ),
       TerminalReason.cancelled => (
           Icons.cancel_outlined,

@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Changed
+
+- A failed run that still has a reply shows its outcome below the reply as a
+  muted notice with "View or add a note" and the time, instead of a red error
+  row. With no error text it says "Run failed". The red banner above the
+  input still appears when a run fails live.
+- Every failed run's notice has a copy button for its error text.
+- A thread whose last seen message was such a red error row shows no "New
+  messages" divider the first time it is opened after updating.
+
+### Removed
+
+- **Library consumers (breaking):** `runErrorMessageId` is no longer exported
+  from `soliplex_client` or `soliplex_agent`.
+
 ## [0.109.0+95] - 2026-10-08
 
 ### Added
