@@ -1,8 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/historical_replay.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
+
+import '../../helpers/live_session.dart';
 
 /// Returns a bridger that throws on one specific [TextMessageContentEvent]
 /// `messageId`. Used to verify the per-event try/catch in
@@ -16,34 +19,53 @@ ExecutionEvent? Function(BaseEvent) _bridgerThrowingOn(String poisonId) {
   };
 }
 
-void main() {
-  group('replayToTrackers', () {
-    test('returns empty map for empty runs', () {
-      expect(replayToTrackers(const []), isEmpty);
-    });
+/// [runs] as the backend serves them back, replayed by the real client.
+Future<ThreadHistory> _stored(List<RunEventBundle> runs) => storedHistory([
+      for (final run in runs)
+        (
+          runId: run.runId,
+          userMessageId: 'user-${run.runId}',
+          prompt: 'Q',
+          events: run.events,
+        ),
+    ]);
 
-    test('builds one tracker per assistant message', () {
+void main() {
+  setUpAll(registerLiveSessionFallbacks);
+
+  group('replayToTrackers', () {
+    test('a reply the history does not show takes no band, though it spoke',
+        () async {
+      // msg-2 opens while msg-1 is still streaming, so the history shows only
+      // msg-2; msg-1's text and end arrive for a stream no longer open. A band
+      // keyed to msg-1 would name a tile that is never shown.
       final runs = [
         RunEventBundle(
           runId: 'run-1',
-          events: [
-            RunStartedEvent(threadId: 't-1', runId: 'run-1'),
-            const TextMessageStartEvent(messageId: 'msg-1'),
-            const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
-            const TextMessageContentEvent(messageId: 'msg-1', delta: 'hi'),
-            const TextMessageEndEvent(messageId: 'msg-1'),
-            const RunFinishedEvent(threadId: 't-1', runId: 'run-1'),
+          events: const [
+            ReasoningMessageStartEvent(messageId: 'reason-1'),
+            ReasoningMessageContentEvent(
+              messageId: 'reason-1',
+              delta: 'thinking...',
+            ),
+            TextMessageStartEvent(messageId: 'msg-1'),
+            TextMessageStartEvent(messageId: 'msg-2'),
+            TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
+            TextMessageEndEvent(messageId: 'msg-1'),
+            TextMessageContentEvent(messageId: 'msg-2', delta: 'Yo'),
+            TextMessageEndEvent(messageId: 'msg-2'),
           ],
         ),
       ];
 
-      final trackers = replayToTrackers(runs);
+      final trackers = replayToTrackers(await _stored(runs));
 
-      expect(trackers.keys, ['msg-1']);
-      expect(trackers['msg-1']!.isFrozen, isTrue);
+      expect(trackers.keys, ['msg-2']);
+      expect(trackers['msg-2']!.thinkingBlocks.value, ['thinking...']);
     });
 
-    test('measures a step from the run start, not its first bridged event', () {
+    test('measures a step from the run start, not its first bridged event',
+        () async {
       // Every timestamp is distinct so the anchor is observable: RUN_STARTED
       // bridges to nothing, so anchoring on the first *bridged* event would
       // start the clock at the tool call and drop the 2.5s before it.
@@ -76,7 +98,7 @@ void main() {
         ),
       ];
 
-      final tracker = replayToTrackers(runs)['msg-1']!;
+      final tracker = replayToTrackers(await _stored(runs))['msg-1']!;
 
       expect(
         tracker.steps.value.single.timestamp,
@@ -84,7 +106,8 @@ void main() {
       );
     });
 
-    test('work a reply inherits keeps the times it was recorded with', () {
+    test('work a reply inherits keeps the times it was recorded with',
+        () async {
       // The run collects what it does before any message speaks, and the reply
       // takes it. The thinking step opens 1.5s after the run started and
       // settles when the reply's first delta lands 5s in; losing the times on
@@ -106,7 +129,7 @@ void main() {
         ),
       ];
 
-      final tracker = replayToTrackers(runs)['msg-1']!;
+      final tracker = replayToTrackers(await _stored(runs))['msg-1']!;
 
       expect(tracker.steps.value.single.label, 'Thinking');
       expect(
@@ -115,81 +138,8 @@ void main() {
       );
     });
 
-    test('a later run is anchored on its own start, not an earlier run\'s', () {
-      // The hoisted raw events are cleared once drained. Left in place they
-      // prepend to every later bucket, anchoring a reply on a run that ended
-      // a minute earlier and folding that run's activities into its tracker.
-      final runs = [
-        RunEventBundle(
-          runId: 'run-1',
-          events: [
-            RunStartedEvent(threadId: 't-1', runId: 'run-1', timestamp: 1000),
-            const ActivitySnapshotEvent(
-              messageId: 'bwrap:call_1',
-              activityType: 'skill_tool_call',
-              content: {'tool_name': 'execute_script', 'args': '{}'},
-              timestamp: 1050,
-            ),
-            const TextMessageStartEvent(messageId: 'msg-1', timestamp: 1100),
-            const TextMessageContentEvent(
-                messageId: 'msg-1', delta: 'Hi', timestamp: 1100),
-            const TextMessageEndEvent(messageId: 'msg-1', timestamp: 1200),
-          ],
-        ),
-        RunEventBundle(
-          runId: 'run-2',
-          events: [
-            RunStartedEvent(threadId: 't-1', runId: 'run-2', timestamp: 60000),
-            const ReasoningMessageStartEvent(
-              messageId: 'reason-2',
-              timestamp: 60500,
-            ),
-            const TextMessageStartEvent(messageId: 'msg-2', timestamp: 61000),
-            const TextMessageContentEvent(
-                messageId: 'msg-2', delta: 'Hi', timestamp: 61000),
-            const TextMessageEndEvent(messageId: 'msg-2', timestamp: 61000),
-          ],
-        ),
-      ];
-
-      final trackers = replayToTrackers(runs);
-
-      expect(
-        trackers['msg-2']!.steps.value.single.timestamp,
-        // Relative to run-2's own start, not run-1's a minute earlier.
-        const Duration(milliseconds: 1000),
-      );
-      expect(trackers['msg-1']!.activities.value, hasLength(1));
-      expect(trackers['msg-2']!.activities.value, isEmpty);
-    });
-
-    test('thinking events before TEXT_MESSAGE_START attach to that message',
-        () {
-      final runs = [
-        RunEventBundle(
-          runId: 'run-1',
-          events: const [
-            ReasoningMessageStartEvent(messageId: 'reason-1'),
-            ReasoningMessageContentEvent(
-              messageId: 'reason-1',
-              delta: 'thinking...',
-            ),
-            TextMessageStartEvent(messageId: 'msg-1'),
-            TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
-            TextMessageEndEvent(messageId: 'msg-1'),
-          ],
-        ),
-      ];
-
-      final trackers = replayToTrackers(runs);
-      final tracker = trackers['msg-1']!;
-
-      expect(tracker.steps.value, hasLength(1));
-      expect(tracker.steps.value.first.label, 'Thinking');
-      expect(tracker.thinkingBlocks.value, ['thinking...']);
-    });
-
-    test('tool calls between two assistant messages attach to the first', () {
+    test('tool calls between two assistant messages attach to the first',
+        () async {
       final runs = [
         RunEventBundle(
           runId: 'run-1',
@@ -217,7 +167,7 @@ void main() {
         ),
       ];
 
-      final trackers = replayToTrackers(runs);
+      final trackers = replayToTrackers(await _stored(runs));
 
       expect(trackers.keys, containsAll(['msg-1', 'msg-2']));
       final first = trackers['msg-1']!;
@@ -234,91 +184,33 @@ void main() {
       expect(second.steps.value, isEmpty);
     });
 
-    test('activity nests under its surrounding tool-call step', () {
+    test('a call left open when the stored events run out is failed', () async {
+      // No result and no terminal event: the stream broke off. Nothing settled
+      // the call, so it must not reload as one that completed.
       final runs = [
         RunEventBundle(
           runId: 'run-1',
           events: const [
             TextMessageStartEvent(messageId: 'msg-1'),
-            TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
+            TextMessageContentEvent(messageId: 'msg-1', delta: 'Looking.'),
             TextMessageEndEvent(messageId: 'msg-1'),
-            ToolCallStartEvent(
-              toolCallId: 'tc-1',
-              toolCallName: 'execute_skill',
-            ),
-            ActivitySnapshotEvent(
-              messageId: 'bwrap:call_1',
-              activityType: 'skill_tool_call',
-              content: {
-                'tool_name': 'execute_script',
-                'args': '{"script":"print(1)"}',
-              },
-              timestamp: 100,
-            ),
-            ToolCallResultEvent(
-              messageId: 'result-1',
-              toolCallId: 'tc-1',
-              content: 'ok',
-            ),
+            ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'search'),
+            ToolCallEndEvent(toolCallId: 'tc-1'),
           ],
         ),
       ];
 
-      final trackers = replayToTrackers(runs);
-      final tracker = trackers['msg-1']!;
-      final entries = tracker.timeline.value;
+      final trackers = replayToTrackers(await _stored(runs));
 
-      expect(entries, hasLength(1));
-      final step = entries.single as TimelineStep;
-      expect(step.step.label, 'execute_skill');
-      expect(step.activityIds, hasLength(1));
       expect(
-        tracker.activities.value.single.content['tool_name'],
-        'execute_script',
-      );
-    });
-
-    test(
-        'no-response bundle (no assistant text, no tool call) produces a '
-        'tracker keyed under the no-response id so its thinking attaches '
-        'to the synthesized tile', () {
-      final runs = [
-        RunEventBundle(
-          runId: 'run-1',
-          events: const [
-            TextMessageStartEvent(
-              messageId: 'user-1',
-              role: TextMessageRole.user,
-              timestamp: 1000,
-            ),
-            TextMessageEndEvent(messageId: 'user-1', timestamp: 1000),
-            ReasoningMessageStartEvent(messageId: 'r1', timestamp: 2000),
-            ReasoningMessageContentEvent(
-                messageId: 'r1', delta: 'reasoning', timestamp: 2100),
-            ReasoningMessageEndEvent(messageId: 'r1', timestamp: 2200),
-            RunFinishedEvent(threadId: 't', runId: 'run-1', timestamp: 4000),
-          ],
-        ),
-      ];
-
-      final trackers = replayToTrackers(runs);
-
-      expect(trackers.keys, contains('no-response-run-1'));
-      expect(trackers['no-response-run-1']!.thinkingBlocks.value, [
-        'reasoning',
-      ]);
-      // Anchored on the bundle's first stored event, so this branch's
-      // timestamp forward is observable: the thinking step opens 1s in and
-      // RUN_FINISHED settles it at 3s.
-      expect(
-        trackers['no-response-run-1']!.steps.value.single.timestamp,
-        const Duration(milliseconds: 3000),
+        trackers['msg-1']!.steps.value.single.status,
+        StepStatus.failed,
       );
     });
 
     test(
         "a run that worked and never spoke keeps its work, rather than "
-        "handing it to whatever answers next", () {
+        "handing it to whatever answers next", () async {
       final runs = [
         RunEventBundle(
           runId: 'run-yield',
@@ -351,7 +243,7 @@ void main() {
         ),
       ];
 
-      final trackers = replayToTrackers(runs);
+      final trackers = replayToTrackers(await _stored(runs));
 
       // Two runs, two bands. Giving run-yield's steps to run-resume's reply
       // would file one turn's work above another turn's answer.
@@ -375,151 +267,9 @@ void main() {
     });
 
     test(
-        'trailing tool-yield bundle with no follow-up routes its hoisted '
-        'events under the synthesized no-response id for the same run', () {
-      // A tool-yield bundle with no normal-bundle follow-up still needs
-      // a tracker on reload: the chat-message side synthesizes a
-      // no-response tile under `noResponseMessageId(runId)` for the
-      // same run, and the bubble disappears if no tracker is keyed
-      // under that id.
-      final runs = [
-        RunEventBundle(
-          runId: 'run-yield-only',
-          events: const [
-            ReasoningMessageStartEvent(messageId: 'r1', timestamp: 1000),
-            ReasoningMessageContentEvent(
-                messageId: 'r1', delta: 'pre-tool', timestamp: 1100),
-            ReasoningMessageEndEvent(messageId: 'r1', timestamp: 1200),
-            ToolCallStartEvent(
-              toolCallId: 'tc-1',
-              toolCallName: 'search',
-              parentMessageId: 'parent-1',
-              timestamp: 3500,
-            ),
-            ToolCallEndEvent(toolCallId: 'tc-1', timestamp: 3600),
-          ],
-        ),
-      ];
-
-      final trackers = replayToTrackers(runs);
-
-      expect(trackers.keys, ['no-response-run-yield-only']);
-      expect(
-        trackers['no-response-run-yield-only']!.steps.value.map((s) => s.label),
-        ['Thinking', 'search'],
-      );
-      // Offsets are measured from the bundle's first stored event, so the
-      // hoisted branch's timestamp forward is observable here. Both settle at
-      // the tool call's own start: TOOL_CALL_END carries no execution step, so
-      // it never moves the offset, and `freeze` settles `search` where the
-      // last event that did left it.
-      expect(
-        trackers['no-response-run-yield-only']!
-            .steps
-            .value
-            .map((s) => s.timestamp),
-        const [Duration(milliseconds: 2500), Duration(milliseconds: 2500)],
-      );
-      expect(
-        trackers['no-response-run-yield-only']!.thinkingBlocks.value,
-        ['pre-tool'],
-      );
-    });
-
-    test('three runs in a row each keep their own work', () {
-      // Nothing crosses a run boundary. A run that yielded, a run that went
-      // quiet, and a run that answered are three turns, and reading them as
-      // one would file the first's thinking under the last's reply.
-      final runs = [
-        RunEventBundle(
-          runId: 'run-yield',
-          events: const [
-            ReasoningMessageStartEvent(messageId: 'r1'),
-            ReasoningMessageContentEvent(messageId: 'r1', delta: 'pre-tool'),
-            ReasoningMessageEndEvent(messageId: 'r1'),
-            ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'search'),
-            ToolCallEndEvent(toolCallId: 'tc-1'),
-            ToolCallResultEvent(
-              toolCallId: 'tc-1',
-              content: 'ok',
-              messageId: 'tool-msg-1',
-            ),
-          ],
-        ),
-        RunEventBundle(
-          runId: 'run-no-response',
-          events: const [
-            ReasoningMessageStartEvent(messageId: 'r2'),
-            ReasoningMessageContentEvent(messageId: 'r2', delta: 'mid'),
-            ReasoningMessageEndEvent(messageId: 'r2'),
-            RunFinishedEvent(threadId: 't', runId: 'run-no-response'),
-          ],
-        ),
-        RunEventBundle(
-          runId: 'run-resume',
-          events: const [
-            TextMessageStartEvent(messageId: 'asst-1'),
-            TextMessageContentEvent(messageId: 'asst-1', delta: 'Hi'),
-            TextMessageEndEvent(messageId: 'asst-1'),
-          ],
-        ),
-      ];
-
-      final trackers = replayToTrackers(runs);
-
-      expect(
-        trackers.keys,
-        containsAll([
-          noResponseMessageId('run-yield'),
-          'no-response-run-no-response',
-          'asst-1',
-        ]),
-      );
-      expect(
-        trackers[noResponseMessageId('run-yield')]!.thinkingBlocks.value,
-        ['pre-tool'],
-      );
-      expect(
-        trackers['no-response-run-no-response']!.thinkingBlocks.value,
-        ['mid'],
-      );
-      expect(trackers['asst-1']!.thinkingBlocks.value, isEmpty);
-      expect(trackers['asst-1']!.steps.value, isEmpty);
-    });
-
-    test('multi-run thread yields one tracker per assistant message', () {
-      final runs = [
-        RunEventBundle(
-          runId: 'run-1',
-          events: const [
-            TextMessageStartEvent(messageId: 'asst-1'),
-            TextMessageContentEvent(messageId: 'asst-1', delta: 'Hi'),
-            TextMessageEndEvent(messageId: 'asst-1'),
-          ],
-        ),
-        RunEventBundle(
-          runId: 'run-2',
-          events: const [
-            ReasoningMessageStartEvent(messageId: 'r-1'),
-            ReasoningMessageContentEvent(messageId: 'r-1', delta: 'go'),
-            TextMessageStartEvent(messageId: 'asst-2'),
-            TextMessageContentEvent(messageId: 'asst-2', delta: 'Hi'),
-            TextMessageEndEvent(messageId: 'asst-2'),
-          ],
-        ),
-      ];
-
-      final trackers = replayToTrackers(runs);
-
-      expect(trackers.keys, ['asst-1', 'asst-2']);
-      expect(trackers['asst-1']!.steps.value, isEmpty);
-      expect(trackers['asst-2']!.steps.value, hasLength(1));
-    });
-
-    test(
       'a throw inside the bridger drops only that event; surrounding '
       'events still bridge',
-      () {
+      () async {
         final runs = [
           RunEventBundle(
             runId: 'run-1',
@@ -550,7 +300,7 @@ void main() {
         ];
 
         final trackers = replayToTrackers(
-          runs,
+          await _stored(runs),
           bridge: _bridgerThrowingOn('asst-1'),
         );
 

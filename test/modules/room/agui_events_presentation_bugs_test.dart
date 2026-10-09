@@ -19,17 +19,22 @@ import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/historical_replay.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
+import '../../helpers/live_session.dart';
 import '../../helpers/test_logger.dart';
 
 void main() {
+  setUpAll(registerLiveSessionFallbacks);
+
   group('a result snapshot advances the nested row it shares an id with', () {
     test(
       'historical replay: call snapshot + result snapshot leave one row, '
       'carrying the result',
-      () {
-        final runs = [
-          RunEventBundle(
+      () async {
+        final history = await storedHistory([
+          (
             runId: 'run-1',
+            userMessageId: 'user-1',
+            prompt: 'Q',
             events: const [
               TextMessageStartEvent(messageId: 'asst-1'),
               TextMessageContentEvent(messageId: 'asst-1', delta: 'Here.'),
@@ -68,9 +73,8 @@ void main() {
               TextMessageEndEvent(messageId: 'asst-1'),
             ],
           ),
-        ];
-
-        final trackers = replayToTrackers(runs);
+        ]);
+        final trackers = replayToTrackers(history);
         final tracker = trackers['asst-1']!;
         final step = tracker.timeline.value.single as TimelineStep;
 
