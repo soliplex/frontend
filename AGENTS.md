@@ -151,7 +151,11 @@ gitignored. See `docs/developer-setup.md` for full setup.
 
 ## Key Documentation
 
+- `docs/adr/` -- Architecture Decision Records; start at `docs/adr/README.md`
 - `docs/developer-setup.md` -- Platform-specific build instructions
+- `docs/authoring-a-flavor.md` -- Building a whitelabel flavor
+- `docs/diagnostics-known-risks.md` -- Known risks of the diagnostics screen
+- `docs/refreshing-backend-schema-snapshots.md` -- Refreshing the haiku.rag schema snapshots
 - `docs/send-cancel-lifecycle.md` -- Message send/cancel state machine
-- `docs/plans/0001-app-shell/proposal.md` -- Shell architecture design
+- `docs/plans/0001-app-shell/proposal.md` -- Original shell plan (historical; partly superseded)
 - `docs/plans/citations-ui/` -- Citations feature design and data flow

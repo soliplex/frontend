@@ -4,6 +4,15 @@
 **Date:** 2026-03-11
 **Branch:** `feat/shell-core`
 
+> **Partly superseded.** This is a historical plan, not the current design.
+> `ModuleContribution` and "no base class, no registry" (decision 2) were
+> replaced by the `AppModule` lifecycle in #172. Flavor functions were
+> replaced by the `Flavor` declaration object
+> ([ADR-003](../../adr/ADR-003-flavor-object.md)). Riverpod-as-DI and
+> signals (decisions 3 and 4) stand, and are the subject of
+> [ADR-001](../../adr/ADR-001-reactive-state-management-scoped-statebus.md).
+> For the current architecture see `CLAUDE.md` and `docs/adr/`.
+
 ## Context
 
 The old `soliplex_frontend` is a white-label Flutter app configured via
