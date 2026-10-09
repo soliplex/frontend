@@ -36,22 +36,12 @@ Using VS Code, and the analyzer disagrees with the pin? See **Troubleshooting**.
 ## Quick Start
 
 ```bash
-# The ag_ui dependency is fetched from a Git LFS-enabled repo whose
-# binary assets we don't use, and one of its LFS objects is missing
-# upstream — which aborts the clone during pub get. We need only its
-# pure Dart sources (not LFS-tracked), so skip the LFS smudge filter:
-export GIT_LFS_SKIP_SMUDGE=1
-
 # Install dependencies
 flutter pub get
 
 # Run the app
 flutter run -d macos   # or: -d ios, -d chrome, -d android
 ```
-
-Add `export GIT_LFS_SKIP_SMUDGE=1` to your shell profile (`~/.zshrc`,
-`~/.bashrc`) so it persists. CI sets this automatically for its
-`pub get` step.
 
 ## Platform Setup
 
