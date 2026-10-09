@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [0.109.0+95] - 2026-10-08
+
+### Added
+
+- A ring beside the send button shows how full the model's context window
+  is: the backend's count for the thread's newest measured run, plus an
+  estimate of what came after it and of the draft. Its tooltip and
+  screen-reader label mark an estimate (`~54%`) and say `>100%` once the
+  thread is past its window. The ring stays hollow until a run has measured
+  the thread, or when the room's model declares no window.
+- A banner over the timeline warns once the reading passes 80% (85% from a
+  128k window), saying whether the conversation or only the message being
+  written is too big. Dismissing it hides it until the reading gets worse or
+  the next send; leaving the thread clears it.
+- The stdout log sink prints a record's attributes.
+- **Library consumers:** in `soliplex_client`: `Transcript`, `MeasuredRun`,
+  `RunUsage`, `SoliplexApi.getRunUsage`, `RoomAgent.contextWindow`,
+  `ThreadHistory.transcript`, `ThreadHistory.latestMeasurement` and
+  `appendToolResult`. In `soliplex_agent`: `ContextUsage`, `ContextLevel`,
+  `estimateTranscriptTokens`, `estimateMessageTokens` and
+  `estimateDraftTokens`. In `soliplex_design`: `warningContainer` and
+  `onWarningContainer` on `SymbolicColors`.
+
+### Changed
+
+- Each run sends the thread's whole history (tool calls, their results and
+  activities), not only user and assistant text. The model now remembers what
+  its tools returned, and a skill that was loaded stays loaded on the next
+  turn. Once this version has sent on a haiku.rag thread, an older frontend's
+  send on that thread is refused; this version recovers it.
+- After Stop, the next send carries only the stopped question, not what the
+  run streamed, so "continue" restarts rather than resumes. After a reload it
+  carries the whole run.
+- **Library consumers (breaking):** a run sends `ThreadHistory.transcript`,
+  not `ThreadHistory.messages`. A `ThreadHistory` built by hand and passed to
+  `seedThreadHistory` sends no history.
+
+### Removed
+
+- **Library consumers (breaking):** `convertToAgui` is no longer exported
+  from `soliplex_client` or `soliplex_agent`.
+
+### Fixed
+
+- A haiku.rag thread whose question was stopped, or ended with an error,
+  after a search can be sent to again; haiku.rag used to refuse it because it
+  had no record of what the run cited.
+- The composer keeps its text field across thread and room switches.
+
 ## [0.108.0+94] - 2026-10-02
 
 ### Added
