@@ -11,6 +11,12 @@
 #
 #    $ docker run --rm -p 9000:9000 soliplex-frontend:latest
 #
+# To cache-bust the web assets (see scripts/post-build-cache-bust.sh), pass a
+# release tag or commit SHA when building:
+#
+#    $ docker build . -t soliplex-frontend:latest \
+#        --build-arg RELEASE_HASH=$(git rev-parse --short HEAD)
+#
 ###############################################################################
 
 ###############################################################################
@@ -62,6 +68,17 @@ RUN cd /app && \
     $FLUTTER clean && \
     $FLUTTER pub get && \
     $FLUTTER build web --release --no-tree-shake-icons
+
+#------------------------------------------------------------------------------
+# Optionally cache-bust the web assets. The hash has to come in as a build arg:
+# .dockerignore excludes .git, so the build cannot derive it. Declared after
+# the build so a new hash reruns only this step.
+#------------------------------------------------------------------------------
+ARG RELEASE_HASH=""
+
+RUN if [ -n "$RELEASE_HASH" ]; then \
+      /app/scripts/post-build-cache-bust.sh /app/build/web; \
+    fi
 
 ###############################################################################
 # Dev stage — flutter web dev server with hot reload
