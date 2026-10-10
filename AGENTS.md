@@ -131,6 +131,12 @@ GitHub Actions (`.github/workflows/flutter.yaml`) runs three jobs:
   threshold enforced. Slack notification on failure.
 - **build-web** -- Web release build with artifact upload.
 
+On each published release, `.github/workflows/image.yaml` publishes the
+cache-busted web build (the `Dockerfile`'s `web` target) to GHCR as
+`ghcr.io/soliplex/frontend-web`, for `linux/amd64` and `linux/arm64`. A
+release tag like `v0.109.0+95` becomes the image tags `0.109.0`,
+`0.109.0-95`, `0.109`, and `latest`.
+
 ## Pre-commit Hooks
 
 Configured via `.pre-commit-config.yaml`:
