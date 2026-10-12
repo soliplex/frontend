@@ -49,10 +49,10 @@ class EventProcessingResult {
 /// Processes a single AG-UI event, returning updated domain and streaming
 /// state.
 ///
-/// A minted message's `createdAt` resolves to `event.timestamp ?? runCreated`,
-/// where [runCreated] is the run's server `created` (supplied during replay,
-/// null while live). Both may be null — the message then carries no timestamp
-/// rather than a client-generated one.
+/// A minted message's `createdAt` resolves to
+/// `event.timestamp ?? undatedEventTime`, where [undatedEventTime] is the
+/// caller's time for an event that carries none. Both may be null — the
+/// message then carries no timestamp rather than a client-generated one.
 ///
 /// Updates the display state and [Conversation.transcript] from the same
 /// event; if either step throws, neither change is kept.
@@ -67,13 +67,13 @@ EventProcessingResult processEvent(
   Conversation conversation,
   StreamingState streaming,
   BaseEvent event, {
-  DateTime? runCreated,
+  DateTime? undatedEventTime,
 }) {
   final result = _processForDisplay(
     conversation,
     streaming,
     event,
-    runCreated: runCreated,
+    undatedEventTime: undatedEventTime,
   );
   return EventProcessingResult(
     conversation: result.conversation.copyWith(
@@ -87,7 +87,7 @@ EventProcessingResult _processForDisplay(
   Conversation conversation,
   StreamingState streaming,
   BaseEvent event, {
-  DateTime? runCreated,
+  DateTime? undatedEventTime,
 }) {
   return switch (event) {
     // Run lifecycle events
@@ -99,13 +99,13 @@ EventProcessingResult _processForDisplay(
         conversation,
         streaming,
         runId,
-        createdAt: _eventTime(timestamp) ?? runCreated,
+        createdAt: _eventTime(timestamp) ?? undatedEventTime,
       ),
     RunErrorEvent(:final message, :final timestamp) => _processRunError(
         conversation,
         streaming,
         message,
-        createdAt: _eventTime(timestamp) ?? runCreated,
+        createdAt: _eventTime(timestamp) ?? undatedEventTime,
       ),
 
     // Reasoning lifecycle — the outer (ReasoningStart/End) and message
@@ -137,7 +137,7 @@ EventProcessingResult _processForDisplay(
         conversation,
         streaming,
         messageId,
-        createdAt: _eventTime(timestamp) ?? runCreated,
+        createdAt: _eventTime(timestamp) ?? undatedEventTime,
       ),
 
     // Tool call events — accumulate tool names on start, args via deltas,

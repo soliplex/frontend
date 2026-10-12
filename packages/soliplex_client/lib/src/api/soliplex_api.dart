@@ -1678,7 +1678,7 @@ class SoliplexApi {
                 conversation,
                 streaming,
                 event,
-                runCreated: fallbackCreated,
+                undatedEventTime: fallbackCreated,
               );
               conversation = result.conversation;
               streaming = result.streaming;
