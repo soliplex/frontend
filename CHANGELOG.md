@@ -23,9 +23,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
-- A run that fails with an empty error message is reported, and filed, as the
-  failure the backend said it was, instead of a broken connection and an event
-  that could not be read.
+- A run that fails with an empty error message is reported as a failed run,
+  and filed like any failure the backend reports, instead of as a stream that
+  ended early beside an event that could not be read.
 - A failure with no error text says "The run failed without giving a reason."
   instead of showing a blank banner.
 
