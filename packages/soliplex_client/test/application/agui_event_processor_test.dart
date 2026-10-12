@@ -501,25 +501,26 @@ void main() {
         expect(message.createdAt!.isUtc, isTrue);
       });
 
-      test('TextMessageEndEvent uses runCreated when event has no timestamp',
-          () {
+      test(
+          'TextMessageEndEvent uses undatedEventTime when event has no '
+          'timestamp', () {
         const streamingState = app_streaming.TextStreaming(
           messageId: 'msg-1',
           user: _defaultUser,
           text: 'Hello world',
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
-        final runCreated = DateTime.utc(2026, 3, 3, 9);
+        final undatedEventTime = DateTime.utc(2026, 3, 3, 9);
 
         final result = processEvent(
           conversation,
           streamingState,
           event,
-          runCreated: runCreated,
+          undatedEventTime: undatedEventTime,
         );
 
         final message = result.conversation.messages.first;
-        expect(message.createdAt, runCreated);
+        expect(message.createdAt, undatedEventTime);
       });
 
       test('TextMessageEndEvent stamps the run that produced the message', () {
