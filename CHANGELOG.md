@@ -23,6 +23,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- A reopened thread keeps the partial reply of a run that was cut off, as it
+  showed while the run was streaming, instead of dropping it.
 - A run that fails with an empty error message is reported as a failed run,
   and filed like any failure the backend reports, instead of as a stream that
   ended early beside an event that could not be read.

@@ -4,9 +4,8 @@ import 'package:meta/meta.dart';
 /// Result of decoding a single AG-UI event payload.
 ///
 /// Used at both the live SSE boundary (`AgUiStreamClient`) and the replay
-/// boundary (`SoliplexApi._replayEventsToHistory`) so a malformed or
-/// unrecognized event surfaces as a tile in the conversation rather than
-/// aborting the run.
+/// boundary (`replayThreadHistory`) so a malformed or unrecognized event
+/// surfaces as a tile in the conversation rather than aborting the run.
 @immutable
 sealed class DecodeOutcome {
   const DecodeOutcome();
