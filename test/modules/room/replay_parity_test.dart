@@ -432,6 +432,24 @@ void main() {
       },
     );
 
+    test('a run ended by a RUN_ERROR whose message is empty', () async {
+      final live = await expectParity({
+        'run-1': [
+          _runStarted('run-1', 0),
+          ..._reply('msg-1', 'Partial answer', 1),
+          {'type': 'RUN_ERROR', 'message': '', 'timestamp': _at(4)},
+        ],
+      });
+
+      expect(
+        live.state,
+        isA<FailedState>()
+            .having((s) => s.reason, 'reason', FailureReason.serverError),
+      );
+      expect(live.conversation.messages,
+          isNot(contains(isA<DroppedEventMessage>())));
+    });
+
     test(
       'a run with an event that could not be decoded',
       skip: 'Live leaves the drop tile undated where reload dates it at the '

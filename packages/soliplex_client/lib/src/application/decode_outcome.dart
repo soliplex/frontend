@@ -59,6 +59,14 @@ class DecodeFailed extends DecodeOutcome {
 /// breadcrumb back to the throwing decoder arm.
 DecodeOutcome decodeMapSafely(Map<String, dynamic> map) {
   try {
+    // The AG-UI schema allows a `RUN_ERROR` with an empty `message`, and the
+    // backend sends one for an error whose text is empty, but `ag_ui`'s
+    // validation rejects it; read as a drop tile, it ends the run as a
+    // cut-off. `RunErrorEvent.fromJson` skips that validation and reads it as
+    // sent.
+    if (map['type'] == 'RUN_ERROR' && map['message'] == '') {
+      return DecodedEvent(RunErrorEvent.fromJson(map), map);
+    }
     return DecodedEvent(const EventDecoder().decodeJson(map), map);
   } on Object catch (e, st) {
     return DecodeFailed(e, map, st);

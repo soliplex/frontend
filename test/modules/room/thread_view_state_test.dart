@@ -1684,6 +1684,45 @@ void main() {
       },
     );
 
+    test('a failure whose text is blank says it gave no reason', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        contextWindow: Signal<int?>(null),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      for (final blank in ['', ' \n ']) {
+        state.clearSendError();
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+        session.emit(
+          FailedState.preRun(
+            threadKey: (
+              serverId: 'test-server',
+              roomId: 'room-1',
+              threadId: 'thread-1',
+            ),
+            reason: FailureReason.serverError,
+            error: blank,
+          ),
+        );
+
+        expect(
+          state.lastSendError.value?.error,
+          'The run failed without giving a reason.',
+          reason: 'error of ${blank.length} blank character(s)',
+        );
+      }
+
+      state.dispose();
+    });
+
     test(
       'a failed run is logged by its reason and run, never by the error text '
       'the backend sent',

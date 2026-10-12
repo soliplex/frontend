@@ -152,7 +152,7 @@ class _TerminalReasonBubble extends StatelessWidget {
             (final detail?, _) when detail.trim().isNotEmpty =>
               'Run failed: $detail',
             // The reply above it is the run's response.
-            (_, true) => 'Run failed',
+            (_, true) => 'Run failed, no reason given',
             (_, false) => 'Run failed without a response',
           },
         ),

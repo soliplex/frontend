@@ -196,8 +196,8 @@ void main() {
   });
 
   testWidgets(
-      'beside a reply, a failure with only blank detail says only that the '
-      'run failed', (tester) async {
+      'beside a reply, a failure with only blank detail says it gave no '
+      'reason', (tester) async {
     // The reply above it is a response, so the generic copy would deny it.
     await tester.pumpWidget(_wrap(NoResponseTileWidget(
       roomId: 'r',
@@ -205,7 +205,7 @@ void main() {
       message: _tile(reason: TerminalReason.failed, errorDetail: '  '),
     )));
 
-    expect(find.text('Run failed'), findsOneWidget);
+    expect(find.text('Run failed, no reason given'), findsOneWidget);
     expect(find.text('Run failed without a response'), findsNothing);
     expect(find.byTooltip('Copy'), findsNothing);
   });

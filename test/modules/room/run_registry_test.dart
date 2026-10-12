@@ -482,28 +482,33 @@ void main() {
       expect(serverApi.submittedFeedback, isEmpty);
     });
 
-    test('logs an unclassified failure against its run instead of filing',
-        () async {
-      // internalError is classifyError's fallback, so the backend may still
-      // complete the run — filing would send a reviewer to a run that
-      // succeeded. The log is what keeps it findable, and the orchestrator's
-      // own record does not name the run.
-      final sink = MemorySink();
-      LogManager.instance.addSink(sink);
-      addTearDown(() => LogManager.instance.removeSink(sink));
+    // Neither says the backend gave up on the run: internalError is
+    // classifyError's fallback, and a stream can end cleanly in transit while
+    // the backend finishes the run. Filing would send a reviewer to a run that
+    // succeeded. The log is what keeps it findable, and the orchestrator's own
+    // record does not name the run.
+    for (final reason in [
+      FailureReason.internalError,
+      FailureReason.streamEndedEarly,
+    ]) {
+      test('logs ${reason.name} against its run instead of filing', () async {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
 
-      final session = ManualAgentSession(_key);
-      filing.register(_key, session);
+        final session = ManualAgentSession(_key);
+        filing.register(_key, session);
 
-      await fail(session, reason: FailureReason.internalError, runId: 'run-1');
+        await fail(session, reason: reason, runId: 'run-1');
 
-      expect(serverApi.submittedFeedback, isEmpty);
-      final record = sink.records.singleWhere(
-        (r) => r.message == 'Run failed without filing feedback',
-      );
-      expect(record.attributes['runId'], 'run-1');
-      expect(record.attributes['reason'], 'internalError');
-    });
+        expect(serverApi.submittedFeedback, isEmpty);
+        final record = sink.records.singleWhere(
+          (r) => r.message == 'Run failed without filing feedback',
+        );
+        expect(record.attributes['runId'], 'run-1');
+        expect(record.attributes['reason'], reason.name);
+      });
+    }
 
     test('does not log a failure it deliberately ignores', () async {
       // A dropped connection is not ours to answer for, so it gets neither a

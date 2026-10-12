@@ -280,6 +280,11 @@ class RunRegistry {
       // run that succeeded. Logged instead, because it is still a run the
       // user got no answer from.
       FailureReason.internalError => _Recording.declineAndLog,
+      // The stream ended with no error and no terminal event. The backend may
+      // have ended the run, or something in front of it closed the stream
+      // while the backend goes on to finish it; nothing here tells the two
+      // apart, so it is logged against the run, not filed.
+      FailureReason.streamEndedEarly => _Recording.declineAndLog,
       // Unreachable on a FailedState — a cancel publishes CancelledState,
       // which the guard above drops. Present for exhaustiveness.
       FailureReason.cancelled => _Recording.decline,
