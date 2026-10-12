@@ -210,13 +210,6 @@ ThreadHistory replayThreadHistory(
             .fold<Transcript>(conversation.transcript, appendToolResult),
       );
 
-      // What the run was sent, which is all it adds to the history when it
-      // was stored without its final state, as the live send keeps what it
-      // sent. That state is the snapshot the backend stores just before
-      // `RUN_FINISHED` or `RUN_ERROR`, and accounts for what the run
-      // streamed; a room without state gets only the terminal event.
-      final sentTranscript = conversation.transcript;
-
       var fold = RunFold.start(
         conversation,
         runId: runId,
@@ -273,13 +266,14 @@ ThreadHistory replayThreadHistory(
         );
       }
 
-      if (!decodedEvents.any(
-        (e) =>
-            e is StateSnapshotEvent ||
-            e is RunFinishedEvent ||
-            e is RunErrorEvent,
-      )) {
-        conversation = conversation.copyWith(transcript: sentTranscript);
+      // What the run was sent, which is all it adds to the history when it
+      // was stored without a final state the fold could process, as the live
+      // send keeps what it sent. That state is the snapshot the backend
+      // stores just before `RUN_FINISHED` or `RUN_ERROR`, and accounts for
+      // what the run streamed; a room without state gets only the terminal
+      // event. See [RunFold.sentTranscript].
+      if (fold.sentTranscript case final sent?) {
+        conversation = conversation.copyWith(transcript: sent);
       }
     }
 
