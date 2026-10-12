@@ -450,8 +450,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       await controller.close();
-      // The stream closes without a terminal event, so the session completes
-      // as streamEndedEarly.
+      // The stream closes without a terminal event, so the session completes.
       await session.result;
     });
 
