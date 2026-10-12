@@ -652,8 +652,8 @@ enum DropSource {
 /// inspect the raw payload.
 ///
 /// Synthesized at two content-bearing boundaries: the decode boundary
-/// (`decodeMapSafely` returns `DecodeFailed`) and the per-event-loop body
-/// in `RunOrchestrator._onEvent` / `SoliplexApi._replayEventsToHistory`
+/// (`decodeMapSafely` returns `DecodeFailed`) and the per-event body in
+/// `RunOrchestrator._onEvent` / `RunFold.apply`, which replay folds through
 /// (`processEvent` threw). Citation extraction, historical replay
 /// bridging, and tracker projection log only without minting a tile —
 /// failures there don't lose user-facing content. Never sent: a run sends

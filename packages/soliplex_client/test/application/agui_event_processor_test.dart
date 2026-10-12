@@ -1785,11 +1785,12 @@ void main() {
 
       // Non-Map and null `StateSnapshotEvent.snapshot` cause the cast
       // inside `_processStateSnapshot` to throw — by design. The
-      // wrappers in `RunOrchestrator._onEvent` and
-      // `SoliplexApi._replayEventsToHistory` catch the throw and mint
-      // a drop tile at the failure position. Behavioral coverage lives
-      // there:
+      // wrappers in `RunOrchestrator._onEvent` and `RunFold.apply`
+      // catch the throw and mint a drop tile at the failure position.
+      // Behavioral coverage lives there:
       //   - run_orchestrator_test.dart "live drop tiles"
+      //   - run_fold_test.dart "drops an event processEvent rejects in a
+      //     tile of its own"
       //   - soliplex_api_test.dart "replay survives a STATE_SNAPSHOT
       //     with a non-Map snapshot"
       // No test on the cast itself — that's a Dart language guarantee,

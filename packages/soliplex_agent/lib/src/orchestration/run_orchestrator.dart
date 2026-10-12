@@ -127,9 +127,9 @@ class RunOrchestrator {
   /// drop-tile ids that pair with that run's id.
   ///
   /// Cross-path id alignment assumes one [DecodeOutcome] per backend-stored
-  /// `events[i]`. The replay path
-  /// (`SoliplexApi._replayEventsToHistory`) increments its loop index
-  /// once per stored event; this counter increments once per outcome.
+  /// `events[i]`. The replay path (`RunFold.eventIndex`, through
+  /// `replayThreadHistory`) increments once per stored event; this counter
+  /// increments once per outcome.
   /// Drop-tile ids only round-trip when those cardinalities match —
   /// i.e., the AG-UI backend must store one event per outcome the live
   /// decoder produces.
