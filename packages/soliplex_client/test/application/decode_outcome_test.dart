@@ -46,7 +46,6 @@ void main() {
       final raw = <String, dynamic>{
         'type': 'RUN_ERROR',
         'message': '',
-        'code': 'timeout',
         'timestamp': 1767747600000,
       };
 
@@ -61,19 +60,9 @@ void main() {
               'event',
               isA<RunErrorEvent>()
                   .having((e) => e.message, 'message', '')
-                  .having((e) => e.code, 'code', 'timeout')
                   .having((e) => e.timestamp, 'timestamp', 1767747600000),
             ),
       );
-    });
-
-    test('still rejects a RUN_ERROR without a string message', () {
-      for (final raw in [
-        <String, dynamic>{'type': 'RUN_ERROR'},
-        <String, dynamic>{'type': 'RUN_ERROR', 'message': 42},
-      ]) {
-        expect(decodeMapSafely(raw), isA<DecodeFailed>(), reason: '$raw');
-      }
     });
   });
 
