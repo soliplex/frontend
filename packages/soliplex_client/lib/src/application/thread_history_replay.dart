@@ -125,36 +125,6 @@ ThreadHistory replayThreadHistory(
     // Keys this turn's citations and message state below.
     final userMessageId = userMessage?.messageId;
 
-    // The run-start event carries the server time the run began. Messages
-    // without a timestamp of their own — chiefly the user message — resolve
-    // to it, matching the live path; run.created is the fallback when the
-    // run-start event is absent or carries no usable timestamp.
-    DateTime? runStartedAt;
-    for (final eventJson in events) {
-      if (eventJson is! Map<String, dynamic>) continue;
-      if (eventJson['type'] != 'RUN_STARTED') continue;
-      final ts = eventJson['timestamp'];
-      if (ts is int) {
-        try {
-          runStartedAt = DateTime.fromMillisecondsSinceEpoch(ts, isUtc: true);
-        } on Object catch (error) {
-          _logger.warning(
-            'replay: invalid RUN_STARTED timestamp ($ts) in run $runId of '
-            'thread $threadId; falling back to run.created (or none).',
-            error: error,
-          );
-        }
-      } else if (ts != null) {
-        _logger.warning(
-          'replay: non-int RUN_STARTED timestamp (${ts.runtimeType}) in run '
-          '$runId of thread $threadId; falling back to run.created '
-          '(or none).',
-        );
-      }
-      break;
-    }
-    final fallbackCreated = runStartedAt ?? created;
-
     // The user message is appended ahead of the events it triggered, rather
     // than folded from the stream, because the backend never sends it — the
     // same shape the live path uses, where the caller seeds the message into
@@ -172,7 +142,7 @@ ThreadHistory replayThreadHistory(
         appendedUserText[userMessage.messageId] = userMessage.text;
         conversation = appendUserMessage(
           conversation,
-          _hydratedUserMessage(userMessage, fallbackCreated, threadId, runId),
+          _hydratedUserMessage(userMessage, threadId, runId),
         );
       } else if (appended == userMessage.text) {
         _logger.info(
@@ -217,7 +187,7 @@ ThreadHistory replayThreadHistory(
                 ? null
                 : turnsByUserMessage[userMessageId]) ??
             const TurnCitations.empty(),
-        runCreated: fallbackCreated,
+        runCreated: created,
       );
       for (final eventJson in events) {
         final outcome = eventJson is Map<String, dynamic>
@@ -255,10 +225,15 @@ ThreadHistory replayThreadHistory(
       // while `citation_index` stays session-cumulative so the ids still
       // resolve.
       fold = fold.resolveTurn();
+      conversation = fold.conversation;
       if (userMessageId != null) {
         turnsByUserMessage[userMessageId] = fold.turnCitations;
+        // The fold dates the user message from the run's `RUN_STARTED`, as
+        // live does; a stored run without one leaves it to the run record.
+        if (created != null) {
+          conversation = conversation.withMessageTime(userMessageId, created);
+        }
       }
-      conversation = fold.conversation;
     }
 
     if (runId == latestUsage?.runId) {
@@ -325,8 +300,8 @@ ThreadHistory replayThreadHistory(
   );
 }
 
-/// The domain message for [userMessage], stamped with [createdAt] and the
-/// run it opened.
+/// The domain message for [userMessage], stamped with the run it opened.
+/// Undated: the fold dates it from the run's start.
 ///
 /// A non-null `parts` already satisfies [TextMessage.fromParts], but that
 /// holds only by the postcondition [readUserMessageContent] documents rather
@@ -339,7 +314,6 @@ ThreadHistory replayThreadHistory(
 /// catching would hide it for as long as it lives.
 TextMessage _hydratedUserMessage(
   RunUserMessage userMessage,
-  DateTime? createdAt,
   String threadId,
   String runId,
 ) {
@@ -349,7 +323,6 @@ TextMessage _hydratedUserMessage(
       return TextMessage.fromParts(
         id: userMessage.messageId,
         parts: parts,
-        createdAt: createdAt,
         runId: runId,
       );
     }
@@ -363,7 +336,6 @@ TextMessage _hydratedUserMessage(
     id: userMessage.messageId,
     user: ChatUser.user,
     text: userMessage.text,
-    createdAt: createdAt,
     runId: runId,
   );
 }

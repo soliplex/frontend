@@ -358,38 +358,28 @@ void main() {
       );
     });
 
-    test(
-      'a run cut off mid-reply',
-      skip: 'Reload drops the partial reply live commits, and dates the '
-          "failure at the run's start where live dates it at its last event; "
-          'closed by PR 4 (RunFold, replay moved onto it).',
-      () async {
-        final live = await expectParity({
-          'run-1': [
-            _runStarted('run-1', 0),
-            TextMessageStartEvent(messageId: 'msg-1', timestamp: _at(1))
-                .toJson(),
-            TextMessageContentEvent(
-              messageId: 'msg-1',
-              delta: "I don'",
-              timestamp: _at(2),
-            ).toJson(),
-          ],
-        });
+    test('a run cut off mid-reply', () async {
+      final live = await expectParity({
+        'run-1': [
+          _runStarted('run-1', 0),
+          TextMessageStartEvent(messageId: 'msg-1', timestamp: _at(1)).toJson(),
+          TextMessageContentEvent(
+            messageId: 'msg-1',
+            delta: "I don'",
+            timestamp: _at(2),
+          ).toJson(),
+        ],
+      });
 
-        expect(live.state, isA<FailedState>());
-      },
-    );
+      expect(live.state, isA<FailedState>());
+    });
 
     test(
       'a run cut off after a state snapshot it could not process',
-      skip: 'Reload keeps the streamed transcript where live restores what '
-          "was sent, and dates the failure at the run's start where live "
-          'dates it at its last event (PR 4); live says "Stream ended without '
-          'terminal event" where reload says "Some of this run\'s events '
-          'could not be read", and leaves the drop tile undated where reload '
-          "dates it at the run's start (PR 5); closed by PR 5 "
-          '(RunOrchestrator on RunFold).',
+      skip: 'Live says "Stream ended without terminal event" where reload '
+          'says "Some of this run\'s events could not be read", and leaves '
+          'the drop tile undated where reload dates it at the last event; '
+          'closed by PR 5 (RunOrchestrator on RunFold).',
       () async {
         final live = await expectParity({
           'run-1': [
@@ -418,7 +408,7 @@ void main() {
     test(
       'a run ended by a RUN_ERROR that carries no time',
       skip: 'Live leaves the failure undated where reload dates it at the '
-          "run's start; closed by PR 5 (both date it at the last event).",
+          'last event; closed by PR 5.',
       () async {
         final live = await expectParity({
           'run-1': [
@@ -453,7 +443,7 @@ void main() {
     test(
       'a run with an event that could not be decoded',
       skip: 'Live leaves the drop tile undated where reload dates it at the '
-          "run's start; closed by PR 5 (both date it at the last event).",
+          'last event; closed by PR 5.',
       () async {
         final live = await expectParity({
           'run-1': [
