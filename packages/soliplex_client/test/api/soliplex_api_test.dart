@@ -6914,11 +6914,13 @@ void main() {
         expect(history.messageStates['user-1']?.runId, equals('run-2'));
       });
 
-      // Streaming state is scoped to a run, so a run whose events were
-      // truncated before any terminal event cannot hand its half-streamed
-      // reply to the next run, where that run's terminal event would commit it
-      // under the wrong run and out of order.
-      test('a truncated run does not leak partial text into the next run',
+      // A run whose events were truncated before any terminal event keeps its
+      // half-streamed reply, as live keeps the reply it was showing when the
+      // stream ended. Streaming state is scoped to a run, so the reply is
+      // committed under that run, not handed to the next one, where that
+      // run's terminal event would commit it under the wrong run and out of
+      // order.
+      test('a truncated run keeps its partial reply under its own run',
           () async {
         final history = await hydrate({
           'run-1': {
@@ -6951,16 +6953,13 @@ void main() {
           },
         });
 
-        final texts =
-            history.messages.whereType<TextMessage>().map((m) => m.text);
-        expect(texts, contains('first'));
-        expect(texts, contains('second'));
-        // An assertion about attribution, not about retention: that a truncated
-        // run's buffered text is discarded outright is settled elsewhere.
+        final partial = history.messages
+            .whereType<TextMessage>()
+            .singleWhere((m) => m.text == 'half a rep');
+        expect(partial.runId, 'run-1');
         expect(
-          texts.where((t) => t.contains('half a rep')),
-          isEmpty,
-          reason: "run-1's partial reply must not be committed under run-2",
+          history.messages.map((m) => m.id),
+          containsAllInOrder(['user-1', 'a-1', 'user-2']),
         );
       });
     });

@@ -2,7 +2,6 @@ import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/api/agui_message_mapper.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
-import 'package:soliplex_client/src/application/run_ending.dart';
 import 'package:soliplex_client/src/application/run_fold.dart';
 import 'package:soliplex_client/src/application/thread_state_warnings.dart';
 import 'package:soliplex_client/src/application/transcript_events.dart';
@@ -233,6 +232,22 @@ ThreadHistory replayThreadHistory(
         if (outcome case DecodedEvent(:final event)) decodedEvents.add(event);
         fold = fold.apply(outcome).fold;
       }
+      // A stored run that ends without saying so. The backend's own unknown
+      // and empty status branches describe exactly this, and the run record
+      // already said the run finished — so the end of its events is the end
+      // of the run, and waiting for an event to announce it would leave the
+      // run with no record of how it ended and its work with no tile.
+      // Recorded as a failure, as live records the same interrupted stream:
+      // nothing says the run completed, and when events went unread, nothing
+      // says what it answered either. The reply it was streaming is kept, and
+      // the history keeps what the run was sent, as live keeps both when its
+      // stream ends early.
+      if (fold.conversation.status case Running()) {
+        fold = fold.failed(
+          fold.cutOffDetail,
+          terminalEvent: 'storedRunEndedWithoutTerminal',
+        );
+      }
       // Resolved against this run's end-of-turn state, so the turn's last run
       // wins, mirroring the live path's resolve-at-every-terminal. Resolving
       // against the run's own state is what preserves a turn's inline figure
@@ -244,37 +259,6 @@ ThreadHistory replayThreadHistory(
         turnsByUserMessage[userMessageId] = fold.turnCitations;
       }
       conversation = fold.conversation;
-
-      // A stored run that ends without saying so. The backend's own unknown
-      // and empty status branches describe exactly this, and the run record
-      // already said the run finished — so the end of its events is the end
-      // of the run, and waiting for an event to announce it would leave the
-      // run with no record of how it ended and its work with no tile.
-      // Recorded as a failure, as live records the same interrupted stream:
-      // nothing says the run completed, and when events went unread, nothing
-      // says what it answered either.
-      // Only the record, not the half-written reply: nobody was reading it,
-      // and the backend never finished it. Whatever reasoning it had reached
-      // travels with the record.
-      if (conversation.status case Running(runId: final open)) {
-        conversation = parkFailedOutcome(
-          conversation: conversation,
-          streaming: fold.streaming,
-          runId: open,
-          errorDetail: fold.cutOffDetail,
-          createdAt: fallbackCreated,
-        );
-      }
-
-      // What the run was sent, which is all it adds to the history when it
-      // was stored without a final state the fold could process, as the live
-      // send keeps what it sent. That state is the snapshot the backend
-      // stores just before `RUN_FINISHED` or `RUN_ERROR`, and accounts for
-      // what the run streamed; a room without state gets only the terminal
-      // event. See [RunFold.sentTranscript].
-      if (fold.sentTranscript case final sent?) {
-        conversation = conversation.copyWith(transcript: sent);
-      }
     }
 
     if (runId == latestUsage?.runId) {
