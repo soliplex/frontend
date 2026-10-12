@@ -8257,6 +8257,30 @@ void main() {
         expect(describe(history), ['user u1']);
       });
 
+      // The snapshot was stored but could not be processed, so nothing
+      // records the search, as live keeps what it sent when its snapshot is
+      // rejected.
+      test(
+          'keeps only what a run was sent when its state snapshot could not '
+          'be processed', () async {
+        stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
+        stubRun(
+          'run-1',
+          runInput: {
+            'messages': [userMessage('u1', 'Find it')],
+          },
+          events: searchedThen([
+            event('STATE_SNAPSHOT', {
+              'snapshot': ['not', 'an', 'object'],
+            }),
+          ]),
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(describe(history), ['user u1']);
+      });
+
       test('replays every run in order, results after their calls', () async {
         // run-1: a server tool with its result, its events naming a parent
         // no event opened, as an older pydantic-ai stored them. run-2: a
