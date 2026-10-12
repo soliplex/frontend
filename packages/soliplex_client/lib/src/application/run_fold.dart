@@ -24,7 +24,8 @@ class RunFold {
   ///
   /// [turnCitations] carries what earlier runs of the same turn cited — a
   /// turn spans several runs when a client tool resumes it. [runCreated] is
-  /// the time a row without a time of its own resolves to.
+  /// the time a row without a time of its own resolves to until an event
+  /// carries one.
   factory RunFold.start(
     Conversation conversation, {
     required String runId,
@@ -42,6 +43,7 @@ class RunFold {
         unreadable: false,
         eventIndex: 0,
         runCreated: runCreated,
+        lastEventTime: null,
       );
 
   const RunFold._({
@@ -54,6 +56,7 @@ class RunFold {
     required this.unreadable,
     required this.eventIndex,
     required this.runCreated,
+    required this.lastEventTime,
   });
 
   /// The conversation with every event so far folded in.
@@ -91,8 +94,16 @@ class RunFold {
   /// only because the backend stores one event per event it streams.
   final int eventIndex;
 
-  /// When the run began, for rows without a time of their own.
+  /// When the run began, for rows before any event carried a time.
   final DateTime? runCreated;
+
+  /// The server time of the latest event that carried a usable one.
+  final DateTime? lastEventTime;
+
+  /// The time a row without one of its own resolves to: no earlier than the
+  /// last event before it, as the run's start would sort a row minted at the
+  /// end of the run above the reply it follows.
+  DateTime? get _now => lastEventTime ?? runCreated;
 
   RunFold _copyWith({
     Conversation? conversation,
@@ -101,6 +112,7 @@ class RunFold {
     bool clearSentTranscript = false,
     bool? unreadable,
     int? eventIndex,
+    DateTime? lastEventTime,
   }) =>
       RunFold._(
         conversation: conversation ?? this.conversation,
@@ -112,6 +124,7 @@ class RunFold {
         unreadable: unreadable ?? this.unreadable,
         eventIndex: eventIndex ?? this.eventIndex,
         runCreated: runCreated,
+        lastEventTime: lastEventTime ?? this.lastEventTime,
       );
 
   /// Folds [outcome] in. `processed` is the event when it reached the
@@ -132,17 +145,18 @@ class RunFold {
           processed: null,
         );
       case DecodedEvent(:final event, :final rawJson):
+        final timed = next._copyWith(lastEventTime: _eventTime(event));
         final EventProcessingResult result;
         try {
           result = processEvent(
             conversation,
             streaming,
             event,
-            undatedEventTime: runCreated,
+            undatedEventTime: timed._now,
           );
         } on Object catch (error, stackTrace) {
           return (
-            fold: next._dropped(
+            fold: timed._dropped(
               index,
               DropSource.eventProcessing,
               error,
@@ -160,13 +174,13 @@ class RunFold {
         final userMessageId = this.userMessageId;
         if (event is RunStartedEvent && userMessageId != null) {
           folded = folded.withMessageRun(userMessageId, event.runId);
-          final startedAt = runCreated;
+          final startedAt = timed._now;
           if (startedAt != null) {
             folded = folded.withMessageTime(userMessageId, startedAt);
           }
         }
         return (
-          fold: next._copyWith(
+          fold: timed._copyWith(
             conversation: folded,
             streaming: result.streaming,
             turnCitations: _accumulate(result.conversation.aguiState, event),
@@ -180,6 +194,24 @@ class RunFold {
           ),
           processed: event,
         );
+    }
+  }
+
+  /// The server time [event] carries, or null when it carries none or one no
+  /// date can hold.
+  DateTime? _eventTime(BaseEvent event) {
+    final timestamp = event.timestamp;
+    if (timestamp == null) return null;
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
+    } on Object catch (error) {
+      // What this can throw carries only the timestamp, a number the backend
+      // stamps and no secret, and it is what makes the record actionable.
+      _logger.warning(
+        'Ignoring invalid event timestamp ($timestamp) on run $runId',
+        error: error,
+      );
+      return null;
     }
   }
 
@@ -229,7 +261,7 @@ class RunFold {
           reason: error.toString(),
           runId: runId,
           rawPayload: rawPayload,
-          createdAt: runCreated,
+          createdAt: _now,
         ),
       ),
     );
@@ -319,7 +351,7 @@ class RunFold {
         streaming: streaming,
         runId: runId,
         errorDetail: detail,
-        createdAt: runCreated,
+        createdAt: _now,
       ),
       streaming: const AwaitingText(),
     );
@@ -351,7 +383,7 @@ class RunFold {
           streaming: streaming,
           runId: runId,
           terminalEvent: terminalEvent,
-          createdAt: runCreated,
+          createdAt: _now,
         ),
       );
 }

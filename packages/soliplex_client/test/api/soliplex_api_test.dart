@@ -2006,6 +2006,59 @@ void main() {
         );
       });
 
+      test('user message of a run with no RUN_STARTED resolves to run.created',
+          () async {
+        void stubGet(String path, Map<String, dynamic> response) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com/api/v1/$path'),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        stubGet('rooms/room-123/agui/thread-456', {
+          'room_id': 'room-123',
+          'thread_id': 'thread-456',
+          'runs': {
+            'run-1': {
+              'run_id': 'run-1',
+              'created': '2026-01-07T01:00:00.000Z',
+              'finished': '2026-01-07T01:01:00.000Z',
+            },
+          },
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-1', {
+          'run_id': 'run-1',
+          'run_input': {
+            'messages': [
+              {'id': 'user-1', 'role': 'user', 'content': 'Hi'},
+            ],
+          },
+          'events': [
+            {
+              'type': 'RUN_FINISHED',
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+            },
+          ],
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+        final userMessage =
+            history.messages.firstWhere((m) => m.id == 'user-1');
+
+        expect(
+          userMessage.createdAt!.isAtSameMomentAs(DateTime.utc(2026, 1, 7, 1)),
+          isTrue,
+        );
+      });
+
       test('fetches multiple runs in parallel and orders by creation time',
           () async {
         // Thread endpoint returns two completed runs

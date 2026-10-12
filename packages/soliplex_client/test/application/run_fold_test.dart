@@ -197,7 +197,19 @@ void main() {
       expect(record.attributes['failure'], 'FormatException: bad');
     });
 
-    test('dates a drop tile at the run start', () {
+    test('dates a drop tile at the last event that carried a time', () {
+      final applied = _applyAll(_start(), [
+        RunStartedEvent(threadId: 't', runId: 'run-1', timestamp: _at(3)),
+      ]).apply(const DecodeFailed(FormatException('not an event'), null));
+
+      expect(
+        applied.fold.conversation.messages.last.createdAt,
+        DateTime.fromMillisecondsSinceEpoch(_at(3), isUtc: true),
+      );
+    });
+
+    test('dates a drop tile at the run start before any event carried a time',
+        () {
       final applied = _start().apply(
         const DecodeFailed(FormatException('not an event'), null),
       );
@@ -205,8 +217,26 @@ void main() {
       expect(applied.fold.conversation.messages.last.createdAt, _runStart);
     });
 
-    test('dates an event that carries no time at the run start', () {
+    test('dates an event that carries no time at the last event before it', () {
+      // The run's start would sort a failure row above the reply it follows.
       final fold = _applyAll(_start(), [
+        ..._partialReply(1),
+        const RunErrorEvent(message: 'boom'),
+      ]);
+
+      expect(
+        fold.conversation.runOutcomes['run-1']!.createdAt,
+        DateTime.fromMillisecondsSinceEpoch(_at(2), isUtc: true),
+      );
+    });
+
+    test('ignores an event time outside the range a date can hold', () {
+      final fold = _applyAll(_start(), [
+        RunStartedEvent(
+          threadId: 't',
+          runId: 'run-1',
+          timestamp: 8640000000000001,
+        ),
         const RunErrorEvent(message: 'boom'),
       ]);
 
@@ -215,12 +245,15 @@ void main() {
 
     test("stamps the turn's user message with the run and its start", () {
       final fold = _applyAll(_start(), [
-        RunStartedEvent(threadId: 't', runId: 'run-1', timestamp: _at(0)),
+        RunStartedEvent(threadId: 't', runId: 'run-1', timestamp: _at(5)),
       ]);
 
       final user = fold.conversation.messages.single;
       expect(user.runId, 'run-1');
-      expect(user.createdAt, _runStart);
+      expect(
+        user.createdAt,
+        DateTime.fromMillisecondsSinceEpoch(_at(5), isUtc: true),
+      );
     });
 
     test('leaves a user message that already has a run and a time as it is',
@@ -304,6 +337,16 @@ void main() {
             .having((t) => t.reason, 'reason', TerminalReason.failed)
             .having((t) => t.errorDetail, 'errorDetail', 'lost it'),
       );
+    });
+
+    test('dates the outcome and the reply at the last event', () {
+      final fold = _applyAll(_start(), _partialReply(1))
+          .failed('lost it', terminalEvent: 'test');
+
+      final lastEvent =
+          DateTime.fromMillisecondsSinceEpoch(_at(2), isUtc: true);
+      expect(fold.conversation.messages.last.createdAt, lastEvent);
+      expect(fold.conversation.runOutcomes['run-1']!.createdAt, lastEvent);
     });
 
     test('commits the reply the run was streaming', () {
