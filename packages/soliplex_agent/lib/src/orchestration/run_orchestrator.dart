@@ -1350,7 +1350,7 @@ class RunOrchestrator {
       FailedState.duringRun(
         threadKey: running.threadKey,
         runId: running.runId,
-        reason: FailureReason.networkLost,
+        reason: FailureReason.streamEndedEarly,
         error: detail,
         conversation: _recordRunEndedAsFailed(
           running,

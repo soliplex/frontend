@@ -537,10 +537,15 @@ class ThreadViewState {
 
   /// Translates orchestrator failure copy into user-facing copy.
   ///
-  /// `streamResumeFailed` failures get a friendly base message; other
-  /// failures pass through unchanged.
+  /// `streamResumeFailed` failures get a friendly base message, and a failure
+  /// with blank text says it gave none rather than showing a blank banner;
+  /// other failures pass through unchanged.
   String _friendlyMessage(FailureReason reason, String error) {
-    if (reason != FailureReason.streamResumeFailed) return error;
+    if (reason != FailureReason.streamResumeFailed) {
+      return error.trim().isEmpty
+          ? 'The run failed without giving a reason.'
+          : error;
+    }
     return 'Connection lost. The response may be incomplete — '
         'you can send your message again.';
   }

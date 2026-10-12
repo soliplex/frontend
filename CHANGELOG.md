@@ -12,11 +12,21 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - A failed run that still has a reply shows its outcome below the reply as a
   muted notice with "View or add a note" and the time, instead of a red error
-  row. With no error text it says "Run failed". The red banner above the
-  input still appears when a run fails live.
+  row. With no error text it says "Run failed, no reason given". The red
+  banner above the input still appears when a run fails live.
 - Every failed run's notice has a copy button for its error text.
 - A thread whose last seen message was such a red error row shows no "New
   messages" divider the first time it is opened after updating.
+- **Library consumers (breaking):** `FailureReason` has a new value,
+  `streamEndedEarly`, for a run's stream that ends with no error and no
+  terminal event (previously reported as `networkLost`).
+
+### Fixed
+
+- A run that fails with an empty error message reports a failure that gave no
+  reason, instead of a broken connection and an event that could not be read.
+- A failure with no error text says "The run failed without giving a reason."
+  instead of showing a blank banner.
 
 ### Removed
 

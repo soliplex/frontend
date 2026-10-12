@@ -350,7 +350,7 @@ void main() {
     );
 
     test(
-      'stream ends without terminal event transitions to networkLost',
+      'stream ends without terminal event transitions to streamEndedEarly',
       () async {
         stubCreateRun();
         stubRunAgent(
@@ -366,7 +366,7 @@ void main() {
 
         expect(orchestrator.currentState, isA<FailedState>());
         final failed = orchestrator.currentState as FailedState;
-        expect(failed.reason, equals(FailureReason.networkLost));
+        expect(failed.reason, equals(FailureReason.streamEndedEarly));
         // runId must be threaded through so terminal-state listeners
         // (e.g., the no-response tracker rekey) can find this run.
         expect(failed.runId, equals(_runId));
