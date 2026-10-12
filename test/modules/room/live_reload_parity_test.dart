@@ -865,17 +865,13 @@ void main() {
   test('a reply interrupted mid-stream keeps its work after a reload',
       () async {
     // Stored with no terminal event at all: the stream stopped mid-reply.
-    // Reload records how the run ended but not the half-written reply, so a
-    // band keyed to that reply would name a tile that does not exist. Live
-    // commits the partial text when the stream ends, so the two paths
-    // legitimately differ here and this is checked on reload alone.
-    final reloaded = await _reloaded([
+    // Both paths commit the partial text when the events end, so the reply
+    // is shown and its band has to reach it.
+    await _expectParity([
       RunStartedEvent(threadId: 't', runId: _runId),
       ..._reasoning('r1', 'weighing it'),
       const TextMessageStartEvent(messageId: 'm1'),
       const TextMessageContentEvent(messageId: 'm1', delta: 'Partial answ'),
     ]);
-
-    _expectEveryBandPlaced('reloaded', reloaded);
   });
 }
