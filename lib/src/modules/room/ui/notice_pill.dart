@@ -48,6 +48,7 @@ class NoticePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actionLabel = this.actionLabel;
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(
           left: SoliplexSpacing.s3, bottom: SoliplexSpacing.s1),
@@ -66,20 +67,25 @@ class NoticePill extends StatelessWidget {
           Flexible(
             child: Text(
               message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: foreground),
+              style: theme.textTheme.bodySmall?.copyWith(color: foreground),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           if (actionLabel != null) ...[
             const SizedBox(width: SoliplexSpacing.s1),
-            SoliplexButton.text(
-              onPressed: onAction,
-              isCompact: true,
-              child: Text(actionLabel),
+            // A text button paints in primary, which a brand accent can make
+            // unreadable on [background]; [foreground] is the color made to
+            // read on it.
+            Theme(
+              data: theme.copyWith(
+                colorScheme: theme.colorScheme.copyWith(primary: foreground),
+              ),
+              child: SoliplexButton.text(
+                onPressed: onAction,
+                isCompact: true,
+                child: Text(actionLabel),
+              ),
             ),
           ],
           const SizedBox(width: SoliplexSpacing.s1),
