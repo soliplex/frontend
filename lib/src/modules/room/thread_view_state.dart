@@ -466,6 +466,15 @@ class ThreadViewState {
         _messages.value = _messagesLoaded(conversation);
         unawaited(contextUsage.runCompleted(runId, conversation.transcript));
         _runsEnded.value++;
+        _logger.debug(
+          'run ended',
+          attributes: {
+            'threadId': threadId,
+            'runId': runId,
+            'outcome': 'completed',
+            'runsEnded': _runsEnded.value,
+          },
+        );
       case FailedState(
           :final conversation,
           :final reason,
@@ -495,13 +504,31 @@ class ThreadViewState {
           _messages.value = _messagesLoaded(conversation);
         }
         _runsEnded.value++;
-      case CancelledState(:final conversation):
+        _logger.debug(
+          'run ended',
+          attributes: {
+            'threadId': threadId,
+            'runId': runId,
+            'outcome': 'failed',
+            'runsEnded': _runsEnded.value,
+          },
+        );
+      case CancelledState(:final conversation, :final runId):
         _detachSession();
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
         contextUsage.sendEnded(conversation?.transcript);
         _runsEnded.value++;
+        _logger.debug(
+          'run ended',
+          attributes: {
+            'threadId': threadId,
+            'runId': runId,
+            'outcome': 'cancelled',
+            'runsEnded': _runsEnded.value,
+          },
+        );
       case IdleState():
         break;
     }

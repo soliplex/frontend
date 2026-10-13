@@ -820,6 +820,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _runEndUnsub?.call();
     _runEndUnsub = null;
     final workdirs = _workdirs;
+    _logger.debug('workspace refresh: thread opened threadId=$threadId');
     unawaited(workdirs.refresh(threadId));
 
     final view = _state.activeThreadView;
@@ -829,6 +830,9 @@ class _RoomScreenState extends State<RoomScreen> {
       // Subscribing reports the current count; only a change is a run end.
       if (count == ended) return;
       ended = count;
+      _logger.debug(
+        'workspace refresh: run ended threadId=$threadId runsEnded=$count',
+      );
       unawaited(workdirs.refresh(threadId));
     });
   }
@@ -2130,7 +2134,12 @@ class _RoomScreenState extends State<RoomScreen> {
       icon: icon,
       isSelected: _filesExpanded,
       tooltip: label,
-      onPressed: () => setState(() => _filesExpanded = !_filesExpanded),
+      onPressed: () {
+        _logger.debug(
+          _filesExpanded ? 'files panel closed' : 'files panel opened',
+        );
+        setState(() => _filesExpanded = !_filesExpanded);
+      },
     );
   }
 
@@ -2208,7 +2217,10 @@ class _RoomScreenState extends State<RoomScreen> {
           status: workspaceStatus,
           onDownload: (file) => _workdirs.downloadFile(threadId, file),
           onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
-          onRetry: () => unawaited(_workdirs.refresh(threadId)),
+          onRetry: () {
+            _logger.debug('workspace refresh: retry threadId=$threadId');
+            unawaited(_workdirs.refresh(threadId));
+          },
         ),
     ];
 
@@ -2591,7 +2603,10 @@ class _RoomScreenState extends State<RoomScreen> {
             WorkspaceEventBanner(
               status: _workdirs.files(threadView.threadId),
               threadId: threadView.threadId,
-              onShow: () => setState(() => _filesExpanded = true),
+              onShow: () {
+                _logger.debug('files panel opened from workspace pill');
+                setState(() => _filesExpanded = true);
+              },
             ),
           ],
         ),
