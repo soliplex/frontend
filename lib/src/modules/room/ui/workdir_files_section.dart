@@ -93,7 +93,7 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _WorkdirErrorRow(onRetry: _retry);
+          return WorkdirErrorRow(onRetry: _retry);
         }
         final files = snapshot.data;
         if (files == null || files.isEmpty) {
@@ -116,7 +116,7 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (var i = 0; i < files.length; i++)
-                      _WorkdirFileRow(
+                      WorkdirFileRow(
                         file: files[i],
                         onTap: () => widget.onDownload(widget.runId, files[i]),
                         onOpenPreview: widget.onPreview == null
@@ -134,14 +134,20 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
   }
 }
 
-class _WorkdirFileRow extends StatelessWidget {
-  const _WorkdirFileRow({
+class WorkdirFileRow extends StatelessWidget {
+  const WorkdirFileRow({
+    super.key,
     required this.file,
     required this.onTap,
     this.onOpenPreview,
+    this.isNew = false,
   });
 
   final WorkdirFile file;
+
+  /// Whether the file appeared since the user last looked; shows a New badge.
+  final bool isNew;
+
   final Future<DownloadOutcome> Function() onTap;
 
   /// When non-null, the row is previewable: tapping the row or the eye
@@ -189,6 +195,11 @@ class _WorkdirFileRow extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
+                if (isNew) ...[
+                  const SizedBox(width: SoliplexSpacing.s2),
+                  const SoliplexBadge(
+                      label: Text('New'), intent: BadgeIntent.info),
+                ],
                 if (canPreview) ...[
                   PreviewIconButton(onTap: onOpenPreview),
                   const SizedBox(width: SoliplexSpacing.s2),
@@ -829,10 +840,24 @@ class _CannotPreview extends StatelessWidget {
   }
 }
 
-class _WorkdirErrorRow extends StatelessWidget {
-  const _WorkdirErrorRow({required this.onRetry});
+class WorkdirErrorRow extends StatelessWidget {
+  const WorkdirErrorRow({
+    super.key,
+    required this.onRetry,
+    this.isRetrying = false,
+    this.reason,
+  });
 
   final VoidCallback onRetry;
+
+  /// Whether a retry is in flight; the Retry button turns into a disabled one
+  /// showing a spinner, so the row keeps its size and cannot queue another
+  /// retry.
+  final bool isRetrying;
+
+  /// Why the list failed, shown after the fixed message; text that is safe to
+  /// show.
+  final String? reason;
 
   @override
   Widget build(BuildContext context) {
@@ -850,17 +875,24 @@ class _WorkdirErrorRow extends StatelessWidget {
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
-              "Couldn't load files",
+              reason == null
+                  ? "Couldn't load files"
+                  : "Couldn't load files — $reason",
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.error,
               ),
             ),
           ),
           IconButton(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
+            onPressed: isRetrying ? null : onRetry,
+            icon: isRetrying
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
             iconSize: 16,
-            tooltip: 'Retry',
+            tooltip: isRetrying ? null : 'Retry',
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

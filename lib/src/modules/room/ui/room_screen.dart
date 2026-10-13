@@ -55,6 +55,7 @@ import '../thread_view_state.dart';
 import '../lay_out_timeline.dart';
 import '../workdir_controller.dart';
 import 'approval_handler.dart';
+import 'assistant_files_section.dart' show FilePanelSectionLabel;
 import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
 import 'chat_input.dart';
@@ -2170,7 +2171,7 @@ class _RoomScreenState extends State<RoomScreen> {
     return switch (status) {
       UploadsLoading() => Row(
           children: [
-            _sectionLabel(label, theme),
+            FilePanelSectionLabel(label),
             const SizedBox(width: SoliplexSpacing.s2),
             const SizedBox(
               width: 12,
@@ -2184,13 +2185,13 @@ class _RoomScreenState extends State<RoomScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _sectionLabel(label, theme),
+            FilePanelSectionLabel(label),
             for (final entry in list) _buildFileRow(entry),
           ],
         ),
       UploadsFailed(error: final error) => Row(
           children: [
-            _sectionLabel(label, theme),
+            FilePanelSectionLabel(label),
             const SizedBox(width: SoliplexSpacing.s2),
             Expanded(
               child: Text(
@@ -2205,16 +2206,6 @@ class _RoomScreenState extends State<RoomScreen> {
           ],
         ),
     };
-  }
-
-  Widget _sectionLabel(String label, ThemeData theme) {
-    return Text(
-      label.toUpperCase(),
-      style: theme.textTheme.labelSmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-        letterSpacing: 0.5,
-      ),
-    );
   }
 
   Widget _buildFileRow(DisplayUpload entry) {
