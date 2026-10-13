@@ -219,7 +219,7 @@ void main() {
 
     test('fromExecuted creates message from executed tool calls', () {
       final message = ToolCallMessage.fromExecuted(
-        id: 'tc-exec-1',
+        runId: 'run-1',
         toolCalls: const [
           ToolCallInfo(
             id: 'tc1',
@@ -239,19 +239,17 @@ void main() {
       );
 
       expect(message.user, equals(ChatUser.assistant));
-      expect(message.id, equals('tc-exec-1'));
       expect(message.toolCalls, hasLength(2));
       expect(message.toolCalls[0].status, equals(ToolCallStatus.completed));
       expect(message.toolCalls[0].result, equals('42'));
       expect(message.toolCalls[1].status, equals(ToolCallStatus.failed));
       expect(message.toolCalls[1].result, equals('Error: unknown name'));
-      expect(message.createdAt, isNotNull);
     });
 
-    test('fromExecuted stamps the client clock at creation', () {
-      final before = DateTime.timestamp();
+    test('fromExecuted names the message after the run that waited', () {
+      // Live and reload build it apart, and give it the same id.
       final message = ToolCallMessage.fromExecuted(
-        id: 'tc-exec-2',
+        runId: 'run-1',
         toolCalls: const [
           ToolCallInfo(
             id: 'tc1',
@@ -261,16 +259,27 @@ void main() {
           ),
         ],
       );
-      final after = DateTime.timestamp();
 
-      expect(
-        message.createdAt!.isAfter(before.subtract(const Duration(seconds: 1))),
-        isTrue,
+      expect(message.id, executedToolsMessageId('run-1'));
+      expect(message.runId, 'run-1');
+    });
+
+    test('fromExecuted takes the time it is given, not the client clock', () {
+      final waitedAt = DateTime.utc(2026, 1, 7, 1, 0, 3);
+      final message = ToolCallMessage.fromExecuted(
+        runId: 'run-1',
+        createdAt: waitedAt,
+        toolCalls: const [
+          ToolCallInfo(
+            id: 'tc1',
+            name: 'search',
+            status: ToolCallStatus.completed,
+            result: 'found',
+          ),
+        ],
       );
-      expect(
-        message.createdAt!.isBefore(after.add(const Duration(seconds: 1))),
-        isTrue,
-      );
+
+      expect(message.createdAt, waitedAt);
     });
   });
 
@@ -514,12 +523,30 @@ void main() {
     // list would let a later mutation leave the two describing different
     // content — the disagreement the factory exists to prevent.
     test('a message keeps the parts it was built with', () {
-      final mutable = <MessagePart>[const TextPart('hello')];
+      final mutable = <MessagePart>[
+        const TextPart('hello'),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.remoteSource,
+        ),
+      ];
 
       final message = TextMessage.fromParts(id: 'm-1', parts: mutable);
       mutable.clear();
 
-      expect(message.parts, hasLength(1));
+      expect(message.parts, hasLength(2));
+    });
+
+    // Text alone travels the wire as a bare string, which a reload reads back
+    // without parts, so the message keeps none either and reads the same
+    // before and after one.
+    test('text alone is kept as text, without parts', () {
+      final message = TextMessage.fromParts(
+        id: 'm-1',
+        parts: const [TextPart('look '), TextPart('here')],
+      );
+
+      expect(message.text, 'look here');
+      expect(message.parts, isNull);
     });
 
     // A payload with no attachment and no text reaches the wire as empty

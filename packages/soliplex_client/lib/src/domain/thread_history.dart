@@ -123,11 +123,20 @@ class ThreadHistory {
 @immutable
 class RunEventBundle {
   /// Creates a bundle of decoded events for [runId].
-  RunEventBundle({required this.runId, required List<BaseEvent> events})
-      : events = List.unmodifiable(events);
+  RunEventBundle({
+    required this.runId,
+    required List<BaseEvent> events,
+    this.continuesTurn = false,
+  }) : events = List.unmodifiable(events);
 
   /// The run these events belong to.
   final String runId;
+
+  /// Whether this run continues a turn an earlier run opened: its user
+  /// message repeats that run's, as a run resumed after a client tool does.
+  /// Live collects a turn's work into one band across that wait, so reload has
+  /// to know.
+  final bool continuesTurn;
 
   /// Decoded AG-UI events in the order they were emitted.
   final List<BaseEvent> events;

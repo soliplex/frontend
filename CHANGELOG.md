@@ -25,6 +25,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - A reopened thread keeps the partial reply of a run that was cut off, as it
   showed while the run was streaming, instead of dropping it.
+- A reopened thread shows a turn that ran a client tool as it showed live:
+  the tool's card with its result, and the turn's work above its reply,
+  instead of a "no response" tile holding that work.
+- A client tool that fails is reported to the model as a failed tool call,
+  not as a result that succeeded, and shows as failed after a reload.
 - A failure, or an event that could not be read, that arrives without a time
   of its own shows the time of the run's last event while the run is live,
   as it does after a reload, instead of no time.

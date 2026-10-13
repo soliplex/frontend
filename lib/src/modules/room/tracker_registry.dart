@@ -51,6 +51,7 @@ class TrackerRegistry {
 
   /// Update tracker state based on the current streaming state.
   void onStreaming(StreamingState streaming, String runId) {
+    _continueTurn(runId);
     switch (streaming) {
       case TextStreaming(:final messageId, :final text, :final user):
         // A message speaks for the response it was emitted in. A response that
@@ -74,6 +75,20 @@ class TrackerRegistry {
       case AwaitingText():
         if (_open == null) _openRun(runId);
     }
+  }
+
+  /// A run that arrives while a turn is open continues it: it resumes the run
+  /// that waited on a client tool. It ends the turn, so the turn's unclaimed
+  /// work moves to its key, which names the tile its outcome is given if
+  /// nothing in the turn speaks. The response being collected carries on.
+  void _continueTurn(String runId) {
+    final open = _open;
+    if (open == null) return;
+    final unclaimed = noResponseMessageId(runId);
+    if (open.unclaimed == unclaimed) return;
+    final tracker = _trackers.remove(open.unclaimed);
+    if (tracker != null) _trackers[unclaimed] = tracker;
+    _open = (unclaimed: unclaimed, segmenter: open.segmenter);
   }
 
   _OpenRun _openRun(String runId) {
