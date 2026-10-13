@@ -8460,11 +8460,11 @@ void main() {
         ]);
       });
 
-      // A run that could not be fetched breaks the turn: what the run after it
-      // continues is unknown, so the run that waited keeps its own outcome,
-      // and with it the tile that shows its work.
-      test('a run after one that could not be fetched starts a new turn',
-          () async {
+      // run-a waits on a client tool and run-c repeats its user message,
+      // answering a call of its own; [stubB] answers for the run between them.
+      // Whatever run-b is, run-c continues no turn but its own, so run-a keeps
+      // its outcome, and with it the tile that shows its work.
+      Future<ThreadHistory> replayedAroundRunB(void Function() stubB) {
         stubThread({
           'run-a': listed('run-a', '2026-01-07T01:00:00.000Z'),
           'run-b': listed('run-b', '2026-01-07T01:01:00.000Z'),
@@ -8485,19 +8485,7 @@ void main() {
             event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-a'}),
           ],
         );
-        when(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-b',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenThrow(const NotFoundException(message: 'run-b is gone'));
+        stubB();
         stubRun(
           'run-c',
           runInput: {
@@ -8516,11 +8504,88 @@ void main() {
             event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-c'}),
           ],
         );
+        return api.getThreadHistory('room-123', 'thread-456');
+      }
 
-        final history = await api.getThreadHistory('room-123', 'thread-456');
+      // What the run after it continues is unknown.
+      test('a run after one that could not be fetched starts a new turn',
+          () async {
+        final history = await replayedAroundRunB(() {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-b',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenThrow(const NotFoundException(message: 'run-b is gone'));
+        });
 
         expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
-        expect(history.runs.map((r) => r.continuesTurn), [false, false, false]);
+        expect(
+          {for (final run in history.runs) run.runId: run.continuesTurn},
+          {'run-a': false, 'run-c': false},
+        );
+      });
+
+      test('a run after one with no user message starts a new turn', () async {
+        final history = await replayedAroundRunB(
+          () => stubRun(
+            'run-b',
+            runInput: {'messages': <Object?>[]},
+            events: [
+              event(
+                'RUN_STARTED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+              event(
+                'RUN_FINISHED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+            ],
+          ),
+        );
+
+        expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
+        expect(
+          history.runs.map((run) => run.continuesTurn),
+          everyElement(false),
+        );
+      });
+
+      // A repeat of an earlier turn's message does not resume the turn in
+      // between.
+      test('a run repeating an earlier turn after another starts a new turn',
+          () async {
+        final history = await replayedAroundRunB(
+          () => stubRun(
+            'run-b',
+            runInput: {
+              'messages': [userMessage('u2', 'And the weather?')],
+            },
+            events: [
+              event(
+                'RUN_STARTED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+              event(
+                'RUN_FINISHED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+            ],
+          ),
+        );
+
+        expect(history.runOutcomes.keys, ['run-a', 'run-b', 'run-c']);
+        expect(
+          history.runs.map((run) => run.continuesTurn),
+          everyElement(false),
+        );
       });
 
       test('skips a supplied tool message it cannot read, keeping the rest',

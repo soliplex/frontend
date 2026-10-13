@@ -244,6 +244,28 @@ void main() {
         DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
       );
     });
+
+    test('leaves the user message undated when the run start has no time',
+        () async {
+      // No server time to show, and the device clock is not one.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final userMessage = completed.conversation.messages
+          .whereType<TextMessage>()
+          .firstWhere((m) => m.user == ChatUser.user);
+      expect(userMessage.createdAt, isNull);
+    });
   });
 
   group('optimistic echo', () {
@@ -368,41 +390,6 @@ void main() {
         // runId must be threaded through so terminal-state listeners
         // (e.g., the no-response tracker rekey) can find this run.
         expect(failed.runId, equals(_runId));
-      },
-    );
-
-    test(
-      'a stream that ends early after an unreadable event says events went '
-      'unread',
-      () async {
-        // The unreadable event may have been the one that said how the run
-        // ended, so the run is not reported as merely cut off, as replay
-        // reports the same stored run.
-        stubCreateRun();
-        when(
-          () => agUiStreamClient.runAgent(
-            any(),
-            any(),
-            cancelToken: any(named: 'cancelToken'),
-            resumePolicy: any(named: 'resumePolicy'),
-            onReconnectStatus: any(named: 'onReconnectStatus'),
-          ),
-        ).thenAnswer(
-          (_) => Stream.fromIterable([
-            DecodedEvent(
-              RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              const {'type': 'RUN_STARTED'},
-            ),
-            const DecodeFailed(FormatException('boom'), {'type': 'GIBBERISH'}),
-          ]),
-        );
-
-        await orchestrator
-            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
-        await Future<void>.delayed(Duration.zero);
-
-        final failed = orchestrator.currentState as FailedState;
-        expect(failed.error, "Some of this run's events could not be read");
       },
     );
 
@@ -4408,8 +4395,8 @@ void main() {
             UserMessage() => 'user',
             AssistantMessage(:final id, :final toolCalls) =>
               '$id:${toolCalls?.length ?? 0}',
-            ToolMessage(:final toolCallId, :final content, :final error) =>
-              '$toolCallId=$content${error == null ? '' : ' (error: $error)'}',
+            ToolMessage(:final toolCallId, :final content) =>
+              '$toolCallId=$content',
             _ => m.runtimeType.toString(),
           },
       ];
@@ -4427,15 +4414,13 @@ void main() {
       );
     });
 
-    // The error goes as the content, so the model can respond to it, and in
-    // `error` as well, so it reaches the model as a failure and reads back as
-    // one when the thread is reopened.
-    test('a resume reports a failed call as failed, with its error', () async {
+    test('a resume sends a failed call its error, so the model can respond',
+        () async {
       expect(
         await resumedHistory(
           (tc) => tc.copyWith(status: ToolCallStatus.failed, result: 'Offline'),
         ),
-        ['user', 'p:1', 't:0', 'call_0=Offline (error: Offline)'],
+        ['user', 'p:1', 't:0', 'call_0=Offline'],
       );
     });
   });

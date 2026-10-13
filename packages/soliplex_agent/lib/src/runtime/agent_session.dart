@@ -436,8 +436,9 @@ class AgentSession implements ToolExecutionContext {
     // session's result before disposing it and draining the spawn queue, so a
     // throw escaping here would leave the run with no terminal state, the
     // session never torn down, and later spawns queued behind it. Every
-    // expected outcome — including a cancel — comes back as a terminal
-    // `RunState`, so reaching this handler means a bug, not a failed run.
+    // expected outcome — including a cancel — comes back as a `RunState`
+    // (terminal, or idle after a reset ended a client-tool wait), so reaching
+    // this handler means a bug, not a failed run.
     unawaited(
       _orchestrator
           .runToCompletion(
@@ -454,7 +455,7 @@ class AgentSession implements ToolExecutionContext {
   }
 
   /// Settles the session when `runToCompletion` throws instead of returning a
-  /// terminal state, so the runtime's wait on [result] cannot hang.
+  /// `RunState`, so the runtime's wait on [result] cannot hang.
   RunState _settleFailedRun(Object error, StackTrace stackTrace) {
     _logger.error(
       'runToCompletion threw (session=$id, thread=${threadKey.threadId})',

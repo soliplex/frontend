@@ -48,10 +48,16 @@ class TrackerRegistry {
   /// response boundary always subscribes last.
   void Function()? _sessionUnsub;
 
+  final Set<String> _runs = {};
+
   Map<String, ExecutionTracker> get trackers => Map.unmodifiable(_trackers);
+
+  /// Every run that has started in this session's turn.
+  Set<String> get runs => Set.unmodifiable(_runs);
 
   /// Update tracker state based on the current streaming state.
   void onStreaming(StreamingState streaming, String runId) {
+    _runs.add(runId);
     _continueTurn(runId);
     switch (streaming) {
       case TextStreaming(:final messageId, :final text, :final user):

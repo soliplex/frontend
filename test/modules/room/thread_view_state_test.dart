@@ -538,6 +538,363 @@ void main() {
     state.dispose();
   });
 
+  test('shows a restored client-tool turn once when history read it', () async {
+    // The run that waited on the tool records no outcome of its own, live or
+    // replayed; history still read it, so what the view held of it goes.
+    final threadKey = (
+      serverId: 'test-server',
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    );
+    final messages = <ChatMessage>[
+      TextMessage(
+        id: 'user-1',
+        user: ChatUser.user,
+        createdAt: DateTime(2026, 3, 1),
+        text: 'Where am I?',
+        runId: 'run-waits',
+      ),
+      ToolCallMessage.fromExecuted(
+        runId: 'run-waits',
+        createdAt: null,
+        toolCalls: const [
+          ToolCallInfo(
+            id: 'call-1',
+            name: 'locate',
+            status: ToolCallStatus.completed,
+            result: 'Paris',
+          ),
+        ],
+      ),
+      TextMessage(
+        id: 'assistant-1',
+        user: ChatUser.assistant,
+        createdAt: DateTime(2026, 3, 1),
+        text: 'You are in Paris',
+        runId: 'run-continues',
+      ),
+    ];
+    final session = _FakeAgentSession();
+    registry.register(threadKey, session);
+    session.emit(CompletedState(
+      threadKey: threadKey,
+      runId: 'run-continues',
+      conversation: Conversation(threadId: 'thread-1', messages: messages),
+    ));
+    session.complete(AgentSuccess(
+      threadKey: threadKey,
+      output: 'done',
+      runId: 'run-continues',
+    ));
+    await Future<void>.delayed(Duration.zero);
+    api.nextThreadHistory = ThreadHistory(
+      messages: messages,
+      runOutcomes: {
+        'run-continues': NoResponseTile.finished(
+          runId: 'run-continues',
+          thinkingText: '',
+        ),
+      },
+      runs: [
+        RunEventBundle(
+            runId: 'run-waits', events: const [], continuesTurn: false),
+        RunEventBundle(
+          runId: 'run-continues',
+          events: const [],
+          continuesTurn: true,
+        ),
+      ],
+    );
+
+    final state = ThreadViewState(
+      connection: connection,
+      auth: auth,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+      registry: registry,
+      contextWindow: Signal<int?>(null),
+    );
+    addTearDown(state.dispose);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      (state.messages.value as MessagesLoaded).messages.map((m) => m.id),
+      ['user-1', 'tool-result-run-waits', 'assistant-1'],
+    );
+  });
+
+  group('a client-tool turn whose history read only the run that waited', () {
+    // Opened while a client tool runs: the backend has stored the run that
+    // waited, not the one that resumes the turn. Read alone, that run looks
+    // like a turn that ended in silence, with its tool's call still pending.
+    const threadKey = (
+      serverId: 'test-server',
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    );
+    const user = TextMessage(
+      id: 'user-1',
+      user: ChatUser.user,
+      createdAt: null,
+      text: 'Where am I?',
+      runId: 'run-waits',
+    );
+    const said = TextMessage(
+      id: 'said-1',
+      user: ChatUser.assistant,
+      createdAt: null,
+      text: 'Let me look',
+      runId: 'run-waits',
+    );
+    const call = ToolCallInfo(id: 'c1', name: 'search');
+    final executed = ToolCallMessage.fromExecuted(
+      runId: 'run-waits',
+      createdAt: null,
+      toolCalls: [
+        call.copyWith(status: ToolCallStatus.completed, result: 'Paris'),
+      ],
+    );
+    const reply = TextMessage(
+      id: 'reply-1',
+      user: ChatUser.assistant,
+      createdAt: null,
+      text: 'You are in Paris',
+      runId: 'run-continues',
+    );
+    MessageState stateOfTurn(String runId) => MessageState(
+          userMessageId: user.id,
+          sourceReferences: const [],
+          runId: runId,
+        );
+    late _FakeAgentSession session;
+    late _PendingHistoryApi historyApi;
+    late ThreadViewState state;
+    late List<ChatMessage> beforeTool;
+    late ThreadHistory history;
+
+    /// Leaves the run that waited waiting on its tool, having said [said]
+    /// before the call when [speaksFirst].
+    Future<void> waitOnTool({bool speaksFirst = false}) async {
+      final ext = ExecutionTrackerExtension(logger: testLogger());
+      addTearDown(ext.onDispose);
+      session = _FakeAgentSession(extensions: [ext]);
+      await ext.onAttach(session);
+      registry.register(threadKey, session);
+      beforeTool = [user, if (speaksFirst) said];
+      final waiting = Conversation(
+        threadId: 'thread-1',
+        messages: beforeTool,
+        messageStates: {user.id: stateOfTurn('run-waits')},
+      );
+      if (speaksFirst) {
+        session.emit(RunningState(
+          threadKey: threadKey,
+          runId: 'run-waits',
+          conversation: waiting,
+          streaming: TextStreaming(
+            messageId: said.id,
+            user: ChatUser.assistant,
+            text: said.text,
+          ),
+        ));
+      }
+      session
+        ..emit(RunningState(
+          threadKey: threadKey,
+          runId: 'run-waits',
+          conversation: waiting,
+          streaming: const AwaitingText(),
+        ))
+        ..emitExecution(
+          const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search'),
+        )
+        ..emit(ToolYieldingState(
+          threadKey: threadKey,
+          runId: 'run-waits',
+          conversation: waiting,
+          streaming: const AwaitingText(),
+          pendingToolCalls: const [call],
+          toolDepth: 0,
+        ));
+      history = ThreadHistory(
+        messages: [
+          ...beforeTool,
+          ToolCallMessage(
+            id: 'call-message',
+            createdAt: null,
+            toolCalls: const [call],
+            runId: 'run-waits',
+          ),
+        ],
+        messageStates: {user.id: stateOfTurn('run-waits')},
+        runOutcomes: {
+          if (!speaksFirst)
+            'run-waits': NoResponseTile.finished(
+              runId: 'run-waits',
+              thinkingText: '',
+            ),
+        },
+        runs: [
+          RunEventBundle(
+            runId: 'run-waits',
+            continuesTurn: false,
+            events: [
+              RunStartedEvent(threadId: 'thread-1', runId: 'run-waits'),
+              if (speaksFirst) ...[
+                TextMessageStartEvent(messageId: said.id),
+                TextMessageContentEvent(messageId: said.id, delta: said.text),
+                TextMessageEndEvent(messageId: said.id),
+              ],
+              const ToolCallStartEvent(
+                toolCallId: 'c1',
+                toolCallName: 'search',
+              ),
+              const ToolCallEndEvent(toolCallId: 'c1'),
+              const RunFinishedEvent(threadId: 'thread-1', runId: 'run-waits'),
+            ],
+          ),
+        ],
+      );
+    }
+
+    void openView() {
+      historyApi = _PendingHistoryApi();
+      state = ThreadViewState(
+        connection: _fakeConnection(historyApi),
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        contextWindow: Signal<int?>(null),
+      );
+      addTearDown(state.dispose);
+    }
+
+    Future<void> historyLands() async {
+      historyApi.completeWith(history);
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    /// The conversation the run resuming the turn carries: the executed
+    /// tool, then [withReply].
+    Conversation resumed({required bool withReply}) => Conversation(
+          threadId: 'thread-1',
+          messages: [...beforeTool, executed, if (withReply) reply],
+          messageStates: {user.id: stateOfTurn('run-continues')},
+        );
+
+    void resume() => session.emit(RunningState(
+          threadKey: threadKey,
+          runId: 'run-continues',
+          conversation: resumed(withReply: false),
+          streaming: const AwaitingText(),
+        ));
+
+    void complete() => session.emit(CompletedState(
+          threadKey: threadKey,
+          runId: 'run-continues',
+          conversation: resumed(withReply: true),
+        ));
+
+    MessagesLoaded loaded() => state.messages.value as MessagesLoaded;
+
+    void expectNoTurnEndedAtTheWait() {
+      expect(
+        state.executionTrackers.keys,
+        isNot(contains(noResponseMessageId('run-waits'))),
+      );
+      expect(loaded().runOutcomes.keys, isNot(contains('run-waits')));
+    }
+
+    test('shows the turn as the session holds it when it lands during the wait',
+        () async {
+      await waitOnTool();
+      openView();
+      await historyLands();
+      expect(loaded().messages, beforeTool);
+      expect(
+        state.executionTrackers.keys,
+        [noResponseMessageId('run-waits')],
+      );
+      expect(loaded().runOutcomes, isEmpty);
+      final waitingWork =
+          state.executionTrackers[noResponseMessageId('run-waits')];
+      expect(
+        layOutTimeline(
+          messages: loaded().messages,
+          bands: state.executionTrackers,
+          outcomes: loaded().runOutcomes,
+          streaming: state.streamingState.value,
+          activeRunId: state.activeRunId.value,
+        ).tiles.where((tile) => identical(tile.band, waitingWork)),
+        hasLength(1),
+        reason: 'the work of the turn waiting on its tool has a tile',
+      );
+
+      resume();
+      expect(loaded().messages, [...beforeTool, executed]);
+      expect(
+        state.executionTrackers.keys,
+        [noResponseMessageId('run-continues')],
+      );
+      expectNoTurnEndedAtTheWait();
+    });
+
+    test('keeps the turn as the session ended it when it lands after',
+        () async {
+      await waitOnTool();
+      openView();
+      resume();
+      complete();
+      await historyLands();
+
+      expect(loaded().messages, [...beforeTool, executed, reply]);
+      expect(loaded().messageStates[user.id]?.runId, 'run-continues');
+      expect(
+        state.executionTrackers.keys,
+        [noResponseMessageId('run-continues')],
+      );
+      expectNoTurnEndedAtTheWait();
+    });
+
+    test('keeps the work of what the waiting run said, opened after it ended',
+        () async {
+      // Opened after the session ended, the view holds no work of the turn,
+      // so history's is all there is of what the waiting run said.
+      await waitOnTool(speaksFirst: true);
+      resume();
+      complete();
+      session.complete(AgentSuccess(
+        threadKey: threadKey,
+        output: reply.text,
+        runId: 'run-continues',
+      ));
+      await Future<void>.delayed(Duration.zero);
+      openView();
+      await historyLands();
+
+      expect(state.executionTrackers.keys, [said.id]);
+    });
+
+    test('says how the run ended when the wait was stopped', () async {
+      // The stop ends the turn at the run that waited, so history read the
+      // whole turn and says how it ended, as it does after a reload.
+      await waitOnTool();
+      openView();
+      session.emit(CancelledState.duringRun(
+        threadKey: threadKey,
+        runId: 'run-waits',
+        conversation: Conversation(threadId: 'thread-1', messages: beforeTool),
+      ));
+      await historyLands();
+
+      expect(
+        loaded().runOutcomes['run-waits'],
+        same(history.runOutcomes['run-waits']),
+      );
+    });
+  });
+
   group('sendMessage', () {
     late AgentRuntimeManager runtimeManager;
     late AgentRuntime runtime;
