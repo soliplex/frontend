@@ -231,15 +231,6 @@ class StaticSoliplexApi extends SoliplexApi {
       );
 
   @override
-  Future<List<WorkdirFile>> getRunWorkdirFiles(
-    String roomId,
-    String threadId,
-    String runId, {
-    CancelToken? cancelToken,
-  }) async =>
-      const [];
-
-  @override
   Future<(ThreadInfo, Map<String, dynamic>)> createThread(
     String roomId, {
     String? name,
