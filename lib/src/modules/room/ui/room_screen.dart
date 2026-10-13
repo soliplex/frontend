@@ -2170,9 +2170,9 @@ class _RoomScreenState extends State<RoomScreen> {
         UploadsFailed() => true,
       };
 
-  /// Loading is not content: every thread open fetches the list, and for most
-  /// threads the answer is empty, so counting the fetch would flash the button
-  /// on every switch.
+  /// Loading is not content: every thread open fetches the list, and a thread
+  /// with no files (or a server with no workspaces) answers empty, so counting
+  /// the fetch would flash the button on every switch.
   bool _workspaceRendersContent(WorkdirFilesStatus s) => switch (s) {
         WorkdirFilesLoading() => false,
         WorkdirFilesLoaded(:final files) => files.isNotEmpty,

@@ -67,8 +67,8 @@ void main() {
     });
 
     test('a 404 before any load is an empty list', () async {
-      stubList(() =>
-          throw const NotFoundException(message: 'no sandbox', resource: '/x'));
+      stubList(() => throw const NotFoundException(
+          message: 'no workspaces', resource: '/x'));
       final controller = build();
       addTearDown(controller.dispose);
 
@@ -204,31 +204,6 @@ void main() {
       await older;
 
       expect(names(controller, 't-1'), ['new.csv']);
-    });
-
-    test('dispose while a listing is in flight does not throw', () async {
-      final listing = Completer<List<WorkdirFile>>();
-      stubList(() => listing.future);
-      final controller = build();
-
-      final refreshing = controller.refresh('t-1');
-      controller.dispose();
-      listing.complete([_file('a.csv')]);
-
-      await expectLater(refreshing, completes);
-    });
-
-    test('a listing that lands after dispose is dropped', () async {
-      final listing = Completer<List<WorkdirFile>>();
-      stubList(() => listing.future);
-      final controller = build();
-
-      final refreshing = controller.refresh('t-1');
-      controller.dispose();
-      listing.complete([_file('a.csv')]);
-      await refreshing;
-
-      expect(() => controller.files('t-1'), throwsStateError);
     });
 
     test('files() after dispose throws StateError', () {

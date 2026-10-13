@@ -2493,8 +2493,8 @@ void main() {
     testWidgets('a server without workspaces never shows the files button',
         (tester) async {
       // Every open fetches the list, and a server that keeps no workspaces
-      // answers 404 every time. A fetch in flight must not read as content, or the button
-      // would flash on every thread switch.
+      // answers 404 every time. A fetch in flight must not read as content, or
+      // the button would flash on every thread switch.
       wideView(tester);
       api.nextWorkdirFilesError =
           const NotFoundException(message: 'x', resource: '/x');
