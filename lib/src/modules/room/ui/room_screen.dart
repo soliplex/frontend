@@ -156,17 +156,24 @@ const double _maxContentWidth = SoliplexBreakpoints.desktop;
 @visibleForTesting
 const Key filePanelKey = Key('room-attached-files-panel');
 
-/// Builds the label for the file indicator chip in the room header.
-///
-/// Shows separate counts for room and thread uploads. At least one
-/// count must be positive.
-String uploadChipLabel(int roomCount, int threadCount) {
-  assert(roomCount > 0 || threadCount > 0);
-  if (roomCount > 0 && threadCount > 0) {
-    return '$roomCount room \u00b7 $threadCount thread';
-  }
-  if (roomCount > 0) return '$roomCount room';
-  return '$threadCount thread';
+/// Builds the files button's tooltip from each section's count, e.g.
+/// `1 room · 3 from the assistant (2 new)`. `Files` when nothing is counted,
+/// which is the case when the only thing to show is a failed list.
+String filesButtonLabel({
+  required int roomCount,
+  required int threadCount,
+  required int assistantCount,
+  required int newCount,
+}) {
+  final parts = [
+    if (roomCount > 0) '$roomCount room',
+    if (threadCount > 0) '$threadCount thread',
+    if (assistantCount > 0)
+      newCount > 0
+          ? '$assistantCount from the assistant ($newCount new)'
+          : '$assistantCount from the assistant',
+  ];
+  return parts.isEmpty ? 'Files' : parts.join(' \u00b7 ');
 }
 
 class RoomScreen extends StatefulWidget {
@@ -2046,8 +2053,13 @@ class _RoomScreenState extends State<RoomScreen> {
     }
 
     final label = (roomFiles != null && threadFiles != null)
-        ? uploadChipLabel(roomFiles.length, threadFiles.length)
-        : 'Attached files';
+        ? filesButtonLabel(
+            roomCount: roomFiles.length,
+            threadCount: threadFiles.length,
+            assistantCount: 0,
+            newCount: 0,
+          )
+        : 'Files';
 
     return IconButton(
       icon: icon,
