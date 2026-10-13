@@ -40,35 +40,50 @@ void registerLiveSessionFallbacks() {
 }
 
 /// A session running [runId], fed by [events], with its band registry
-/// attached as the room attaches one.
+/// attached as the room attaches one. `sent` collects the input each of its
+/// runs was sent, in order.
 typedef LiveSession = ({
   AgentSession session,
   RunOrchestrator orchestrator,
   ExecutionTrackerExtension trackers,
   StreamController<BaseEvent> events,
+  List<SimpleRunAgentInput> sent,
 });
+
+/// A run the backend opens after the first, and the events it streams.
+typedef LaterRun = ({String runId, List<BaseEvent> events});
 
 /// Starts a session on [key] whose backend answers with [runId] and then
 /// streams whatever is added to `events`. Yield once before adding any.
 ///
 /// [cachedHistory] is the thread as the runtime last loaded it, which a real
-/// send builds its conversation on.
+/// send builds its conversation on. [toolRegistry] holds the client tools the
+/// session runs itself; each run that resumes after them is answered by the
+/// next of [laterRuns].
 LiveSession startLiveSession({
   required ThreadKey key,
   required String runId,
   String prompt = 'Q',
   ThreadHistory? cachedHistory,
+  ToolRegistry toolRegistry = const ToolRegistry(),
+  List<LaterRun> laterRuns = const [],
 }) {
   final api = _MockApi();
   final streamClient = _MockStreamClient();
   final events = StreamController<BaseEvent>();
+  final runIds = [runId, for (final run in laterRuns) run.runId];
   when(() => api.createRun(any(), any())).thenAnswer(
     (_) async => RunInfo(
-      id: runId,
+      id: runIds.removeAt(0),
       threadId: key.threadId,
       createdAt: DateTime.utc(2026),
     ),
   );
+  final streams = [
+    events.stream,
+    for (final run in laterRuns) Stream.fromIterable(run.events),
+  ];
+  final sent = <SimpleRunAgentInput>[];
   when(
     () => streamClient.runAgent(
       any(),
@@ -77,13 +92,16 @@ LiveSession startLiveSession({
       resumePolicy: any(named: 'resumePolicy'),
       onReconnectStatus: any(named: 'onReconnectStatus'),
     ),
-  ).thenAnswer(
-    (_) => events.stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
-  );
+  ).thenAnswer((invocation) {
+    sent.add(invocation.positionalArguments[1] as SimpleRunAgentInput);
+    return streams
+        .removeAt(0)
+        .map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+  });
 
   final orchestrator = RunOrchestrator(
     llmProvider: AgUiLlmProvider(api: api, agUiStreamClient: streamClient),
-    toolRegistry: const ToolRegistry(),
+    toolRegistry: toolRegistry,
     logger: testLogger('orchestrator'),
   );
   final trackers = ExecutionTrackerExtension(logger: testLogger('ext'));
@@ -99,7 +117,7 @@ LiveSession startLiveSession({
     depth: 0,
     runtime: runtime,
     orchestrator: orchestrator,
-    toolRegistry: const ToolRegistry(),
+    toolRegistry: toolRegistry,
     coordinator: SessionCoordinator([trackers], logger: testLogger('coord')),
     logger: testLogger('session'),
   );
@@ -112,6 +130,7 @@ LiveSession startLiveSession({
     orchestrator: orchestrator,
     trackers: trackers,
     events: events,
+    sent: sent,
   );
 }
 

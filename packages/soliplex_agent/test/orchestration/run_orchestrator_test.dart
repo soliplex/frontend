@@ -247,6 +247,21 @@ void main() {
   });
 
   group('optimistic echo', () {
+    // Sent, it would reach the backend as empty content, which pydantic-ai
+    // discards without reporting an error.
+    test('an empty message fails before the run starts', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final state = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('')],
+        toolExecutor: (_) async => [],
+      );
+
+      expect(state, isA<FailedState>().having((s) => s.runId, 'runId', isNull));
+    });
+
     // The echo is the only representation of the user's turn on screen while
     // the run is in flight, so dropping `parts` here loses an attached image
     // until a reload replays it from the server.
@@ -1733,6 +1748,46 @@ void main() {
       expect(toolResult.runId, equals(yielding.runId));
     });
 
+    test(
+        'the resumed tool result is named after the run that yielded and '
+        'dated at its last event', () async {
+      // As reload rebuilds it from the stored run, which has no client clock
+      // to read.
+      final yieldedAt = DateTime.utc(2026, 1, 7, 1, 0, 3);
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgentSequential(
+        first: Stream.fromIterable([
+          ..._toolCallEvents().take(4),
+          RunFinishedEvent(
+            threadId: 'thread-1',
+            runId: _runId,
+            timestamp: yieldedAt.millisecondsSinceEpoch,
+          ),
+        ]),
+        second: Stream.fromIterable(_resumeTextEvents()),
+      );
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
+      await Future<void>.delayed(Duration.zero);
+      await orchestrator.submitToolOutputs(_executedTools());
+      await Future<void>.delayed(Duration.zero);
+
+      final resumed = orchestrator.currentState as CompletedState;
+      final toolResult =
+          resumed.conversation.messages.whereType<ToolCallMessage>().single;
+      expect(toolResult.id, executedToolsMessageId(_runId));
+      expect(toolResult.createdAt, yieldedAt);
+    });
+
     test('throws when not in ToolYieldingState', () {
       expect(
         () => orchestrator.submitToolOutputs(_executedTools()),
@@ -2102,6 +2157,37 @@ void main() {
   });
 
   group('cancel during yield', () {
+    test('a reset while a client tool runs ends the run as reset', () async {
+      // The wait ended while the tool ran, so its result has no run to
+      // resume.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
+      final executing = Completer<void>();
+      final executed = Completer<List<ToolCallInfo>>();
+
+      final ended = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) {
+          executing.complete();
+          return executed.future;
+        },
+      );
+      await executing.future;
+      orchestrator.reset();
+      executed.complete(_executedTools());
+
+      expect(await ended, isA<IdleState>());
+    });
+
     test('cancelRun → CancelledState', () async {
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
@@ -4379,8 +4465,8 @@ void main() {
             UserMessage() => 'user',
             AssistantMessage(:final id, :final toolCalls) =>
               '$id:${toolCalls?.length ?? 0}',
-            ToolMessage(:final toolCallId, :final content) =>
-              '$toolCallId=$content',
+            ToolMessage(:final toolCallId, :final content, :final error) =>
+              '$toolCallId=$content${error == null ? '' : ' (error: $error)'}',
             _ => m.runtimeType.toString(),
           },
       ];
@@ -4398,13 +4484,15 @@ void main() {
       );
     });
 
-    test('a resume sends a failed call its error, so the model can respond',
-        () async {
+    // The error goes as the content too, so the model can respond to it.
+    // Reported in `error` as well, a failed call reaches the model as a
+    // failure, and reads back as one when the thread is reopened.
+    test('a resume reports a failed call as failed, with its error', () async {
       expect(
         await resumedHistory(
           (tc) => tc.copyWith(status: ToolCallStatus.failed, result: 'Offline'),
         ),
-        ['user', 'p:1', 't:0', 'call_0=Offline'],
+        ['user', 'p:1', 't:0', 'call_0=Offline (error: Offline)'],
       );
     });
   });

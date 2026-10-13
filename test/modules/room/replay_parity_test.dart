@@ -457,10 +457,6 @@ void main() {
 
     test(
       'a run that waits on a client tool and the run that continues it',
-      skip: 'Reload keeps the outcome RUN_FINISHED parked for the run that '
-          'waited on the tool, which live withdraws, and live adds a message '
-          'for the executed tool, dated by the client clock, that reload '
-          'lacks; closed by PR 5.',
       () async {
         final live = await expectParity(
           {
@@ -515,6 +511,55 @@ void main() {
         );
       },
     );
+
+    test('a run whose client tool fails and the run that continues it',
+        () async {
+      final live = await expectParity(
+        {
+          'run-1': [
+            _runStarted('run-1', 0),
+            ToolCallStartEvent(
+              toolCallId: 'call-locate',
+              toolCallName: 'locate',
+              timestamp: _at(1),
+            ).toJson(),
+            ToolCallArgsEvent(
+              toolCallId: 'call-locate',
+              delta: '{}',
+              timestamp: _at(1),
+            ).toJson(),
+            ToolCallEndEvent(toolCallId: 'call-locate', timestamp: _at(1))
+                .toJson(),
+            _runFinished('run-1', 3),
+          ],
+          'run-2': [
+            _runStarted('run-2', 60),
+            ..._reply('msg-2', 'I could not find you', 61),
+            _runFinished('run-2', 65),
+          ],
+        },
+        toolRegistry: const ToolRegistry().register(
+          ClientTool(
+            definition: const Tool(name: 'locate', description: 'Locates'),
+            executor: (_, __) async => fail('answered by executeTools'),
+          ),
+        ),
+        executeTools: (pending) async => [
+          for (final call in pending)
+            call.copyWith(status: ToolCallStatus.failed, result: 'Offline'),
+        ],
+      );
+
+      expect(
+        live.conversation.messages
+            .whereType<ToolCallMessage>()
+            .single
+            .toolCalls
+            .single
+            .status,
+        ToolCallStatus.failed,
+      );
+    });
   });
 
   // Not a parity case: the backend runs every run to completion after the

@@ -442,7 +442,9 @@ class RunOrchestrator {
         return _failToolExecution(key, state, e, stackTrace);
       }
       if (_disposed) return _cancelledFromYielding(key, state);
-      if (_currentState is CancelledState) return _currentState;
+      // A stop, a reset or a sync ended the wait while the tools ran; their
+      // results have no run to resume.
+      if (_currentState is! ToolYieldingState) return _currentState;
       try {
         _toolDepth++;
         if (_toolDepth > _maxToolDepth) {
@@ -450,10 +452,10 @@ class RunOrchestrator {
         }
         await _resumeStream(state, results);
       } on Object catch (e, stackTrace) {
-        // If `cancelRun` already transitioned to CancelledState, the
-        // exception is the byproduct of cancellation propagating through
-        // the in-flight `startRun` await — not a true failure.
-        if (_currentState is CancelledState) return _currentState;
+        // If the wait already ended (a stop, a reset or a sync), the
+        // exception is the byproduct of that cancellation propagating
+        // through the in-flight `startRun` await — not a true failure.
+        if (_currentState is! ToolYieldingState) return _currentState;
         return _failResume(key, state, e, stackTrace);
       }
     }
@@ -754,15 +756,14 @@ class RunOrchestrator {
       return tc;
     }).toList();
     final toolMsg = ToolCallMessage.fromExecuted(
-      id: 'tool-result-${DateTime.now().microsecondsSinceEpoch}',
-      toolCalls: executedTools,
       runId: state.runId,
+      toolCalls: executedTools,
+      createdAt: _fold!.lastEventTime,
     );
     // Appended where the result arrived: after whatever its run streamed. A
-    // failed call's error goes too, as its content, so the model can respond
-    // to it. pydantic-ai marks a result failed only from its `error` field or
-    // an encrypted outcome; neither is set here, so pydantic-ai reads a failed
-    // client call back as a success.
+    // failed call's error goes as its content, so the model can respond to it,
+    // and in `error`, which is what marks the result failed: pydantic-ai hands
+    // it to the model as a failure, and a reopened thread reads it back as one.
     final transcript = executedTools.fold(
       state.conversation.transcript,
       (transcript, tc) => appendToolResult(
@@ -771,6 +772,7 @@ class RunOrchestrator {
           id: 'tool_result_${tc.id}',
           toolCallId: tc.id,
           content: tc.result,
+          error: tc.status == ToolCallStatus.failed ? tc.result : null,
         ),
       ),
     );
@@ -813,18 +815,10 @@ class RunOrchestrator {
     // arrives, and fills from the run's server `created` on replay. The
     // frontend never displays a client-generated time. now() here is only for
     // a unique id.
-    //
-    // Text alone travels the wire as a bare string, which a reload reads back
-    // without parts, so the echo keeps its parts only when they say more than
-    // its text: when it carries an attachment.
-    final id = 'user-${DateTime.now().microsecondsSinceEpoch}';
-    final userMsg = numbered.hasAttachment
-        ? TextMessage.fromParts(id: id, parts: numbered)
-        : TextMessage.create(
-            id: id,
-            user: ChatUser.user,
-            text: numbered.plainText,
-          );
+    final userMsg = TextMessage.fromParts(
+      id: 'user-${DateTime.now().microsecondsSinceEpoch}',
+      parts: numbered,
+    );
     // Seeding with the run-scoped keys emptied is what makes a namespace's
     // non-empty `citations` in the run's terminal snapshot definitionally this
     // turn's. The overlay merges on top, so a caller-set `document_filter`
@@ -932,11 +926,11 @@ class RunOrchestrator {
 
   void _onEvent(DecodeOutcome outcome) {
     final running = _currentState;
-    final fold = _fold;
-    if (running is! RunningState || fold == null) {
+    if (running is! RunningState) {
       _ignoreStrayEvent(outcome, running);
       return;
     }
+    final fold = _fold!;
     final applied = fold.apply(outcome);
     _fold = applied.fold;
     final event = applied.processed;

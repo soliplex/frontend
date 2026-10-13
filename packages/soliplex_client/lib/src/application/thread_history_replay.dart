@@ -1,4 +1,5 @@
 import 'package:ag_ui/ag_ui.dart';
+import 'package:collection/collection.dart';
 import 'package:soliplex_client/src/api/agui_message_mapper.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
@@ -93,6 +94,10 @@ ThreadHistory replayThreadHistory(
   // two different messages. Both drop the second message; only the first is
   // harmless, and without the text they are indistinguishable.
   final appendedUserText = <String, String>{};
+  // The last run of each turn so far, keyed as [turnsByUserMessage] is, and
+  // the time its last event carried: a run that continues the turn was
+  // resumed from it.
+  final lastRunOfTurn = <String, ({String runId, DateTime? endedAt})>{};
   // Where the measured run ended in the transcript, once replay reaches it.
   int? coveredByLatest;
 
@@ -100,6 +105,7 @@ ThreadHistory replayThreadHistory(
       in runsToReplay) {
     final events = payload.events;
     final userMessage = payload.userMessage;
+    var continuesTurn = false;
     // Run-level fetch failure (transient HTTP error or pre-fetch
     // shape-drift on the run entry) → mint one drop tile in place so
     // the run is visibly missing from the timeline rather than
@@ -145,6 +151,7 @@ ThreadHistory replayThreadHistory(
           _hydratedUserMessage(userMessage, threadId, runId),
         );
       } else if (appended == userMessage.text) {
+        continuesTurn = true;
         _logger.info(
           'replay: run $runId in thread $threadId continues the turn of '
           'message ${userMessage.messageId}; not appending it twice.',
@@ -178,6 +185,10 @@ ThreadHistory replayThreadHistory(
         transcript: payload.toolResults
             .fold<Transcript>(conversation.transcript, appendToolResult),
       );
+      final resumedFrom = continuesTurn ? lastRunOfTurn[userMessageId] : null;
+      if (resumedFrom != null) {
+        conversation = _resumed(conversation, resumedFrom, payload.toolResults);
+      }
 
       var fold = RunFold.start(
         conversation,
@@ -228,6 +239,10 @@ ThreadHistory replayThreadHistory(
       conversation = fold.conversation;
       if (userMessageId != null) {
         turnsByUserMessage[userMessageId] = fold.turnCitations;
+        lastRunOfTurn[userMessageId] = (
+          runId: runId,
+          endedAt: fold.lastEventTime ?? created,
+        );
         // The fold dates the user message from the run's `RUN_STARTED`, as
         // live does; a stored run without one leaves it to the run record.
         if (created != null) {
@@ -250,7 +265,13 @@ ThreadHistory replayThreadHistory(
       }
     }
 
-    runs.add(RunEventBundle(runId: runId, events: decodedEvents));
+    runs.add(
+      RunEventBundle(
+        runId: runId,
+        events: decodedEvents,
+        continuesTurn: continuesTurn,
+      ),
+    );
 
     // Every run's end state, not only the thread's final one: each turn's
     // sources resolve against the state its own run ended with (above),
@@ -297,6 +318,51 @@ ThreadHistory replayThreadHistory(
             coveredMessages:
                 coveredByLatest ?? conversation.transcript.messages.length,
           ),
+  );
+}
+
+/// [conversation] resumed from [waited], the run that waited on client tools,
+/// by the run whose input supplied [results], as live resumes it.
+///
+/// The outcome `RUN_FINISHED` parked for [waited] is taken back, because the
+/// run was waiting rather than over, and the tools it waited on are shown
+/// with their results: the calls are [waited]'s still-pending ones, and the
+/// results the next run was sent are the only record of what they returned.
+///
+/// A result with an `error` is a call that failed: live sends a failed
+/// call's error there as well as in its content.
+Conversation _resumed(
+  Conversation conversation,
+  ({String runId, DateTime? endedAt}) waited,
+  List<ToolMessage> results,
+) {
+  var resumed = conversation;
+  if (resumed.runOutcomes[waited.runId]?.reason == TerminalReason.finished) {
+    resumed = resumed.withoutRunOutcome(waited.runId);
+  }
+  final executed = <ToolCallInfo>[];
+  for (final result in results) {
+    final call = resumed.toolCalls.lastWhereOrNull(
+      (call) =>
+          call.id == result.toolCallId && call.status == ToolCallStatus.pending,
+    );
+    if (call == null) continue;
+    executed.add(
+      call.copyWith(
+        status: result.error == null
+            ? ToolCallStatus.completed
+            : ToolCallStatus.failed,
+        result: result.content,
+      ),
+    );
+  }
+  if (executed.isEmpty) return resumed;
+  return resumed.withAppendedMessage(
+    ToolCallMessage.fromExecuted(
+      runId: waited.runId,
+      toolCalls: executed,
+      createdAt: waited.endedAt,
+    ),
   );
 }
 

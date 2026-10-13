@@ -105,7 +105,7 @@ class _BandWatch {
 }
 
 Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
-  final (session: _, :orchestrator, trackers: ext, :events) =
+  final (session: _, :orchestrator, trackers: ext, :events, sent: _) =
       startLiveSession(key: _key, runId: _runId);
   final watch = _BandWatch();
   await Future<void>.delayed(Duration.zero);
@@ -176,10 +176,11 @@ String _contentOf(ExecutionTracker band) {
         TimelineStandaloneActivity(:final activityId) => 'activity/$activityId',
       },
   ];
-  final thinking =
-      band.thinkingBlocks.value.where((b) => b.trim().isNotEmpty).toList();
-  return 'steps=$steps thinking=$thinking';
+  return 'steps=$steps thinking=${_thinkingOf(band)}';
 }
+
+List<String> _thinkingOf(ExecutionTracker band) =>
+    band.thinkingBlocks.value.where((b) => b.trim().isNotEmpty).toList();
 
 /// Every band that has something to show reaches a tile.
 ///
@@ -206,9 +207,19 @@ void _expectEveryBandPlaced(String path, _Inputs inputs) {
   }
 }
 
-Future<void> _expectParity(List<BaseEvent> sequence) async {
-  final live = await _live(sequence);
-  final reloaded = await _reloaded(sequence);
+Future<void> _expectParity(List<BaseEvent> sequence) async =>
+    _expectSameInputs(await _live(sequence), await _reloaded(sequence));
+
+/// Expects [live] and [reloaded] to reach `layOutTimeline` alike.
+///
+/// [compareBandSteps] false leaves out each band's steps, comparing only its
+/// thinking: live adds a client tool's step a second time when it runs the
+/// tool itself, which reload cannot see (see the plan's follow-ups).
+void _expectSameInputs(
+  _Inputs live,
+  _Inputs reloaded, {
+  bool compareBandSteps = true,
+}) {
   _expectEveryBandPlaced('live', live);
   _expectEveryBandPlaced('reloaded', reloaded);
 
@@ -253,8 +264,14 @@ Future<void> _expectParity(List<BaseEvent> sequence) async {
   );
   for (final key in live.bands.keys) {
     expect(
-      _contentOf(reloaded.bands[key]!),
-      equals(_contentOf(live.bands[key]!)),
+      compareBandSteps
+          ? _contentOf(reloaded.bands[key]!)
+          : _thinkingOf(reloaded.bands[key]!),
+      equals(
+        compareBandSteps
+            ? _contentOf(live.bands[key]!)
+            : _thinkingOf(live.bands[key]!),
+      ),
       reason: 'band $key',
     );
   }
@@ -313,6 +330,65 @@ List<BaseEvent> _says(String messageId, String text) => [
       TextMessageContentEvent(messageId: messageId, delta: text),
       TextMessageEndEvent(messageId: messageId),
     ];
+
+/// A turn whose first run waits on the client tool `locate`, then [continues]
+/// as the run that resumes it: live, and reloaded from what live sent.
+Future<({_Inputs live, _Inputs reloaded})> _clientToolTurn(
+  List<BaseEvent> continues,
+) async {
+  final waits = <BaseEvent>[
+    RunStartedEvent(threadId: 't', runId: 'run-waits'),
+    ..._reasoning('r1', 'need a location'),
+    const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'locate'),
+    const ToolCallArgsEvent(toolCallId: 'c1', delta: '{}'),
+    const ToolCallEndEvent(toolCallId: 'c1'),
+    const RunFinishedEvent(threadId: 't', runId: 'run-waits'),
+  ];
+  final session = startLiveSession(
+    key: _key,
+    runId: 'run-waits',
+    toolRegistry: const ToolRegistry().register(
+      ClientTool(
+        definition: const Tool(name: 'locate', description: 'Locates'),
+        executor: (_, __) async => 'Paris',
+      ),
+    ),
+    laterRuns: [(runId: 'run-continues', events: continues)],
+  );
+  await Future<void>.delayed(Duration.zero);
+  waits.forEach(session.events.add);
+  await session.events.close();
+  await session.session.result;
+  final conversation =
+      (session.orchestrator.currentState as CompletedState).conversation;
+  session.orchestrator.dispose();
+
+  final history = await storedHistoryFromJson([
+    for (final (index, (runId, events)) in [
+      ('run-waits', waits),
+      ('run-continues', continues),
+    ].indexed)
+      (
+        runId: runId,
+        runInput: session.sent[index].toJson(),
+        events: [for (final event in events) event.toJson()],
+      ),
+  ]);
+  return (
+    live: (
+      messages: conversation.messages,
+      messageStates: conversation.messageStates,
+      bands: session.trackers.trackers,
+      outcomes: conversation.runOutcomes,
+    ),
+    reloaded: (
+      messages: history.messages,
+      messageStates: history.messageStates,
+      bands: replayToTrackers(history),
+      outcomes: history.runOutcomes,
+    ),
+  );
+}
 
 void main() {
   setUpAll(registerLiveSessionFallbacks);
@@ -860,6 +936,39 @@ void main() {
       const TextMessageContentEvent(messageId: 'm1', delta: 'Partial answ'),
       const RunErrorEvent(message: 'upstream said no'),
     ]);
+  });
+
+  group('a turn that waits on a client tool', () {
+    // Live keeps one band open across the wait, so the run that ends the turn
+    // takes the work of the run that waited; reload has to carry it the same
+    // way, and show the tool the same way.
+    test('keeps its work on the reply of the run that continues it', () async {
+      final (:live, :reloaded) = await _clientToolTurn([
+        RunStartedEvent(threadId: 't', runId: 'run-continues'),
+        ..._says('m2', 'You are in Paris'),
+        const RunFinishedEvent(threadId: 't', runId: 'run-continues'),
+      ]);
+
+      _expectSameInputs(live, reloaded, compareBandSteps: false);
+      expect(reloaded.bands.keys, ['m2']);
+      expect(_thinkingOf(reloaded.bands['m2']!), ['need a location']);
+    });
+
+    test('keeps its work on the run that continues it, when that never speaks',
+        () async {
+      final (:live, :reloaded) = await _clientToolTurn([
+        RunStartedEvent(threadId: 't', runId: 'run-continues'),
+        ..._reasoning('r2', 'still looking'),
+        const RunFinishedEvent(threadId: 't', runId: 'run-continues'),
+      ]);
+
+      _expectSameInputs(live, reloaded, compareBandSteps: false);
+      expect(reloaded.bands.keys, [noResponseMessageId('run-continues')]);
+      expect(
+        _thinkingOf(reloaded.bands[noResponseMessageId('run-continues')]!),
+        ['need a location', 'still looking'],
+      );
+    });
   });
 
   test('a reply interrupted mid-stream keeps its work after a reload',

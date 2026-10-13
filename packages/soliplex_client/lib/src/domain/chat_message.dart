@@ -282,6 +282,11 @@ class TextMessage extends ChatMessage {
   /// Holds an unmodifiable copy, so a caller that kept its own list cannot
   /// mutate it afterwards and leave [text] describing different content.
   ///
+  /// Keeps [parts] only when they carry an attachment. Text alone travels the
+  /// wire as a bare string, which a reload reads back without parts, so a
+  /// message built from text alone keeps none either and reads the same
+  /// before and after one.
+  ///
   /// Parts are honoured only for a user message, so the role is fixed.
   ///
   /// Throws [ArgumentError] when [parts] carries neither an attachment nor any
@@ -313,7 +318,7 @@ class TextMessage extends ChatMessage {
       text: parts.plainText,
       createdAt: createdAt,
       runId: runId,
-      parts: List.unmodifiable(parts),
+      parts: parts.hasAttachment ? List.unmodifiable(parts) : null,
     );
   }
 
@@ -321,12 +326,11 @@ class TextMessage extends ChatMessage {
   final String text;
 
   /// Ordered content parts, set on a user message built by
-  /// [TextMessage.fromParts] and null on one built by [TextMessage.create].
-  /// A list holding nothing but text still travels the wire as a bare string,
-  /// so `parts != null` means "built from a payload", not "has an image" —
-  /// test for an image with `parts?.whereType<ImagePart>().isNotEmpty`, and
-  /// for any attachment with `hasAttachment`. Only honoured for user messages,
-  /// ignored elsewhere.
+  /// [TextMessage.fromParts] from parts that carry an attachment, and null
+  /// otherwise. An attachment may be a placeholder for one that could not be
+  /// rebuilt, so test for an image with
+  /// `parts?.whereType<ImagePart>().isNotEmpty`. Only honoured for user
+  /// messages, ignored elsewhere.
   ///
   /// When set, [text] must hold the flattened text of these parts. The mapper
   /// falls back to [text] for any parts list it cannot send as multimodal, and
@@ -384,6 +388,10 @@ class TextMessage extends ChatMessage {
 String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
 
 const _noResponseIdPrefix = 'no-response-';
+
+/// Id of the message showing the client tools run [runId] waited on, once
+/// they ran. One per run: a run waits once, on every call it made.
+String executedToolsMessageId(String runId) => 'tool-result-$runId';
 
 /// Synthesized assistant tile shown when a run reached a terminal state
 /// without producing a `TextMessageStart`/`Content`/`End` reply, or with work
@@ -544,12 +552,16 @@ class ToolCallMessage extends ChatMessage {
   /// Shows client-side tool results in the timeline; the results sent with
   /// the continuation run go to `Conversation.transcript`. The [toolCalls]
   /// should have `status: completed` or `status: failed` with results
-  /// populated. Stamped with the client clock at creation, since a locally
-  /// executed result has no backend time.
+  /// populated.
+  ///
+  /// [runId] is the run that waited on the tools, and names the message
+  /// ([executedToolsMessageId]), so live and reload give it the same id.
+  /// [createdAt] is that run's last event time: a locally executed result has
+  /// no backend time of its own, and the client clock is never shown.
   factory ToolCallMessage.fromExecuted({
-    required String id,
+    required String runId,
     required List<ToolCallInfo> toolCalls,
-    String? runId,
+    DateTime? createdAt,
   }) {
     assert(
       toolCalls.every(
@@ -560,9 +572,9 @@ class ToolCallMessage extends ChatMessage {
       'All tool calls must have terminal status (completed or failed)',
     );
     return ToolCallMessage(
-      id: id,
+      id: executedToolsMessageId(runId),
       toolCalls: toolCalls,
-      createdAt: DateTime.timestamp(),
+      createdAt: createdAt,
       runId: runId,
     );
   }
