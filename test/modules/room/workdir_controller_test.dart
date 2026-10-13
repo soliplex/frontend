@@ -218,6 +218,19 @@ void main() {
       await expectLater(refreshing, completes);
     });
 
+    test('a listing that lands after dispose is dropped', () async {
+      final listing = Completer<List<WorkdirFile>>();
+      stubList(() => listing.future);
+      final controller = build();
+
+      final refreshing = controller.refresh('t-1');
+      controller.dispose();
+      listing.complete([_file('a.csv')]);
+      await refreshing;
+
+      expect(() => controller.files('t-1'), throwsStateError);
+    });
+
     test('files() after dispose throws StateError', () {
       final controller = build()..dispose();
 

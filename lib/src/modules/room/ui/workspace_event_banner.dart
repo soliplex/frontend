@@ -4,9 +4,13 @@ import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../workdir_files_status.dart';
 import 'notice_pill.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.workspace_event_banner');
 
 /// A transient notice that files were added to the open thread's workspace,
 /// with a Show action that opens the files panel.
@@ -78,18 +82,28 @@ class _WorkspaceEventBannerState extends State<WorkspaceEventBanner> {
     final names = {for (final f in status.files) f.filename};
     final previous = _previous;
     _previous = names;
-    if (previous == null) return;
+    if (previous == null) {
+      _logger.debug(
+        'workspace pill baseline threadId=${widget.threadId} '
+        'count=${names.length}',
+      );
+      return;
+    }
     final added = names.difference(previous);
     if (added.isEmpty) return;
+    _logger.debug(
+      'workspace pill shown threadId=${widget.threadId} added=${added.length}',
+    );
     setState(() {
       _added.addAll(added);
       _dismissTimer?.cancel();
-      _dismissTimer = Timer(successNoticeDismissDelay, _dismiss);
+      _dismissTimer = Timer(successNoticeDismissDelay, () => _dismiss('timer'));
     });
   }
 
-  void _dismiss() {
+  void _dismiss(String reason) {
     if (!mounted) return;
+    _logger.debug('workspace pill dismissed reason=$reason');
     _dismissTimer?.cancel();
     setState(() {
       _added.clear();
@@ -99,7 +113,7 @@ class _WorkspaceEventBannerState extends State<WorkspaceEventBanner> {
 
   void _show() {
     widget.onShow();
-    _dismiss();
+    _dismiss('show');
   }
 
   @override
@@ -128,7 +142,7 @@ class _WorkspaceEventBannerState extends State<WorkspaceEventBanner> {
       background: colors.successContainer,
       foreground: colors.onSuccessContainer,
       message: message,
-      onDismiss: _dismiss,
+      onDismiss: () => _dismiss('close'),
       actionLabel: 'Show',
       onAction: _show,
     );

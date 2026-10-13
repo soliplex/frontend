@@ -27,12 +27,14 @@ Future<String?> _defaultSaveFile({
 }
 
 class _ThreadFiles {
+  // Not disposed: a refresh still awaiting its response may write to it after
+  // the controller is disposed, and a write to a disposed signal throws. Left
+  // undisposed, that write lands on a signal nobody watches.
   final signal = Signal<WorkdirFilesStatus>(const WorkdirFilesLoading());
   CancelToken? fetchToken;
 
   void dispose() {
     fetchToken?.cancel('disposed');
-    signal.dispose();
   }
 }
 
@@ -97,11 +99,20 @@ class WorkdirController {
         threadId,
         cancelToken: token,
       );
-      if (token.isCancelled || _isDisposed) return;
+      if (token.isCancelled) {
+        _logger.debug('workdir list response superseded threadId=$threadId');
+        return;
+      }
       entry.fetchToken = null;
       _emitLoaded(entry, listed);
+      _logger.debug(
+        'workdir list loaded threadId=$threadId count=${listed.length}',
+      );
     } on NotFoundException {
-      if (token.isCancelled || _isDisposed) return;
+      if (token.isCancelled) {
+        _logger.debug('workdir list response superseded threadId=$threadId');
+        return;
+      }
       entry.fetchToken = null;
       if (entry.signal.value is WorkdirFilesLoaded) {
         // The steady state in a room without a sandbox, so a trace, not a
@@ -112,13 +123,17 @@ class WorkdirController {
         return;
       }
       _emitLoaded(entry, const []);
+      _logger.debug('workdir list 404 before a load; empty threadId=$threadId');
     } catch (e, st) {
-      if (token.isCancelled || _isDisposed) return;
+      if (token.isCancelled) return;
       entry.fetchToken = null;
+      // Carries the workdir routes' fixed details, a status code, or a host;
+      // the transport wraps body-decode failures, so no payload window
+      // reaches here.
       _logger.warning(
         'workdir list refresh failed threadId=$threadId',
+        error: e,
         stackTrace: st,
-        attributes: {'failure': describeFailure(e)},
       );
       if (entry.signal.value is WorkdirFilesLoaded) return;
       entry.signal.value = WorkdirFilesFailed(e);
@@ -148,7 +163,10 @@ class WorkdirController {
       );
       final path = await _saveFile(fileName: file.filename, bytes: bytes);
       if (!_isWeb && path == null) {
-        _logger.debug('workdir download cancelled threadId=$threadId');
+        _logger.debug(
+          'workdir file download cancelled threadId=$threadId '
+          'name=${file.filename}',
+        );
         return DownloadOutcome.cancelled;
       }
       if (_isWeb) {
@@ -156,16 +174,18 @@ class WorkdirController {
         // returns null even on success; whether the file actually reached
         // the user's downloads folder is unverifiable from here.
         _logger.debug(
-          'workdir download web-triggered threadId=$threadId '
-          'bytes=${bytes.length}',
+          'workdir file download web-triggered threadId=$threadId '
+          'name=${file.filename} bytes=${bytes.length}',
         );
       } else {
         _logger.debug(
-          'workdir download ok threadId=$threadId bytes=${bytes.length}',
+          'workdir file download saved threadId=$threadId '
+          'name=${file.filename} bytes=${bytes.length}',
         );
       }
       return DownloadOutcome.success;
     } catch (e, st) {
+      // Save-step failures carry the local save path; logs can ship off-device.
       _logger.warning(
         'workdir download failed threadId=$threadId',
         stackTrace: st,
@@ -195,7 +215,8 @@ class WorkdirController {
         file.filename,
       );
       _logger.debug(
-        'workdir preview fetch ok threadId=$threadId bytes=${bytes.length}',
+        'workdir file fetched for preview threadId=$threadId '
+        'name=${file.filename} bytes=${bytes.length}',
       );
       return bytes;
     } on NotFoundException {
@@ -204,13 +225,14 @@ class WorkdirController {
       );
       rethrow;
     } catch (e, st) {
+      // Carries the workdir routes' fixed details, a filename, a status code,
+      // or a host; the transport wraps body-decode failures, so no payload
+      // window reaches here.
       _logger.warning(
         'workdir preview fetch failed threadId=$threadId',
+        error: e,
         stackTrace: st,
-        attributes: {
-          'failure': describeFailure(e),
-          'filename': file.filename,
-        },
+        attributes: {'filename': file.filename},
       );
       rethrow;
     }
