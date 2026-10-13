@@ -1919,6 +1919,89 @@ class SoliplexApi {
     );
   }
 
+  /// Lists the files the agent left at the top level of the thread's sandbox
+  /// workspace. The workspace persists across the thread's runs, so the list
+  /// is the thread's, not any one run's.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [threadId]: The thread ID (must not be empty)
+  ///
+  /// Returns a list of [WorkdirFile] entries. Malformed entries in the
+  /// response are logged and skipped.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any parameter is empty
+  /// - [NotFoundException] (404) if the server keeps no workspaces, serves
+  ///   none, or knows no such thread
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<List<WorkdirFile>> getThreadWorkdirFiles(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['workdirs', roomId, 'thread', threadId],
+      ),
+      cancelToken: cancelToken,
+    );
+
+    return _parseFileList(response, 'files', workdirFileFromJson);
+  }
+
+  /// Downloads one file from the thread's sandbox workspace.
+  ///
+  /// Buffers the entire response in memory; intended for the small text /
+  /// data files agents typically produce.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [threadId]: The thread ID (must not be empty)
+  /// - [filename]: A name from [getThreadWorkdirFiles] (must not be empty)
+  ///
+  /// Returns the raw file bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any parameter is empty
+  /// - [NotFoundException] (404) if the workspace is not served or holds no
+  ///   regular file by that name
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getThreadWorkdirFile(
+    String roomId,
+    String threadId,
+    String filename, {
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+    _requireNonEmpty(filename, 'filename');
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: [
+          'workdirs',
+          roomId,
+          'thread',
+          threadId,
+          'file',
+          filename,
+        ],
+      ),
+      cancelToken: cancelToken,
+    );
+  }
   // ============================================================
   // Lifecycle
   // ============================================================
