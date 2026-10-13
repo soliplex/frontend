@@ -18,6 +18,10 @@ final Logger _logger =
 final _citationExtractor = CitationExtractor();
 
 /// One AG-UI run folded into a [Conversation], event by event.
+///
+/// The live stream (`RunOrchestrator`) and a reopened thread's stored events
+/// (`replayThreadHistory`) both reach the conversation through this, so a run
+/// reads the same either way.
 @immutable
 class RunFold {
   /// Opens run [runId] on [conversation].
@@ -125,6 +129,16 @@ class RunFold {
         eventIndex: eventIndex ?? this.eventIndex,
         runCreated: runCreated,
         lastEventTime: lastEventTime ?? this.lastEventTime,
+      );
+
+  /// This fold paused on a client tool: the outcome its `RUN_FINISHED` parked
+  /// is taken back, because the run is waiting rather than over, and
+  /// [streaming] — the state it paused in, which `RUN_FINISHED` reset — is
+  /// what an ending recorded during the wait carries.
+  RunFold pausedForClientTools({required StreamingState streaming}) =>
+      _copyWith(
+        conversation: conversation.withoutRunOutcome(runId),
+        streaming: streaming,
       );
 
   /// Folds [outcome] in. `processed` is the event when it reached the

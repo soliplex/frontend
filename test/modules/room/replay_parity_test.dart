@@ -110,9 +110,7 @@ List<Map<String, dynamic>> _serverSearch(int seconds) => [
       ).toJson(),
     ];
 
-/// Every field of [message] but a user message's `parts`, so two messages
-/// compare by value. A list of text alone travels the wire as a bare string,
-/// which reload reads back as no parts, while the live echo keeps the list.
+/// Every field of [message], so two messages compare by value.
 Map<String, Object?> _describeMessage(ChatMessage message) => {
       'type': message.runtimeType,
       'id': message.id,
@@ -124,11 +122,13 @@ Map<String, Object?> _describeMessage(ChatMessage message) => {
           :final text,
           :final thinkingText,
           :final namedByToolCall,
+          :final parts,
         ) =>
           {
             'text': text,
             'thinkingText': thinkingText,
             'namedByToolCall': namedByToolCall,
+            'parts': parts,
           },
         NoResponseTile(
           :final thinkingText,
@@ -376,10 +376,6 @@ void main() {
 
     test(
       'a run cut off after a state snapshot it could not process',
-      skip: 'Live says "Stream ended without terminal event" where reload '
-          'says "Some of this run\'s events could not be read", and leaves '
-          'the drop tile undated where reload dates it at the last event; '
-          'closed by PR 5 (RunOrchestrator on RunFold).',
       () async {
         final live = await expectParity({
           'run-1': [
@@ -407,8 +403,6 @@ void main() {
 
     test(
       'a run ended by a RUN_ERROR that carries no time',
-      skip: 'Live leaves the failure undated where reload dates it at the '
-          'last event; closed by PR 5.',
       () async {
         final live = await expectParity({
           'run-1': [
@@ -442,8 +436,6 @@ void main() {
 
     test(
       'a run with an event that could not be decoded',
-      skip: 'Live leaves the drop tile undated where reload dates it at the '
-          'last event; closed by PR 5.',
       () async {
         final live = await expectParity({
           'run-1': [
@@ -530,10 +522,6 @@ void main() {
   // never a disposed run.
   test(
     'disposing mid-run keeps the partial reply and what the run was sent',
-    skip: 'Dispose parks the cancel straight from parkCancelledOutcome, '
-        'skipping the partial-reply commit and the sent-transcript restore '
-        'that stopping a run in flight does (_recordRunEndedAsCancelled); '
-        'closed by PR 5.',
     () async {
       final events = StreamController<DecodeOutcome>();
       addTearDown(events.close);

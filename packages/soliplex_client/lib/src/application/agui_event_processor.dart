@@ -739,10 +739,10 @@ EventProcessingResult _processStateSnapshot(
   StreamingState streaming,
   dynamic snapshot,
 ) {
-  // The cast throws on non-Map snapshots. The per-event wrappers in
-  // `RunOrchestrator._onEvent` and `RunFold.apply` (which replay folds
-  // through) catch the throw and append a `DroppedEventMessage` at the
-  // failure position; surrounding events still process. Future callers of
+  // The cast throws on non-Map snapshots. `RunFold.apply`, which both the
+  // live and the replay path fold events through, catches the throw and
+  // appends a `DroppedEventMessage` at the failure position; surrounding
+  // events still process. Future callers of
   // `processEvent` that don't wrap inherit this contract.
   return EventProcessingResult(
     conversation: conversation.copyWith(
