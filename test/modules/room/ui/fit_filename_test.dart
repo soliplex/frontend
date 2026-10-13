@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files_section.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 
 void main() {
   group('fitFilenameForWidth', () {

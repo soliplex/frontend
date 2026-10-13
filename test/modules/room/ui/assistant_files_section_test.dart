@@ -6,7 +6,7 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/assistant_files_section.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files_section.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 
 WorkdirFile _file(String name) =>

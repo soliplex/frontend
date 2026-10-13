@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
 
 import '../workdir_files_status.dart';
-import 'workdir_files_section.dart';
+import 'workdir_files.dart';
 
 /// A section heading in the room's files panel.
 class FilePanelSectionLabel extends StatelessWidget {

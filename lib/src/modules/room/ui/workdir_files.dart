@@ -24,122 +24,17 @@ export 'workdir_preview/download_outcome.dart' show DownloadOutcome;
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.workdir_files');
 
-typedef FetchWorkdirFiles = Future<List<WorkdirFile>> Function(String runId);
-
-typedef DownloadWorkdirFile = Future<DownloadOutcome> Function(
-  String runId,
-  WorkdirFile file,
-);
-
-typedef FetchWorkdirFileBytes = Future<Uint8List> Function(
-  String runId,
-  WorkdirFile file,
-);
-
 /// Bytes fetched above this size route to the too-large fallback
 /// instead of an in-pager renderer — decoding very large payloads in
 /// the chat scroller causes jank and OOMs.
 const previewSizeCapBytes = 5 * 1024 * 1024;
-
-class WorkdirFilesSection extends StatefulWidget {
-  const WorkdirFilesSection({
-    super.key,
-    required this.runId,
-    required this.fetchFiles,
-    required this.onDownload,
-    this.onPreview,
-  });
-
-  final String runId;
-  final FetchWorkdirFiles fetchFiles;
-  final DownloadWorkdirFile onDownload;
-
-  /// When non-null, previewable files render an eye icon that opens a
-  /// full-screen preview backed by bytes from this callback.
-  final FetchWorkdirFileBytes? onPreview;
-
-  @override
-  State<WorkdirFilesSection> createState() => _WorkdirFilesSectionState();
-}
-
-class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
-  late Future<List<WorkdirFile>> _future = widget.fetchFiles(widget.runId);
-
-  void _retry() {
-    setState(() {
-      _future = widget.fetchFiles(widget.runId);
-    });
-  }
-
-  void _openPreview(
-    BuildContext context,
-    List<WorkdirFile> files,
-    int initialIndex,
-  ) {
-    final fetch = widget.onPreview;
-    if (fetch == null) return;
-    WorkdirPreviewPage.show(
-      context: context,
-      files: files,
-      initialIndex: initialIndex,
-      fetchBytes: (file) => fetch(widget.runId, file),
-      onDownload: (file) => widget.onDownload(widget.runId, file),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<WorkdirFile>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return WorkdirErrorRow(onRetry: _retry);
-        }
-        final files = snapshot.data;
-        if (files == null || files.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final theme = Theme.of(context);
-        return Padding(
-          padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s2),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(context.radii.md),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < files.length; i++)
-                      WorkdirFileRow(
-                        file: files[i],
-                        onTap: () => widget.onDownload(widget.runId, files[i]),
-                        onOpenPreview: widget.onPreview == null
-                            ? null
-                            : () => _openPreview(context, files, i),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 class WorkdirFileRow extends StatelessWidget {
   const WorkdirFileRow({
     super.key,
     required this.file,
     required this.onTap,
-    this.onOpenPreview,
+    required this.onOpenPreview,
     this.isNew = false,
   });
 
@@ -150,16 +45,16 @@ class WorkdirFileRow extends StatelessWidget {
 
   final Future<DownloadOutcome> Function() onTap;
 
-  /// When non-null, the row is previewable: tapping the row or the eye
-  /// icon invokes this callback (the parent opens the multi-file pager
-  /// so all sibling files are reachable via swipe).
-  final VoidCallback? onOpenPreview;
+  /// Opens the preview of a previewable file: tapping the row or the eye
+  /// icon invokes it (the parent opens the multi-file pager so all sibling
+  /// files are reachable via swipe). Ignored for files that cannot preview.
+  final VoidCallback onOpenPreview;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final kind = PreviewKind.from(file.filename);
-    final canPreview = onOpenPreview != null && kind.canRender;
+    final canPreview = kind.canRender;
     // Download-only rows show the generic file icon so the leading
     // icon doesn't imply a preview is available.
     final leadingIcon =

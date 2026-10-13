@@ -15,6 +15,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- Files the assistant writes in a sandbox room are listed in the room
+  header's files panel under "From the assistant", for the whole thread,
+  instead of under each reply. A dot on the files button marks files added
+  since you last closed the panel, and those files carry a New badge. Needs
+  soliplex 0.84 or later; older servers show no assistant files.
+- **Library consumers (breaking):** `SoliplexApi.getRunWorkdirFiles` and
+  `getRunWorkdirFile` are replaced by `getThreadWorkdirFiles(roomId,
+  threadId)` and `getThreadWorkdirFile(roomId, threadId, filename)`, matching
+  the backend's per-thread workspace.
 - A failed run that still has a reply shows its outcome below the reply as a
   muted notice with "View or add a note" and the time, instead of a red error
   row. With no error text it says "Run failed, no reason given". The red

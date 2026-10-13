@@ -30,7 +30,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files_section.dart'
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
     show WorkdirErrorRow, WorkdirFileRow;
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
