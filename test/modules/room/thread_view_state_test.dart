@@ -1535,6 +1535,134 @@ void main() {
       expect(state.executionTrackers, isEmpty);
     });
 
+    group('runs ended', () {
+      Conversation asked(List<String> texts) => texts.fold(
+            Conversation.empty(threadId: 'thread-1'),
+            (conversation, text) => appendUserMessage(
+              conversation,
+              TextMessage.create(
+                  id: 'u-$text', user: ChatUser.user, text: text),
+            ),
+          );
+      final key = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+
+      ThreadViewState build() {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+        return ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+          contextWindow: Signal<int?>(null),
+        );
+      }
+
+      Future<ThreadViewState> open() async {
+        final state = build();
+        addTearDown(state.dispose);
+        await Future<void>.delayed(Duration.zero);
+        return state;
+      }
+
+      test('a completed, a failed, and a cancelled run each count once',
+          () async {
+        final state = await open();
+        expect(state.runsEnded.value, 0);
+
+        final completed = _FakeAgentSession();
+        state.attachSession(completed);
+        completed.emit(CompletedState(
+          threadKey: key,
+          runId: 'run-1',
+          conversation: asked(['one']),
+        ));
+        expect(state.runsEnded.value, 1);
+
+        final failed = _FakeAgentSession();
+        state.attachSession(failed);
+        failed.emit(FailedState.duringRun(
+          threadKey: key,
+          runId: 'run-2',
+          // Not logged as an error, so the test output stays clean.
+          reason: FailureReason.networkLost,
+          error: 'connection lost',
+          conversation: asked(['two']),
+        ));
+        expect(state.runsEnded.value, 2);
+
+        final cancelled = _FakeAgentSession();
+        state.attachSession(cancelled);
+        cancelled.emit(CancelledState.duringRun(
+          threadKey: key,
+          runId: 'run-3',
+          conversation: asked(['three']),
+        ));
+        expect(state.runsEnded.value, 3);
+      });
+
+      test('a run that failed before starting counts too', () async {
+        final state = await open();
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(FailedState.preRun(
+          threadKey: key,
+          reason: FailureReason.networkLost,
+          error: 'connection lost',
+        ));
+
+        expect(state.runsEnded.value, 1);
+      });
+
+      test('a running run does not count', () async {
+        final state = await open();
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(RunningState(
+          threadKey: key,
+          runId: 'run-1',
+          conversation: asked(['one']),
+          streaming: const AwaitingText(),
+        ));
+
+        expect(state.runsEnded.value, 0);
+      });
+
+      test(
+          'disposing the view mid-run does not count, though it clears '
+          'activeRunId', () {
+        // Leaving a thread disposes its view while the run goes on in the
+        // background; that is not the run ending. Built by hand rather than
+        // with open(), whose tearDown would dispose it a second time.
+        final state = build();
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+        session.emit(RunningState(
+          threadKey: key,
+          runId: 'run-1',
+          conversation: asked(['one']),
+          streaming: const AwaitingText(),
+        ));
+        expect(state.activeRunId.value, 'run-1');
+        var ended = 0;
+        // subscribe fires once with the current value; count only what follows.
+        final unsubscribe = state.runsEnded.subscribe((_) => ended++);
+        addTearDown(unsubscribe);
+        ended = 0;
+
+        state.dispose();
+
+        expect(state.activeRunId.value, isNull);
+        expect(ended, 0);
+      });
+    });
+
     group('context reading', () {
       RunUsage measuredRun(String runId, int tokens) => RunUsage(
             runId: runId,
