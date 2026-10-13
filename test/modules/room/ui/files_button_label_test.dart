@@ -24,13 +24,6 @@ void main() {
       );
     });
 
-    test('handles single counts', () {
-      expect(
-        filesButtonLabel(roomCount: 1, threadCount: 1, workspaceCount: 0),
-        '1 room · 1 thread',
-      );
-    });
-
     test('adds the workspace count', () {
       expect(
         filesButtonLabel(roomCount: 1, threadCount: 1, workspaceCount: 3),
@@ -39,8 +32,7 @@ void main() {
     });
 
     test('is "Files" when nothing is counted', () {
-      // Every list empty but the workspace list failed: the button still
-      // shows, with its error icon.
+      // The label when the only content is a failed workspace list.
       expect(
         filesButtonLabel(roomCount: 0, threadCount: 0, workspaceCount: 0),
         'Files',

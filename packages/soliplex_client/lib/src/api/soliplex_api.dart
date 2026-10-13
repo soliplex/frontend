@@ -1844,7 +1844,8 @@ class SoliplexApi {
   /// - [ArgumentError] if any parameter is empty
   /// - [NotFoundException] (404) if the server keeps no workspaces, serves
   ///   none, or knows no such thread
-  /// - [AuthException] if not authenticated (401/403)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if access is denied (403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
@@ -1884,7 +1885,8 @@ class SoliplexApi {
   /// - [ArgumentError] if any parameter is empty
   /// - [NotFoundException] (404) if the workspace is not served or holds no
   ///   regular file by that name
-  /// - [AuthException] if not authenticated (401/403)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if access is denied (403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]

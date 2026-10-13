@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// What kind of in-app preview a workdir file should render.
 ///
 /// Detection is extension-based — bytes-sniffing isn't worth the latency
-/// for an in-chat preview, and the workdir filenames come from agent
+/// for an in-app preview, and the workdir filenames come from agent
 /// tools that already carry a meaningful suffix.
 enum PreviewKind {
   image,

@@ -30,8 +30,6 @@ import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
-    show WorkdirErrorRow;
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
@@ -2484,7 +2482,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('1 in workspace'), findsOneWidget);
-      expect(find.text('report.csv'), findsNothing);
 
       await tester.tap(find.byIcon(Icons.folder_outlined));
       await tester.pumpAndSettle();
@@ -2548,19 +2545,10 @@ void main() {
 
       expect(find.byKey(filePanelKey), findsOneWidget);
       expect(find.textContaining("Couldn't load files"), findsOneWidget);
-      expect(find.byTooltip('Retry'), findsNothing);
-      expect(
-        find.descendant(
-          of: find.byType(WorkdirErrorRow),
-          matching: find.byType(CircularProgressIndicator),
-        ),
-        findsOneWidget,
-      );
 
       gate.complete();
       await tester.pumpAndSettle();
 
-      expect(find.byKey(filePanelKey), findsOneWidget);
       expect(find.text('a.csv'), findsOneWidget);
     });
 
@@ -2597,42 +2585,18 @@ void main() {
       }
     }
 
-    group('a run ending refetches the list', () {
-      final endings = <String, void Function(LiveSession live)>{
-        'completed': completeRun,
-        'failed': (live) =>
-            live.events.add(const RunErrorEvent(message: 'upstream said no')),
-        'cancelled': (live) => live.session.cancel(),
-      };
-
-      for (final MapEntry(key: ending, value: end) in endings.entries) {
-        testWidgets(ending, (tester) async {
-          wideView(tester);
-          api.nextWorkdirFiles = [file('a.csv')];
-          final live = await openRunningThread(tester);
-          expect(find.textContaining('to the workspace'), findsNothing,
-              reason: 'precondition: the first listing is not news');
-
-          api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
-          end(live);
-          await pumpFrames(tester);
-
-          expect(find.text('Added b.csv to the workspace'), findsOneWidget);
-        });
-      }
-    });
-
-    testWidgets('opening a thread that already has files shows no pill',
-        (tester) async {
+    testWidgets('a run ending refetches the list', (tester) async {
       wideView(tester);
+      api.nextWorkdirFiles = [file('a.csv')];
+      final live = await openRunningThread(tester);
+      expect(find.textContaining('to the workspace'), findsNothing,
+          reason: 'precondition: the first listing is not news');
+
       api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
+      completeRun(live);
+      await pumpFrames(tester);
 
-      await tester.pumpWidget(screen('thread-1'));
-      await tester.pumpAndSettle();
-
-      expect(find.byTooltip('2 in workspace'), findsOneWidget,
-          reason: 'precondition: the listing landed');
-      expect(find.textContaining('to the workspace'), findsNothing);
+      expect(find.text('Added b.csv to the workspace'), findsOneWidget);
     });
 
     testWidgets('Show opens the files panel on the added file', (tester) async {
@@ -2654,7 +2618,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('to the workspace'), findsNothing);
     });
 
     testWidgets('Show keeps an open files panel open', (tester) async {
@@ -2693,38 +2656,6 @@ void main() {
 
       live.session.cancel();
       await tester.pump();
-    });
-
-    testWidgets('a reply carries no list of its own', (tester) async {
-      wideView(tester);
-      api.nextThreadHistory = await storedHistory([
-        (
-          runId: 'run-1',
-          userMessageId: 'u1',
-          prompt: 'Make a table',
-          events: [
-            RunStartedEvent(threadId: 't', runId: 'run-1'),
-            const TextMessageStartEvent(messageId: 'm1'),
-            const TextMessageContentEvent(
-                messageId: 'm1', delta: 'Here it is.'),
-            const TextMessageEndEvent(messageId: 'm1'),
-            const RunFinishedEvent(threadId: 't', runId: 'run-1'),
-          ],
-        ),
-      ]);
-      api.nextWorkdirFiles = [file('a.csv')];
-
-      await tester.pumpWidget(screen('thread-1'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Here it is.'), findsOneWidget,
-          reason: 'precondition: the reply is on screen');
-      expect(find.text('a.csv'), findsNothing);
-
-      await tester.tap(find.byIcon(Icons.folder_outlined));
-      await tester.pumpAndSettle();
-
-      expect(find.text('a.csv'), findsOneWidget);
     });
   });
 

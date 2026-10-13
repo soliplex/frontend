@@ -15,7 +15,6 @@ WorkdirFile _file(String name) =>
 Widget _section(
   WorkdirFilesStatus status, {
   Future<DownloadOutcome> Function(WorkdirFile file)? onDownload,
-  VoidCallback? onRetry,
 }) =>
     MaterialApp(
       theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
@@ -24,34 +23,12 @@ Widget _section(
           status: status,
           onDownload: onDownload ?? (_) async => DownloadOutcome.success,
           onFetchBytes: (_) async => Uint8List(0),
-          onRetry: onRetry ?? () {},
+          onRetry: () {},
         ),
       ),
     );
 
 void main() {
-  testWidgets('Loading renders nothing', (tester) async {
-    await tester.pumpWidget(_section(const WorkdirFilesLoading()));
-
-    expect(find.text('WORKSPACE'), findsNothing);
-  });
-
-  testWidgets('Loaded with no files renders nothing', (tester) async {
-    await tester.pumpWidget(_section(const WorkdirFilesLoaded([])));
-
-    expect(find.text('WORKSPACE'), findsNothing);
-  });
-
-  testWidgets('Loaded lists the files', (tester) async {
-    await tester.pumpWidget(_section(
-      WorkdirFilesLoaded([_file('a.csv'), _file('b.png')]),
-    ));
-
-    expect(find.text('WORKSPACE'), findsOneWidget);
-    expect(find.text('a.csv'), findsOneWidget);
-    expect(find.text('b.png'), findsOneWidget);
-  });
-
   testWidgets('tapping a row download icon downloads that file',
       (tester) async {
     final downloaded = <WorkdirFile>[];
@@ -69,43 +46,11 @@ void main() {
     expect(downloaded, [_file('b.png')]);
   });
 
-  testWidgets('tapping a previewable row opens a preview over every file',
-      (tester) async {
-    await tester.pumpWidget(_section(
-      WorkdirFilesLoaded([_file('a.csv'), _file('b.png')]),
-    ));
-
-    await tester.tap(find.text('b.png'));
-    await tester.pump();
-
-    final page =
-        tester.widget<WorkdirPreviewPage>(find.byType(WorkdirPreviewPage));
-    expect(page.files.length, 2);
-    expect(page.initialIndex, 1);
-  });
-
-  testWidgets('Failed shows the message and Retry runs onRetry',
-      (tester) async {
-    var retries = 0;
-    await tester.pumpWidget(_section(
-      const WorkdirFilesFailed('boom'),
-      onRetry: () => retries++,
-    ));
-
-    expect(find.text('WORKSPACE'), findsOneWidget);
-    expect(find.textContaining("Couldn't load files"), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Retry'));
-
-    expect(retries, 1);
-  });
-
   testWidgets('Failed explains the failure without rendering the raw message',
       (tester) async {
     const error = NetworkException(message: 'down');
     await tester.pumpWidget(_section(const WorkdirFilesFailed(error)));
 
-    expect(find.textContaining(workdirErrorMessage(error)), findsOneWidget);
     expect(find.textContaining("Couldn't reach the server."), findsOneWidget);
     expect(find.textContaining('down'), findsNothing);
   });

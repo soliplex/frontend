@@ -152,7 +152,7 @@ const double _sidebarWidth = 300;
 /// edge. Below this width the content fills the available space.
 const double _maxContentWidth = SoliplexBreakpoints.desktop;
 
-/// Identifies the attached-files panel.
+/// Identifies the files panel.
 ///
 /// The panel renders nothing of its own when every section is empty, so whether
 /// it is on screen is otherwise unobservable — and it being on screen with
@@ -162,7 +162,7 @@ const Key filePanelKey = Key('room-attached-files-panel');
 
 /// Builds the files button's tooltip from each section's count, e.g.
 /// `1 room · 1 thread · 3 in workspace`. `Files` when nothing is counted,
-/// which is the case when the only thing to show is a failed list.
+/// e.g. when the only content is a failed list.
 String filesButtonLabel({
   required int roomCount,
   required int threadCount,
@@ -283,7 +283,8 @@ class _RoomScreenState extends State<RoomScreen> {
   void Function()? _anchorAdvanceUnsub;
 
   /// Disposer for the active thread's run-end subscription that refetches its
-  /// workspace files. Re-wired on thread switch, cancelled on dispose.
+  /// workspace files. Re-wired on thread switch, cancelled on room change and
+  /// dispose.
   void Function()? _runEndUnsub;
 
   /// Disposer for the thread-list subscription that keeps the room read marker
@@ -812,9 +813,9 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  /// Fetches the thread's workspace files now and again whenever one of its
-  /// runs ends, since a run is what writes them. Must run after
-  /// `selectThread([threadId])`.
+  /// Fetches the thread's workspace files when it opens and again whenever one
+  /// of its runs ends, since a run is what writes them. The run-end refetch is
+  /// wired only when [threadId] is the active thread view.
   void _beginWorkdirTracking(String threadId) {
     _runEndUnsub?.call();
     _runEndUnsub = null;
@@ -2169,7 +2170,7 @@ class _RoomScreenState extends State<RoomScreen> {
         WorkdirFilesFailed() => true,
       };
 
-  /// Whether the room scope's list is watched — the attached-files control and
+  /// Whether the room scope's list is watched — the files control and
   /// the panel it opens.
   ///
   /// Wider than the room's own upload capability, because the room scope is

@@ -13,7 +13,7 @@ class WorkdirFilesLoading extends WorkdirFilesStatus {
 class WorkdirFilesLoaded extends WorkdirFilesStatus {
   const WorkdirFilesLoaded(this.files);
 
-  /// Sorted by filename; the backend lists in directory order.
+  /// Sorted by filename.
   final List<WorkdirFile> files;
 }
 

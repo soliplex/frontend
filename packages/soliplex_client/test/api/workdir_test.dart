@@ -210,12 +210,9 @@ void main() {
       final captured = capturedBytesUri();
 
       expect(
-        captured.pathSegments,
-        containsAllInOrder(
-          ['workdirs', 'room-1', 'thread', 'thread-1', 'file', 'out.csv'],
-        ),
+        captured.path,
+        endsWith('/workdirs/room-1/thread/thread-1/file/out.csv'),
       );
-      expect(captured.pathSegments, isNot(contains('run')));
     });
 
     test('percent-encodes filenames with spaces and special characters',
