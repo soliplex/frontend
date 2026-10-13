@@ -1784,9 +1784,9 @@ void main() {
       });
 
       // Non-Map and null `StateSnapshotEvent.snapshot` cause the cast
-      // inside `_processStateSnapshot` to throw — by design. The
-      // wrappers in `RunOrchestrator._onEvent` and `RunFold.apply`
-      // catch the throw and mint a drop tile at the failure position.
+      // inside `_processStateSnapshot` to throw — by design.
+      // `RunFold.apply`, which live and replay both fold through,
+      // catches the throw and mints a drop tile at the failure position.
       // Behavioral coverage lives there:
       //   - run_orchestrator_test.dart "live drop tiles"
       //   - run_fold_test.dart "drops an event processEvent rejects in a

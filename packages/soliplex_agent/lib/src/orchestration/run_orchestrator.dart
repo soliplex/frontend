@@ -82,32 +82,12 @@ class RunOrchestrator {
   final Logger _logger;
   final int _maxToolDepth;
 
-  final CitationExtractor _citationExtractor = CitationExtractor();
-
-  /// Citations accumulated across this turn's state events — the union of cited
-  /// ids and inline figures. A run's cited set arrives either as one terminal
-  /// `StateSnapshotEvent` (via [CitationExtractor.accumulateSnapshot]) or as
-  /// `StateDeltaEvent`s, each scoped to the namespaces it touched (via
-  /// [CitationExtractor.accumulate]). The union across the turn is its complete
-  /// set, preserving figures a later run's `searches` clear would drop. Cleared
-  /// at turn start (and on reset/sync). See [_extractCitations].
-  ///
-  /// The union spans runs, not just events: `citation_index` is
-  /// session-cumulative so an earlier run's ids still resolve, but `searches` —
-  /// the sole source of inline figure bytes — is cleared per run, so this
-  /// accumulator is the only carrier of an earlier run's figures into
-  /// [_extractCitations]. A turn spans several runs when the model calls a
-  /// client-side tool and the tool loop resumes into a continuation run.
-  TurnCitations _turnCitations = const TurnCitations.empty();
+  /// The run being folded, kept past its end until the next turn starts: a
+  /// continuation run carries the turn's citations forward from it, and an
+  /// ending recorded while a run waits on a client tool is recorded on it.
+  /// Null at turn start.
+  RunFold? _fold;
   String? _userMessageId;
-
-  /// The history the current run was sent, until the run's state snapshot
-  /// arrives. A run cut off before then keeps this instead of what it
-  /// streamed: the snapshot, which the backend sends just before the run's
-  /// terminal event, is the state that accounts for what it streamed, and a
-  /// backend that receives a run's results without it, as haiku.rag does its
-  /// evidence, can refuse the history. Null once the snapshot has arrived.
-  Transcript? _sentTranscript;
 
   final StreamController<RunState> _controller =
       StreamController<RunState>.broadcast();
@@ -121,25 +101,6 @@ class RunOrchestrator {
   StreamSubscription<DecodeOutcome>? _subscription;
   bool _receivedTerminalEvent = false;
   int _toolDepth = 0;
-
-  /// Index for the next event observed on the active subscription. Reset
-  /// in [_subscribeToStream] so each run mints monotonically increasing
-  /// drop-tile ids that pair with that run's id.
-  ///
-  /// Cross-path id alignment assumes one [DecodeOutcome] per backend-stored
-  /// `events[i]`. The replay path (`RunFold.eventIndex`, through
-  /// `replayThreadHistory`) increments once per stored event; this counter
-  /// increments once per outcome.
-  /// Drop-tile ids only round-trip when those cardinalities match —
-  /// i.e., the AG-UI backend must store one event per outcome the live
-  /// decoder produces.
-  int _liveEventCounter = 0;
-
-  /// The backend timestamp of the most recent event received on the active
-  /// subscription, or null before any timestamped event arrives. Used to stamp
-  /// the partial reply committed on cancel with the last server time rather
-  /// than a client `now()`.
-  DateTime? _lastEventTime;
 
   // runToCompletion infrastructure
   Completer<RunState>? _terminalCompleter;
@@ -260,7 +221,6 @@ class RunOrchestrator {
             threadKey: running.threadKey,
             runId: running.runId,
             conversation: _recordRunEndedAsCancelled(
-              running,
               terminalEvent: 'cancelRun',
             ),
           ),
@@ -278,7 +238,7 @@ class RunOrchestrator {
             runId: yielding.runId,
             // A yielding run withdrew its completion candidate; stopping here
             // ends it for real, so it parks one again as a cancel.
-            conversation: _recordYieldEndedAsCancelled(yielding),
+            conversation: _recordYieldEndedAsCancelled(),
           ),
         );
       case IdleState():
@@ -317,7 +277,7 @@ class RunOrchestrator {
     _guardNotDisposed();
     _cancelToken?.cancel();
     _cleanup();
-    _turnCitations = const TurnCitations.empty();
+    _fold = null;
     _userMessageId = null;
     _setState(const IdleState());
   }
@@ -334,7 +294,7 @@ class RunOrchestrator {
     if (_currentState is RunningState || _currentState is ToolYieldingState) {
       throw StateError('Cannot sync while a run is active');
     }
-    _turnCitations = const TurnCitations.empty();
+    _fold = null;
     _userMessageId = null;
     _setState(const IdleState());
   }
@@ -563,7 +523,7 @@ class RunOrchestrator {
     final cancelled = CancelledState.duringRun(
       threadKey: key,
       runId: state.runId,
-      conversation: _recordYieldEndedAsCancelled(state),
+      conversation: _recordYieldEndedAsCancelled(),
     );
     _setState(cancelled);
     return cancelled;
@@ -587,7 +547,7 @@ class RunOrchestrator {
       runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
       error: detail,
-      conversation: _recordYieldEndedAsFailed(state, detail),
+      conversation: _recordYieldEndedAsFailed(detail),
     );
     _setState(failed);
     return failed;
@@ -610,7 +570,7 @@ class RunOrchestrator {
       runId: state.runId,
       reason: classifyError(error),
       error: detail,
-      conversation: _recordYieldEndedAsFailed(state, detail),
+      conversation: _recordYieldEndedAsFailed(detail),
     );
     _setState(failed);
     return failed;
@@ -624,96 +584,50 @@ class RunOrchestrator {
       runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
       error: detail,
-      conversation: _recordYieldEndedAsFailed(state, detail),
+      conversation: _recordYieldEndedAsFailed(detail),
     );
     _setState(failed);
     return failed;
   }
 
-  /// [state]'s conversation with a record that the run ended in failure.
+  /// The waiting run's conversation with a record that it ended in failure.
   ///
   /// A run waiting on a client tool withdrew its completion candidate on the
   /// way in, because it was not over. Every exit from that wait ends it for
   /// real, and has to say so — a run that ended recording nothing has no tile
   /// to render the work the user watched it do, and reads to the thread as a
   /// run still in flight.
-  Conversation _recordYieldEndedAsFailed(
-    ToolYieldingState state,
-    String detail,
-  ) =>
-      parkFailedOutcome(
-        conversation: state.conversation,
-        streaming: state.streaming,
-        runId: state.runId,
-        errorDetail: detail,
-        createdAt: _lastEventTime,
-      );
+  Conversation _recordYieldEndedAsFailed(String detail) =>
+      (_fold = _fold!.failed(detail, terminalEvent: 'toolYieldEnded'))
+          .conversation;
 
-  /// [state]'s conversation with a record that the run was stopped.
-  Conversation _recordYieldEndedAsCancelled(ToolYieldingState state) =>
-      parkCancelledOutcome(
-        conversation: state.conversation,
-        streaming: state.streaming,
-        runId: state.runId,
-        createdAt: DateTime.timestamp(),
-      );
+  /// The waiting run's conversation with a record that it was stopped.
+  Conversation _recordYieldEndedAsCancelled() =>
+      (_fold = _fold!.cancelled(terminalEvent: 'toolYieldCancelled'))
+          .conversation;
 
-  /// [running]'s conversation with a record that the run was stopped, stamped
-  /// when the user stopped it. [terminalEvent] names the ending in the log.
-  Conversation _recordRunEndedAsCancelled(
-    RunningState running, {
-    required String terminalEvent,
-  }) =>
-      _extractCitations(
-        parkCancelledOutcome(
-          conversation: _keepingPartialReply(running, terminalEvent),
-          streaming: running.streaming,
-          runId: running.runId,
-          createdAt: DateTime.timestamp(),
-        ),
-        running.runId,
-      );
+  /// The run's conversation with a record that it was stopped, stamped when
+  /// the user stopped it. [terminalEvent] names the ending in the log.
+  Conversation _recordRunEndedAsCancelled({required String terminalEvent}) =>
+      (_fold = _fold!.cancelled(terminalEvent: terminalEvent).resolveTurn())
+          .conversation;
 
-  /// [running]'s conversation with a record that the run failed with
-  /// [detail], stamped with the last event the run delivered. [terminalEvent]
-  /// names the ending in the log.
+  /// The run's conversation with a record that it failed with [detail],
+  /// stamped with the last event the run delivered. [terminalEvent] names the
+  /// ending in the log.
   Conversation _recordRunEndedAsFailed(
-    RunningState running,
     String detail, {
     required String terminalEvent,
   }) =>
-      _extractCitations(
-        parkFailedOutcome(
-          conversation: _keepingPartialReply(running, terminalEvent),
-          streaming: running.streaming,
-          runId: running.runId,
-          errorDetail: detail,
-          createdAt: _lastEventTime,
-        ),
-        running.runId,
-      );
+      (_fold =
+              _fold!.failed(detail, terminalEvent: terminalEvent).resolveTurn())
+          .conversation;
 
-  /// [running]'s conversation with the reply it was streaming committed.
-  ///
-  /// The reply the user was reading goes first, or the run's ending appears
-  /// while what they were already looking at disappears.
-  Conversation _keepingPartialReply(
-    RunningState running,
-    String terminalEvent,
-  ) =>
-      commitPartialTextOnTerminal(
-        conversation: _keepingWhatWasSent(running.conversation),
-        streaming: running.streaming,
-        runId: running.runId,
-        terminalEvent: terminalEvent,
-        createdAt: _lastEventTime,
+  /// [state] showing the run as the fold holds it.
+  RunningState _runningFrom(RunningState state) => state.copyWith(
+        conversation: _fold!.conversation,
+        streaming: _fold!.streaming,
       );
-
-  /// [conversation] with the history its run was sent in place of what the
-  /// run streamed, unless the run's state snapshot arrived; see
-  /// [_sentTranscript].
-  Conversation _keepingWhatWasSent(Conversation conversation) =>
-      conversation.copyWith(transcript: _sentTranscript);
 
   /// Whether [state] is terminal for the SSE subscription completer.
   ///
@@ -748,25 +662,15 @@ class RunOrchestrator {
   /// surface invariant breakage instead of fabricating data.
   void _completeTerminalOnDispose() {
     if (_terminalCompleter?.isCompleted ?? true) return;
-    if (_currentState
-        case RunningState(
-          :final threadKey,
-          :final runId,
-          :final conversation,
-          :final streaming,
-        )) {
+    if (_currentState case RunningState(:final threadKey, :final runId)) {
       _terminalCompleter!.complete(
         CancelledState.duringRun(
           threadKey: threadKey,
           runId: runId,
-          // Disposal ends the run, and a run that ends records how: without
-          // this the work the user watched has no tile to render on.
-          conversation: parkCancelledOutcome(
-            conversation: conversation,
-            streaming: streaming,
-            runId: runId,
-            createdAt: DateTime.timestamp(),
-          ),
+          // Disposal ends the run as a stop does, so whoever awaits the run
+          // gets the conversation a stop would have left: the partial reply
+          // committed and what the run was sent restored.
+          conversation: _recordRunEndedAsCancelled(terminalEvent: 'dispose'),
         ),
       );
       return;
@@ -909,10 +813,18 @@ class RunOrchestrator {
     // arrives, and fills from the run's server `created` on replay. The
     // frontend never displays a client-generated time. now() here is only for
     // a unique id.
-    final userMsg = TextMessage.fromParts(
-      id: 'user-${DateTime.now().microsecondsSinceEpoch}',
-      parts: numbered,
-    );
+    //
+    // Text alone travels the wire as a bare string, which a reload reads back
+    // without parts, so the echo keeps its parts only when they say more than
+    // its text: when it carries an attachment.
+    final id = 'user-${DateTime.now().microsecondsSinceEpoch}';
+    final userMsg = numbered.hasAttachment
+        ? TextMessage.fromParts(id: id, parts: numbered)
+        : TextMessage.create(
+            id: id,
+            user: ChatUser.user,
+            text: numbered.plainText,
+          );
     // Seeding with the run-scoped keys emptied is what makes a namespace's
     // non-empty `citations` in the run's terminal snapshot definitionally this
     // turn's. The overlay merges on top, so a caller-set `document_filter`
@@ -925,7 +837,7 @@ class RunOrchestrator {
     );
     final aguiState =
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
-    _turnCitations = const TurnCitations.empty();
+    _fold = null;
     _userMessageId = userMsg.id;
     return appendUserMessage(
       Conversation(
@@ -968,7 +880,6 @@ class RunOrchestrator {
   }
 
   SimpleRunAgentInput _buildInput(ThreadKey key, Conversation conversation) {
-    _sentTranscript = conversation.transcript;
     return SimpleRunAgentInput(
       threadId: key.threadId,
       runId: '', // Assigned by the provider during startRun.
@@ -991,8 +902,6 @@ class RunOrchestrator {
     _subscription = null;
     _cancelToken ??= CancelToken();
     _receivedTerminalEvent = false;
-    _liveEventCounter = 0;
-    _lastEventTime = null;
     _terminalCompleter = Completer<RunState>();
     _subscriptionEpoch++;
     final epoch = _subscriptionEpoch;
@@ -1001,13 +910,16 @@ class RunOrchestrator {
     // learn that from a `RUN_STARTED` leaves a stream carrying none with every
     // message unattributed and no record of how the run ended — the same gap
     // replay closes from the id its events were fetched under. Every path that
-    // opens a stream arrives here, so this is where the two agree.
-    _setState(
-      initialState.copyWith(
-        conversation: initialState.conversation
-            .withStatus(Running(runId: initialState.runId)),
-      ),
+    // opens a stream arrives here, so this is where the two agree. A
+    // continuation run carries the turn's citations on from the run it
+    // continues.
+    _fold = RunFold.start(
+      initialState.conversation,
+      runId: initialState.runId,
+      userMessageId: _userMessageId,
+      turnCitations: _fold?.turnCitations ?? const TurnCitations.empty(),
     );
+    _setState(_runningFrom(initialState));
     _subscription = events.listen(
       _onEvent,
       onError: _onStreamError,
@@ -1019,203 +931,73 @@ class RunOrchestrator {
   }
 
   void _onEvent(DecodeOutcome outcome) {
-    final eventIndex = _liveEventCounter++;
-    switch (outcome) {
-      case DecodeFailed(:final error, :final rawData, :final stackTrace):
-        _appendDropTile(
-          source: DropSource.decode,
-          error: error,
-          stackTrace: stackTrace,
-          rawData: rawData,
-          eventIndex: eventIndex,
-        );
-      case DecodedEvent(:final event, :final rawJson):
-        final running = _currentState;
-        if (running is! RunningState) return;
-        final timestamp = event.timestamp;
-        if (timestamp != null) {
-          try {
-            _lastEventTime =
-                DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
-          } on Object catch (error) {
-            _logger.warning(
-              'Ignoring invalid event timestamp ($timestamp) on run '
-              '${running.runId}',
-              error: error,
-            );
-          }
-        }
-        try {
-          final result =
-              processEvent(running.conversation, running.streaming, event);
-          // Accumulate the citations and inline figures this run cited, from
-          // whichever carrier brings them: a terminal snapshot holds the run's
-          // complete cited set, while a delta holds one contribution and is
-          // scoped to the namespaces it touched. Reading the post-event
-          // conversation state rather than the event keeps the source of truth
-          // single — a malformed snapshot has already been rejected there.
-          // Fail-soft because citations are a derived projection.
-          if (event is StateDeltaEvent) {
-            try {
-              _turnCitations = _citationExtractor.accumulate(
-                _turnCitations,
-                result.conversation.aguiState,
-                event,
-              );
-            } on Object catch (e, st) {
-              _logger.error(
-                'Citation accumulation failed on run ${running.runId} '
-                '(${event.runtimeType})',
-                error: e,
-                stackTrace: st,
-              );
-            }
-          } else if (event is StateSnapshotEvent) {
-            try {
-              final before = _turnCitations.ids.length;
-              _turnCitations = _citationExtractor.accumulateSnapshot(
-                _turnCitations,
-                result.conversation.aguiState,
-              );
-              _logger.debug(
-                'Citations: state snapshot on run ${running.runId} took the '
-                'turn from $before to ${_turnCitations.ids.length} '
-                'cited id(s).',
-              );
-            } on Object catch (e, st) {
-              _logger.error(
-                'Citation accumulation failed on run ${running.runId} '
-                '(${event.runtimeType})',
-                error: e,
-                stackTrace: st,
-              );
-            }
-          }
-          _mapEventResult(running, result, event);
-        } on Object catch (e, st) {
-          _appendDropTile(
-            source: DropSource.eventProcessing,
-            error: e,
-            stackTrace: st,
-            rawData: rawJson,
-            eventIndex: eventIndex,
-            eventTypeForLog: event.runtimeType,
-          );
-          return;
-        }
-        if (!_baseEventController.isClosed) {
-          _baseEventController.add(event);
-        }
-    }
-  }
-
-  /// Appends a [DroppedEventMessage] to the running conversation and
-  /// logs at error with [stackTrace] so Sentry / `BackendLogSink` get a
-  /// breadcrumb. When the orchestrator isn't in [RunningState] (a
-  /// stray event after terminal cleanup), the tile can't be appended;
-  /// the original error is already logged at error severity above, so
-  /// the unappended-tile branch logs at warning severity to avoid a
-  /// duplicate page while still leaving an audit breadcrumb.
-  void _appendDropTile({
-    required DropSource source,
-    required Object error,
-    required StackTrace? stackTrace,
-    required Object? rawData,
-    required int eventIndex,
-    Type? eventTypeForLog,
-  }) {
-    final logMessage = eventTypeForLog == null
-        ? 'Dropped event (${source.name})'
-        : 'processEvent threw on $eventTypeForLog';
-    _logger.error(logMessage, error: error, stackTrace: stackTrace);
-
     final running = _currentState;
-    if (running is! RunningState) {
-      _logger.warning(
-        'Drop tile not appended: orchestrator not in RunningState',
-        error: error,
-        stackTrace: stackTrace,
-        attributes: {
-          'state': running.runtimeType.toString(),
-          'source': source.name,
-        },
-      );
+    final fold = _fold;
+    if (running is! RunningState || fold == null) {
+      _ignoreStrayEvent(outcome, running);
       return;
     }
-    final id = 'dropped-${running.runId}-$eventIndex';
-    final tile = DroppedEventMessage.create(
-      id: id,
-      source: source,
-      reason: error.toString(),
-      runId: running.runId,
-      rawPayload: rawData,
-    );
-    _setState(
-      running.copyWith(
-        conversation: running.conversation.withAppendedMessage(tile),
-      ),
-    );
+    final applied = fold.apply(outcome);
+    _fold = applied.fold;
+    final event = applied.processed;
+    if (event == null) {
+      _setState(_runningFrom(running));
+      return;
+    }
+    _mapEventResult(running, event, pausedIn: fold.streaming);
+    if (!_baseEventController.isClosed) {
+      _baseEventController.add(event);
+    }
   }
 
+  /// An event that arrived after its run ended (a stray event after terminal
+  /// cleanup) has no run to fold into. A decode failure is still logged at
+  /// error, as it would have been mid-run, because the tile that would have
+  /// shown it cannot be appended.
+  void _ignoreStrayEvent(DecodeOutcome outcome, RunState state) {
+    if (outcome case DecodeFailed(:final error, :final stackTrace)) {
+      _logger.error(
+        'Dropped event with no run in progress; no tile appended',
+        stackTrace: stackTrace,
+        attributes: {
+          'failure': describeFailure(error),
+          'state': state.runtimeType.toString(),
+        },
+      );
+    }
+  }
+
+  /// Publishes what [event], just folded in, did to the run. [pausedIn] is
+  /// the streaming state before it, which a run that yields to a client tool
+  /// keeps.
   void _mapEventResult(
     RunningState previous,
-    EventProcessingResult result,
-    BaseEvent event,
-  ) {
-    if (event is StateSnapshotEvent) _sentTranscript = null;
+    BaseEvent event, {
+    required StreamingState pausedIn,
+  }) {
     if (event is RunFinishedEvent) {
-      _handleRunFinished(previous, result.conversation);
+      _handleRunFinished(previous, pausedIn);
       return;
     }
     if (event is RunErrorEvent) {
       _receivedTerminalEvent = true;
       _cleanup();
-      final withCitations =
-          _extractCitations(result.conversation, previous.runId);
+      final fold = _fold = _fold!.resolveTurn();
       _setState(
         FailedState.duringRun(
           threadKey: previous.threadKey,
           runId: previous.runId,
           reason: FailureReason.serverError,
           error: event.message,
-          conversation: withCitations,
+          conversation: fold.conversation,
         ),
       );
       return;
     }
-    if (event is RunStartedEvent) {
-      // Stamp the optimistic user echo with what the run's start makes known:
-      // the server time, so its caption matches the one a reload resolves it to
-      // (the `RUN_STARTED` timestamp, falling back to run `created`), and the
-      // run itself, which is the run replay attributes that message to. The
-      // echo is minted before either exists; leaving the run off is what made
-      // a thread lay out differently before and after a refresh.
-      final userMessageId = _userMessageId;
-      final startTime = _lastEventTime;
-      var conversation = result.conversation;
-      if (userMessageId != null) {
-        conversation = conversation.withMessageRun(userMessageId, event.runId);
-        if (startTime != null) {
-          conversation = conversation.withMessageTime(userMessageId, startTime);
-        }
-      }
-      _setState(
-        previous.copyWith(
-          conversation: conversation,
-          streaming: result.streaming,
-        ),
-      );
-      return;
-    }
-    _setState(
-      previous.copyWith(
-        conversation: result.conversation,
-        streaming: result.streaming,
-      ),
-    );
+    _setState(_runningFrom(previous));
   }
 
-  void _handleRunFinished(RunningState previous, Conversation conversation) {
+  void _handleRunFinished(RunningState previous, StreamingState pausedIn) {
     _receivedTerminalEvent = true;
     // Leave `_subscription` set so `_subscribeToStream` cancels it on
     // resume. Nulling here would silently leak the prior subscription on
@@ -1223,19 +1005,20 @@ class RunOrchestrator {
     // skip its `?.cancel()` call. `onDone` (the natural SSE close) is
     // also handled by `_onStreamDone`, which nulls the field.
     _cancelToken = null;
-    final withCitations = _extractCitations(conversation, previous.runId);
-    final pendingTools = _extractPendingTools(withCitations);
+    final fold = _fold = _fold!.resolveTurn();
+    final pendingTools = _extractPendingTools(fold.conversation);
     if (pendingTools.isNotEmpty) {
+      // `processEvent` parked a completion candidate when it saw RUN_FINISHED,
+      // before this branch knew the run is waiting on a client tool rather
+      // than over. This is where that is known, so the candidate is taken
+      // back — before any subscriber has seen it.
+      final paused = _fold = fold.pausedForClientTools(streaming: pausedIn);
       _setState(
         ToolYieldingState(
           threadKey: previous.threadKey,
           runId: previous.runId,
-          streaming: previous.streaming,
-          // `processEvent` parked a completion candidate when it saw
-          // RUN_FINISHED, before this branch knew the run is waiting on a
-          // client tool rather than over. This is where that is known, so the
-          // candidate is taken back — before any subscriber has seen it.
-          conversation: withCitations.withoutRunOutcome(previous.runId),
+          streaming: paused.streaming,
+          conversation: paused.conversation,
           pendingToolCalls: pendingTools,
           toolDepth: _toolDepth,
         ),
@@ -1245,96 +1028,10 @@ class RunOrchestrator {
         CompletedState(
           threadKey: previous.threadKey,
           runId: previous.runId,
-          conversation: withCitations,
+          conversation: fold.conversation,
         ),
       );
     }
-  }
-
-  /// Resolves this turn's accumulated citations ([_turnCitations]) against
-  /// the current AG-UI state and writes them to the turn's [MessageState].
-  ///
-  /// Always creates a [MessageState] with the [runId] so downstream consumers
-  /// (e.g. feedback buttons) can resolve it, even when there are no citations.
-  ///
-  /// In multi-segment tool loops, [runId] is overwritten each segment so the
-  /// final [MessageState] carries the last segment's run ID — the one whose
-  /// output the user sees and may submit feedback on. The accumulator is
-  /// monotonic across segments, so resolving at every call site (including
-  /// tool-yield boundaries) is safe — the final terminal replaces the
-  /// MessageState with the complete set.
-  ///
-  /// The `on Object catch` is defensive. `CitationExtractor.resolve` is
-  /// contractually non-throwing — schema drift is absorbed inside
-  /// `RagSnapshot.extractAll`, which skips namespaces that fail to parse — so
-  /// this should not fire on bad data. The guard exists only so a future
-  /// programming bug in resolution fails soft rather than aborting a working
-  /// run: citations are a derived projection, so skipping them and completing
-  /// the run is the right UX. Logged at `error` with stack trace so Sentry /
-  /// `BackendLogSink` still surface real bugs. No drop tile — citations are
-  /// not user-facing content.
-  Conversation _extractCitations(Conversation conversation, String runId) {
-    final userMessageId = _userMessageId;
-    if (userMessageId == null) return conversation;
-
-    var citations = const <SourceReference>[];
-    try {
-      citations = _citationExtractor.resolve(
-        _turnCitations,
-        conversation.aguiState,
-        logContext: 'run $runId',
-      );
-    } on Object catch (e, st) {
-      _logger.error(
-        'Citation resolution failed for run $runId',
-        error: e,
-        stackTrace: st,
-      );
-    }
-    _logger.info(
-      'Citations: run $runId resolved ${citations.length} source(s) from '
-      '${_turnCitations.ids.length} cited id(s), '
-      '${citations.where((c) => c.figures.isNotEmpty).length} with figures.',
-    );
-    _warnOnUncreditedIds(conversation.aguiState, 'run $runId');
-
-    final messageState = MessageState(
-      userMessageId: userMessageId,
-      sourceReferences: citations,
-      runId: runId,
-    );
-    return conversation.withMessageState(userMessageId, messageState);
-  }
-
-  /// Warns when [state] names cited ids the turn's accumulator never saw.
-  ///
-  /// The accumulator is fed only by the state carriers this build recognises,
-  /// while `citations` in the end-of-turn state is the backend's own account of
-  /// what the run cited. An id in the second but not the first means a carrier
-  /// reached the wire that nothing here folds in, which otherwise costs the
-  /// turn its sources with no error and no empty-result signal — the counts in
-  /// the summary above all derive from the accumulator, so they report the loss
-  /// as if it were a turn that simply cited nothing.
-  void _warnOnUncreditedIds(Map<String, dynamic> state, String context) {
-    final Set<String> uncredited;
-    try {
-      uncredited = _citationExtractor.citationsInState(state).ids.difference(
-            _turnCitations.ids,
-          );
-    } on Object catch (e, st) {
-      _logger.error(
-        'Citations: uncredited-id check failed for $context',
-        error: e,
-        stackTrace: st,
-      );
-      return;
-    }
-    if (uncredited.isEmpty) return;
-    _logger.warning(
-      'Citations: $context ended with ${uncredited.length} cited id(s) present '
-      'in state but never accumulated; the rendered source list is short. '
-      'ids: $uncredited',
-    );
   }
 
   void _onStreamDone() {
@@ -1345,7 +1042,7 @@ class RunOrchestrator {
     if (running is! RunningState) return;
     _cleanup();
     _logger.warning('Stream ended without terminal event');
-    const detail = 'Stream ended without terminal event';
+    final detail = _fold!.cutOffDetail;
     _setState(
       FailedState.duringRun(
         threadKey: running.threadKey,
@@ -1353,7 +1050,6 @@ class RunOrchestrator {
         reason: FailureReason.streamEndedEarly,
         error: detail,
         conversation: _recordRunEndedAsFailed(
-          running,
           detail,
           terminalEvent: 'streamEndedWithoutTerminal',
         ),
@@ -1372,7 +1068,6 @@ class RunOrchestrator {
           threadKey: running.threadKey,
           runId: running.runId,
           conversation: _recordRunEndedAsCancelled(
-            running,
             terminalEvent: 'streamCancelled',
           ),
         ),
@@ -1388,7 +1083,6 @@ class RunOrchestrator {
         reason: reason,
         error: _messageOf(error),
         conversation: _recordRunEndedAsFailed(
-          running,
           _messageOf(error),
           terminalEvent: 'streamError',
         ),

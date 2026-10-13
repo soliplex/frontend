@@ -274,8 +274,10 @@ void main() {
     });
 
     // A lone text run flattens to itself, which is what every caller that
-    // sends plain text relies on.
-    test('derives text from a single text run', () async {
+    // sends plain text relies on. Text alone travels the wire as a bare
+    // string, which a reload reads back without parts, so the echo carries
+    // none either and reads the same before and after one.
+    test('carries text alone as text, without parts', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
@@ -285,7 +287,7 @@ void main() {
 
       final echo = _echo(orchestrator);
       expect(echo.text, equals('Hi'));
-      expect(echo.parts, hasLength(1));
+      expect(echo.parts, isNull);
     });
   });
 
@@ -307,6 +309,34 @@ void main() {
       final failed = orchestrator.currentState as FailedState;
       expect(failed.reason, equals(FailureReason.serverError));
       expect(failed.error, equals('backend error'));
+    });
+
+    test('dates a RunErrorEvent that carries no time at the last event',
+        () async {
+      // Undated, the failure has no time to show; dated at the run's start,
+      // it would sort above the reply it follows.
+      final lastEventTime = DateTime.utc(2026, 1, 7, 1, 0, 3);
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          TextMessageStartEvent(
+            messageId: 'msg-1',
+            timestamp: lastEventTime.millisecondsSinceEpoch,
+          ),
+          const RunErrorEvent(message: 'backend error'),
+        ]),
+      );
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+
+      final failed = orchestrator.currentState as FailedState;
+      expect(
+        failed.conversation!.runOutcomes[_runId]!.createdAt,
+        lastEventTime,
+      );
     });
 
     test(
@@ -370,6 +400,43 @@ void main() {
         // runId must be threaded through so terminal-state listeners
         // (e.g., the no-response tracker rekey) can find this run.
         expect(failed.runId, equals(_runId));
+      },
+    );
+
+    test(
+      'a stream that ends early after an unreadable event says events went '
+      'unread',
+      () async {
+        // The unreadable event may have been the one that said how the run
+        // ended, so the run is not reported as merely cut off, as replay
+        // reports the same stored run.
+        stubCreateRun();
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
+          ),
+        ).thenAnswer(
+          (_) => Stream.fromIterable([
+            DecodedEvent(
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              const {'type': 'RUN_STARTED'},
+            ),
+            const DecodeFailed(FormatException('boom'), {'type': 'GIBBERISH'}),
+          ]),
+        );
+
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+        await Future<void>.delayed(Duration.zero);
+
+        final failed = orchestrator.currentState as FailedState;
+        const detail = "Some of this run's events could not be read";
+        expect(failed.error, detail);
+        expect(failed.conversation!.runOutcomes[_runId]!.errorDetail, detail);
       },
     );
 
@@ -1998,6 +2065,39 @@ void main() {
       expect(parked, isNotNull, reason: 'the run recorded nothing');
       expect(parked!.reason, equals(TerminalReason.cancelled));
       expect(parked.thinkingText, equals('weighing it'));
+    });
+
+    test('a run disposed mid-reply keeps the reply, as a stop does', () async {
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+      addTearDown(controller.close);
+
+      final pending = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+        toolExecutor: (_) async => [],
+      );
+      await Future<void>.delayed(Duration.zero);
+      controller
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const TextMessageStartEvent(messageId: 'msg-1'))
+        ..add(
+          const TextMessageContentEvent(messageId: 'msg-1', delta: "I don'"),
+        );
+      await Future<void>.delayed(Duration.zero);
+
+      orchestrator.dispose();
+      final result = await pending;
+
+      expect(
+        (result as CancelledState)
+            .conversation!
+            .messages
+            .whereType<TextMessage>()
+            .map((m) => m.text),
+        contains("I don'"),
+      );
     });
   });
 
@@ -4115,6 +4215,92 @@ void main() {
         await controller.close();
       },
     );
+
+    test('logs a decode failure that arrives after the run ended', () async {
+      // There is no run left to show its tile on, so the log is the only
+      // trace of it.
+      stubCreateRun();
+      final controller = StreamController<DecodeOutcome>();
+      addTearDown(controller.close);
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) => controller.stream);
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      controller
+        ..add(
+          DecodedEvent(
+            RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            const {'type': 'RUN_STARTED'},
+          ),
+        )
+        ..add(
+          const DecodedEvent(
+            RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+            {'type': 'RUN_FINISHED'},
+          ),
+        )
+        ..add(const DecodeFailed(FormatException('boom'), {'type': 'LATE'}));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      verify(
+        () => logger.error(
+          any(that: contains('no tile appended')),
+          stackTrace: any(named: 'stackTrace'),
+          attributes: any(named: 'attributes'),
+        ),
+      ).called(1);
+    });
+
+    test('dates a drop tile at the last event that carried a time', () async {
+      // As replay dates the same tile, so the thread reads the same after a
+      // reload.
+      final lastEventTime = DateTime.utc(2026, 1, 7, 1, 0, 3);
+      stubCreateRun();
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer(
+        (_) => Stream.fromIterable([
+          DecodedEvent(
+            RunStartedEvent(
+              threadId: 'thread-1',
+              runId: _runId,
+              timestamp: lastEventTime.millisecondsSinceEpoch,
+            ),
+            const {'type': 'RUN_STARTED'},
+          ),
+          const DecodeFailed(FormatException('boom'), {'type': 'GIBBERISH'}),
+          const DecodedEvent(
+            RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+            {'type': 'RUN_FINISHED'},
+          ),
+        ]),
+      );
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final drop = completed.conversation.messages
+          .whereType<DroppedEventMessage>()
+          .single;
+      expect(drop.createdAt, lastEventTime);
+    });
   });
 
   group('history sent', () {

@@ -25,6 +25,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - A reopened thread keeps the partial reply of a run that was cut off, as it
   showed while the run was streaming, instead of dropping it.
+- A failure, or an event that could not be read, that arrives without a time
+  of its own shows the time of the run's last event while the run is live,
+  as it does after a reload, instead of no time.
+- A run cut off after one of its events could not be read says "Some of this
+  run's events could not be read" while live, as it does after a reload,
+  instead of "Stream ended without terminal event".
 - A run that fails with an empty error message is reported as a failed run,
   and filed like any failure the backend reports, instead of as a stream that
   ended early beside an event that could not be read.

@@ -398,6 +398,33 @@ void main() {
     });
   });
 
+  group('RunFold.pausedForClientTools', () {
+    test('takes back the outcome its RUN_FINISHED parked', () {
+      // The run is waiting on a client tool, not over.
+      final fold = _applyAll(_start(), [
+        const RunFinishedEvent(threadId: 't', runId: 'run-1'),
+      ]).pausedForClientTools(streaming: const AwaitingText());
+
+      expect(fold.conversation.runOutcomes, isEmpty);
+    });
+
+    test('an ending recorded during the wait carries what the run paused in',
+        () {
+      final fold = _applyAll(_start(), [
+        const RunFinishedEvent(threadId: 't', runId: 'run-1'),
+      ])
+          .pausedForClientTools(
+            streaming: const AwaitingText(bufferedThinkingText: 'weighing it'),
+          )
+          .failed('the tool failed', terminalEvent: 'test');
+
+      expect(
+        fold.conversation.runOutcomes['run-1']!.thinkingText,
+        'weighing it',
+      );
+    });
+  });
+
   group('RunFold.cutOffDetail', () {
     test('says the stream ended when every event was read', () {
       final fold = _applyAll(_start(), _partialReply(1));
