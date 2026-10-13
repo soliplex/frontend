@@ -4,9 +4,10 @@ import 'package:meta/meta.dart';
 
 /// One element of a user message's ordered content.
 ///
-/// Carried by [TextMessage.parts] on a user message built from an ordered
-/// payload. One list serves both the optimistic echo and the AG-UI wire
-/// mapping, so what the sender sees and what the model receives cannot drift.
+/// Carried by [TextMessage.parts] on a user message whose ordered payload
+/// carries an attachment. One list serves both the optimistic echo and the
+/// AG-UI wire mapping, so what the sender sees and what the model receives
+/// cannot drift.
 @immutable
 sealed class MessagePart {
   /// Creates a message part.
@@ -196,15 +197,17 @@ sealed class ChatMessage {
   final ChatUser user;
 
   /// When this message was created. Backend-driven messages carry the backend's
-  /// time: replayed or terminal text and run finished/errored use
-  /// `event.timestamp` (falling back to the run's `created`), and a reply cut
-  /// off by a cancel keeps its last received backend event time. Client-only
-  /// artifacts carry the client clock at creation, since they have no backend
-  /// counterpart — the user-cancelled tile (the cancel instant), the loading
-  /// placeholder, the in-flight streaming tile, and locally executed tool
-  /// results. Null when no authoritative time is known yet — e.g. the
-  /// optimistic user echo before the run is persisted, which fills in from the
-  /// run's `created` on replay.
+  /// time: replayed or terminal text, run finished/errored and drop tiles use
+  /// `event.timestamp`, falling back to the time of the run's last event that
+  /// carried one (on replay, to the run's `created` before any did), and a
+  /// reply cut off by a cancel keeps its last received backend event time.
+  /// Locally executed tool results take the same fallback time of the run that
+  /// waited on them. Client-only artifacts carry the client clock at creation,
+  /// since they have no backend counterpart — the user-cancelled tile (the
+  /// cancel instant), the loading placeholder, and the in-flight streaming
+  /// tile. Null when no authoritative time is known yet — e.g. the optimistic
+  /// user echo before its run starts, which takes the run's `RUN_STARTED`
+  /// time, or on replay the run's `created` when there is none.
   final DateTime? createdAt;
 
   /// The run this message belongs to, or null when no run does.
@@ -279,8 +282,14 @@ class TextMessage extends ChatMessage {
 
   /// Creates a user message for an ordered [parts] payload, deriving [text]
   /// from the parts so a caller of this factory cannot let the two disagree.
-  /// Holds an unmodifiable copy, so a caller that kept its own list cannot
-  /// mutate it afterwards and leave [text] describing different content.
+  /// When it keeps [parts], it holds an unmodifiable copy, so a caller that
+  /// kept its own list cannot mutate it afterwards and leave [text] describing
+  /// different content.
+  ///
+  /// Keeps [parts] only when they carry an attachment. Text alone travels the
+  /// wire as a bare string, which a reload reads back without parts, so a
+  /// message built from text alone keeps none either and reads the same
+  /// before and after one.
   ///
   /// Parts are honoured only for a user message, so the role is fixed.
   ///
@@ -313,20 +322,19 @@ class TextMessage extends ChatMessage {
       text: parts.plainText,
       createdAt: createdAt,
       runId: runId,
-      parts: List.unmodifiable(parts),
+      parts: parts.hasAttachment ? List.unmodifiable(parts) : null,
     );
   }
 
   /// The message text content.
   final String text;
 
-  /// Ordered content parts, set on a user message built by
-  /// [TextMessage.fromParts] and null on one built by [TextMessage.create].
-  /// A list holding nothing but text still travels the wire as a bare string,
-  /// so `parts != null` means "built from a payload", not "has an image" —
-  /// test for an image with `parts?.whereType<ImagePart>().isNotEmpty`, and
-  /// for any attachment with `hasAttachment`. Only honoured for user messages,
-  /// ignored elsewhere.
+  /// Ordered content parts of a user message. [TextMessage.fromParts] sets
+  /// them only when they carry an attachment, and [TextMessage.create] never
+  /// does. An attachment may be a placeholder for one that could not be
+  /// rebuilt, so test for an image with
+  /// `parts?.whereType<ImagePart>().isNotEmpty`. Only honoured for user
+  /// messages, ignored elsewhere.
   ///
   /// When set, [text] must hold the flattened text of these parts. The mapper
   /// falls back to [text] for any parts list it cannot send as multimodal, and
@@ -386,11 +394,12 @@ String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
 const _noResponseIdPrefix = 'no-response-';
 
 /// Synthesized assistant tile shown when a run reached a terminal state
-/// without producing a `TextMessageStart`/`Content`/`End` reply.
+/// without producing a `TextMessageStart`/`Content`/`End` reply, or with work
+/// no reply spoke for, and, for a run that failed, beside the reply it did
+/// produce.
 ///
 /// Carries the run's buffered thinking (if any) and the [reason] the run
-/// ended so the UI can render the appropriate muted "Run
-/// finished/failed/cancelled without a response" tile. Frontend-only —
+/// ended so the UI can render the matching muted notice. Frontend-only —
 /// never sent: a run sends `Conversation.transcript`, which holds no display
 /// tiles.
 ///
@@ -543,12 +552,18 @@ class ToolCallMessage extends ChatMessage {
   /// Shows client-side tool results in the timeline; the results sent with
   /// the continuation run go to `Conversation.transcript`. The [toolCalls]
   /// should have `status: completed` or `status: failed` with results
-  /// populated. Stamped with the client clock at creation, since a locally
-  /// executed result has no backend time.
+  /// populated.
+  ///
+  /// [runId] is the run that waited on the tools, and names the message, so
+  /// live and reload give it the same id. One per run: a run waits once, on
+  /// every call it made.
+  /// [createdAt] is that run's `RunFold.undatedRowTime`: a locally executed
+  /// result has no backend time of its own, so it takes the time of the run
+  /// that waited on it, which reload can rebuild.
   factory ToolCallMessage.fromExecuted({
-    required String id,
+    required String runId,
     required List<ToolCallInfo> toolCalls,
-    String? runId,
+    required DateTime? createdAt,
   }) {
     assert(
       toolCalls.every(
@@ -559,9 +574,9 @@ class ToolCallMessage extends ChatMessage {
       'All tool calls must have terminal status (completed or failed)',
     );
     return ToolCallMessage(
-      id: id,
+      id: 'tool-result-$runId',
       toolCalls: toolCalls,
-      createdAt: DateTime.timestamp(),
+      createdAt: createdAt,
       runId: runId,
     );
   }
@@ -650,12 +665,12 @@ enum DropSource {
 /// a tile in the timeline so the user sees something happened and devs can
 /// inspect the raw payload.
 ///
-/// Synthesized at two content-bearing boundaries: the decode boundary
-/// (`decodeMapSafely` returns `DecodeFailed`) and the per-event-loop body
-/// in `RunOrchestrator._onEvent` / `SoliplexApi._replayEventsToHistory`
-/// (`processEvent` threw). Citation extraction, historical replay
-/// bridging, and tracker projection log only without minting a tile —
-/// failures there don't lose user-facing content. Never sent: a run sends
+/// Minted by `RunFold.apply`, which both the live and the replay path fold
+/// events through, for an event `decodeMapSafely` could not decode or
+/// `processEvent` threw on, and by replay for a run that could not be
+/// fetched. Citation extraction, historical replay bridging, and tracker
+/// projection log only without minting a tile — failures there don't lose
+/// user-facing content. Never sent: a run sends
 /// `Conversation.transcript`, which holds no display tiles.
 @immutable
 class DroppedEventMessage extends ChatMessage {
@@ -670,8 +685,11 @@ class DroppedEventMessage extends ChatMessage {
   }) : super(user: ChatUser.system);
 
   /// Creates a dropped-event message with the given id. [createdAt] is the
-  /// run's `created` on replay, or null for a live drop (no authoritative
-  /// time yet); the model never substitutes a client `now()`.
+  /// run's `RunFold.undatedRowTime` — the latest event that carried a time,
+  /// the dropped one included when it could be decoded, or on replay the
+  /// run's `created` before any did — or
+  /// the run's `created` for a run that could not be fetched; the model never
+  /// substitutes a client `now()`.
   factory DroppedEventMessage.create({
     required String id,
     required DropSource source,

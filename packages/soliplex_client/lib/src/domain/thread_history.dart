@@ -56,7 +56,9 @@ class ThreadHistory {
   /// AG-UI state changes at run boundaries.
   final Map<String, MessageState> messageStates;
 
-  /// Decoded AG-UI events grouped per run, in chronological run order.
+  /// Decoded AG-UI events grouped per run, in chronological run order: one
+  /// bundle for each run whose events were read, and none for a run that
+  /// could not be fetched.
   ///
   /// Preserves the raw event stream so consumers can reconstruct execution
   /// timelines (steps, tool calls, activities) on the reload path. Messages
@@ -68,7 +70,8 @@ class ThreadHistory {
   ///
   /// A candidate per run, not a decision: every run that ends records one, and
   /// whoever renders the thread decides whether a run needs a tile of its own,
-  /// which a run with a reply to stand for it does not.
+  /// which a run with a reply to stand for it does not. A run a client tool's
+  /// continuation resumed waited rather than ended, and records none.
   ///
   /// Insertion-ordered, and read that way: the order runs were recorded is the
   /// order they ended, which is what places a run that committed no message.
@@ -123,11 +126,20 @@ class ThreadHistory {
 @immutable
 class RunEventBundle {
   /// Creates a bundle of decoded events for [runId].
-  RunEventBundle({required this.runId, required List<BaseEvent> events})
-      : events = List.unmodifiable(events);
+  RunEventBundle({
+    required this.runId,
+    required List<BaseEvent> events,
+    required this.continuesTurn,
+  }) : events = List.unmodifiable(events);
 
   /// The run these events belong to.
   final String runId;
+
+  /// Whether this run continues the turn of the run before it: its user
+  /// message repeats that run's, as a run resumed after a client tool does.
+  /// Live collects a turn's work into one band across that wait, so reload has
+  /// to know.
+  final bool continuesTurn;
 
   /// Decoded AG-UI events in the order they were emitted.
   final List<BaseEvent> events;

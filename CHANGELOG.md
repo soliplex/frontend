@@ -6,6 +6,78 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- **Library consumers:** `RunFold`, which folds one AG-UI run into a
+  `Conversation` event by event, as both a live run and a reopened thread do.
+
+### Changed
+
+- A failed run that still has a reply shows its outcome below the reply as a
+  muted notice with "View or add a note" and the time, instead of a red error
+  row. With no error text it says "Run failed, no reason given". The red
+  banner above the input still appears when a run fails live.
+- Every failed run's notice has a copy button for its error text.
+- A thread whose last seen message was such a red error row shows no "New
+  messages" divider the first time it is opened after updating.
+- **Library consumers (breaking):** `FailureReason` has a new value,
+  `streamEndedEarly`, for a run's stream that ends with no error and no
+  terminal event (previously reported as `networkLost`).
+- **Library consumers (breaking):** `processEvent`'s `runCreated:` is renamed
+  `undatedEventTime:`.
+- **Library consumers (breaking):** `RunEventBundle` requires
+  `continuesTurn`.
+- **Library consumers (breaking):** `ThreadHistory.runs` holds no bundle for a
+  run that could not be fetched.
+- **Library consumers (breaking):** `ThreadHistory.runOutcomes` has no entry
+  for a run that waited on a client tool and was resumed.
+- **Library consumers (breaking):** `ToolCallMessage.fromExecuted` takes no
+  `id`; it requires `runId`, which names the message, and `createdAt`.
+- **Library consumers (breaking):** `TextMessage.fromParts` keeps `parts` only
+  when they carry an attachment, so `parts` is null for text alone.
+
+### Fixed
+
+- A reopened thread keeps the partial reply of a run that was cut off, as it
+  showed while the run was streaming, instead of dropping it.
+- A reopened thread dates a run's rows that carry no time of their own (a
+  reply, the run's end or failure, an event that could not be read, a cut-off
+  notice) at the time of the run's last event that carried one, instead of
+  the run's start, which sorted them above the reply they follow.
+- A reopened thread shows a turn that ran a client tool as it showed live:
+  the tool's card with its result, and the turn's work above its reply,
+  instead of a "no response" tile holding that work.
+- A thread opened while a client tool runs shows the turn at once, and keeps
+  it as the session ends it: no "no response" tile for the run that waited on
+  the tool, and the tool's result stays even when the history arrives late.
+- A client tool that fails is reported to the model as a failed tool call,
+  not as a result that succeeded, and shows as failed after a reload.
+- A client tool's card is dated at the last event of the run that called the
+  tool that carried a time, as after a reload, instead of the device clock.
+- A reply, a run's end or failure, or an event that could not be read, that
+  arrives without a time of its own shows the time of the run's last event
+  while the run is live, as it does after a reload, instead of no time.
+- A run cut off after one of its events could not be read says "Some of this
+  run's events could not be read" while live, as it does after a reload,
+  instead of "Stream ended without terminal event".
+- A run that fails with an empty error message is reported as a failed run,
+  and filed like any failure the backend reports, instead of as a stream that
+  ended early beside an event that could not be read.
+- A failure with no error text says "The run failed without giving a reason."
+  instead of showing a blank banner.
+- **Library consumers:** a `RunOrchestrator` disposed mid-run hands back the
+  conversation a stop leaves (the partial reply kept, what the run was sent
+  restored) instead of the running one.
+- **Library consumers:** a `RunOrchestrator.reset()` while a client tool runs
+  no longer starts the run that would resume the turn on the backend.
+
+### Removed
+
+- **Library consumers (breaking):** `runErrorMessageId` is no longer exported
+  from `soliplex_client` or `soliplex_agent`.
+
 ## [0.109.0+95] - 2026-10-08
 
 ### Added

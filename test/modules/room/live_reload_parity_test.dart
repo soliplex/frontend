@@ -16,9 +16,10 @@ import '../../helpers/live_session.dart';
 /// not shared is what reaches it: live, an orchestrator accumulating a
 /// conversation while a tracker registry keys bands off streaming states;
 /// reloaded, a replay of stored events into a `ThreadHistory` while
-/// `replayToTrackers` buckets the same events by shape. Those are one rule
-/// written twice against different inputs, and the seam between them is where
-/// a thread renders one way live and another way after a refresh.
+/// `replayToTrackers` buckets the same events against that history's messages.
+/// Those are one rule written twice against different inputs, and the seam
+/// between them is where a thread renders one way live and another way after a
+/// refresh.
 ///
 /// Narrow on purpose: the message list, the band map and the parked outcomes.
 /// There is nothing else left that can diverge.
@@ -78,7 +79,7 @@ class _BandWatch {
     if (layout == null) return;
     expect(layout.dropped, isEmpty, reason: '$when: bands dropped');
     final tileOf = {
-      for (final (:message, :band) in layout.tiles)
+      for (final (:message, :band, besideReply: _) in layout.tiles)
         if (band != null) band: message,
     };
     for (final MapEntry(key: band, value: tile) in tileOf.entries) {
@@ -104,7 +105,7 @@ class _BandWatch {
 }
 
 Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
-  final (session: _, :orchestrator, trackers: ext, :events) =
+  final (session: _, :orchestrator, trackers: ext, :events, sent: _) =
       startLiveSession(key: _key, runId: _runId);
   final watch = _BandWatch();
   await Future<void>.delayed(Duration.zero);
@@ -158,27 +159,41 @@ Future<_Inputs> _reloaded(List<BaseEvent> sequence) async {
   return (
     messages: history.messages,
     messageStates: history.messageStates,
-    bands: replayToTrackers(history.runs),
+    bands: replayToTrackers(history),
     outcomes: history.runOutcomes,
   );
 }
 
 /// The band's content, so two trackers built by different code are compared by
 /// what they would render rather than by identity.
+///
+/// Leaves out the step live adds when it runs a client tool itself — the one
+/// tool step with no call id — because running it is not stored, so reload
+/// cannot show it; the call's own step is compared.
 String _contentOf(ExecutionTracker band) {
   final steps = [
     for (final entry in band.timeline.value)
-      switch (entry) {
-        TimelineStep(:final step, :final toolCallId, :final result) =>
-          '${step.type}/${step.status}/${step.label}'
-              '/tool=$toolCallId/result=$result',
-        TimelineStandaloneActivity(:final activityId) => 'activity/$activityId',
-      },
+      if (!_isLocalToolRun(entry))
+        switch (entry) {
+          TimelineStep(:final step, :final toolCallId, :final result) =>
+            '${step.type}/${step.status}/${step.label}'
+                '/tool=$toolCallId/result=$result',
+          TimelineStandaloneActivity(:final activityId) =>
+            'activity/$activityId',
+        },
   ];
-  final thinking =
-      band.thinkingBlocks.value.where((b) => b.trim().isNotEmpty).toList();
-  return 'steps=$steps thinking=$thinking';
+  return 'steps=$steps thinking=${_thinkingOf(band)}';
 }
+
+/// Whether [entry] is the step live adds when it runs a client tool itself:
+/// the one tool step with no call id.
+bool _isLocalToolRun(TimelineEntry entry) =>
+    entry is TimelineStep &&
+    entry.toolCallId == null &&
+    entry.step.type == StepType.toolCall;
+
+List<String> _thinkingOf(ExecutionTracker band) =>
+    band.thinkingBlocks.value.where((b) => b.trim().isNotEmpty).toList();
 
 /// Every band that has something to show reaches a tile.
 ///
@@ -205,9 +220,11 @@ void _expectEveryBandPlaced(String path, _Inputs inputs) {
   }
 }
 
-Future<void> _expectParity(List<BaseEvent> sequence) async {
-  final live = await _live(sequence);
-  final reloaded = await _reloaded(sequence);
+Future<void> _expectParity(List<BaseEvent> sequence) async =>
+    _expectSameInputs(await _live(sequence), await _reloaded(sequence));
+
+/// Expects [live] and [reloaded] to reach `layOutTimeline` alike.
+void _expectSameInputs(_Inputs live, _Inputs reloaded) {
   _expectEveryBandPlaced('live', live);
   _expectEveryBandPlaced('reloaded', reloaded);
 
@@ -312,6 +329,67 @@ List<BaseEvent> _says(String messageId, String text) => [
       TextMessageContentEvent(messageId: messageId, delta: text),
       TextMessageEndEvent(messageId: messageId),
     ];
+
+/// A turn whose first run streams [beforeTheCall], then waits on the client
+/// tool `locate`, and [continues] as the run that resumes it: live, and
+/// reloaded from what live sent.
+Future<({_Inputs live, _Inputs reloaded})> _clientToolTurn(
+  List<BaseEvent> beforeTheCall,
+  List<BaseEvent> continues,
+) async {
+  final waits = <BaseEvent>[
+    RunStartedEvent(threadId: 't', runId: 'run-waits'),
+    ...beforeTheCall,
+    const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'locate'),
+    const ToolCallArgsEvent(toolCallId: 'c1', delta: '{}'),
+    const ToolCallEndEvent(toolCallId: 'c1'),
+    const RunFinishedEvent(threadId: 't', runId: 'run-waits'),
+  ];
+  final session = startLiveSession(
+    key: _key,
+    runId: 'run-waits',
+    toolRegistry: const ToolRegistry().register(
+      ClientTool(
+        definition: const Tool(name: 'locate', description: 'Locates'),
+        executor: (_, __) async => 'Paris',
+      ),
+    ),
+    laterRuns: [(runId: 'run-continues', events: continues)],
+  );
+  await Future<void>.delayed(Duration.zero);
+  waits.forEach(session.events.add);
+  await session.events.close();
+  await session.session.result;
+  final conversation =
+      (session.orchestrator.currentState as CompletedState).conversation;
+  session.orchestrator.dispose();
+
+  final history = await storedHistoryFromJson([
+    for (final (index, (runId, events)) in [
+      ('run-waits', waits),
+      ('run-continues', continues),
+    ].indexed)
+      (
+        runId: runId,
+        runInput: session.sent[index].toJson(),
+        events: [for (final event in events) event.toJson()],
+      ),
+  ]);
+  return (
+    live: (
+      messages: conversation.messages,
+      messageStates: conversation.messageStates,
+      bands: session.trackers.trackers,
+      outcomes: conversation.runOutcomes,
+    ),
+    reloaded: (
+      messages: history.messages,
+      messageStates: history.messageStates,
+      bands: replayToTrackers(history),
+      outcomes: history.runOutcomes,
+    ),
+  );
+}
 
 void main() {
   setUpAll(registerLiveSessionFallbacks);
@@ -849,20 +927,69 @@ void main() {
     });
   });
 
+  test('a reply the run fails partway through', () async {
+    // No TEXT_MESSAGE_END is stored, but the terminal is: both paths commit
+    // the partial text, so the reply is shown and its band has to reach it.
+    await _expectParity([
+      RunStartedEvent(threadId: 't', runId: _runId),
+      ..._reasoning('r1', 'weighing it'),
+      const TextMessageStartEvent(messageId: 'm1'),
+      const TextMessageContentEvent(messageId: 'm1', delta: 'Partial answ'),
+      const RunErrorEvent(message: 'upstream said no'),
+    ]);
+  });
+
+  group('a turn that waits on a client tool', () {
+    // Live keeps one band open across the wait, so the run that ends the turn
+    // takes the work of the run that waited; reload has to carry it the same
+    // way, and show the tool the same way.
+    test('whose run spoke before the call keeps the call with what it said',
+        () async {
+      // The call belongs to the response that spoke before it, and the wait
+      // does not move it: it stays with what that response said, and the
+      // reply that resumes the turn does not take it.
+      final (:live, :reloaded) = await _clientToolTurn(
+        _says('p1', 'Let me find you'),
+        [
+          RunStartedEvent(threadId: 't', runId: 'run-continues'),
+          ..._says('m2', 'You are in Paris'),
+          const RunFinishedEvent(threadId: 't', runId: 'run-continues'),
+        ],
+      );
+
+      _expectSameInputs(live, reloaded);
+    });
+
+    test('keeps its work on the run that continues it, when that never speaks',
+        () async {
+      final (:live, :reloaded) = await _clientToolTurn(
+        _reasoning('r1', 'need a location'),
+        [
+          RunStartedEvent(threadId: 't', runId: 'run-continues'),
+          ..._reasoning('r2', 'still looking'),
+          const RunFinishedEvent(threadId: 't', runId: 'run-continues'),
+        ],
+      );
+
+      _expectSameInputs(live, reloaded);
+      expect(reloaded.bands.keys, [noResponseMessageId('run-continues')]);
+      expect(
+        _thinkingOf(reloaded.bands[noResponseMessageId('run-continues')]!),
+        ['need a location', 'still looking'],
+      );
+    });
+  });
+
   test('a reply interrupted mid-stream keeps its work after a reload',
       () async {
-    // Stored with no TEXT_MESSAGE_END: the stream stopped mid-reply. Reload
-    // never commits a reply without its end, so a band keyed to that reply
-    // would name a tile that does not exist. Live commits the partial text on
-    // every terminal, so the two paths legitimately differ here and this is
-    // checked on reload alone.
-    final reloaded = await _reloaded([
+    // Stored with no terminal event at all: the stream stopped mid-reply.
+    // Both paths commit the partial text when the events end, so the reply
+    // is shown and its band has to reach it.
+    await _expectParity([
       RunStartedEvent(threadId: 't', runId: _runId),
       ..._reasoning('r1', 'weighing it'),
       const TextMessageStartEvent(messageId: 'm1'),
       const TextMessageContentEvent(messageId: 'm1', delta: 'Partial answ'),
     ]);
-
-    _expectEveryBandPlaced('reloaded', reloaded);
   });
 }

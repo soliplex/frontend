@@ -4,17 +4,18 @@ import 'execution_step.dart';
 import 'execution_tracker.dart';
 import 'response_segmenter.dart';
 
-/// The run whose work is being collected: the key its band is open under until
-/// a message speaks, and what decides when each of its responses ends.
+/// The turn whose work is being collected: the key its band is open under
+/// until a message speaks, which names its latest run, and what decides when
+/// each of its responses ends.
 ///
 /// The band is open under the message that has spoken in its response, as the
 /// segmenter names it, or under [unclaimed] while none has ([_openKey]). When a
 /// response ends its band stays where it is and the next one opens under
 /// [unclaimed], so nothing else needs to remember which band is open.
-typedef _OpenRun = ({String unclaimed, ResponseSegmenter segmenter});
+typedef _OpenTurn = ({String unclaimed, ResponseSegmenter segmenter});
 
 /// Manages execution trackers, keyed by the message that owns the work or —
-/// until one speaks — by the run doing it.
+/// until one speaks — by the turn's latest run.
 ///
 /// Handles the tracker lifecycle: creation on the first streaming event,
 /// handing a band to the message that speaks in its response as soon as it
@@ -37,8 +38,8 @@ class TrackerRegistry {
   final ReadonlySignal<List<ActivityRecord>> _activities;
   final Logger _logger;
 
-  /// The run being collected, or null between runs.
-  _OpenRun? _open;
+  /// The turn being collected, or null between turns.
+  _OpenTurn? _open;
 
   /// The registry reads the session's events and hands each to the open band
   /// itself, so recording an event and acting on it happen in one place, in a
@@ -47,10 +48,17 @@ class TrackerRegistry {
   /// response boundary always subscribes last.
   void Function()? _sessionUnsub;
 
+  final Set<String> _runs = {};
+
   Map<String, ExecutionTracker> get trackers => Map.unmodifiable(_trackers);
+
+  /// Every run that has started in this session's turn.
+  Set<String> get runs => Set.unmodifiable(_runs);
 
   /// Update tracker state based on the current streaming state.
   void onStreaming(StreamingState streaming, String runId) {
+    _runs.add(runId);
+    _continueTurn(runId);
     switch (streaming) {
       case TextStreaming(:final messageId, :final text, :final user):
         // A message speaks for the response it was emitted in. A response that
@@ -58,11 +66,11 @@ class TrackerRegistry {
         // give that call's `parentMessageId` something to refer to, and says
         // nothing — so its response's work passes to the reply that does.
         if (text.trim().isEmpty) return;
-        // A run whose first streaming state is a reply — no phase before it —
+        // A turn whose first streaming state is a reply — no phase before it —
         // still needs somewhere to put the work that follows. Read this run's
-        // key, not whatever the last one left behind, or its work would open a
-        // band belonging to a run that did not do it.
-        final open = _open ?? _openRun(runId);
+        // key, not whatever the last turn left behind, or its work would open
+        // a band belonging to a turn that did not do it.
+        final open = _open ?? _openTurn(runId);
         // Only an assistant reply hosts a band, in layout's
         // `_standsInForItsRun`, and only an assistant message speaks on reload
         // too. Letting a system reply host one means changing all three, and
@@ -72,15 +80,30 @@ class TrackerRegistry {
         _handOver(open, open.segmenter.speaks(messageId));
         _keyBySpeaker(open);
       case AwaitingText():
-        if (_open == null) _openRun(runId);
+        if (_open == null) _openTurn(runId);
     }
   }
 
-  _OpenRun _openRun(String runId) {
-    // Until a message speaks, the run owns the band. Keying it by run rather
-    // than by a slot shared across runs is what lets two runs that both go
-    // quiet each keep their own work, and it names the tile such a run will be
-    // given if it never speaks at all.
+  /// Keys the open turn's unclaimed work to [runId], the run streaming now. A
+  /// new run here resumes the turn after a client tool and is its latest run
+  /// so far: its key names the tile the turn's outcome is given if nothing in
+  /// the turn speaks. For the same run nothing changes. The response being
+  /// collected carries on. Any run arriving while a turn is open belongs to
+  /// it because a registry lives for one session, and a session is one turn.
+  void _continueTurn(String runId) {
+    final open = _open;
+    if (open == null) return;
+    final unclaimed = noResponseMessageId(runId);
+    final tracker = _trackers.remove(open.unclaimed);
+    if (tracker != null) _trackers[unclaimed] = tracker;
+    _open = (unclaimed: unclaimed, segmenter: open.segmenter);
+  }
+
+  _OpenTurn _openTurn(String runId) {
+    // Until a message speaks, the turn's latest run owns the band. Keying it
+    // by run rather than by a slot shared across turns is what lets two turns
+    // that both go quiet each keep their own work, and it names the tile such
+    // a turn's run will be given if it never speaks at all.
     final open = (
       unclaimed: noResponseMessageId(runId),
       segmenter: ResponseSegmenter(),
@@ -90,7 +113,7 @@ class TrackerRegistry {
     return open;
   }
 
-  void _openBand(_OpenRun open) {
+  void _openBand(_OpenTurn open) {
     _trackers[open.unclaimed] = ExecutionTracker(
       activities: _activities,
       logger: _logger,
@@ -105,7 +128,7 @@ class TrackerRegistry {
   /// to an execution event, and a tool result does not change the streaming
   /// state. A response that said nothing leaves its work where it is, so the
   /// next response to speak takes that too.
-  void _handOver(_OpenRun open, String? takes) {
+  void _handOver(_OpenTurn open, String? takes) {
     if (takes == null) return;
     _trackers[takes]?.freeze(StepStatus.completed);
     _openBand(open);
@@ -114,14 +137,14 @@ class TrackerRegistry {
   /// Hands the open band to the message that has spoken for it, the moment it
   /// speaks, so that layout places it on that message's tile rather than on
   /// whichever tile of the run happens to be last.
-  void _keyBySpeaker(_OpenRun open) {
+  void _keyBySpeaker(_OpenTurn open) {
     final owner = open.segmenter.owner;
     if (owner == null) return;
     final tracker = _trackers.remove(open.unclaimed);
     if (tracker != null) _trackers[owner] = tracker;
   }
 
-  String _openKey(_OpenRun open) => open.segmenter.owner ?? open.unclaimed;
+  String _openKey(_OpenTurn open) => open.segmenter.owner ?? open.unclaimed;
 
   /// Routes each execution event to the open band, then ends the response if
   /// that event ended it.

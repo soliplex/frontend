@@ -501,25 +501,26 @@ void main() {
         expect(message.createdAt!.isUtc, isTrue);
       });
 
-      test('TextMessageEndEvent uses runCreated when event has no timestamp',
-          () {
+      test(
+          'TextMessageEndEvent uses undatedEventTime when event has no '
+          'timestamp', () {
         const streamingState = app_streaming.TextStreaming(
           messageId: 'msg-1',
           user: _defaultUser,
           text: 'Hello world',
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
-        final runCreated = DateTime.utc(2026, 3, 3, 9);
+        final undatedEventTime = DateTime.utc(2026, 3, 3, 9);
 
         final result = processEvent(
           conversation,
           streamingState,
           event,
-          runCreated: runCreated,
+          undatedEventTime: undatedEventTime,
         );
 
         final message = result.conversation.messages.first;
-        expect(message.createdAt, runCreated);
+        expect(message.createdAt, undatedEventTime);
       });
 
       test('TextMessageEndEvent stamps the run that produced the message', () {
@@ -1783,11 +1784,10 @@ void main() {
       });
 
       // Non-Map and null `StateSnapshotEvent.snapshot` cause the cast
-      // inside `_processStateSnapshot` to throw — by design. The
-      // wrappers in `RunOrchestrator._onEvent` and
-      // `SoliplexApi._replayEventsToHistory` catch the throw and mint
-      // a drop tile at the failure position. Behavioral coverage lives
-      // there:
+      // inside `_processStateSnapshot` to throw — by design.
+      // `RunFold.apply`, which live and replay both fold through,
+      // catches the throw and mints a drop tile at the failure position.
+      // Behavioral coverage lives there:
       //   - run_orchestrator_test.dart "live drop tiles"
       //   - soliplex_api_test.dart "replay survives a STATE_SNAPSHOT
       //     with a non-Map snapshot"

@@ -39,6 +39,31 @@ void main() {
       // throw site.
       expect(failed.stackTrace, isNotNull);
     });
+
+    // The AG-UI schema allows an empty `message`, and the backend sends one
+    // for an error whose text is empty (`str(TimeoutError())`).
+    test('decodes a RUN_ERROR whose message is empty', () {
+      final raw = <String, dynamic>{
+        'type': 'RUN_ERROR',
+        'message': '',
+        'timestamp': 1767747600000,
+      };
+
+      final outcome = decodeMapSafely(raw);
+
+      expect(
+        outcome,
+        isA<DecodedEvent>()
+            .having((d) => d.rawJson, 'rawJson', same(raw))
+            .having(
+              (d) => d.event,
+              'event',
+              isA<RunErrorEvent>()
+                  .having((e) => e.message, 'message', '')
+                  .having((e) => e.timestamp, 'timestamp', 1767747600000),
+            ),
+      );
+    });
   });
 
   test('EventDecoder rejects unknown event types', () {

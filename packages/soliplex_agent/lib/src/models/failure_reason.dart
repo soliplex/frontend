@@ -14,8 +14,14 @@ enum FailureReason {
   /// permission for this resource. Re-authenticating won't help.
   permissionDenied,
 
-  /// Network lost — SSE stream ended without a terminal event.
+  /// A `NetworkException` that carries no underlying error and is not a
+  /// `StreamResumeFailedException`. One that carries an error is classified by
+  /// that error.
   networkLost,
+
+  /// The run's stream ended with no error and no terminal event. A stream that
+  /// fails with an error is classified by that error instead.
+  streamEndedEarly,
 
   /// SSE `Last-Event-ID` resume failed — either the retry budget was
   /// exhausted or a non-retryable error surfaced during a resume.

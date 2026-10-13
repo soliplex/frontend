@@ -2006,6 +2006,59 @@ void main() {
         );
       });
 
+      test('user message of a run with no RUN_STARTED resolves to run.created',
+          () async {
+        void stubGet(String path, Map<String, dynamic> response) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com/api/v1/$path'),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        stubGet('rooms/room-123/agui/thread-456', {
+          'room_id': 'room-123',
+          'thread_id': 'thread-456',
+          'runs': {
+            'run-1': {
+              'run_id': 'run-1',
+              'created': '2026-01-07T01:00:00.000Z',
+              'finished': '2026-01-07T01:01:00.000Z',
+            },
+          },
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-1', {
+          'run_id': 'run-1',
+          'run_input': {
+            'messages': [
+              {'id': 'user-1', 'role': 'user', 'content': 'Hi'},
+            ],
+          },
+          'events': [
+            {
+              'type': 'RUN_FINISHED',
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+            },
+          ],
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+        final userMessage =
+            history.messages.firstWhere((m) => m.id == 'user-1');
+
+        expect(
+          userMessage.createdAt!.isAtSameMomentAs(DateTime.utc(2026, 1, 7, 1)),
+          isTrue,
+        );
+      });
+
       test('fetches multiple runs in parallel and orders by creation time',
           () async {
         // Thread endpoint returns two completed runs
@@ -6914,11 +6967,37 @@ void main() {
         expect(history.messageStates['user-1']?.runId, equals('run-2'));
       });
 
-      // Streaming state is scoped to a run, so a run whose events were
-      // truncated before any terminal event cannot hand its half-streamed
-      // reply to the next run, where that run's terminal event would commit it
-      // under the wrong run and out of order.
-      test('a truncated run does not leak partial text into the next run',
+      // One id given to two different messages is two turns, not one resumed:
+      // the second must not take back the first run's outcome or its work.
+      test('a run whose user message reuses an id for other text is a new turn',
+          () async {
+        final history = await hydrate({
+          'run-1': {
+            ...userInput('user-1', 'first question'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-1'},
+            ],
+          },
+          'run-2': {
+            ...userInput('user-1', 'second question'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-2'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-2'},
+            ],
+          },
+        });
+
+        expect(history.runOutcomes.keys, ['run-1', 'run-2']);
+      });
+
+      // A run whose events were truncated before any terminal event keeps its
+      // half-streamed reply, as live keeps the reply it was showing when the
+      // stream ended. Streaming state is scoped to a run, so the reply is
+      // committed under that run, not handed to the next one, where that
+      // run's terminal event would commit it under the wrong run and out of
+      // order.
+      test('a truncated run keeps its partial reply under its own run',
           () async {
         final history = await hydrate({
           'run-1': {
@@ -6951,16 +7030,13 @@ void main() {
           },
         });
 
-        final texts =
-            history.messages.whereType<TextMessage>().map((m) => m.text);
-        expect(texts, contains('first'));
-        expect(texts, contains('second'));
-        // An assertion about attribution, not about retention: that a truncated
-        // run's buffered text is discarded outright is settled elsewhere.
+        final partial = history.messages
+            .whereType<TextMessage>()
+            .singleWhere((m) => m.text == 'half a rep');
+        expect(partial.runId, 'run-1');
         expect(
-          texts.where((t) => t.contains('half a rep')),
-          isEmpty,
-          reason: "run-1's partial reply must not be committed under run-2",
+          history.messages.map((m) => m.id),
+          containsAllInOrder(['user-1', 'a-1', 'user-2']),
         );
       });
     });
@@ -8382,6 +8458,134 @@ void main() {
           'tool call_0 Sunny',
           'assistant a3 []',
         ]);
+      });
+
+      // run-a waits on a client tool and run-c repeats its user message,
+      // answering a call of its own; [stubB] answers for the run between them.
+      // Whatever run-b is, run-c continues no turn but its own, so run-a keeps
+      // its outcome, and with it the tile that shows its work.
+      Future<ThreadHistory> replayedAroundRunB(void Function() stubB) {
+        stubThread({
+          'run-a': listed('run-a', '2026-01-07T01:00:00.000Z'),
+          'run-b': listed('run-b', '2026-01-07T01:01:00.000Z'),
+          'run-c': listed('run-c', '2026-01-07T01:02:00.000Z'),
+        });
+        stubRun(
+          'run-a',
+          runInput: {
+            'messages': [userMessage('u1', 'Where am I?')],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-a'}),
+            event('TOOL_CALL_START', {
+              'toolCallId': 'call-locate',
+              'toolCallName': 'locate',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'call-locate'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-a'}),
+          ],
+        );
+        stubB();
+        stubRun(
+          'run-c',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Where am I?'),
+              {
+                'id': 'tool_result_call-other',
+                'role': 'tool',
+                'toolCallId': 'call-other',
+                'content': 'Paris',
+              },
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-c'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-c'}),
+          ],
+        );
+        return api.getThreadHistory('room-123', 'thread-456');
+      }
+
+      // What the run after it continues is unknown.
+      test('a run after one that could not be fetched starts a new turn',
+          () async {
+        final history = await replayedAroundRunB(() {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-b',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenThrow(const NotFoundException(message: 'run-b is gone'));
+        });
+
+        expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
+        expect(
+          {for (final run in history.runs) run.runId: run.continuesTurn},
+          {'run-a': false, 'run-c': false},
+        );
+      });
+
+      test('a run after one with no user message starts a new turn', () async {
+        final history = await replayedAroundRunB(
+          () => stubRun(
+            'run-b',
+            runInput: {'messages': <Object?>[]},
+            events: [
+              event(
+                'RUN_STARTED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+              event(
+                'RUN_FINISHED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+            ],
+          ),
+        );
+
+        expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
+        expect(
+          history.runs.map((run) => run.continuesTurn),
+          everyElement(false),
+        );
+      });
+
+      // A repeat of an earlier turn's message does not resume the turn in
+      // between.
+      test('a run repeating an earlier turn after another starts a new turn',
+          () async {
+        final history = await replayedAroundRunB(
+          () => stubRun(
+            'run-b',
+            runInput: {
+              'messages': [userMessage('u2', 'And the weather?')],
+            },
+            events: [
+              event(
+                'RUN_STARTED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+              event(
+                'RUN_FINISHED',
+                {'threadId': 'thread-456', 'runId': 'run-b'},
+              ),
+            ],
+          ),
+        );
+
+        expect(history.runOutcomes.keys, ['run-a', 'run-b', 'run-c']);
+        expect(
+          history.runs.map((run) => run.continuesTurn),
+          everyElement(false),
+        );
       });
 
       test('skips a supplied tool message it cannot read, keeping the rest',

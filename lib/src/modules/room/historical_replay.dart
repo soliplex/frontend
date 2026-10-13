@@ -15,33 +15,35 @@ typedef ExecutionBridge = ExecutionEvent? Function(BaseEvent event);
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.historical_replay');
 
-/// Replays stored AG-UI event bundles into frozen [ExecutionTracker]s, keyed
-/// by the message that owns the work or — until one speaks — by the run doing
-/// it, which is how the live registry keys them too.
+/// Replays [history]'s stored AG-UI event bundles into frozen
+/// [ExecutionTracker]s, keyed by the message that owns the work or — until one
+/// speaks — by the run doing it, which is how the live registry keys them too.
 ///
 /// Work buckets by model response, as [ResponseSegmenter] decides it: a
 /// response ends when the one after a tool result starts. Everything collects
-/// under
-/// [noResponseMessageId] for the run — which names the tile that run is given
-/// if nothing speaks for its work — and the first message to speak in a
-/// response takes that response's bucket when the response ends. A response
-/// that says nothing leaves its work where it is, so the next one to speak
-/// takes that too.
+/// under [noResponseMessageId] for the run that ends the turn — which names
+/// the tile that run is given if nothing speaks for its work — and the first
+/// message to speak in a response takes that response's bucket when the
+/// response ends. A response that says nothing leaves its work where it is,
+/// so the next one to speak takes that too.
 ///
-/// A message that never says anything takes no bucket. A response that begins
-/// with a tool call mints one purely to give that call a parent, and the
-/// timeline does not show it, so work left there would render nowhere. A
-/// message whose `TEXT_MESSAGE_END` is not stored takes none either: the
-/// history replay commits a reply only at its end, so a band keyed to it would
-/// name a tile that is never shown.
+/// Only an assistant reply in [history]'s messages that says something takes
+/// a bucket: the history replay decides which replies exist, and a band keyed
+/// to one it did not commit would render nowhere. A response that begins with
+/// a tool call mints a message with no text, purely to give that call a
+/// parent, so it takes none.
 ///
 /// The move is a move, never a copy: no run offers both its own key and a
 /// message key for the same work, which is the one input the timeline cannot
 /// place — both resolve to the same tile and one would have to be dropped.
 ///
-/// Nothing is carried between runs. A run that worked and never spoke keeps
+/// Nothing is carried between turns. A turn that worked and never spoke keeps
 /// its work under its own key rather than handing it to whatever answers
-/// next, which would file one turn's steps above another turn's reply.
+/// next, which would file one turn's steps above another turn's reply. A run
+/// that continues a turn ([RunEventBundle.continuesTurn]) is the same turn:
+/// the response being collected carries on into it, and the turn's unclaimed
+/// work moves to its key, because it is the run whose outcome is shown. Live
+/// does the same across a wait on a client tool.
 ///
 /// A throw from [bridge] is logged at error and the offending event
 /// skipped so surrounding events in the same bundle still bucket
@@ -50,9 +52,13 @@ final Logger _logger =
 /// projection would surface the same backend event as two tiles.
 /// [bridge] defaults to [bridgeBaseEvent] and is overridable for tests.
 Map<String, ExecutionTracker> replayToTrackers(
-  List<RunEventBundle> runs, {
+  ThreadHistory history, {
   @visibleForTesting ExecutionBridge bridge = bridgeBaseEvent,
 }) {
+  final speaking = {
+    for (final message in history.messages)
+      if (message is TextMessage && message.text.trim().isNotEmpty) message.id,
+  };
   final buckets = <String, List<TimedExecutionEvent>>{};
   // Parallel to `buckets`: the raw AG-UI events destined for each
   // tracker, retained so we can fold them through `applyActivityEvent`
@@ -74,43 +80,51 @@ Map<String, ExecutionTracker> replayToTrackers(
     }
   }
 
-  // The key each run was filling when its events ran out. Every other bucket
-  // closed because the run moved on to another reply, which means its work
-  // finished; only these were left open by the run ending.
+  // The key each turn was filling when its last run's events ran out. Every
+  // other bucket closed because the turn moved on to another reply, which
+  // means its work finished; only these were left open by the turn ending.
   final endedOn = <String>{};
 
-  for (final bundle in runs) {
-    // A message only takes the work once it has said something, and only if
-    // it is shown — which on reload means its end was stored. Live, both are
-    // known as they happen; here the whole run is in hand, so the messages that
-    // speak can be read off it first.
-    final ended = {
-      for (final raw in bundle.events)
-        if (raw is TextMessageEndEvent) raw.messageId,
-    };
-    final spoke = <String>{
-      for (final raw in bundle.events)
-        if (raw is TextMessageContentEvent &&
-            raw.delta.trim().isNotEmpty &&
-            ended.contains(raw.messageId))
-          raw.messageId,
-    };
+  // The run whose work is being collected: the key its work collects under
+  // until a message speaks, and what decides when each of its responses ends.
+  // A run that continues the turn of the one before it keeps collecting into
+  // it, as live keeps one band open across a wait on a client tool.
+  ({String unclaimed, ResponseSegmenter segmenter})? open;
 
-    // Everything collects under the key that names the tile this run is given
-    // if it never speaks, and moves to whichever message speaks for it.
+  void handOver(String unclaimed, String? takes) {
+    // A response that said nothing leaves its work where it is, so the next
+    // response to speak takes that too. This is what merges a declaration's
+    // round into the reply it was opened for.
+    if (takes == null) return;
+    final events = buckets.remove(unclaimed);
+    final rawEvents = rawBuckets.remove(unclaimed);
+    if (events != null) buckets[takes] = events;
+    if (rawEvents != null) rawBuckets[takes] = rawEvents;
+  }
+
+  // The turn ended, so the response being filled ends with it and whoever
+  // spoke in it takes the work. Whatever it was filling is the bucket no
+  // terminal event accounted for.
+  void endTurn() {
+    final ending = open;
+    if (ending == null) return;
+    open = null;
+    final takes = ending.segmenter.ends();
+    endedOn.add(takes ?? ending.unclaimed);
+    handOver(ending.unclaimed, takes);
+  }
+
+  for (final bundle in history.runs) {
+    if (!bundle.continuesTurn) endTurn();
+    // Everything collects under the key that names the tile the turn's latest
+    // run is given if nothing speaks, and moves to whichever message speaks
+    // for it. A run that continues the turn is its latest run so far, so the
+    // turn's unclaimed work moves to its key, and the response carries on.
     final unclaimed = noResponseMessageId(bundle.runId);
-    final segmenter = ResponseSegmenter();
-
-    void handOver(String? takes) {
-      // A response that said nothing leaves its work where it is, so the next
-      // response to speak takes that too. This is what merges a declaration's
-      // round into the reply it was opened for.
-      if (takes == null) return;
-      final events = buckets.remove(unclaimed);
-      final rawEvents = rawBuckets.remove(unclaimed);
-      if (events != null) buckets[takes] = events;
-      if (rawEvents != null) rawBuckets[takes] = rawEvents;
-    }
+    final continued = open;
+    if (continued != null) handOver(continued.unclaimed, unclaimed);
+    final segmenter = continued?.segmenter ?? ResponseSegmenter();
+    open = (unclaimed: unclaimed, segmenter: segmenter);
 
     for (final raw in bundle.events) {
       final execEvent = bridgeOrLog(raw);
@@ -118,10 +132,12 @@ Map<String, ExecutionTracker> replayToTrackers(
       // execution event that opens a response.
       if (raw is TextMessageStartEvent &&
           raw.role == TextMessageRole.assistant &&
-          spoke.contains(raw.messageId)) {
-        handOver(segmenter.speaks(raw.messageId));
+          speaking.contains(raw.messageId)) {
+        handOver(unclaimed, segmenter.speaks(raw.messageId));
       }
-      if (execEvent != null) handOver(segmenter.arrives(execEvent));
+      if (execEvent != null) {
+        handOver(unclaimed, segmenter.arrives(execEvent));
+      }
 
       rawBuckets.putIfAbsent(unclaimed, () => []).add(raw);
       if (execEvent != null) {
@@ -130,13 +146,8 @@ Map<String, ExecutionTracker> replayToTrackers(
             .add((event: execEvent, timestamp: raw.timestamp));
       }
     }
-    // The run ended, so the response being filled ends with it and whoever
-    // spoke in it takes the work. Whatever it was filling is the bucket no
-    // terminal event accounted for.
-    final takes = segmenter.ends();
-    endedOn.add(takes ?? unclaimed);
-    handOver(takes);
   }
+  endTurn();
 
   return {
     for (final entry in buckets.entries)

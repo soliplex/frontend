@@ -214,6 +214,29 @@ void main() {
       expect(dropped, isEmpty);
     });
 
+    /// The run's failure is reported once, by its own outcome tile, right
+    /// after [reply], which keeps the run's band.
+    void expectReportedOnceBeside(
+      List<RenderedTile> tiles,
+      RenderedTile reply,
+    ) {
+      final failures = [
+        for (final tile in tiles)
+          if (tile.message case NoResponseTile(reason: TerminalReason.failed))
+            tile,
+      ];
+      expect(failures, hasLength(1), reason: 'one failure, one row');
+      final notice = failures.single;
+      expect(
+        tiles.indexOf(notice),
+        equals(tiles.indexOf(reply) + 1),
+        reason: 'the failure is reported beside the reply that survived',
+      );
+      expect(notice.message.runId, equals(_runId));
+      expect(notice.besideReply, isTrue);
+      expect(reply.band, isNotNull, reason: "the reply hosts the run's work");
+    }
+
     test('a failure after the reply committed keeps it and reports once',
         () async {
       // The other error timing. A rule that decided from the streaming state
@@ -231,16 +254,7 @@ void main() {
       final tiles = render();
       final reply = tiles.firstWhere((t) => t.message.id == 'm1');
       expect((reply.message as TextMessage).text, equals('Here.'));
-      expect(
-        idsOf(tiles),
-        isNot(contains(noResponseMessageId(_runId))),
-        reason: 'the reply stands for the run; it did answer',
-      );
-      expect(
-        idsOf(tiles).where((id) => id.startsWith('run-error')),
-        hasLength(1),
-        reason: 'one failure, one row, beside the reply that survived',
-      );
+      expectReportedOnceBeside(tiles, reply);
       expect(dropped, isEmpty);
     });
 
@@ -257,11 +271,7 @@ void main() {
       final tiles = render();
       final reply = tiles.firstWhere((t) => t.message.id == 'm1');
       expect((reply.message as TextMessage).text, equals('Half an ans'));
-      expect(
-        idsOf(tiles).where((id) => id.startsWith('run-error')),
-        hasLength(1),
-        reason: 'one failure, one row',
-      );
+      expectReportedOnceBeside(tiles, reply);
       expect(dropped, isEmpty);
     });
   });

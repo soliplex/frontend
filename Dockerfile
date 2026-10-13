@@ -11,12 +11,27 @@
 #
 #    $ docker run --rm -p 9000:9000 soliplex-frontend:latest
 #
+# To cache-bust the web assets (see scripts/post-build-cache-bust.sh), pass a
+# release tag or commit SHA when building:
+#
+#    $ docker build . -t soliplex-frontend:latest \
+#        --build-arg RELEASE_HASH=$(git rev-parse --short HEAD)
+#
+# To build only the web tree, as an image for other images to 'COPY --from='
+# (what .github/workflows/image.yaml publishes on each release):
+#
+#    $ docker build . --target web -t soliplex-frontend-web:latest \
+#        --build-arg RELEASE_HASH=$(git rev-parse --short HEAD)
+#
 ###############################################################################
 
 ###############################################################################
 # Build stage
 ###############################################################################
-FROM ubuntu:focal AS builder
+# The web build is platform-independent static files, so build it on the
+# builder's own platform: a multi-platform build then runs Flutter once, not
+# under emulation for each target.
+FROM --platform=$BUILDPLATFORM ubuntu:focal AS builder
 
 #------------------------------------------------------------------------------
 # Install system utilities / prereqs.
@@ -53,15 +68,42 @@ RUN export FLUTTER=flutter_linux_$(jq -r '.flutter' /tmp/.fvmrc)-stable.tar.xz &
 COPY . /app
 
 #------------------------------------------------------------------------------
-# Build flutter web app
+# Build flutter web app. '--no-web-resources-cdn' bundles CanvasKit rather
+# than loading it from Google's CDN. Text fonts still come from Google Fonts
+# (the engine's 'fontFallbackBaseUrl'): the build bundles only MaterialIcons.
 #------------------------------------------------------------------------------
+ARG FLUTTER_BUILD_ARGS="--release --no-tree-shake-icons --no-web-resources-cdn"
+
 RUN cd /app && \
     export FLUTTER=/opt/flutter/bin/flutter && \
     git config --global --add safe.directory /opt/flutter && \
     $FLUTTER --disable-analytics && \
     $FLUTTER clean && \
     $FLUTTER pub get && \
-    $FLUTTER build web --release --no-tree-shake-icons
+    $FLUTTER build web $FLUTTER_BUILD_ARGS
+
+#------------------------------------------------------------------------------
+# Optionally cache-bust the web assets. The hash has to come in as a build arg:
+# .dockerignore excludes .git, so the build cannot derive it. Declared after
+# the build so a new hash reruns only this step.
+#------------------------------------------------------------------------------
+ARG RELEASE_HASH=""
+
+RUN if [ -n "$RELEASE_HASH" ]; then \
+      /app/scripts/post-build-cache-bust.sh /app/build/web; \
+    fi
+
+###############################################################################
+# Web stage — only the built web tree, at /build/web
+###############################################################################
+# Published as ghcr.io/soliplex/frontend-web, for images that serve the client
+# with their own web server:
+#
+#    COPY --from=ghcr.io/soliplex/frontend-web:<version> /build/web <dest>
+#
+FROM scratch AS web
+
+COPY --from=builder /app/build/web /build/web
 
 ###############################################################################
 # Dev stage — flutter web dev server with hot reload

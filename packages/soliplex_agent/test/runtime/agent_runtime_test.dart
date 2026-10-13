@@ -450,7 +450,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       await controller.close();
-      // After stream closes, session might complete via networkLost
+      // The stream closes without a terminal event, so the session completes.
       await session.result;
     });
 

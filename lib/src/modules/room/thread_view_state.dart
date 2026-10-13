@@ -435,7 +435,14 @@ class ThreadViewState {
 
   void _onRunState(RunState runState) {
     switch (runState) {
-      case RunningState(:final conversation, :final streaming, :final runId):
+      // The turn is as active while it waits on a client tool as while it
+      // streams, and a view restored during the wait sees only the wait.
+      case RunningState(:final conversation, :final streaming, :final runId) ||
+            ToolYieldingState(
+              :final conversation,
+              :final streaming,
+              :final runId,
+            ):
         final current = _messages.value;
         if (current is! MessagesLoaded ||
             !identical(current.messages, conversation.messages)) {
@@ -486,7 +493,6 @@ class ThreadViewState {
         }
         contextUsage.sendEnded(conversation?.transcript);
       case IdleState():
-      case ToolYieldingState():
         break;
     }
   }
@@ -537,10 +543,15 @@ class ThreadViewState {
 
   /// Translates orchestrator failure copy into user-facing copy.
   ///
-  /// `streamResumeFailed` failures get a friendly base message; other
-  /// failures pass through unchanged.
+  /// `streamResumeFailed` failures get a friendly base message, and a failure
+  /// with blank text says it gave none rather than showing a blank banner;
+  /// other failures pass through unchanged.
   String _friendlyMessage(FailureReason reason, String error) {
-    if (reason != FailureReason.streamResumeFailed) return error;
+    if (reason != FailureReason.streamResumeFailed) {
+      return error.trim().isEmpty
+          ? 'The run failed without giving a reason.'
+          : error;
+    }
     return 'Connection lost. The response may be incomplete — '
         'you can send your message again.';
   }
@@ -595,44 +606,93 @@ class ThreadViewState {
       // holds only fills the runs it has not: the ones the backend has yet to
       // finish. A run the user stopped or whose stream dropped is still
       // completed and stored by the backend, so what the view saw of it is
-      // replaced by how it actually ended. Every run whose events were read
-      // records an outcome, and a run that could not be fetched records none.
-      final read = history.runOutcomes.keys.toSet();
-      final (heldMessages, heldOutcomes) = switch (_messages.value) {
-        MessagesLoaded(:final messages, :final runOutcomes) => (
+      // replaced by how it actually ended. History carries a bundle for every
+      // run whose events it read — a run a client tool's continuation resumed
+      // included, though it keeps no outcome of its own — and none for a run
+      // it could not fetch.
+      //
+      // History has read a turn only once it has read the turn's latest run:
+      // it can hold the run that waited on a client tool without the one
+      // that resumed it, and read alone that run ends the turn, with its call
+      // pending. The view knows a turn's latest run from the session still
+      // running it, or from the turn's state once it ended. For a turn history
+      // has not read, the view's copy stands: history's copy of every run of
+      // a turn a session is still running is set aside, and of a turn that
+      // ended, the run it read last; it read the earlier ones resumed. A band
+      // a message claimed is keyed by that message on both paths, so only the
+      // one no message claimed is set aside with its run.
+      final stored = {for (final run in history.runs) run.runId};
+      final (heldMessages, heldStates, heldOutcomes) =
+          switch (_messages.value) {
+        MessagesLoaded(
+          :final messages,
+          :final messageStates,
+          :final runOutcomes
+        ) =>
+          (
             messages,
+            messageStates,
             runOutcomes,
           ),
-        _ => (const <ChatMessage>[], const <String, NoResponseTile>{}),
+        _ => (
+            const <ChatMessage>[],
+            const <String, MessageState>{},
+            const <String, NoResponseTile>{},
+          ),
       };
+      final setAside = {
+        ...?_activeSession.value
+            ?.getExtension<ExecutionTrackerExtension>()
+            ?.runs,
+        for (final MapEntry(key: userMessageId, value: held)
+            in heldStates.entries)
+          if (held.runId case final latest? when !stored.contains(latest))
+            if (history.messageStates[userMessageId]?.runId
+                case final readLast?)
+              readLast,
+      };
+      final read = stored.difference(setAside);
       final runOfHeldMessage = {
         for (final message in heldMessages)
           if (message.runId case final runId?) message.id: runId,
       };
-      final keysOfReadRuns = {
-        for (final runId in read) noResponseMessageId(runId)
+      final keysOfStoredRuns = {
+        for (final runId in stored) noResponseMessageId(runId)
       };
       _historicalTrackers
         ..removeWhere(
           (key, _) =>
-              keysOfReadRuns.contains(key) ||
-              read.contains(runOfHeldMessage[key]),
+              keysOfStoredRuns.contains(key) ||
+              stored.contains(runOfHeldMessage[key]),
         )
-        ..addAll(replayToTrackers(history.runs));
+        ..addAll({
+          for (final MapEntry(:key, :value)
+              in replayToTrackers(history).entries)
+            if (!setAside.any((runId) => key == noResponseMessageId(runId)))
+              key: value,
+        });
       _messages.value = MessagesLoaded(
         // The view's own messages keep a run history has not read, and a turn
         // whose run has not started yet. Both are later than anything history
         // holds, so they follow it.
         messages: [
-          ...history.messages,
+          for (final message in history.messages)
+            if (!setAside.contains(message.runId)) message,
           for (final message in heldMessages)
             if (!read.contains(message.runId)) message,
         ],
-        messageStates: history.messageStates,
+        messageStates: {
+          ...history.messageStates,
+          for (final MapEntry(:key, :value) in heldStates.entries)
+            if (value.runId case final runId? when !read.contains(runId))
+              key: value,
+        },
         // In the order the runs ended: the history's first, then the view's
         // own, which ended after every run the backend has finished.
         runOutcomes: {
-          ...history.runOutcomes,
+          for (final MapEntry(key: runId, value: outcome)
+              in history.runOutcomes.entries)
+            if (!setAside.contains(runId)) runId: outcome,
           for (final MapEntry(key: runId, value: outcome)
               in heldOutcomes.entries)
             if (!read.contains(runId)) runId: outcome,

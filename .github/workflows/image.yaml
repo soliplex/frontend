@@ -1,0 +1,148 @@
+name: Publish web image
+
+# Publishes the built web client as ghcr.io/soliplex/frontend-web: an image
+# holding only the cache-busted 'build/web' tree (the Dockerfile's 'web'
+# target), for images that serve the client with their own web server:
+#
+#   COPY --from=ghcr.io/soliplex/frontend-web:<version> /build/web <dest>
+#
+# Release tags like 'v0.109.0+95' are not valid OCI tags ('+'), so each
+# release is tagged as:
+#
+#   0.109.0      (fixed)
+#   0.109.0-95   (fixed; the full release, build number included)
+#   0.109        (moves to the newest release of that minor version)
+#   latest       (moves to the newest release)
+#
+# The full release tag is kept in the 'org.opencontainers.image.version'
+# label.  A manual run rebuilds and republishes an existing release tag; it
+# moves the floating tags ('0.109', 'latest') only when asked to, so
+# republishing an old release cannot pull them backwards.
+#
+# The package must be public for downstream pulls to need no credentials.
+# GITHUB_TOKEN cannot change package visibility, so an org admin sets it once
+# after the first publish.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)publish, e.g. v0.109.0+95"
+        required: true
+        type: string
+      floating:
+        description: "Also move the minor-version tag and 'latest'"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/frontend-web
+  SLACK_NOTIFY_URL: ${{ secrets.SLACK_NOTIFY_URL }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # Pass the tag through the environment, not by interpolating it into
+      # the script: a dispatch input is free text.
+      - name: Compute image tags
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          # A published release moves the floating tags unless it is a
+          # prerelease; a manual run only when 'floating' is set.
+          FLOATING: ${{ github.event_name == 'release' && !github.event.release.prerelease || github.event_name == 'workflow_dispatch' && inputs.floating }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(\+([0-9]+))?$ ]]; then
+            echo "::error::Release tag '$RELEASE_TAG' is not of the form v<major>.<minor>.<patch>[+<build>]"
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          build="${BASH_REMATCH[5]}"
+          {
+            echo "release_tag=$RELEASE_TAG"
+            echo "version=$major.$minor.$patch"
+            echo "minor=$major.$minor"
+            echo "build=$build"
+            echo "floating=$FLOATING"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.version.outputs.release_tag }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: |
+            latest=${{ steps.version.outputs.floating }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.version }}-${{ steps.version.outputs.build }},enable=${{ steps.version.outputs.build != '' }}
+            type=raw,value=${{ steps.version.outputs.minor }},enable=${{ steps.version.outputs.floating }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.release_tag }}
+            org.opencontainers.image.title=soliplex-frontend-web
+            org.opencontainers.image.description=Built Soliplex web client (build/web), for COPY --from=
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The builder stage runs on the runner's own platform, so publishing
+      # both platforms builds Flutter once.  Both are needed: 'COPY --from='
+      # on an arm64 host fails if the image only has an amd64 manifest.
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: web
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            RELEASE_HASH=${{ steps.version.outputs.release_tag }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_NOTIFY_URL != ''
+        uses: slackapi/slack-github-action@v3.0.3
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          webhook: ${{ env.SLACK_NOTIFY_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "channel": "#soliplex",
+              "username": "flutter-ci",
+              "text": ${{ toJSON(format(':x: Publishing the web image failed for {0}:{1}{2}', env.RELEASE_TAG, fromJSON('"\n"'), env.RUN_URL)) }},
+              "icon_emoji": ":flutter:"
+            }
