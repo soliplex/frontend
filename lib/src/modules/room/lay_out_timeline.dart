@@ -283,7 +283,10 @@ int _lastBandCapableIn(
   /// ended before it. A run that is missing for any other reason says nothing
   /// about when it ended, and reading it as the latest would hoist a later
   /// run's outcome above a turn that came first — so that case settles
-  /// nothing here and leaves the sweep to place what is owed.
+  /// nothing here and leaves the sweep to place what is owed. A run a client
+  /// tool's continuation resumed is one such run, so what ended before its
+  /// turn settles no earlier than the continuation's first message, below
+  /// the executed tool.
   void settleRunsEndingBefore(String runId) {
     final limit = endedIn.indexOf(runId);
     if (limit < 0) {

@@ -260,13 +260,17 @@ ThreadHistory replayThreadHistory(
       }
     }
 
-    runs.add(
-      RunEventBundle(
-        runId: runId,
-        events: decodedEvents,
-        continuesTurn: continuesTurn,
-      ),
-    );
+    // One bundle per run whose events were read, which is how a reader of the
+    // history tells the runs it read from the ones it could not fetch.
+    if (fetchError == null) {
+      runs.add(
+        RunEventBundle(
+          runId: runId,
+          events: decodedEvents,
+          continuesTurn: continuesTurn,
+        ),
+      );
+    }
 
     // Every run's end state, not only the thread's final one: each turn's
     // sources resolve against the state its own run ended with (above),

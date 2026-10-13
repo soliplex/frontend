@@ -4,9 +4,10 @@ import 'package:meta/meta.dart';
 
 /// One element of a user message's ordered content.
 ///
-/// Carried by [TextMessage.parts] on a user message built from an ordered
-/// payload. One list serves both the optimistic echo and the AG-UI wire
-/// mapping, so what the sender sees and what the model receives cannot drift.
+/// Carried by [TextMessage.parts] on a user message whose ordered payload
+/// carries an attachment. One list serves both the optimistic echo and the
+/// AG-UI wire mapping, so what the sender sees and what the model receives
+/// cannot drift.
 @immutable
 sealed class MessagePart {
   /// Creates a message part.
@@ -664,12 +665,12 @@ enum DropSource {
 /// a tile in the timeline so the user sees something happened and devs can
 /// inspect the raw payload.
 ///
-/// Synthesized at two content-bearing boundaries: the decode boundary
-/// (`decodeMapSafely` returns `DecodeFailed`) and `RunFold.apply`, which
-/// both the live and the replay path fold events through (`processEvent`
-/// threw). Citation extraction, historical replay
-/// bridging, and tracker projection log only without minting a tile —
-/// failures there don't lose user-facing content. Never sent: a run sends
+/// Minted by `RunFold.apply`, which both the live and the replay path fold
+/// events through, for an event `decodeMapSafely` could not decode or
+/// `processEvent` threw on, and by replay for a run that could not be
+/// fetched. Citation extraction, historical replay bridging, and tracker
+/// projection log only without minting a tile — failures there don't lose
+/// user-facing content. Never sent: a run sends
 /// `Conversation.transcript`, which holds no display tiles.
 @immutable
 class DroppedEventMessage extends ChatMessage {
@@ -684,8 +685,11 @@ class DroppedEventMessage extends ChatMessage {
   }) : super(user: ChatUser.system);
 
   /// Creates a dropped-event message with the given id. [createdAt] is the
-  /// run's `created` on replay, or null for a live drop (no authoritative
-  /// time yet); the model never substitutes a client `now()`.
+  /// run's `RunFold.undatedRowTime` — the latest event that carried a time,
+  /// the dropped one included when it could be decoded, or on replay the
+  /// run's `created` before any did — or
+  /// the run's `created` for a run that could not be fetched; the model never
+  /// substitutes a client `now()`.
   factory DroppedEventMessage.create({
     required String id,
     required DropSource source,

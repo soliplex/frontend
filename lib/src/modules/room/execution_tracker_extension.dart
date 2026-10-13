@@ -39,6 +39,9 @@ class ExecutionTrackerExtension extends SessionExtension
   /// Current tracker map (historical + live for this session).
   Map<String, ExecutionTracker> get trackers => _registry?.trackers ?? const {};
 
+  /// Every run of the session's turn that has started.
+  Set<String> get runs => _registry?.runs ?? const {};
+
   @override
   Future<void> onAttach(AgentSession session) async {
     _registry = TrackerRegistry(

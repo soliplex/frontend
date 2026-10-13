@@ -132,7 +132,8 @@ class RunOrchestrator {
   /// Runs a complete agent interaction including all tool yield/resume cycles.
   ///
   /// State emissions continue on [stateChanges] for UI observers.
-  /// Returns the terminal [RunState] (Completed, Failed, or Cancelled).
+  /// Returns the terminal [RunState] (Completed, Failed, or Cancelled), or
+  /// [IdleState] when a reset ended the run while it waited on a client tool.
   ///
   /// While active, [startRun] and [submitToolOutputs] throw [StateError].
   Future<RunState> runToCompletion({
@@ -423,8 +424,8 @@ class RunOrchestrator {
   /// Drives the tool yield/resume loop for [runToCompletion].
   ///
   /// Every operation inside the loop is wrapped in try/catch that returns
-  /// a terminal [RunState], so a thrown exception cannot leave the
-  /// orchestrator in a non-terminal state with the future still hanging.
+  /// the state the run ended in — terminal, or idle after a reset — so a
+  /// thrown exception cannot leave the future hanging.
   Future<RunState> _driveToolLoop(
     ThreadKey key,
     ToolExecutorCallback toolExecutor,
@@ -462,8 +463,8 @@ class RunOrchestrator {
   /// Whether a stop or a reset ended the client-tool wait during one of
   /// [_driveToolLoop]'s awaits. The loop then returns the state the wait ended
   /// in and touches nothing: what the tools returned or threw, and a resume
-  /// failing as the stop cancelled it, belong to a wait that is over, and the
-  /// stop has already recorded how it ended.
+  /// failing as the stop cancelled it, belong to a wait that is over: a stop
+  /// has already recorded how it ended, and a reset discarded the run.
   bool get _waitEnded => _currentState is! ToolYieldingState;
 
   /// Resumes the SSE stream after tool execution.
@@ -600,10 +601,10 @@ class RunOrchestrator {
   /// The waiting run's conversation with a record that it ended in failure.
   ///
   /// A run waiting on a client tool withdrew its completion candidate on the
-  /// way in, because it was not over. Every exit from that wait ends it for
-  /// real, and has to say so — a run that ended recording nothing has no tile
-  /// to render the work the user watched it do, and reads to the thread as a
-  /// run still in flight.
+  /// way in, because it was not over. Every exit from that wait but a resume
+  /// or a reset ends it for real, and has to say so — a run that ended
+  /// recording nothing has no tile to render the work the user watched it do,
+  /// and reads to the thread as a run still in flight.
   Conversation _recordYieldEndedAsFailed(String detail) =>
       (_fold = _fold!.failed(detail, terminalEvent: 'toolYieldEnded'))
           .conversation;
