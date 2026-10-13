@@ -105,6 +105,7 @@ void main() {
 
     test('constructs with runs', () {
       final bundle = RunEventBundle(
+        continuesTurn: false,
         runId: 'run-1',
         events: const [
           TextMessageStartEvent(messageId: 'm1'),
@@ -121,11 +122,17 @@ void main() {
 
     test('is immutable - runs list cannot be modified externally', () {
       final runs = <RunEventBundle>[
-        RunEventBundle(runId: 'run-1', events: const []),
+        RunEventBundle(continuesTurn: false, runId: 'run-1', events: const []),
       ];
       final history = ThreadHistory(messages: const [], runs: runs);
 
-      runs.add(RunEventBundle(runId: 'run-2', events: const []));
+      runs.add(
+        RunEventBundle(
+          continuesTurn: false,
+          runId: 'run-2',
+          events: const [],
+        ),
+      );
 
       expect(history.runs, hasLength(1));
     });
@@ -159,7 +166,8 @@ void main() {
       final events = <BaseEvent>[
         const TextMessageStartEvent(messageId: 'm1'),
       ];
-      final bundle = RunEventBundle(runId: 'run-1', events: events);
+      final bundle =
+          RunEventBundle(continuesTurn: false, runId: 'run-1', events: events);
 
       events.add(const TextMessageEndEvent(messageId: 'm1'));
 

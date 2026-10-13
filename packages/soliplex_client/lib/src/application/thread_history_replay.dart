@@ -76,11 +76,6 @@ ThreadHistory replayThreadHistory(
   RunUsage? latestUsage,
 ) {
   var conversation = Conversation.empty(threadId: threadId);
-  // Citations accumulated per turn (keyed by the run's last user message id),
-  // unioned across every run of the turn — mirroring the live path. Carries
-  // cited ids and inline figures so an earlier invocation's figure survives a
-  // later invocation's `searches` clear.
-  final turnsByUserMessage = <String, TurnCitations>{};
   final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
   final runs = <RunEventBundle>[];
   // Text of the user messages already appended, keyed by id, so a
@@ -94,10 +89,14 @@ ThreadHistory replayThreadHistory(
   // two different messages. Both drop the second message; only the first is
   // harmless, and without the text they are indistinguishable.
   final appendedUserText = <String, String>{};
-  // The last run of each turn so far, keyed as [turnsByUserMessage] is, and
-  // the time its last event carried: a run that continues the turn was
-  // resumed from it.
-  final lastRunOfTurn = <String, ({String runId, DateTime? endedAt})>{};
+  // The run replayed just before, with the user message that opened its turn.
+  // A run continues that turn only when it repeats that message: it was
+  // resumed from the run before it, whose citations, accumulated across every
+  // run of the turn, carry on. They carry cited ids and inline figures so an
+  // earlier invocation's figure survives a later invocation's `searches`
+  // clear, mirroring the live path. A run that could not be fetched, or had no
+  // user message, leaves none, so the run after it starts a turn of its own.
+  ({String userMessageId, RunFold fold})? previousRun;
   // Where the measured run ended in the transcript, once replay reaches it.
   int? coveredByLatest;
 
@@ -105,6 +104,8 @@ ThreadHistory replayThreadHistory(
       in runsToReplay) {
     final events = payload.events;
     final userMessage = payload.userMessage;
+    final previous = previousRun;
+    previousRun = null;
     var continuesTurn = false;
     // Run-level fetch failure (transient HTTP error or pre-fetch
     // shape-drift on the run entry) → mint one drop tile in place so
@@ -151,10 +152,10 @@ ThreadHistory replayThreadHistory(
           _hydratedUserMessage(userMessage, threadId, runId),
         );
       } else if (appended == userMessage.text) {
-        continuesTurn = true;
+        continuesTurn = previous?.userMessageId == userMessage.messageId;
         _logger.info(
-          'replay: run $runId in thread $threadId continues the turn of '
-          'message ${userMessage.messageId}; not appending it twice.',
+          'replay: run $runId in thread $threadId repeats message '
+          '${userMessage.messageId}; not appending it twice.',
         );
       } else {
         // Same id, different message: one of the two turns is missing from
@@ -177,7 +178,7 @@ ThreadHistory replayThreadHistory(
     //
     // A run that could not be fetched has no events, and nothing is known of
     // how it ended; its drop tile says so, and an open run would have the
-    // end-of-events rule below record that it finished.
+    // end-of-events rule below record how it ended.
     if (fetchError == null) {
       // The results this run's input supplied come before its events, as
       // they did when it was sent.
@@ -185,7 +186,7 @@ ThreadHistory replayThreadHistory(
         transcript: payload.toolResults
             .fold<Transcript>(conversation.transcript, appendToolResult),
       );
-      final resumedFrom = continuesTurn ? lastRunOfTurn[userMessageId] : null;
+      final resumedFrom = continuesTurn ? previous?.fold : null;
       if (resumedFrom != null) {
         conversation = _resumed(conversation, resumedFrom, payload.toolResults);
       }
@@ -194,10 +195,8 @@ ThreadHistory replayThreadHistory(
         conversation,
         runId: runId,
         userMessageId: userMessageId,
-        turnCitations: (userMessageId == null
-                ? null
-                : turnsByUserMessage[userMessageId]) ??
-            const TurnCitations.empty(),
+        turnCitations:
+            resumedFrom?.turnCitations ?? const TurnCitations.empty(),
         runCreated: created,
       );
       for (final eventJson in events) {
@@ -221,8 +220,8 @@ ThreadHistory replayThreadHistory(
       // Recorded as a failure, as live records the same interrupted stream:
       // nothing says the run completed, and when events went unread, nothing
       // says what it answered either. The reply it was streaming is kept, and
-      // the history keeps what the run was sent, as live keeps both when its
-      // stream ends early.
+      // the history keeps what the run was sent unless its state snapshot was
+      // processed, as live does when its stream ends early.
       if (fold.conversation.status case Running()) {
         fold = fold.failed(
           fold.cutOffDetail,
@@ -238,11 +237,7 @@ ThreadHistory replayThreadHistory(
       fold = fold.resolveTurn();
       conversation = fold.conversation;
       if (userMessageId != null) {
-        turnsByUserMessage[userMessageId] = fold.turnCitations;
-        lastRunOfTurn[userMessageId] = (
-          runId: runId,
-          endedAt: fold.lastEventTime ?? created,
-        );
+        previousRun = (userMessageId: userMessageId, fold: fold);
         // The fold dates the user message from the run's `RUN_STARTED`, as
         // live does; a stored run without one leaves it to the run record.
         if (created != null) {
@@ -321,25 +316,24 @@ ThreadHistory replayThreadHistory(
   );
 }
 
-/// [conversation] resumed from [waited], the run that waited on client tools,
-/// by the run whose input supplied [results], as live resumes it.
+/// [conversation] resumed from [waited], the fold of the run that waited on
+/// client tools, by the run whose input supplied [results], as live resumes
+/// it.
 ///
-/// The outcome `RUN_FINISHED` parked for [waited] is taken back, because the
-/// run was waiting rather than over, and the tools it waited on are shown
-/// with their results: the calls are [waited]'s still-pending ones, and the
-/// results the next run was sent are the only record of what they returned.
+/// The outcome `RUN_FINISHED` parked for the waiting run is taken back,
+/// because it was waiting rather than over, and the tools it waited on are
+/// shown with their results: the calls are the pending ones the results
+/// answer, and the results the next run was sent are the only record of what
+/// they returned.
 ///
 /// A result with an `error` is a call that failed: live sends a failed
 /// call's error there as well as in its content.
 Conversation _resumed(
   Conversation conversation,
-  ({String runId, DateTime? endedAt}) waited,
+  RunFold waited,
   List<ToolMessage> results,
 ) {
-  var resumed = conversation;
-  if (resumed.runOutcomes[waited.runId]?.reason == TerminalReason.finished) {
-    resumed = resumed.withoutRunOutcome(waited.runId);
-  }
+  final resumed = conversation.withoutRunOutcome(waited.runId);
   final executed = <ToolCallInfo>[];
   for (final result in results) {
     final call = resumed.toolCalls.lastWhereOrNull(
@@ -361,7 +355,7 @@ Conversation _resumed(
     ToolCallMessage.fromExecuted(
       runId: waited.runId,
       toolCalls: executed,
-      createdAt: waited.endedAt,
+      createdAt: waited.undatedRowTime,
     ),
   );
 }

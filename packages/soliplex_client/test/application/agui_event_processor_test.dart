@@ -1789,8 +1789,6 @@ void main() {
       // catches the throw and mints a drop tile at the failure position.
       // Behavioral coverage lives there:
       //   - run_orchestrator_test.dart "live drop tiles"
-      //   - run_fold_test.dart "drops an event processEvent rejects in a
-      //     tile of its own"
       //   - soliplex_api_test.dart "replay survives a STATE_SNAPSHOT
       //     with a non-Map snapshot"
       // No test on the cast itself — that's a Dart language guarantee,

@@ -196,15 +196,17 @@ sealed class ChatMessage {
   final ChatUser user;
 
   /// When this message was created. Backend-driven messages carry the backend's
-  /// time: replayed or terminal text and run finished/errored use
-  /// `event.timestamp` (falling back to the run's `created`), and a reply cut
-  /// off by a cancel keeps its last received backend event time. Client-only
-  /// artifacts carry the client clock at creation, since they have no backend
-  /// counterpart — the user-cancelled tile (the cancel instant), the loading
-  /// placeholder, the in-flight streaming tile, and locally executed tool
-  /// results. Null when no authoritative time is known yet — e.g. the
-  /// optimistic user echo before the run is persisted, which fills in from the
-  /// run's `created` on replay.
+  /// time: replayed or terminal text, run finished/errored and drop tiles use
+  /// `event.timestamp`, falling back to the time of the run's last event that
+  /// carried one (on replay, to the run's `created` before any did), and a
+  /// reply cut off by a cancel keeps its last received backend event time.
+  /// Locally executed tool results take the same fallback time of the run that
+  /// waited on them. Client-only artifacts carry the client clock at creation,
+  /// since they have no backend counterpart — the user-cancelled tile (the
+  /// cancel instant), the loading placeholder, and the in-flight streaming
+  /// tile. Null when no authoritative time is known yet — e.g. the optimistic
+  /// user echo before its run starts, which takes the run's `RUN_STARTED`
+  /// time, or on replay the run's `created` when there is none.
   final DateTime? createdAt;
 
   /// The run this message belongs to, or null when no run does.
@@ -279,8 +281,9 @@ class TextMessage extends ChatMessage {
 
   /// Creates a user message for an ordered [parts] payload, deriving [text]
   /// from the parts so a caller of this factory cannot let the two disagree.
-  /// Holds an unmodifiable copy, so a caller that kept its own list cannot
-  /// mutate it afterwards and leave [text] describing different content.
+  /// When it keeps [parts], it holds an unmodifiable copy, so a caller that
+  /// kept its own list cannot mutate it afterwards and leave [text] describing
+  /// different content.
   ///
   /// Keeps [parts] only when they carry an attachment. Text alone travels the
   /// wire as a bare string, which a reload reads back without parts, so a
@@ -325,9 +328,9 @@ class TextMessage extends ChatMessage {
   /// The message text content.
   final String text;
 
-  /// Ordered content parts, set on a user message built by
-  /// [TextMessage.fromParts] from parts that carry an attachment, and null
-  /// otherwise. An attachment may be a placeholder for one that could not be
+  /// Ordered content parts of a user message. [TextMessage.fromParts] sets
+  /// them only when they carry an attachment, and [TextMessage.create] never
+  /// does. An attachment may be a placeholder for one that could not be
   /// rebuilt, so test for an image with
   /// `parts?.whereType<ImagePart>().isNotEmpty`. Only honoured for user
   /// messages, ignored elsewhere.
@@ -388,10 +391,6 @@ class TextMessage extends ChatMessage {
 String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
 
 const _noResponseIdPrefix = 'no-response-';
-
-/// Id of the message showing the client tools run [runId] waited on, once
-/// they ran. One per run: a run waits once, on every call it made.
-String executedToolsMessageId(String runId) => 'tool-result-$runId';
 
 /// Synthesized assistant tile shown when a run reached a terminal state
 /// without producing a `TextMessageStart`/`Content`/`End` reply, or with work
@@ -554,14 +553,16 @@ class ToolCallMessage extends ChatMessage {
   /// should have `status: completed` or `status: failed` with results
   /// populated.
   ///
-  /// [runId] is the run that waited on the tools, and names the message
-  /// ([executedToolsMessageId]), so live and reload give it the same id.
-  /// [createdAt] is that run's last event time: a locally executed result has
-  /// no backend time of its own, and the client clock is never shown.
+  /// [runId] is the run that waited on the tools, and names the message, so
+  /// live and reload give it the same id. One per run: a run waits once, on
+  /// every call it made.
+  /// [createdAt] is that run's `RunFold.undatedRowTime`: a locally executed
+  /// result has no backend time of its own, so it takes the time of the run
+  /// that waited on it, which reload can rebuild.
   factory ToolCallMessage.fromExecuted({
     required String runId,
     required List<ToolCallInfo> toolCalls,
-    DateTime? createdAt,
+    required DateTime? createdAt,
   }) {
     assert(
       toolCalls.every(
@@ -572,7 +573,7 @@ class ToolCallMessage extends ChatMessage {
       'All tool calls must have terminal status (completed or failed)',
     );
     return ToolCallMessage(
-      id: executedToolsMessageId(runId),
+      id: 'tool-result-$runId',
       toolCalls: toolCalls,
       createdAt: createdAt,
       runId: runId,

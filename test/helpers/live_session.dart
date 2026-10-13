@@ -50,9 +50,6 @@ typedef LiveSession = ({
   List<SimpleRunAgentInput> sent,
 });
 
-/// A run the backend opens after the first, and the events it streams.
-typedef LaterRun = ({String runId, List<BaseEvent> events});
-
 /// Starts a session on [key] whose backend answers with [runId] and then
 /// streams whatever is added to `events`. Yield once before adding any.
 ///
@@ -66,7 +63,7 @@ LiveSession startLiveSession({
   String prompt = 'Q',
   ThreadHistory? cachedHistory,
   ToolRegistry toolRegistry = const ToolRegistry(),
-  List<LaterRun> laterRuns = const [],
+  List<({String runId, List<BaseEvent> events})> laterRuns = const [],
 }) {
   final api = _MockApi();
   final streamClient = _MockStreamClient();

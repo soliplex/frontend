@@ -35,7 +35,7 @@ class RunFold {
     required String runId,
     required String? userMessageId,
     required TurnCitations turnCitations,
-    DateTime? runCreated,
+    required DateTime? runCreated,
   }) =>
       RunFold._(
         conversation: conversation.withStatus(Running(runId: runId)),
@@ -54,14 +54,19 @@ class RunFold {
     required this.conversation,
     required this.streaming,
     required this.runId,
-    required this.userMessageId,
+    required String? userMessageId,
     required this.turnCitations,
-    required this.sentTranscript,
-    required this.unreadable,
-    required this.eventIndex,
-    required this.runCreated,
-    required this.lastEventTime,
-  });
+    required Transcript? sentTranscript,
+    required bool unreadable,
+    required int eventIndex,
+    required DateTime? runCreated,
+    required DateTime? lastEventTime,
+  })  : _userMessageId = userMessageId,
+        _sentTranscript = sentTranscript,
+        _unreadable = unreadable,
+        _eventIndex = eventIndex,
+        _runCreated = runCreated,
+        _lastEventTime = lastEventTime;
 
   /// The conversation with every event so far folded in.
   final Conversation conversation;
@@ -73,41 +78,42 @@ class RunFold {
   final String runId;
 
   /// The message that opened the turn; keys its [MessageState].
-  final String? userMessageId;
+  final String? _userMessageId;
 
   /// What the turn has cited so far, across its runs.
   final TurnCitations turnCitations;
 
-  /// The history the run was sent, until its state snapshot or its terminal
-  /// event is processed. A run cut off before then keeps this instead of what
-  /// it streamed: the snapshot, which the backend sends just before the
-  /// terminal event, is the state that accounts for what it streamed, and a
-  /// backend that receives a run's results without it, as haiku.rag does its
-  /// evidence, can refuse the history. A run whose terminal event arrived is
-  /// complete, so an ending recorded after it (a client tool failing while
-  /// the run waits on it) keeps what was streamed.
-  final Transcript? sentTranscript;
+  /// The history the run was sent, until its state snapshot or its
+  /// `RUN_FINISHED` is processed. A run cut off before then keeps this instead
+  /// of what it streamed: the snapshot, which the backend sends just before
+  /// the terminal event, is the state that accounts for what it streamed, and
+  /// a backend that receives a run's results without it, as haiku.rag does its
+  /// evidence, can refuse the history. A run that finished is complete, so an
+  /// ending recorded after it (a client tool failing while the run waits on
+  /// it) keeps what was streamed.
+  final Transcript? _sentTranscript;
 
   /// Whether any event became a drop tile: one that could not be decoded, or
   /// one `processEvent` rejected. Either may have been the event that said
   /// how the run ended.
-  final bool unreadable;
+  final bool _unreadable;
 
   /// Index of the next event, which names a drop tile after the stored
   /// `events[i]` it stands for. Live and replay give a drop tile the same id
   /// only because the backend stores one event per event it streams.
-  final int eventIndex;
+  final int _eventIndex;
 
   /// When the run began, for rows before any event carried a time.
-  final DateTime? runCreated;
+  final DateTime? _runCreated;
 
   /// The server time of the latest event that carried a usable one.
-  final DateTime? lastEventTime;
+  final DateTime? _lastEventTime;
 
-  /// The time a row without one of its own resolves to: no earlier than the
-  /// last event before it, as the run's start would sort a row minted at the
-  /// end of the run above the reply it follows.
-  DateTime? get _now => lastEventTime ?? runCreated;
+  /// The time a row without one of its own resolves to: the latest event so
+  /// far that carried a time, or the run's start before any did. The run's
+  /// start alone would sort a row minted at the end of the run above the reply
+  /// it follows.
+  DateTime? get undatedRowTime => _lastEventTime ?? _runCreated;
 
   RunFold _copyWith({
     Conversation? conversation,
@@ -122,13 +128,13 @@ class RunFold {
         conversation: conversation ?? this.conversation,
         streaming: streaming ?? this.streaming,
         runId: runId,
-        userMessageId: userMessageId,
+        userMessageId: _userMessageId,
         turnCitations: turnCitations ?? this.turnCitations,
-        sentTranscript: clearSentTranscript ? null : sentTranscript,
-        unreadable: unreadable ?? this.unreadable,
-        eventIndex: eventIndex ?? this.eventIndex,
-        runCreated: runCreated,
-        lastEventTime: lastEventTime ?? this.lastEventTime,
+        sentTranscript: clearSentTranscript ? null : _sentTranscript,
+        unreadable: unreadable ?? _unreadable,
+        eventIndex: eventIndex ?? _eventIndex,
+        runCreated: _runCreated,
+        lastEventTime: lastEventTime ?? _lastEventTime,
       );
 
   /// This fold paused on a client tool: the outcome its `RUN_FINISHED` parked
@@ -144,7 +150,7 @@ class RunFold {
   /// Folds [outcome] in. `processed` is the event when it reached the
   /// conversation, null when it became a drop tile instead.
   ({RunFold fold, BaseEvent? processed}) apply(DecodeOutcome outcome) {
-    final index = eventIndex;
+    final index = _eventIndex;
     final next = _copyWith(eventIndex: index + 1);
     switch (outcome) {
       case DecodeFailed(:final error, :final rawData, :final stackTrace):
@@ -166,7 +172,7 @@ class RunFold {
             conversation,
             streaming,
             event,
-            undatedEventTime: timed._now,
+            undatedEventTime: timed.undatedRowTime,
           );
         } on Object catch (error, stackTrace) {
           return (
@@ -185,10 +191,10 @@ class RunFold {
         // The turn's user message takes the run that started the turn and its
         // start time. Both only fill what is empty, so a client tool's
         // continuation run leaves the message with the run that sent it.
-        final userMessageId = this.userMessageId;
+        final userMessageId = _userMessageId;
         if (event is RunStartedEvent && userMessageId != null) {
           folded = folded.withMessageRun(userMessageId, event.runId);
-          final startedAt = timed._now;
+          final startedAt = timed.undatedRowTime;
           if (startedAt != null) {
             folded = folded.withMessageTime(userMessageId, startedAt);
           }
@@ -199,10 +205,7 @@ class RunFold {
             streaming: result.streaming,
             turnCitations: _accumulate(result.conversation.aguiState, event),
             clearSentTranscript: switch (event) {
-              StateSnapshotEvent() ||
-              RunFinishedEvent() ||
-              RunErrorEvent() =>
-                true,
+              StateSnapshotEvent() || RunFinishedEvent() => true,
               _ => false,
             },
           ),
@@ -275,7 +278,7 @@ class RunFold {
           reason: error.toString(),
           runId: runId,
           rawPayload: rawPayload,
-          createdAt: _now,
+          createdAt: undatedRowTime,
         ),
       ),
     );
@@ -285,7 +288,7 @@ class RunFold {
   /// them, with this run, as the turn's [MessageState]. A turn that cited
   /// nothing still gets one, so its run can be found from it.
   RunFold resolveTurn() {
-    final userMessageId = this.userMessageId;
+    final userMessageId = _userMessageId;
     if (userMessageId == null) return this;
     final state = conversation.aguiState;
     var sources = const <SourceReference>[];
@@ -351,12 +354,13 @@ class RunFold {
 
   /// Why a run that ended without its terminal event failed, as its outcome
   /// tile says it.
-  String get cutOffDetail => unreadable
+  String get cutOffDetail => _unreadable
       ? "Some of this run's events could not be read"
       : 'Stream ended without terminal event';
 
-  /// The run ended before its terminal event, recorded as failed with
-  /// [detail]. [terminalEvent] names the ending in the log.
+  /// The run recorded as failed with [detail]: cut off before its terminal
+  /// event, or ended while it waited on a client tool. [terminalEvent] names
+  /// the ending in the log.
   RunFold failed(String detail, {required String terminalEvent}) {
     final kept = _keepingPartialReply(terminalEvent);
     return kept._copyWith(
@@ -365,14 +369,15 @@ class RunFold {
         streaming: streaming,
         runId: runId,
         errorDetail: detail,
-        createdAt: _now,
+        createdAt: undatedRowTime,
       ),
       streaming: const AwaitingText(),
     );
   }
 
-  /// The run stopped by the user before its terminal event, stamped when they
-  /// stopped it. [terminalEvent] names the ending in the log.
+  /// The run recorded as stopped — by the user, by a dispose, or while it
+  /// waited on a client tool — stamped with the client clock when the stop is
+  /// recorded. [terminalEvent] names the ending in the log.
   RunFold cancelled({required String terminalEvent}) {
     final kept = _keepingPartialReply(terminalEvent);
     return kept._copyWith(
@@ -387,17 +392,17 @@ class RunFold {
   }
 
   /// This fold with the reply it was streaming committed, and with what the
-  /// run was sent in place of what it streamed; see [sentTranscript].
+  /// run was sent in place of what it streamed; see [_sentTranscript].
   ///
   /// The reply the user was reading goes first, or the run's ending appears
   /// while what they were already looking at disappears.
   RunFold _keepingPartialReply(String terminalEvent) => _copyWith(
         conversation: commitPartialTextOnTerminal(
-          conversation: conversation.copyWith(transcript: sentTranscript),
+          conversation: conversation.copyWith(transcript: _sentTranscript),
           streaming: streaming,
           runId: runId,
           terminalEvent: terminalEvent,
-          createdAt: _now,
+          createdAt: undatedRowTime,
         ),
       );
 }

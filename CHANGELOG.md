@@ -8,6 +8,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- **Library consumers:** `RunFold`, which folds one AG-UI run into a
+  `Conversation` event by event, as both a live run and a reopened thread do.
+
 ### Changed
 
 - A failed run that still has a reply shows its outcome below the reply as a
@@ -20,16 +25,30 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Library consumers (breaking):** `FailureReason` has a new value,
   `streamEndedEarly`, for a run's stream that ends with no error and no
   terminal event (previously reported as `networkLost`).
+- **Library consumers (breaking):** `processEvent`'s `runCreated:` is renamed
+  `undatedEventTime:`.
+- **Library consumers (breaking):** `RunEventBundle` requires
+  `continuesTurn`.
+- **Library consumers (breaking):** `ToolCallMessage.fromExecuted` takes no
+  `id`; it requires `runId`, which names the message, and `createdAt`.
+- **Library consumers (breaking):** `TextMessage.fromParts` keeps `parts` only
+  when they carry an attachment, so `parts` is null for text alone.
 
 ### Fixed
 
 - A reopened thread keeps the partial reply of a run that was cut off, as it
   showed while the run was streaming, instead of dropping it.
+- A reopened thread dates a run's rows that carry no time of their own (an
+  event that could not be read, a failure, a cut-off notice) at the time of
+  the run's last event that carried one, instead of the run's start, which
+  sorted them above the reply they follow.
 - A reopened thread shows a turn that ran a client tool as it showed live:
   the tool's card with its result, and the turn's work above its reply,
   instead of a "no response" tile holding that work.
 - A client tool that fails is reported to the model as a failed tool call,
   not as a result that succeeded, and shows as failed after a reload.
+- A client tool's card is dated at the last event of the run that called the
+  tool, as after a reload, instead of the device clock.
 - A failure, or an event that could not be read, that arrives without a time
   of its own shows the time of the run's last event while the run is live,
   as it does after a reload, instead of no time.

@@ -6967,6 +6967,30 @@ void main() {
         expect(history.messageStates['user-1']?.runId, equals('run-2'));
       });
 
+      // One id given to two different messages is two turns, not one resumed:
+      // the second must not take back the first run's outcome or its work.
+      test('a run whose user message reuses an id for other text is a new turn',
+          () async {
+        final history = await hydrate({
+          'run-1': {
+            ...userInput('user-1', 'first question'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-1'},
+            ],
+          },
+          'run-2': {
+            ...userInput('user-1', 'second question'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-2'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-2'},
+            ],
+          },
+        });
+
+        expect(history.runOutcomes.keys, ['run-1', 'run-2']);
+      });
+
       // A run whose events were truncated before any terminal event keeps its
       // half-streamed reply, as live keeps the reply it was showing when the
       // stream ended. Streaming state is scoped to a run, so the reply is
@@ -8309,30 +8333,6 @@ void main() {
         expect(describe(history), ['user u1']);
       });
 
-      // The snapshot was stored but could not be processed, so nothing
-      // records the search, as live keeps what it sent when its snapshot is
-      // rejected.
-      test(
-          'keeps only what a run was sent when its state snapshot could not '
-          'be processed', () async {
-        stubThread({'run-1': listed('run-1', '2026-01-07T01:00:00.000Z')});
-        stubRun(
-          'run-1',
-          runInput: {
-            'messages': [userMessage('u1', 'Find it')],
-          },
-          events: searchedThen([
-            event('STATE_SNAPSHOT', {
-              'snapshot': ['not', 'an', 'object'],
-            }),
-          ]),
-        );
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(describe(history), ['user u1']);
-      });
-
       test('replays every run in order, results after their calls', () async {
         // run-1: a server tool with its result, its events naming a parent
         // no event opened, as an older pydantic-ai stored them. run-2: a
@@ -8460,143 +8460,67 @@ void main() {
         ]);
       });
 
-      group('a turn continued after a client tool', () {
-        final waitedAt = DateTime.utc(2026, 1, 7, 1, 0, 3);
-
-        // run-1 calls the client tool `locate` and finishes waiting on it;
-        // run-2 continues the turn with its result, as live resumes.
-        Future<ThreadHistory> continued({
-          Map<String, dynamic> result = const {
-            'id': 'tool_result_call-locate',
-            'role': 'tool',
-            'toolCallId': 'call-locate',
-            'content': 'Paris',
+      // A run that could not be fetched breaks the turn: what the run after it
+      // continues is unknown, so the run that waited keeps its own outcome,
+      // and with it the tile that shows its work.
+      test('a run after one that could not be fetched starts a new turn',
+          () async {
+        stubThread({
+          'run-a': listed('run-a', '2026-01-07T01:00:00.000Z'),
+          'run-b': listed('run-b', '2026-01-07T01:01:00.000Z'),
+          'run-c': listed('run-c', '2026-01-07T01:02:00.000Z'),
+        });
+        stubRun(
+          'run-a',
+          runInput: {
+            'messages': [userMessage('u1', 'Where am I?')],
           },
-        }) {
-          stubThread({
-            'run-1': listed('run-1', '2026-01-07T01:00:00.000Z'),
-            'run-2': listed('run-2', '2026-01-07T01:01:00.000Z'),
-          });
-          stubRun(
-            'run-1',
-            runInput: {
-              'messages': [userMessage('u1', 'Where am I?')],
-            },
-            events: [
-              event(
-                'RUN_STARTED',
-                {'threadId': 'thread-456', 'runId': 'run-1'},
-              ),
-              event('TOOL_CALL_START', {
-                'toolCallId': 'call-locate',
-                'toolCallName': 'locate',
-              }),
-              event('TOOL_CALL_ARGS', {
-                'toolCallId': 'call-locate',
-                'delta': '{}',
-              }),
-              event('TOOL_CALL_END', {'toolCallId': 'call-locate'}),
-              event('RUN_FINISHED', {
-                'threadId': 'thread-456',
-                'runId': 'run-1',
-                'timestamp': waitedAt.millisecondsSinceEpoch,
-              }),
-            ],
-          );
-          stubRun(
-            'run-2',
-            runInput: {
-              'messages': [
-                userMessage('u1', 'Where am I?'),
-                {
-                  'id': 'a1',
-                  'role': 'assistant',
-                  'toolCalls': [
-                    {
-                      'id': 'call-locate',
-                      'type': 'function',
-                      'function': {'name': 'locate', 'arguments': '{}'},
-                    },
-                  ],
-                },
-                result,
-              ],
-            },
-            events: [
-              event(
-                'RUN_STARTED',
-                {'threadId': 'thread-456', 'runId': 'run-2'},
-              ),
-              event(
-                'TEXT_MESSAGE_START',
-                {'messageId': 'a2', 'role': 'assistant'},
-              ),
-              event(
-                'TEXT_MESSAGE_CONTENT',
-                {'messageId': 'a2', 'delta': 'You are in Paris.'},
-              ),
-              event('TEXT_MESSAGE_END', {'messageId': 'a2'}),
-              event(
-                'RUN_FINISHED',
-                {'threadId': 'thread-456', 'runId': 'run-2'},
-              ),
-            ],
-          );
-          return api.getThreadHistory('room-123', 'thread-456');
-        }
-
-        // Live takes back the outcome RUN_FINISHED parked when the run turns
-        // out to be waiting rather than over.
-        test('the run that waited records no outcome of its own', () async {
-          final history = await continued();
-
-          expect(history.runOutcomes.keys, ['run-2']);
-        });
-
-        test('shows the tool the run waited on, with its result', () async {
-          final history = await continued();
-
-          expect(
-            history.messages.map((m) => m.id),
-            ['u1', executedToolsMessageId('run-1'), 'a2'],
-          );
-          final card = history.messages[1] as ToolCallMessage;
-          expect(card.runId, 'run-1');
-          expect(card.createdAt, waitedAt);
-          final call = card.toolCalls.single;
-          expect(call.id, 'call-locate');
-          expect(call.name, 'locate');
-          expect(call.arguments, '{}');
-          expect(call.status, ToolCallStatus.completed);
-          expect(call.result, 'Paris');
-        });
-
-        // Live sends a failed call's error as its content and in `error`.
-        test('shows a tool that failed as failed', () async {
-          final history = await continued(
-            result: const {
-              'id': 'tool_result_call-locate',
-              'role': 'tool',
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-a'}),
+            event('TOOL_CALL_START', {
               'toolCallId': 'call-locate',
-              'content': 'Offline',
-              'error': 'Offline',
-            },
-          );
+              'toolCallName': 'locate',
+            }),
+            event('TOOL_CALL_END', {'toolCallId': 'call-locate'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-a'}),
+          ],
+        );
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-b',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenThrow(const NotFoundException(message: 'run-b is gone'));
+        stubRun(
+          'run-c',
+          runInput: {
+            'messages': [
+              userMessage('u1', 'Where am I?'),
+              {
+                'id': 'tool_result_call-other',
+                'role': 'tool',
+                'toolCallId': 'call-other',
+                'content': 'Paris',
+              },
+            ],
+          },
+          events: [
+            event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-c'}),
+            event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-c'}),
+          ],
+        );
 
-          final call =
-              (history.messages[1] as ToolCallMessage).toolCalls.single;
-          expect(call.status, ToolCallStatus.failed);
-          expect(call.result, 'Offline');
-        });
+        final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        test('marks the run that continues the turn', () async {
-          final history = await continued();
-
-          expect(
-            {for (final run in history.runs) run.runId: run.continuesTurn},
-            {'run-1': false, 'run-2': true},
-          );
-        });
+        expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
+        expect(history.runs.map((r) => r.continuesTurn), [false, false, false]);
       });
 
       test('skips a supplied tool message it cannot read, keeping the rest',
