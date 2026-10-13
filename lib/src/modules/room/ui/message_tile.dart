@@ -9,7 +9,6 @@ import 'loading_message_tile.dart';
 import 'no_response_tile_widget.dart';
 import 'text_message_tile.dart';
 import 'tool_call_tile.dart';
-import 'workdir_files_section.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class MessageTile extends StatelessWidget {
@@ -24,9 +23,6 @@ class MessageTile extends StatelessWidget {
     required this.besideReply,
     this.onInspect,
     this.onShowChunkVisualization,
-    this.onFetchWorkdirFiles,
-    this.onDownloadWorkdirFile,
-    this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingPhase,
     required this.isStreaming,
@@ -45,9 +41,6 @@ class MessageTile extends StatelessWidget {
   final bool besideReply;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
-  final FetchWorkdirFiles? onFetchWorkdirFiles;
-  final DownloadWorkdirFile? onDownloadWorkdirFile;
-  final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
 
@@ -62,7 +55,6 @@ class MessageTile extends StatelessWidget {
         final TextMessage m => TextMessageTile(
             roomId: roomId,
             message: m,
-            runId: runId,
             sourceReferences: sourceReferences,
             onFeedbackSubmit: onFeedbackSubmit != null && runId != null
                 ? (feedback, reason) =>
@@ -72,9 +64,6 @@ class MessageTile extends StatelessWidget {
                 ? () => onInspect!(runId!)
                 : null,
             onShowChunkVisualization: onShowChunkVisualization,
-            onFetchWorkdirFiles: onFetchWorkdirFiles,
-            onDownloadWorkdirFile: onDownloadWorkdirFile,
-            onPreviewWorkdirFile: onPreviewWorkdirFile,
             executionTracker: executionTracker,
             streamingPhase: streamingPhase,
             isStreaming: isStreaming,

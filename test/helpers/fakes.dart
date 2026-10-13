@@ -12,7 +12,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         RagDocument,
         RunInfo,
         SoliplexApi,
-        UrlBuilder;
+        UrlBuilder,
+        WorkdirFile;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import 'package:flutter/material.dart';
@@ -481,6 +482,32 @@ class FakeSoliplexApi extends SoliplexApi {
     getThreadUploadsCount++;
     if (nextThreadUploadsError != null) throw nextThreadUploadsError!;
     return nextThreadUploads ?? const [];
+  }
+
+  List<WorkdirFile>? nextWorkdirFiles;
+  Exception? nextWorkdirFilesError;
+
+  /// When set, the next listing waits on it, then is answered as usual.
+  Completer<void>? workdirFilesGate;
+
+  /// The thread id of every listing request, in order.
+  final workdirListRequests = <String>[];
+
+  @override
+  Future<List<WorkdirFile>> getThreadWorkdirFiles(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    workdirListRequests.add(threadId);
+    final gate = workdirFilesGate;
+    if (gate != null) {
+      workdirFilesGate = null;
+      await gate.future;
+    }
+    final error = nextWorkdirFilesError;
+    if (error != null) throw error;
+    return nextWorkdirFiles ?? const [];
   }
 
   @override

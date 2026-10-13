@@ -24,7 +24,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnecting,
         Room,
         TextPart,
-        ThreadHistory;
+        ThreadHistory,
+        WorkdirFile;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/activity_read.dart' show currentUserRoomMarkers;
@@ -55,7 +56,8 @@ import '../thread_view_state.dart';
 import '../lay_out_timeline.dart';
 import '../workdir_controller.dart';
 import 'approval_handler.dart';
-import 'assistant_files_section.dart' show FilePanelSectionLabel;
+import '../workdir_files_status.dart';
+import 'assistant_files_section.dart';
 import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
 import 'chat_input.dart';
@@ -151,7 +153,7 @@ const double _maxContentWidth = SoliplexBreakpoints.desktop;
 
 /// Identifies the attached-files panel.
 ///
-/// The panel renders nothing of its own when both scopes are empty, so whether
+/// The panel renders nothing of its own when every section is empty, so whether
 /// it is on screen is otherwise unobservable — and it being on screen with
 /// nothing in it, and no control left to close it, is the defect this names.
 @visibleForTesting
@@ -282,6 +284,10 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Disposer for the active thread's message subscription that advances the
   /// anchor. Re-wired on thread switch, cancelled on dispose.
   void Function()? _anchorAdvanceUnsub;
+
+  /// Disposer for the active thread's run-end subscription that refetches its
+  /// assistant files. Re-wired on thread switch, cancelled on dispose.
+  void Function()? _runEndUnsub;
 
   /// Disposer for the thread-list subscription that keeps the room read marker
   /// in sync with thread-unread state. Re-wired on room change, cancelled on
@@ -809,6 +815,26 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  /// Fetches the thread's assistant files now and again whenever one of its
+  /// runs ends, since a run is what writes them. Must run after
+  /// `selectThread([threadId])`.
+  void _beginWorkdirTracking(String threadId) {
+    _runEndUnsub?.call();
+    _runEndUnsub = null;
+    final workdirs = _workdirs;
+    unawaited(workdirs.refresh(threadId));
+
+    final view = _state.activeThreadView;
+    if (view == null || view.threadId != threadId) return;
+    var ended = view.runsEnded.value;
+    _runEndUnsub = view.runsEnded.subscribe((count) {
+      // Subscribing reports the current count; only a change is a run end.
+      if (count == ended) return;
+      ended = count;
+      unawaited(workdirs.refresh(threadId));
+    });
+  }
+
   /// Ids of the room's threads with activity newer than the user last saw.
   /// The selected thread is excluded — you're looking at it, so it reads as
   /// read even if its activity advances while open.
@@ -948,6 +974,7 @@ class _RoomScreenState extends State<RoomScreen> {
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
       _beginUnreadTracking(widget.threadId!);
+      _beginWorkdirTracking(widget.threadId!);
     } else {
       _autoSelectFirstThread();
     }
@@ -1002,6 +1029,12 @@ class _RoomScreenState extends State<RoomScreen> {
       // reads as content while it loads, so an expanded flag outliving its
       // rows pops a spinner over the incoming thread and closes again when the
       // fetch lands.
+      //
+      // Leaving with the panel open closes it, as a tap would, so its new
+      // files stop being new.
+      if (_filesExpanded && oldWidget.threadId != null) {
+        _workdirs.markSeen(oldWidget.threadId!);
+      }
       _filesExpanded = false;
     }
     if (roomChanged) {
@@ -1022,6 +1055,8 @@ class _RoomScreenState extends State<RoomScreen> {
       _roomReadUnsub = null;
       _anchorAdvanceUnsub?.call();
       _anchorAdvanceUnsub = null;
+      _runEndUnsub?.call();
+      _runEndUnsub = null;
       _state.dispose();
       unawaited(_anchorTracker.dispose());
       unawaited(_threadReadTracker.dispose());
@@ -1032,6 +1067,7 @@ class _RoomScreenState extends State<RoomScreen> {
       // identity change on the same server (a logout/re-login).
       _userId = widget.serverEntry.auth.currentUserId.value;
       _state = _createRoomState();
+      _workdirs.dispose();
       _workdirs = _createWorkdirController();
       _anchorTracker = _createAnchorTracker();
       _threadReadTracker = _createThreadReadTracker();
@@ -1059,6 +1095,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
         _beginUnreadTracking(widget.threadId!);
+        _beginWorkdirTracking(widget.threadId!);
       } else {
         _autoSelectFirstThread();
       }
@@ -1066,7 +1103,6 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();
-        _workdirs.clearCache();
         _markThreadRead(widget.threadId);
         if (oldWidget.threadId == null) {
           if (_filterEnabled) {
@@ -1082,6 +1118,7 @@ class _RoomScreenState extends State<RoomScreen> {
         }
         _state.selectThread(widget.threadId!);
         _beginUnreadTracking(widget.threadId!);
+        _beginWorkdirTracking(widget.threadId!);
         setState(() {});
       } else {
         _autoSelectFirstThread();
@@ -1240,6 +1277,7 @@ class _RoomScreenState extends State<RoomScreen> {
     );
     _cancelAutoSelect();
     _anchorAdvanceUnsub?.call();
+    _runEndUnsub?.call();
     _roomReadUnsub?.call();
     _serverActivityUnsub?.call();
     _roomActivityRefresh.cancel();
@@ -1248,6 +1286,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _activityCancelToken?.cancel('disposed');
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _state.dispose();
+    _workdirs.dispose();
     unawaited(_anchorTracker.dispose());
     unawaited(_threadReadTracker.dispose());
     _chatController.removeListener(_onDraftChanged);
@@ -1844,8 +1883,11 @@ class _RoomScreenState extends State<RoomScreen> {
             .threadUploads(widget.roomId, threadId)
             .watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
+    final WorkdirFilesStatus assistantStatus = threadId != null
+        ? _workdirs.files(threadId).watch(context)
+        : const WorkdirFilesLoaded(<WorkdirFile>[]);
 
-    // The flag records that the user asked for the panel. With neither scope
+    // The flag records that the user asked for the panel. With no section
     // able to show anything the control that would take the ask back is gone
     // too, so the ask lapses here rather than reopening the panel over whatever
     // arrives next — dismissing the last row is the ordinary way to get here,
@@ -1855,7 +1897,9 @@ class _RoomScreenState extends State<RoomScreen> {
     // this frame's output, since the panel below is gated on it and the control
     // that renders it selected is withheld by the same test. Nothing to
     // rebuild, so nothing to schedule.
-    if (!_panelHasContent(roomStatus, threadStatus)) _filesExpanded = false;
+    if (!_panelHasContent(roomStatus, threadStatus, assistantStatus)) {
+      _filesExpanded = false;
+    }
 
     final body = threadView == null || messagesStatus == null
         ? _buildNoThreadBody(room)
@@ -1870,11 +1914,18 @@ class _RoomScreenState extends State<RoomScreen> {
             client: widget.serverEntry.httpClient,
             serverLabel: widget.serverEntry.displayName,
           ),
-          if (showHeader) _buildRoomHeader(room, roomStatus, threadStatus),
+          if (showHeader)
+            _buildRoomHeader(room, roomStatus, threadStatus, assistantStatus),
           // Below the header slot, so the band lands under the app bar on
           // narrow layouts and under the in-page header on wide ones.
           const ChatClassificationBand(),
-          if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
+          if (_filesExpanded)
+            _buildFilePanel(
+              roomStatus,
+              threadStatus,
+              assistantStatus,
+              threadId,
+            ),
           Expanded(child: _capWidth(body)),
           _capWidth(_buildChatInput(threadView, room, messagesStatus)),
           // Last in the column so the caveat is the last thing read before
@@ -1882,8 +1933,12 @@ class _RoomScreenState extends State<RoomScreen> {
           _capWidth(ChatAiDisclaimer(appName: widget.appName)),
         ],
       ),
-      headerActions:
-          _buildRoomHeaderActions(roomStatus, threadStatus, Theme.of(context)),
+      headerActions: _buildRoomHeaderActions(
+        roomStatus,
+        threadStatus,
+        assistantStatus,
+        Theme.of(context),
+      ),
     );
   }
 
@@ -1901,6 +1956,7 @@ class _RoomScreenState extends State<RoomScreen> {
     Room? room,
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
+    WorkdirFilesStatus assistantStatus,
   ) {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
@@ -1916,21 +1972,31 @@ class _RoomScreenState extends State<RoomScreen> {
           // beside a Spacer would split the free space and leave the buttons
           // stranded mid-row.
           Expanded(child: _roomTitle(roomName)),
-          ..._buildRoomHeaderActions(roomStatus, threadStatus, theme),
+          ..._buildRoomHeaderActions(
+            roomStatus,
+            threadStatus,
+            assistantStatus,
+            theme,
+          ),
         ],
       ),
     );
   }
 
-  /// The header's trailing controls: the attached-files toggle (hidden when
-  /// both upload scopes are Loaded-empty) and the room-info button.
+  /// The header's trailing controls: the files toggle (hidden when none of its
+  /// three sections has anything to show) and the room-info button.
   List<Widget> _buildRoomHeaderActions(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
+    WorkdirFilesStatus assistantStatus,
     ThemeData theme,
   ) {
-    final documentsButton =
-        _buildDocumentsButton(roomStatus, threadStatus, theme);
+    final documentsButton = _buildDocumentsButton(
+      roomStatus,
+      threadStatus,
+      assistantStatus,
+      theme,
+    );
     return [
       if (documentsButton != null) documentsButton,
       IconButton(
@@ -2017,13 +2083,16 @@ class _RoomScreenState extends State<RoomScreen> {
     return needed > kToolbarHeight ? needed : kToolbarHeight;
   }
 
-  /// The top-right documents button: a simple icon toggle for the attached-
-  /// files panel. Returns null to hide it when both scopes are Loaded-empty.
-  /// The icon reflects upload state (spinner while in flight, error glyph on
-  /// failure); the file count appears in the tooltip once both scopes load.
+  /// The top-right documents button: a simple icon toggle for the files
+  /// panel. Returns null to hide it when none of the panel's three sections
+  /// has anything to show. The icon reflects upload state (spinner while in
+  /// flight, error glyph on any section's failure) and carries a dot while
+  /// the assistant has files the user has not seen; the per-section counts
+  /// appear in the tooltip once both upload scopes load.
   Widget? _buildDocumentsButton(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
+    WorkdirFilesStatus assistantStatus,
     ThemeData theme,
   ) {
     final roomFiles = _uploadsOrNull(roomStatus);
@@ -2034,12 +2103,17 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyFailed =
         roomStatus is UploadsFailed || threadStatus is UploadsFailed;
 
-    if (!_panelHasContent(roomStatus, threadStatus)) return null;
+    if (!_panelHasContent(roomStatus, threadStatus, assistantStatus)) {
+      return null;
+    }
 
     final all = [...?roomFiles, ...?threadFiles];
     final anyPending = all.any((e) => e is PendingUpload);
     final anyUploadFailed = all.any((e) => e is FailedUpload);
-    final isError = anyFailed || anyUploadFailed;
+    final isError =
+        anyFailed || anyUploadFailed || assistantStatus is WorkdirFilesFailed;
+    final assistant =
+        assistantStatus is WorkdirFilesLoaded ? assistantStatus : null;
 
     final Widget icon;
     if (anyLoading || anyPending) {
@@ -2050,15 +2124,20 @@ class _RoomScreenState extends State<RoomScreen> {
     } else if (isError) {
       icon = Icon(Icons.error_outline, color: theme.colorScheme.error);
     } else {
-      icon = const Icon(Icons.folder_outlined);
+      icon = Badge(
+        isLabelVisible: assistant?.unseen.isNotEmpty ?? false,
+        smallSize: SoliplexSpacing.s2,
+        backgroundColor: theme.colorScheme.primary,
+        child: const Icon(Icons.folder_outlined),
+      );
     }
 
     final label = (roomFiles != null && threadFiles != null)
         ? filesButtonLabel(
             roomCount: roomFiles.length,
             threadCount: threadFiles.length,
-            assistantCount: 0,
-            newCount: 0,
+            assistantCount: assistant?.files.length ?? 0,
+            newCount: assistant?.unseen.length ?? 0,
           )
         : 'Files';
 
@@ -2066,28 +2145,54 @@ class _RoomScreenState extends State<RoomScreen> {
       icon: icon,
       isSelected: _filesExpanded,
       tooltip: label,
-      onPressed: () => setState(() => _filesExpanded = !_filesExpanded),
+      onPressed: () {
+        if (_filesExpanded) _markAssistantFilesSeen();
+        setState(() => _filesExpanded = !_filesExpanded);
+      },
     );
+  }
+
+  /// Closing the panel is when the user has had the chance to see what it
+  /// listed, so that is when its new files stop being new.
+  void _markAssistantFilesSeen() {
+    final threadId = _state.activeThreadView?.threadId;
+    if (threadId != null) _workdirs.markSeen(threadId);
   }
 
   List<DisplayUpload>? _uploadsOrNull(UploadsStatus s) =>
       s is UploadsLoaded ? s.uploads : null;
 
-  /// Whether the attached-files panel has anything to show.
+  /// Whether the files panel has anything to show in any of its three
+  /// sections.
   ///
   /// Withholds the control that toggles the panel, and retires the ask that
   /// opens it, so the panel cannot outlive either. That control is the only way
   /// to close the panel, so a panel surviving it would hold the viewport for
   /// the rest of the visit with nothing able to collapse it; and an ask
-  /// surviving it would reopen the panel unbidden the next time either scope
+  /// surviving it would reopen the panel unbidden the next time any section
   /// had something to say. Dismissing the last row reaches both.
-  bool _panelHasContent(UploadsStatus roomStatus, UploadsStatus threadStatus) =>
-      _scopeRendersContent(roomStatus) || _scopeRendersContent(threadStatus);
+  bool _panelHasContent(
+    UploadsStatus roomStatus,
+    UploadsStatus threadStatus,
+    WorkdirFilesStatus assistantStatus,
+  ) =>
+      _scopeRendersContent(roomStatus) ||
+      _scopeRendersContent(threadStatus) ||
+      _assistantRendersContent(assistantStatus);
 
   bool _scopeRendersContent(UploadsStatus s) => switch (s) {
         UploadsLoading() => true,
         UploadsLoaded(uploads: final u) => u.isNotEmpty,
         UploadsFailed() => true,
+      };
+
+  /// Loading is not content: every thread open fetches the list, and in a
+  /// room without a sandbox the answer is always empty, so counting the
+  /// fetch would flash the button on every switch.
+  bool _assistantRendersContent(WorkdirFilesStatus s) => switch (s) {
+        WorkdirFilesLoading() => false,
+        WorkdirFilesLoaded(:final files) => files.isNotEmpty,
+        WorkdirFilesFailed() => true,
       };
 
   /// Whether the room scope's list is watched — the attached-files control and
@@ -2111,8 +2216,26 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _buildFilePanel(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
+    WorkdirFilesStatus assistantStatus,
+    String? threadId,
   ) {
     final theme = Theme.of(context);
+    // A section is visible when its status renders a row: an upload scope
+    // while Loading or Failed or with at least one file, the assistant's list
+    // when Failed or with at least one file.
+    final sections = <Widget>[
+      if (_scopeRendersContent(roomStatus))
+        _buildScopeSection('Room', roomStatus, theme),
+      if (_scopeRendersContent(threadStatus))
+        _buildScopeSection('Thread', threadStatus, theme),
+      if (threadId != null && _assistantRendersContent(assistantStatus))
+        AssistantFilesSection(
+          status: assistantStatus,
+          onDownload: (file) => _workdirs.downloadFile(threadId, file),
+          onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
+          onRetry: () => unawaited(_workdirs.refresh(threadId)),
+        ),
+    ];
 
     return Padding(
       key: filePanelKey,
@@ -2145,15 +2268,11 @@ class _RoomScreenState extends State<RoomScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildScopeSection('Room', roomStatus, theme),
-                  // The divider sits between two visible sections. A
-                  // scope is "visible" when it's Loading or Failed
-                  // (those render a section row), or Loaded with at
-                  // least one file.
-                  if (_scopeRendersContent(roomStatus) &&
-                      _scopeRendersContent(threadStatus))
-                    const Divider(height: 12),
-                  _buildScopeSection('Thread', threadStatus, theme),
+                  // A divider sits between each pair of visible sections.
+                  for (var i = 0; i < sections.length; i++) ...[
+                    if (i > 0) const Divider(height: 12),
+                    sections[i],
+                  ],
                 ],
               ),
             ),
@@ -2446,20 +2565,6 @@ class _RoomScreenState extends State<RoomScreen> {
                                 pageNumbers: ref.pageNumbers,
                                 docItemRefs: ref.docItemRefs,
                                 database: ref.database,
-                              ),
-                              onFetchWorkdirFiles: (runId) => _workdirs
-                                  .fetchFiles(threadView.threadId, runId),
-                              onDownloadWorkdirFile: (runId, file) =>
-                                  _workdirs.download(
-                                threadView.threadId,
-                                runId,
-                                file,
-                              ),
-                              onPreviewWorkdirFile: (runId, file) =>
-                                  _workdirs.fetchBytes(
-                                threadView.threadId,
-                                runId,
-                                file,
                               ),
                             ),
                   },

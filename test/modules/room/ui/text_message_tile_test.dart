@@ -144,7 +144,6 @@ void main() {
           createdAt: DateTime(2026),
           text: 'Hi there',
         ),
-        runId: 'run-1',
         onFeedbackSubmit: (_, __) {},
       ),
     ));

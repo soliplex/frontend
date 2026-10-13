@@ -54,7 +54,6 @@ import '../../modules/room/run_registry.dart';
 import '../../modules/room/thread_list_state.dart';
 import '../../modules/room/thread_view_state.dart';
 import '../../modules/room/lay_out_timeline.dart';
-import '../../modules/room/workdir_controller.dart';
 import '../../modules/room/ui/approval_handler.dart';
 import '../../modules/room/ui/chat_ai_disclaimer.dart';
 import '../../modules/room/ui/chat_classification.dart';
@@ -216,7 +215,6 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> {
   late RoomState _state;
-  late WorkdirController _workdirs;
   void Function()? _autoSelectUnsub;
   final _chatController = InlineImageComposerController();
   final _chatFocusNode = FocusNode();
@@ -866,7 +864,6 @@ class _RoomScreenState extends State<RoomScreen> {
     _state = _createRoomState();
     _filterHydrator =
         DocumentFilterHydrator(onResolved: _applyHydratedSelection);
-    _workdirs = _createWorkdirController();
     _refreshFilterableDocuments();
     _fetchServerRooms();
     _fetchRoomActivity();
@@ -969,7 +966,6 @@ class _RoomScreenState extends State<RoomScreen> {
       // identity change on the same server (a logout/re-login).
       _userId = widget.serverEntry.auth.currentUserId.value;
       _state = _createRoomState();
-      _workdirs = _createWorkdirController();
       _anchorTracker = _createAnchorTracker();
       _threadReadTracker = _createThreadReadTracker();
       _hasFilterableDocuments = false;
@@ -1003,7 +999,6 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();
-        _workdirs.clearCache();
         _markThreadRead(widget.threadId);
         if (_filterEnabled && oldWidget.threadId == null) {
           _documentSelections.migrateToThread(
@@ -1045,11 +1040,6 @@ class _RoomScreenState extends State<RoomScreen> {
         uploadRegistry: widget.uploadRegistry,
         onNavigateToThread: (id) => _navigateToThread(id),
         onHistoryLoaded: _onThreadHistoryLoaded,
-      );
-
-  WorkdirController _createWorkdirController() => WorkdirController(
-        api: widget.serverEntry.connection.api,
-        roomId: widget.roomId,
       );
 
   ThreadReadTracker _createThreadReadTracker() {
@@ -2426,20 +2416,6 @@ class _RoomScreenState extends State<RoomScreen> {
                             pageNumbers: ref.pageNumbers,
                             docItemRefs: ref.docItemRefs,
                             database: ref.database,
-                          ),
-                          onFetchWorkdirFiles: (runId) =>
-                              _workdirs.fetchFiles(threadView.threadId, runId),
-                          onDownloadWorkdirFile: (runId, file) =>
-                              _workdirs.download(
-                            threadView.threadId,
-                            runId,
-                            file,
-                          ),
-                          onPreviewWorkdirFile: (runId, file) =>
-                              _workdirs.fetchBytes(
-                            threadView.threadId,
-                            runId,
-                            file,
                           ),
                         ),
               },

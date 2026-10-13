@@ -16,7 +16,6 @@ import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
 import 'unread_divider.dart';
-import 'workdir_files_section.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class MessageTimeline extends StatefulWidget {
@@ -34,9 +33,6 @@ class MessageTimeline extends StatefulWidget {
     this.onReportRun,
     this.onInspect,
     this.onShowChunkVisualization,
-    this.onFetchWorkdirFiles,
-    this.onDownloadWorkdirFile,
-    this.onPreviewWorkdirFile,
   });
 
   final String roomId;
@@ -60,9 +56,6 @@ class MessageTimeline extends StatefulWidget {
   final void Function(String runId)? onReportRun;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
-  final FetchWorkdirFiles? onFetchWorkdirFiles;
-  final DownloadWorkdirFile? onDownloadWorkdirFile;
-  final FetchWorkdirFileBytes? onPreviewWorkdirFile;
 
   @override
   State<MessageTimeline> createState() => _MessageTimelineState();
@@ -489,9 +482,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           onInspect: widget.onInspect,
                           onShowChunkVisualization:
                               widget.onShowChunkVisualization,
-                          onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
-                          onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
-                          onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
                           executionTracker: entry.band,
                           streamingPhase: isLastItem ? streamingPhase : null,
                           isStreaming: message.id == streamingMessageId,
