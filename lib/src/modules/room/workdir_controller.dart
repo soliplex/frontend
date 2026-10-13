@@ -99,20 +99,14 @@ class WorkdirController {
         threadId,
         cancelToken: token,
       );
-      if (token.isCancelled) {
-        _logger.debug('workdir list response superseded threadId=$threadId');
-        return;
-      }
+      if (token.isCancelled) return;
       entry.fetchToken = null;
       _emitLoaded(entry, listed);
       _logger.debug(
         'workdir list loaded threadId=$threadId count=${listed.length}',
       );
     } on NotFoundException {
-      if (token.isCancelled) {
-        _logger.debug('workdir list response superseded threadId=$threadId');
-        return;
-      }
+      if (token.isCancelled) return;
       entry.fetchToken = null;
       if (entry.signal.value is WorkdirFilesLoaded) {
         // The steady state on a server that keeps no workspaces, so a trace,
@@ -125,11 +119,17 @@ class WorkdirController {
       _emitLoaded(entry, const []);
       _logger.debug('workdir list 404 before a load; empty threadId=$threadId');
     } catch (e, st) {
-      if (token.isCancelled) return;
+      if (token.isCancelled) {
+        _logger.debug('workdir list fetch cancelled threadId=$threadId');
+        return;
+      }
       entry.fetchToken = null;
-      // Carries the workdir routes' fixed details, a status code, or a host;
-      // the transport wraps body-decode failures, so no payload window
-      // reaches here.
+      // A bodiless GET with the token in a header, so a failure can carry only
+      // the URL path (room and thread ids), a status code, a host, or the
+      // answering server's JSON message field: a fixed string on the workdir
+      // routes, a status phrase from a proxy answering in their place. The
+      // transport wraps body-decode failures, so no payload window reaches
+      // here.
       _logger.warning(
         'workdir list refresh failed threadId=$threadId',
         error: e,
@@ -225,9 +225,11 @@ class WorkdirController {
       );
       rethrow;
     } catch (e, st) {
-      // Carries the workdir routes' fixed details, a filename, a status code,
-      // or a host; the transport wraps body-decode failures, so no payload
-      // window reaches here.
+      // A bodiless GET with the token in a header, so a failure can carry only
+      // the URL path (room and thread ids, the filename), a status code, a
+      // host, or the answering server's JSON message field: a fixed string on
+      // the workdir routes, a status phrase from a proxy answering in their
+      // place.
       _logger.warning(
         'workdir preview fetch failed threadId=$threadId',
         error: e,

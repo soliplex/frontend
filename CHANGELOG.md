@@ -15,7 +15,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
-- Files the assistant writes in a sandbox room are listed in the room
+- Files the assistant writes to a thread's workspace are listed in the room
   header's files panel (under the folder button) in a Workspace section, for
   the whole thread, instead of under each reply. When a run adds files to
   the open thread's workspace, a notice above the input says "Added … to the
