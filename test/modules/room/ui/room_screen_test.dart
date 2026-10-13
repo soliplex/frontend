@@ -2490,10 +2490,10 @@ void main() {
       expect(find.text('report.csv'), findsOneWidget);
     });
 
-    testWidgets('a room without a sandbox never shows the files button',
+    testWidgets('a server without workspaces never shows the files button',
         (tester) async {
-      // Every open fetches the list, and a room without a sandbox answers 404
-      // every time. A fetch in flight must not read as content, or the button
+      // Every open fetches the list, and a server that keeps no workspaces
+      // answers 404 every time. A fetch in flight must not read as content, or the button
       // would flash on every thread switch.
       wideView(tester);
       api.nextWorkdirFilesError =

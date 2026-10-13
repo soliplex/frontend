@@ -115,8 +115,8 @@ class WorkdirController {
       }
       entry.fetchToken = null;
       if (entry.signal.value is WorkdirFilesLoaded) {
-        // The steady state in a room without a sandbox, so a trace, not a
-        // warning.
+        // The steady state on a server that keeps no workspaces, so a trace,
+        // not a warning.
         _logger.debug(
           'workdir list 404 after a load; keeping it threadId=$threadId',
         );
