@@ -6,12 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.110.0+96] - 2026-10-13
 
 ### Added
 
 - **Library consumers:** `RunFold`, which folds one AG-UI run into a
   `Conversation` event by event, as both a live run and a reopened thread do.
+- Each release publishes its web build as a container image,
+  `ghcr.io/soliplex/frontend-web`, tagged by version (`0.110.0`, `0.110.0-96`,
+  `0.110`, `latest`), for downstream images to copy from.
+- The Docker web build moves its assets under a per-release directory when
+  given a `RELEASE_HASH` build argument, so browsers fetch the new client after
+  an upgrade instead of a cached one. It bundles CanvasKit rather than loading
+  it from Google's CDN.
 
 ### Changed
 
