@@ -25,10 +25,10 @@ class FilePanelSectionLabel extends StatelessWidget {
   }
 }
 
-/// The files panel's list of what the assistant wrote to the thread's
-/// sandbox workspace. Renders nothing while loading or when empty.
-class AssistantFilesSection extends StatelessWidget {
-  const AssistantFilesSection({
+/// The files panel's list of the thread's sandbox workspace. Renders nothing
+/// while loading or when empty.
+class WorkspaceFilesSection extends StatelessWidget {
+  const WorkspaceFilesSection({
     super.key,
     required this.status,
     required this.onDownload,
@@ -47,15 +47,14 @@ class AssistantFilesSection extends StatelessWidget {
       WorkdirFilesLoading() => const SizedBox.shrink(),
       WorkdirFilesLoaded(:final files) when files.isEmpty =>
         const SizedBox.shrink(),
-      WorkdirFilesLoaded(:final files, :final unseen) => Column(
+      WorkdirFilesLoaded(:final files) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const FilePanelSectionLabel('From the assistant'),
+            const FilePanelSectionLabel('Workspace'),
             for (var i = 0; i < files.length; i++)
               WorkdirFileRow(
                 file: files[i],
-                isNew: unseen.contains(files[i].filename),
                 onTap: () => onDownload(files[i]),
                 onOpenPreview: () => WorkdirPreviewPage.show(
                   context: context,
@@ -71,7 +70,7 @@ class AssistantFilesSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const FilePanelSectionLabel('From the assistant'),
+            const FilePanelSectionLabel('Workspace'),
             WorkdirErrorRow(
               onRetry: onRetry,
               isRetrying: retrying,

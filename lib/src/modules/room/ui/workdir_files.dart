@@ -35,13 +35,9 @@ class WorkdirFileRow extends StatelessWidget {
     required this.file,
     required this.onTap,
     required this.onOpenPreview,
-    this.isNew = false,
   });
 
   final WorkdirFile file;
-
-  /// Whether the file appeared since the user last looked; shows a New badge.
-  final bool isNew;
 
   final Future<DownloadOutcome> Function() onTap;
 
@@ -90,11 +86,6 @@ class WorkdirFileRow extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
-                if (isNew) ...[
-                  const SizedBox(width: SoliplexSpacing.s2),
-                  const SoliplexBadge(
-                      label: Text('New'), intent: BadgeIntent.info),
-                ],
                 if (canPreview) ...[
                   PreviewIconButton(onTap: onOpenPreview),
                   const SizedBox(width: SoliplexSpacing.s2),
@@ -739,8 +730,8 @@ class WorkdirErrorRow extends StatelessWidget {
   const WorkdirErrorRow({
     super.key,
     required this.onRetry,
-    this.isRetrying = false,
-    this.reason,
+    required this.isRetrying,
+    required this.reason,
   });
 
   final VoidCallback onRetry;
@@ -752,11 +743,14 @@ class WorkdirErrorRow extends StatelessWidget {
 
   /// Why the list failed, shown after the fixed message; text that is safe to
   /// show.
-  final String? reason;
+  final String reason;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Shared by the Retry icon and the spinner that replaces it, so the row
+    // keeps its height while a retry is in flight.
+    const retryGlyphSize = 16.0;
     return Padding(
       padding: const EdgeInsets.symmetric(
           vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
@@ -770,9 +764,7 @@ class WorkdirErrorRow extends StatelessWidget {
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
-              reason == null
-                  ? "Couldn't load files"
-                  : "Couldn't load files — $reason",
+              "Couldn't load files — $reason",
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.error,
               ),
@@ -782,12 +774,12 @@ class WorkdirErrorRow extends StatelessWidget {
             onPressed: isRetrying ? null : onRetry,
             icon: isRetrying
                 ? const SizedBox.square(
-                    dimension: 16,
+                    dimension: retryGlyphSize,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.refresh),
-            iconSize: 16,
-            tooltip: isRetrying ? null : 'Retry',
+            iconSize: retryGlyphSize,
+            tooltip: isRetrying ? 'Retrying' : 'Retry',
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

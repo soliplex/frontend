@@ -28,10 +28,6 @@ Future<String?> _defaultSaveFile({
 
 class _ThreadFiles {
   final signal = Signal<WorkdirFilesStatus>(const WorkdirFilesLoading());
-
-  /// Names the user has had the chance to see. Null until the first
-  /// successful load, which seeds it with everything listed then.
-  Set<String>? seen;
   CancelToken? fetchToken;
 
   void dispose() {
@@ -131,23 +127,7 @@ class WorkdirController {
 
   void _emitLoaded(_ThreadFiles entry, List<WorkdirFile> listed) {
     final files = [...listed]..sort((a, b) => a.filename.compareTo(b.filename));
-    final names = {for (final f in files) f.filename};
-    final seen = entry.seen ??= names;
-    entry.signal.value = WorkdirFilesLoaded(
-      files,
-      unseen: names.difference(seen),
-    );
-  }
-
-  /// Marks everything currently listed for [threadId] as seen.
-  void markSeen(String threadId) {
-    final entry = _threads[threadId];
-    final status = entry?.signal.value;
-    if (entry == null || status is! WorkdirFilesLoaded) return;
-    entry.seen = {for (final f in status.files) f.filename};
-    if (status.unseen.isNotEmpty) {
-      entry.signal.value = WorkdirFilesLoaded(status.files);
-    }
+    entry.signal.value = WorkdirFilesLoaded(files);
   }
 
   /// Downloads [file]'s bytes through the authenticated client and hands

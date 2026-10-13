@@ -34,6 +34,22 @@ void main() {
       );
     });
 
+    test('says the server is unavailable on exactly 500', () {
+      expect(
+        workdirErrorMessage(
+            const ApiException(message: 'boom', statusCode: 500)),
+        'Server is temporarily unavailable.',
+      );
+    });
+
+    test('is generic on 499', () {
+      expect(
+        workdirErrorMessage(
+            const ApiException(message: 'bad', statusCode: 499)),
+        'Something went wrong.',
+      );
+    });
+
     test('is generic on a non-Soliplex error', () {
       expect(workdirErrorMessage(TypeError()), 'Something went wrong.');
     });

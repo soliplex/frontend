@@ -11,13 +11,10 @@ class WorkdirFilesLoading extends WorkdirFilesStatus {
 }
 
 class WorkdirFilesLoaded extends WorkdirFilesStatus {
-  const WorkdirFilesLoaded(this.files, {this.unseen = const {}});
+  const WorkdirFilesLoaded(this.files);
 
   /// Sorted by filename; the backend lists in directory order.
   final List<WorkdirFile> files;
-
-  /// Names listed since the user last closed the files panel for this thread.
-  final Set<String> unseen;
 }
 
 class WorkdirFilesFailed extends WorkdirFilesStatus {

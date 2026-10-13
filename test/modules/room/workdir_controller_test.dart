@@ -64,9 +64,6 @@ void main() {
 
       final status = controller.files('t-1').value as WorkdirFilesLoaded;
       expect(status.files.map((f) => f.filename), ['a.csv', 'b.csv']);
-      expect(status.unseen, isEmpty,
-          reason:
-              'files present at first load were there before the user came');
     });
 
     test('a 404 before any load is an empty list', () async {
@@ -150,48 +147,7 @@ void main() {
       expect(names(controller, 't-1'), ['a.csv']);
     });
 
-    test('names new since the first load are unseen until markSeen', () async {
-      final responses = [
-        [_file('a.csv')],
-        [_file('a.csv'), _file('b.csv')],
-        [_file('a.csv'), _file('b.csv')],
-      ];
-      stubList(() async => responses.removeAt(0));
-      final controller = build();
-      addTearDown(controller.dispose);
-
-      await controller.refresh('t-1');
-      await controller.refresh('t-1');
-      expect((controller.files('t-1').value as WorkdirFilesLoaded).unseen,
-          {'b.csv'});
-
-      controller.markSeen('t-1');
-      expect((controller.files('t-1').value as WorkdirFilesLoaded).unseen,
-          isEmpty);
-
-      await controller.refresh('t-1');
-      expect(
-          (controller.files('t-1').value as WorkdirFilesLoaded).unseen, isEmpty,
-          reason: 'a later listing of the same names stays seen');
-    });
-
-    test('a file first seen after an empty first load is unseen', () async {
-      final responses = [
-        <WorkdirFile>[],
-        [_file('a.csv')],
-      ];
-      stubList(() async => responses.removeAt(0));
-      final controller = build();
-      addTearDown(controller.dispose);
-
-      await controller.refresh('t-1');
-      await controller.refresh('t-1');
-
-      expect((controller.files('t-1').value as WorkdirFilesLoaded).unseen,
-          {'a.csv'});
-    });
-
-    test('threads keep separate lists and seen sets', () async {
+    test('threads keep separate lists', () async {
       final tA = [
         [_file('a.csv')],
         [_file('a.csv'), _file('a2.csv')],
@@ -208,10 +164,6 @@ void main() {
 
       expect(names(controller, 't-A'), ['a.csv', 'a2.csv']);
       expect(names(controller, 't-B'), ['b.csv']);
-      expect((controller.files('t-A').value as WorkdirFilesLoaded).unseen,
-          {'a2.csv'});
-      expect((controller.files('t-B').value as WorkdirFilesLoaded).unseen,
-          isEmpty);
     });
 
     test('a stray CancelledException is a failure, not a stuck retry',

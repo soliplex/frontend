@@ -1870,7 +1870,8 @@ class SoliplexApi {
   /// Downloads one file from the thread's sandbox workspace.
   ///
   /// Buffers the entire response in memory; intended for the small text /
-  /// data files agents typically produce.
+  /// data files agents typically produce. Multi-hundred-MB downloads should
+  /// use a streaming endpoint (not yet implemented).
   ///
   /// Parameters:
   /// - [roomId]: The room ID (must not be empty)
@@ -1912,6 +1913,7 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
   }
+
   // ============================================================
   // Lifecycle
   // ============================================================
