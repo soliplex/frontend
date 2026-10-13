@@ -148,6 +148,13 @@ class ThreadViewState {
   /// know which one that is.
   ReadonlySignal<String?> get activeRunId => _activeRunId;
 
+  final Signal<int> _runsEnded = Signal<int>(0);
+
+  /// How many runs on this view have reached a terminal state: completed,
+  /// failed, or cancelled. Disposing the view is not one, though it clears
+  /// [activeRunId]: a thread left mid-run keeps running in the background.
+  ReadonlySignal<int> get runsEnded => _runsEnded;
+
   /// Tracks the session lifecycle: null → spawning → running → null.
   /// Driven by [_spawner] during spawn (via its state-transition callback)
   /// and updated directly here for attach, running, and detach transitions.
@@ -458,6 +465,7 @@ class ThreadViewState {
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
         unawaited(contextUsage.runCompleted(runId, conversation.transcript));
+        _runsEnded.value++;
       case FailedState(
           :final conversation,
           :final reason,
@@ -486,12 +494,14 @@ class ThreadViewState {
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
+        _runsEnded.value++;
       case CancelledState(:final conversation):
         _detachSession();
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
         contextUsage.sendEnded(conversation?.transcript);
+        _runsEnded.value++;
       case IdleState():
         break;
     }
