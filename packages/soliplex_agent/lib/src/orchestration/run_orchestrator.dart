@@ -82,10 +82,11 @@ class RunOrchestrator {
   final Logger _logger;
   final int _maxToolDepth;
 
-  /// The run being folded, kept past its end until the next turn starts: a
+  /// The run being folded, kept past its end until the next turn is built: a
   /// continuation run carries the turn's citations forward from it, and an
   /// ending recorded while a run waits on a client tool is recorded on it.
-  /// Null at turn start.
+  /// Null from when a turn is built (or on reset or sync) until its first run
+  /// subscribes.
   RunFold? _fold;
   String? _userMessageId;
 
@@ -431,20 +432,20 @@ class RunOrchestrator {
     while (true) {
       final state = await _terminalCompleter!.future;
       if (state is! ToolYieldingState) return state;
+      if (_waitEnded) return _currentState;
       if (_disposed) return _cancelledFromYielding(key, state);
       List<ToolCallInfo> results;
       try {
         results = await toolExecutor(state.pendingToolCalls);
       } on Object catch (e, stackTrace) {
+        if (_waitEnded) return _currentState;
         if (e is CancelledException || e is CancellationError) {
           return _cancelledFromYielding(key, state);
         }
         return _failToolExecution(key, state, e, stackTrace);
       }
+      if (_waitEnded) return _currentState;
       if (_disposed) return _cancelledFromYielding(key, state);
-      // A stop, a reset or a sync ended the wait while the tools ran; their
-      // results have no run to resume.
-      if (_currentState is! ToolYieldingState) return _currentState;
       try {
         _toolDepth++;
         if (_toolDepth > _maxToolDepth) {
@@ -452,14 +453,18 @@ class RunOrchestrator {
         }
         await _resumeStream(state, results);
       } on Object catch (e, stackTrace) {
-        // If the wait already ended (a stop, a reset or a sync), the
-        // exception is the byproduct of that cancellation propagating
-        // through the in-flight `startRun` await — not a true failure.
-        if (_currentState is! ToolYieldingState) return _currentState;
+        if (_waitEnded) return _currentState;
         return _failResume(key, state, e, stackTrace);
       }
     }
   }
+
+  /// Whether a stop or a reset ended the client-tool wait during one of
+  /// [_driveToolLoop]'s awaits. The loop then returns the state the wait ended
+  /// in and touches nothing: what the tools returned or threw, and a resume
+  /// failing as the stop cancelled it, belong to a wait that is over, and the
+  /// stop has already recorded how it ended.
+  bool get _waitEnded => _currentState is! ToolYieldingState;
 
   /// Resumes the SSE stream after tool execution.
   ///
@@ -609,14 +614,14 @@ class RunOrchestrator {
           .conversation;
 
   /// The run's conversation with a record that it was stopped, stamped when
-  /// the user stopped it. [terminalEvent] names the ending in the log.
+  /// the stop is recorded. [terminalEvent] names the ending in the log.
   Conversation _recordRunEndedAsCancelled({required String terminalEvent}) =>
       (_fold = _fold!.cancelled(terminalEvent: terminalEvent).resolveTurn())
           .conversation;
 
   /// The run's conversation with a record that it failed with [detail],
-  /// stamped with the last event the run delivered. [terminalEvent] names the
-  /// ending in the log.
+  /// stamped with the latest event that carried a time. [terminalEvent] names
+  /// the ending in the log.
   Conversation _recordRunEndedAsFailed(
     String detail, {
     required String terminalEvent,
@@ -671,7 +676,8 @@ class RunOrchestrator {
           runId: runId,
           // Disposal ends the run as a stop does, so whoever awaits the run
           // gets the conversation a stop would have left: the partial reply
-          // committed and what the run was sent restored.
+          // committed, and what the run was sent restored unless its state
+          // snapshot was processed.
           conversation: _recordRunEndedAsCancelled(terminalEvent: 'dispose'),
         ),
       );
@@ -758,7 +764,7 @@ class RunOrchestrator {
     final toolMsg = ToolCallMessage.fromExecuted(
       runId: state.runId,
       toolCalls: executedTools,
-      createdAt: _fold!.lastEventTime,
+      createdAt: _fold!.undatedRowTime,
     );
     // Appended where the result arrived: after whatever its run streamed. A
     // failed call's error goes as its content, so the model can respond to it,
@@ -811,10 +817,10 @@ class RunOrchestrator {
     );
     // No authoritative time exists at submit — the run has no server time yet —
     // so the optimistic echo starts without one (createdAt: null, the default).
-    // It is stamped with the run's server start time when RunStartedEvent
-    // arrives, and fills from the run's server `created` on replay. The
-    // frontend never displays a client-generated time. now() here is only for
-    // a unique id.
+    // `RunFold.apply` stamps it with the time of RunStartedEvent (or of the
+    // last event before it that carried one); replay falls back to the run's
+    // server `created`. It never shows a client-generated time; now() here
+    // is only for a unique id.
     final userMsg = TextMessage.fromParts(
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
       parts: numbered,
@@ -912,6 +918,7 @@ class RunOrchestrator {
       runId: initialState.runId,
       userMessageId: _userMessageId,
       turnCitations: _fold?.turnCitations ?? const TurnCitations.empty(),
+      runCreated: null,
     );
     _setState(_runningFrom(initialState));
     _subscription = events.listen(

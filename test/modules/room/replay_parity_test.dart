@@ -389,7 +389,16 @@ void main() {
           ],
         });
 
-        expect(live.state, isA<FailedState>());
+        // Both paths could agree on calling it merely cut off; the snapshot
+        // they could not process may have been what said how the run ended.
+        expect(
+          live.state,
+          isA<FailedState>().having(
+            (s) => s.error,
+            'error',
+            "Some of this run's events could not be read",
+          ),
+        );
         expect(
           live.conversation.messages.whereType<DroppedEventMessage>().single,
           isA<DroppedEventMessage>().having(
@@ -509,8 +518,77 @@ void main() {
               .map((s) => s.chunkId),
           ['chunk-1', 'chunk-2'],
         );
+        // Both paths could agree on no time at all; the tool's card takes the
+        // time of the run that waited on it.
+        expect(
+          live.conversation.messages
+              .whereType<ToolCallMessage>()
+              .single
+              .createdAt,
+          DateTime.fromMillisecondsSinceEpoch(_at(3), isUtc: true),
+        );
       },
     );
+
+    test('a run that calls a server and a client tool at once, continued',
+        () async {
+      // The continuation's input ends with both results; only the client
+      // tool's is one the run waited on.
+      final live = await expectParity(
+        {
+          'run-1': [
+            _runStarted('run-1', 0),
+            TextMessageStartEvent(messageId: 'p', timestamp: _at(1)).toJson(),
+            TextMessageEndEvent(messageId: 'p', timestamp: _at(1)).toJson(),
+            for (final (id, name) in [
+              ('call-search', 'search'),
+              ('call-locate', 'locate'),
+            ]) ...[
+              ToolCallStartEvent(
+                toolCallId: id,
+                toolCallName: name,
+                parentMessageId: 'p',
+                timestamp: _at(2),
+              ).toJson(),
+              ToolCallArgsEvent(toolCallId: id, delta: '{}', timestamp: _at(2))
+                  .toJson(),
+              ToolCallEndEvent(toolCallId: id, timestamp: _at(2)).toJson(),
+            ],
+            ToolCallResultEvent(
+              messageId: 'r',
+              toolCallId: 'call-search',
+              content: 'evidence',
+              timestamp: _at(3),
+            ).toJson(),
+            _runFinished('run-1', 4),
+          ],
+          'run-2': [
+            _runStarted('run-2', 60),
+            ..._reply('msg-2', 'You are here', 61),
+            _runFinished('run-2', 65),
+          ],
+        },
+        toolRegistry: const ToolRegistry().register(
+          ClientTool(
+            definition: const Tool(name: 'locate', description: 'Locates'),
+            executor: (_, __) async => fail('answered by executeTools'),
+          ),
+        ),
+        executeTools: (pending) async => [
+          for (final call in pending)
+            call.copyWith(status: ToolCallStatus.completed, result: 'Paris'),
+        ],
+      );
+
+      expect(
+        live.conversation.messages
+            .whereType<ToolCallMessage>()
+            .single
+            .toolCalls
+            .map((c) => c.id),
+        ['call-locate'],
+      );
+    });
 
     test('a run whose client tool fails and the run that continues it',
         () async {
@@ -566,7 +644,7 @@ void main() {
   // client goes (`drive_llm_stream`), so a reload shows the finished answer,
   // never a disposed run.
   test(
-    'disposing mid-run keeps the partial reply and what the run was sent',
+    'disposing mid-run ends the run as a stop does',
     () async {
       final events = StreamController<DecodeOutcome>();
       addTearDown(events.close);
@@ -607,6 +685,7 @@ void main() {
         conversation.transcript.messages.map((m) => m.toJson()),
         sent.single.messages!.map((m) => m.toJson()),
       );
+      expect(conversation.messageStates.values.single.runId, 'run-1');
     },
   );
 }

@@ -1125,11 +1125,11 @@ class SoliplexApi {
       return null;
     }
 
-    // A blank id is no more usable than a missing one: the append guard below
-    // reads a repeat as a continuation, so every blank-id turn in a thread
-    // would collapse onto the first. Both fall back to the run's own id, which
-    // the thread listing rejects unless it is a non-empty String — so two runs
-    // cannot collide on it.
+    // A blank id is no more usable than a missing one: the append guard in
+    // `replayThreadHistory` reads a repeat as a continuation, so every
+    // blank-id turn in a thread would collapse onto the first. Both fall back
+    // to the run's own id, which the thread listing rejects unless it is a
+    // non-empty String — so two runs cannot collide on it.
     final rawId = lastUserMessage['id'];
     if (rawId is! String || rawId.isEmpty) {
       _logger.warning(

@@ -80,9 +80,9 @@ Map<String, ExecutionTracker> replayToTrackers(
     }
   }
 
-  // The key each run was filling when its events ran out. Every other bucket
-  // closed because the run moved on to another reply, which means its work
-  // finished; only these were left open by the run ending.
+  // The key each turn was filling when its last run's events ran out. Every
+  // other bucket closed because the turn moved on to another reply, which
+  // means its work finished; only these were left open by the turn ending.
   final endedOn = <String>{};
 
   // The run whose work is being collected: the key its work collects under
@@ -116,10 +116,10 @@ Map<String, ExecutionTracker> replayToTrackers(
 
   for (final bundle in history.runs) {
     if (!bundle.continuesTurn) endTurn();
-    // Everything collects under the key that names the tile the run that ends
-    // the turn is given if nothing speaks, and moves to whichever message
-    // speaks for it. A run that continues the turn ends it, so the turn's
-    // unclaimed work moves to its key, and the response carries on.
+    // Everything collects under the key that names the tile the turn's latest
+    // run is given if nothing speaks, and moves to whichever message speaks
+    // for it. A run that continues the turn is its latest run so far, so the
+    // turn's unclaimed work moves to its key, and the response carries on.
     final unclaimed = noResponseMessageId(bundle.runId);
     final continued = open;
     if (continued != null) handOver(continued.unclaimed, unclaimed);

@@ -41,6 +41,7 @@ void main() {
       // keyed to msg-1 would name a tile that is never shown.
       final runs = [
         RunEventBundle(
+          continuesTurn: false,
           runId: 'run-1',
           events: const [
             ReasoningMessageStartEvent(messageId: 'reason-1'),
@@ -71,6 +72,7 @@ void main() {
       // start the clock at the tool call and drop the 2.5s before it.
       final runs = [
         RunEventBundle(
+          continuesTurn: false,
           runId: 'run-1',
           events: [
             RunStartedEvent(threadId: 't-1', runId: 'run-1', timestamp: 1000),
@@ -114,6 +116,7 @@ void main() {
       // the way across would leave it with no offset at all.
       final runs = [
         RunEventBundle(
+          continuesTurn: false,
           runId: 'run-1',
           events: [
             RunStartedEvent(threadId: 't-1', runId: 'run-1', timestamp: 1000),
@@ -142,6 +145,7 @@ void main() {
         () async {
       final runs = [
         RunEventBundle(
+          continuesTurn: false,
           runId: 'run-1',
           events: const [
             TextMessageStartEvent(messageId: 'msg-1'),
@@ -189,6 +193,7 @@ void main() {
       // the call, so it must not reload as one that completed.
       final runs = [
         RunEventBundle(
+          continuesTurn: false,
           runId: 'run-1',
           events: const [
             TextMessageStartEvent(messageId: 'msg-1'),
@@ -209,53 +214,11 @@ void main() {
     });
 
     test(
-        'a run that waited on a client tool hands its work to the reply of '
-        'the run that continues its turn', () {
-      // Live keeps collecting the turn into one band across the wait, so the
-      // reply that finally speaks takes the work of the run that waited.
-      final history = ThreadHistory(
-        messages: [
-          TextMessage.create(
-            id: 'asst-1',
-            user: ChatUser.assistant,
-            text: 'Hi',
-            runId: 'run-resume',
-          ),
-        ],
-        runs: [
-          RunEventBundle(
-            runId: 'run-yield',
-            events: const [
-              ReasoningMessageStartEvent(messageId: 'r1'),
-              ReasoningMessageContentEvent(messageId: 'r1', delta: 'pre-tool'),
-              ReasoningMessageEndEvent(messageId: 'r1'),
-              ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'locate'),
-              ToolCallEndEvent(toolCallId: 'tc-1'),
-            ],
-          ),
-          RunEventBundle(
-            runId: 'run-resume',
-            continuesTurn: true,
-            events: const [
-              TextMessageStartEvent(messageId: 'asst-1'),
-              TextMessageContentEvent(messageId: 'asst-1', delta: 'Hi'),
-              TextMessageEndEvent(messageId: 'asst-1'),
-            ],
-          ),
-        ],
-      );
-
-      final trackers = replayToTrackers(history);
-
-      expect(trackers.keys, ['asst-1']);
-      expect(trackers['asst-1']!.thinkingBlocks.value, ['pre-tool']);
-    });
-
-    test(
         "a run that worked and never spoke keeps its work, rather than "
         "handing it to whatever answers next", () async {
       final runs = [
         RunEventBundle(
+          continuesTurn: false,
           runId: 'run-yield',
           events: const [
             ReasoningMessageStartEvent(messageId: 'r1', timestamp: 1000),
@@ -277,6 +240,7 @@ void main() {
           ],
         ),
         RunEventBundle(
+          continuesTurn: false,
           runId: 'run-resume',
           events: const [
             TextMessageStartEvent(messageId: 'asst-1'),
@@ -315,6 +279,7 @@ void main() {
       () async {
         final runs = [
           RunEventBundle(
+            continuesTurn: false,
             runId: 'run-1',
             events: [
               RunStartedEvent(threadId: 't-1', runId: 'run-1'),

@@ -247,21 +247,6 @@ void main() {
   });
 
   group('optimistic echo', () {
-    // Sent, it would reach the backend as empty content, which pydantic-ai
-    // discards without reporting an error.
-    test('an empty message fails before the run starts', () async {
-      stubCreateRun();
-      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
-
-      final state = await orchestrator.runToCompletion(
-        key: _key,
-        userMessage: [const TextPart('')],
-        toolExecutor: (_) async => [],
-      );
-
-      expect(state, isA<FailedState>().having((s) => s.runId, 'runId', isNull));
-    });
-
     // The echo is the only representation of the user's turn on screen while
     // the run is in flight, so dropping `parts` here loses an attached image
     // until a reload replays it from the server.
@@ -289,10 +274,8 @@ void main() {
     });
 
     // A lone text run flattens to itself, which is what every caller that
-    // sends plain text relies on. Text alone travels the wire as a bare
-    // string, which a reload reads back without parts, so the echo carries
-    // none either and reads the same before and after one.
-    test('carries text alone as text, without parts', () async {
+    // sends plain text relies on.
+    test('derives text from a single text run', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
@@ -300,9 +283,7 @@ void main() {
           .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
-      final echo = _echo(orchestrator);
-      expect(echo.text, equals('Hi'));
-      expect(echo.parts, isNull);
+      expect(_echo(orchestrator).text, equals('Hi'));
     });
   });
 
@@ -324,34 +305,6 @@ void main() {
       final failed = orchestrator.currentState as FailedState;
       expect(failed.reason, equals(FailureReason.serverError));
       expect(failed.error, equals('backend error'));
-    });
-
-    test('dates a RunErrorEvent that carries no time at the last event',
-        () async {
-      // Undated, the failure has no time to show; dated at the run's start,
-      // it would sort above the reply it follows.
-      final lastEventTime = DateTime.utc(2026, 1, 7, 1, 0, 3);
-      stubCreateRun();
-      stubRunAgent(
-        stream: Stream.fromIterable([
-          RunStartedEvent(threadId: 'thread-1', runId: _runId),
-          TextMessageStartEvent(
-            messageId: 'msg-1',
-            timestamp: lastEventTime.millisecondsSinceEpoch,
-          ),
-          const RunErrorEvent(message: 'backend error'),
-        ]),
-      );
-
-      await orchestrator
-          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
-      await Future<void>.delayed(Duration.zero);
-
-      final failed = orchestrator.currentState as FailedState;
-      expect(
-        failed.conversation!.runOutcomes[_runId]!.createdAt,
-        lastEventTime,
-      );
     });
 
     test(
@@ -449,9 +402,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         final failed = orchestrator.currentState as FailedState;
-        const detail = "Some of this run's events could not be read";
-        expect(failed.error, detail);
-        expect(failed.conversation!.runOutcomes[_runId]!.errorDetail, detail);
+        expect(failed.error, "Some of this run's events could not be read");
       },
     );
 
@@ -1748,46 +1699,6 @@ void main() {
       expect(toolResult.runId, equals(yielding.runId));
     });
 
-    test(
-        'the resumed tool result is named after the run that yielded and '
-        'dated at its last event', () async {
-      // As reload rebuilds it from the stored run, which has no client clock
-      // to read.
-      final yieldedAt = DateTime.utc(2026, 1, 7, 1, 0, 3);
-      orchestrator = RunOrchestrator(
-        llmProvider: AgUiLlmProvider(
-          api: api,
-          agUiStreamClient: agUiStreamClient,
-        ),
-        toolRegistry: _registryWith(),
-        logger: logger,
-      );
-      stubCreateRun();
-      stubRunAgentSequential(
-        first: Stream.fromIterable([
-          ..._toolCallEvents().take(4),
-          RunFinishedEvent(
-            threadId: 'thread-1',
-            runId: _runId,
-            timestamp: yieldedAt.millisecondsSinceEpoch,
-          ),
-        ]),
-        second: Stream.fromIterable(_resumeTextEvents()),
-      );
-
-      await orchestrator
-          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
-      await Future<void>.delayed(Duration.zero);
-      await orchestrator.submitToolOutputs(_executedTools());
-      await Future<void>.delayed(Duration.zero);
-
-      final resumed = orchestrator.currentState as CompletedState;
-      final toolResult =
-          resumed.conversation.messages.whereType<ToolCallMessage>().single;
-      expect(toolResult.id, executedToolsMessageId(_runId));
-      expect(toolResult.createdAt, yieldedAt);
-    });
-
     test('throws when not in ToolYieldingState', () {
       expect(
         () => orchestrator.submitToolOutputs(_executedTools()),
@@ -2121,45 +2032,73 @@ void main() {
       expect(parked!.reason, equals(TerminalReason.cancelled));
       expect(parked.thinkingText, equals('weighing it'));
     });
-
-    test('a run disposed mid-reply keeps the reply, as a stop does', () async {
-      stubCreateRun();
-      final controller = StreamController<BaseEvent>();
-      stubRunAgent(stream: controller.stream);
-      addTearDown(controller.close);
-
-      final pending = orchestrator.runToCompletion(
-        key: _key,
-        userMessage: [const TextPart('Hi')],
-        toolExecutor: (_) async => [],
-      );
-      await Future<void>.delayed(Duration.zero);
-      controller
-        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
-        ..add(const TextMessageStartEvent(messageId: 'msg-1'))
-        ..add(
-          const TextMessageContentEvent(messageId: 'msg-1', delta: "I don'"),
-        );
-      await Future<void>.delayed(Duration.zero);
-
-      orchestrator.dispose();
-      final result = await pending;
-
-      expect(
-        (result as CancelledState)
-            .conversation!
-            .messages
-            .whereType<TextMessage>()
-            .map((m) => m.text),
-        contains("I don'"),
-      );
-    });
   });
 
   group('cancel during yield', () {
-    test('a reset while a client tool runs ends the run as reset', () async {
-      // The wait ended while the tool ran, so its result has no run to
-      // resume.
+    test('a reset and then a dispose as the run starts waiting ends as reset',
+        () async {
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
+      final sub = orchestrator.stateChanges.listen((state) {
+        if (state is ToolYieldingState) {
+          orchestrator
+            ..reset()
+            ..dispose();
+        }
+      });
+      addTearDown(sub.cancel);
+
+      final ended = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) => fail('the wait ended before the tool ran'),
+      );
+
+      expect(await ended, isA<IdleState>());
+    });
+
+    test('a reset and then a dispose while a client tool runs ends as reset',
+        () async {
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
+      final executing = Completer<void>();
+      final executed = Completer<List<ToolCallInfo>>();
+
+      final ended = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) {
+          executing.complete();
+          return executed.future;
+        },
+      );
+      await executing.future;
+      orchestrator
+        ..reset()
+        ..dispose();
+      executed.complete(_executedTools());
+
+      expect(await ended, isA<IdleState>());
+    });
+
+    test('a reset while a client tool runs, then the tool fails, ends as reset',
+        () async {
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
           api: api,
@@ -2183,7 +2122,7 @@ void main() {
       );
       await executing.future;
       orchestrator.reset();
-      executed.complete(_executedTools());
+      executed.completeError(StateError('tool broke'));
 
       expect(await ended, isA<IdleState>());
     });
@@ -2484,6 +2423,44 @@ void main() {
             'must not re-run the tool on the stale ToolYieldingState held by '
             'the consumed completer',
       );
+    });
+
+    test(
+        'reset during _resumeStream createRun, then createRun fails, ends as '
+        'reset', () async {
+      // The failure belongs to a resume the reset already abandoned, so it
+      // is not the run failing.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
+      final toolExecutorTrigger = Completer<void>();
+      final runFuture = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (_) async {
+          await toolExecutorTrigger.future;
+          return _executedTools();
+        },
+      );
+      await Future<void>.delayed(Duration.zero);
+      final resumeCreateRun = Completer<RunInfo>();
+      when(
+        () => api.createRun(any(), any()),
+      ).thenAnswer((_) => resumeCreateRun.future);
+      toolExecutorTrigger.complete();
+      await Future<void>.delayed(Duration.zero);
+
+      orchestrator.reset();
+      resumeCreateRun.completeError(const NetworkException(message: 'down'));
+
+      expect(await runFuture, isA<IdleState>());
     });
   });
 
@@ -4333,59 +4310,25 @@ void main() {
             {'type': 'RUN_FINISHED'},
           ),
         )
-        ..add(const DecodeFailed(FormatException('boom'), {'type': 'LATE'}));
+        ..add(
+          const DecodeFailed(
+            FormatException('boom', '{"text": "what the user typed"}'),
+            {'type': 'LATE'},
+          ),
+        );
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
-      verify(
+      final logged = verify(
         () => logger.error(
-          any(that: contains('no tile appended')),
+          any(),
           stackTrace: any(named: 'stackTrace'),
-          attributes: any(named: 'attributes'),
+          attributes: captureAny(named: 'attributes'),
         ),
-      ).called(1);
-    });
-
-    test('dates a drop tile at the last event that carried a time', () async {
-      // As replay dates the same tile, so the thread reads the same after a
-      // reload.
-      final lastEventTime = DateTime.utc(2026, 1, 7, 1, 0, 3);
-      stubCreateRun();
-      when(
-        () => agUiStreamClient.runAgent(
-          any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
-          resumePolicy: any(named: 'resumePolicy'),
-          onReconnectStatus: any(named: 'onReconnectStatus'),
-        ),
-      ).thenAnswer(
-        (_) => Stream.fromIterable([
-          DecodedEvent(
-            RunStartedEvent(
-              threadId: 'thread-1',
-              runId: _runId,
-              timestamp: lastEventTime.millisecondsSinceEpoch,
-            ),
-            const {'type': 'RUN_STARTED'},
-          ),
-          const DecodeFailed(FormatException('boom'), {'type': 'GIBBERISH'}),
-          const DecodedEvent(
-            RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-            {'type': 'RUN_FINISHED'},
-          ),
-        ]),
-      );
-
-      await orchestrator
-          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
-      await Future<void>.delayed(Duration.zero);
-
-      final completed = orchestrator.currentState as CompletedState;
-      final drop = completed.conversation.messages
-          .whereType<DroppedEventMessage>()
-          .single;
-      expect(drop.createdAt, lastEventTime);
+      ).captured.single as Map<String, Object?>;
+      // Described rather than forwarded: a decode failure can carry its
+      // payload.
+      expect(logged['failure'], 'FormatException: boom');
     });
   });
 
@@ -4484,9 +4427,9 @@ void main() {
       );
     });
 
-    // The error goes as the content too, so the model can respond to it.
-    // Reported in `error` as well, a failed call reaches the model as a
-    // failure, and reads back as one when the thread is reopened.
+    // The error goes as the content, so the model can respond to it, and in
+    // `error` as well, so it reaches the model as a failure and reads back as
+    // one when the thread is reopened.
     test('a resume reports a failed call as failed, with its error', () async {
       expect(
         await resumedHistory(

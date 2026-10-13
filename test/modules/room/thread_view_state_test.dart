@@ -1089,6 +1089,7 @@ void main() {
         ],
         runs: [
           RunEventBundle(
+            continuesTurn: false,
             runId: 'run-prior',
             events: const [
               TextMessageStartEvent(messageId: 'asst-1'),
@@ -2481,6 +2482,7 @@ void main() {
         },
         runs: [
           RunEventBundle(
+            continuesTurn: false,
             runId: 'run-0',
             events: [
               RunStartedEvent(threadId: 'thread-1', runId: 'run-0'),

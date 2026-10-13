@@ -126,13 +126,13 @@ class RunEventBundle {
   RunEventBundle({
     required this.runId,
     required List<BaseEvent> events,
-    this.continuesTurn = false,
+    required this.continuesTurn,
   }) : events = List.unmodifiable(events);
 
   /// The run these events belong to.
   final String runId;
 
-  /// Whether this run continues a turn an earlier run opened: its user
+  /// Whether this run continues the turn of the run before it: its user
   /// message repeats that run's, as a run resumed after a client tool does.
   /// Live collects a turn's work into one band across that wait, so reload has
   /// to know.

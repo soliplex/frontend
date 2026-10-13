@@ -742,8 +742,8 @@ EventProcessingResult _processStateSnapshot(
   // The cast throws on non-Map snapshots. `RunFold.apply`, which both the
   // live and the replay path fold events through, catches the throw and
   // appends a `DroppedEventMessage` at the failure position; surrounding
-  // events still process. Future callers of
-  // `processEvent` that don't wrap inherit this contract.
+  // events still process. Future callers of `processEvent` that don't wrap
+  // inherit this contract.
   return EventProcessingResult(
     conversation: conversation.copyWith(
       aguiState: snapshot as Map<String, dynamic>,
