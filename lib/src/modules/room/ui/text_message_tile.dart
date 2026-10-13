@@ -19,7 +19,6 @@ import 'markdown/log_source.dart';
 import 'message_caption.dart';
 import 'notice_bubble.dart';
 import 'paged_zoomable_images.dart';
-import 'workdir_files_section.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 final _logger =
@@ -53,14 +52,10 @@ class TextMessageTile extends StatelessWidget {
     super.key,
     required this.roomId,
     required this.message,
-    this.runId,
     this.sourceReferences,
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
-    this.onFetchWorkdirFiles,
-    this.onDownloadWorkdirFile,
-    this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingPhase,
     required this.isStreaming,
@@ -68,14 +63,10 @@ class TextMessageTile extends StatelessWidget {
 
   final String roomId;
   final TextMessage message;
-  final String? runId;
   final List<SourceReference>? sourceReferences;
   final void Function(FeedbackType feedback, String? reason)? onFeedbackSubmit;
   final VoidCallback? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
-  final FetchWorkdirFiles? onFetchWorkdirFiles;
-  final DownloadWorkdirFile? onDownloadWorkdirFile;
-  final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
 
@@ -156,19 +147,6 @@ class TextMessageTile extends StatelessWidget {
           CitationsSection(
             sourceReferences: sourceReferences!,
             onShowChunkVisualization: onShowChunkVisualization,
-          ),
-        if (!isUser &&
-            runId != null &&
-            onFetchWorkdirFiles != null &&
-            onDownloadWorkdirFile != null)
-          WorkdirFilesSection(
-            // Force re-mount (and re-fetch) if the assistant message is
-            // ever rebuilt with a different runId.
-            key: ValueKey(runId),
-            runId: runId!,
-            fetchFiles: onFetchWorkdirFiles!,
-            onDownload: onDownloadWorkdirFile!,
-            onPreview: onPreviewWorkdirFile,
           ),
       ],
     );

@@ -30,6 +30,8 @@ import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files_section.dart'
+    show WorkdirErrorRow, WorkdirFileRow;
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
@@ -40,6 +42,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
 import '../../../helpers/fakes.dart';
+import '../../../helpers/live_session.dart';
 import '../image_fixtures.dart';
 import '../../../helpers/test_server_entry.dart';
 
@@ -2417,6 +2420,303 @@ void main() {
 
       expect(find.byIcon(Icons.attach_file), findsNothing);
       expect(find.byTooltip('Add image'), findsOneWidget);
+    });
+  });
+
+  group('assistant files', () {
+    setUpAll(registerLiveSessionFallbacks);
+
+    // One per test, held across that test's re-pumps.
+    late MessageExpansions expansions;
+
+    setUp(() {
+      expansions = MessageExpansions();
+      api.nextThreads = [
+        for (final id in ['thread-1', 'thread-2'])
+          ThreadInfo(
+            id: id,
+            roomId: 'room-1',
+            name: 'Thread $id',
+            createdAt: DateTime(2026, 3, 1),
+          ),
+      ];
+    });
+
+    WorkdirFile file(String name) => WorkdirFile(
+          filename: name,
+          url: Uri.parse('https://example.com/$name'),
+        );
+
+    Widget screen(String threadId) => ProviderScope(
+          overrides: [
+            messageExpansionsProvider.overrideWithValue(expansions),
+          ],
+          child: MaterialApp(
+            // The files panel's "New" badge reads the brand theme.
+            theme:
+                lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
+            home: RoomScreen(
+              appName: 'Test App',
+              serverEntry: entry,
+              roomId: 'room-1',
+              threadId: threadId,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          ),
+        );
+
+    void wideView(WidgetTester tester) {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+    }
+
+    Finder filesBadge() => find.ancestor(
+          of: find.byIcon(Icons.folder_outlined),
+          matching: find.byType(Badge),
+        );
+
+    testWidgets('lists them under the files button', (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('report.csv')];
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('1 from the assistant'), findsOneWidget);
+      expect(tester.widget<Badge>(filesBadge()).isLabelVisible, isFalse,
+          reason: 'a first load is not news');
+      expect(find.text('report.csv'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('FROM THE ASSISTANT'), findsOneWidget);
+      expect(find.text('report.csv'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(WorkdirFileRow),
+          matching: find.text('New'),
+        ),
+        findsNothing,
+        reason: 'a first load is what the user is looking at, not news',
+      );
+    });
+
+    testWidgets('a room without a sandbox never shows the files button',
+        (tester) async {
+      // Every open fetches the list, and a room without a sandbox answers 404
+      // every time. A fetch in flight must not read as content, or the button
+      // would flash on every thread switch.
+      wideView(tester);
+      api.nextWorkdirFilesError =
+          const NotFoundException(message: 'x', resource: '/x');
+
+      await tester.pumpWidget(screen('thread-1'));
+      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      await tester.pump();
+      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+
+      await tester.pumpWidget(screen('thread-2'));
+      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      await tester.pump();
+      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      expect(api.workdirListRequests, ['thread-1', 'thread-2'],
+          reason: 'precondition: both threads were asked');
+    });
+
+    testWidgets('marks files that arrived since the panel was last closed',
+        (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('a.csv')];
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(screen('thread-2'));
+      await tester.pumpAndSettle();
+
+      api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('2 from the assistant (1 new)'), findsOneWidget);
+      expect(tester.widget<Badge>(filesBadge()).isLabelVisible, isTrue);
+
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      Finder newBeside(String name) => find.descendant(
+            of: find.ancestor(
+              of: find.text(name),
+              matching: find.byType(WorkdirFileRow),
+            ),
+            matching: find.text('New'),
+          );
+      expect(newBeside('b.csv'), findsOneWidget);
+      expect(newBeside('a.csv'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('2 from the assistant'), findsOneWidget);
+      expect(tester.widget<Badge>(filesBadge()).isLabelVisible, isFalse);
+    });
+
+    testWidgets('a retry keeps the panel open until the files arrive',
+        (tester) async {
+      wideView(tester);
+      api.nextWorkdirFilesError = const NetworkException(message: 'down');
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byTooltip('Files'),
+          matching: find.byIcon(Icons.error_outline),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('Files'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining("Couldn't load files"), findsOneWidget);
+
+      api.nextWorkdirFilesError = null;
+      api.nextWorkdirFiles = [file('a.csv')];
+      final gate = api.workdirFilesGate = Completer<void>();
+      await tester.tap(find.byTooltip('Retry'));
+      await tester.pump();
+
+      expect(find.byKey(filePanelKey), findsOneWidget);
+      expect(find.textContaining("Couldn't load files"), findsOneWidget);
+      expect(find.byTooltip('Retry'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(WorkdirErrorRow),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(filePanelKey), findsOneWidget);
+      expect(find.text('a.csv'), findsOneWidget);
+    });
+
+    group('a run ending refetches the list', () {
+      final endings = <String, void Function(LiveSession live)>{
+        'completed': (live) => live.events
+          ..add(const TextMessageStartEvent(messageId: 'm1'))
+          ..add(const TextMessageContentEvent(messageId: 'm1', delta: 'Done.'))
+          ..add(const TextMessageEndEvent(messageId: 'm1'))
+          ..add(const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1')),
+        'failed': (live) =>
+            live.events.add(const RunErrorEvent(message: 'upstream said no')),
+        'cancelled': (live) => live.session.cancel(),
+      };
+
+      for (final MapEntry(key: ending, value: end) in endings.entries) {
+        testWidgets(ending, (tester) async {
+          wideView(tester);
+          final key = (
+            serverId: entry.serverId,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          );
+          final live = startLiveSession(key: key, runId: 'run-1');
+          registry.register(key, live.session);
+          await tester.pump();
+          live.events.add(
+            RunStartedEvent(threadId: 'thread-1', runId: 'run-1'),
+          );
+
+          await tester.pumpWidget(screen('thread-1'));
+          for (var i = 0; i < 5; i++) {
+            await tester.pump();
+          }
+          expect(api.workdirListRequests, ['thread-1'],
+              reason: 'precondition: opening the thread fetched once');
+
+          end(live);
+          for (var i = 0; i < 5; i++) {
+            await tester.pump();
+          }
+
+          expect(api.workdirListRequests, ['thread-1', 'thread-1']);
+        });
+      }
+    });
+
+    testWidgets('leaving a running thread does not refetch it', (tester) async {
+      wideView(tester);
+      final key = (
+        serverId: entry.serverId,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final live = startLiveSession(key: key, runId: 'run-1');
+      registry.register(key, live.session);
+      await tester.pump();
+      live.events.add(
+        RunStartedEvent(threadId: 'thread-1', runId: 'run-1'),
+      );
+
+      await tester.pumpWidget(screen('thread-1'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      final beforeSwitch = api.workdirListRequests.length;
+      expect(beforeSwitch, greaterThan(0), reason: 'precondition');
+
+      await tester.pumpWidget(screen('thread-2'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+
+      expect(api.workdirListRequests.sublist(beforeSwitch), ['thread-2']);
+
+      live.session.cancel();
+      await tester.pump();
+    });
+
+    testWidgets('a reply carries no list of its own', (tester) async {
+      wideView(tester);
+      api.nextThreadHistory = await storedHistory([
+        (
+          runId: 'run-1',
+          userMessageId: 'u1',
+          prompt: 'Make a table',
+          events: [
+            RunStartedEvent(threadId: 't', runId: 'run-1'),
+            const TextMessageStartEvent(messageId: 'm1'),
+            const TextMessageContentEvent(
+                messageId: 'm1', delta: 'Here it is.'),
+            const TextMessageEndEvent(messageId: 'm1'),
+            const RunFinishedEvent(threadId: 't', runId: 'run-1'),
+          ],
+        ),
+      ]);
+      api.nextWorkdirFiles = [file('a.csv')];
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Here it is.'), findsOneWidget,
+          reason: 'precondition: the reply is on screen');
+      expect(find.text('a.csv'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('a.csv'), findsOneWidget);
     });
   });
 
