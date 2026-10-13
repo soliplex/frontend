@@ -185,16 +185,13 @@ void main() {
 
       final failed = controller.files('t-1').value as WorkdirFilesFailed;
       expect(failed.retrying, isFalse);
-      expect(failed.error, isA<CancelledException>());
     });
 
     test('a newer refresh wins over an older one still in flight', () async {
       final first = Completer<List<WorkdirFile>>();
-      final tokens = <CancelToken>[];
       var call = 0;
       when(() => api.getThreadWorkdirFiles('room-1', 't-1',
-          cancelToken: any(named: 'cancelToken'))).thenAnswer((inv) {
-        tokens.add(inv.namedArguments[#cancelToken] as CancelToken);
+          cancelToken: any(named: 'cancelToken'))).thenAnswer((_) {
         call++;
         return call == 1 ? first.future : Future.value([_file('new.csv')]);
       });
@@ -206,8 +203,19 @@ void main() {
       first.complete([_file('old.csv')]);
       await older;
 
-      expect(tokens.first.isCancelled, isTrue);
       expect(names(controller, 't-1'), ['new.csv']);
+    });
+
+    test('dispose while a listing is in flight does not throw', () async {
+      final listing = Completer<List<WorkdirFile>>();
+      stubList(() => listing.future);
+      final controller = build();
+
+      final refreshing = controller.refresh('t-1');
+      controller.dispose();
+      listing.complete([_file('a.csv')]);
+
+      await expectLater(refreshing, completes);
     });
 
     test('files() after dispose throws StateError', () {

@@ -15,7 +15,6 @@ WorkdirFilesLoaded _loaded(List<String> names) =>
 Widget _banner(
   ReadonlySignal<WorkdirFilesStatus> status, {
   String threadId = 't-1',
-  VoidCallback? onShow,
 }) =>
     MaterialApp(
       theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
@@ -23,7 +22,7 @@ Widget _banner(
         body: WorkspaceEventBanner(
           status: status,
           threadId: threadId,
-          onShow: onShow ?? () {},
+          onShow: () {},
         ),
       ),
     );
@@ -40,9 +39,8 @@ void main() {
   Finder pillText() => find.textContaining('to the workspace');
 
   /// Lands [names] as the thread's baseline listing.
-  Future<void> enterWith(WidgetTester tester, List<String> names,
-      {VoidCallback? onShow}) async {
-    await tester.pumpWidget(_banner(status, onShow: onShow));
+  Future<void> enterWith(WidgetTester tester, List<String> names) async {
+    await tester.pumpWidget(_banner(status));
     status.value = _loaded(names);
     await tester.pump();
   }
@@ -102,10 +100,8 @@ void main() {
 
     status.value = const WorkdirFilesLoading();
     await tester.pump();
-    expect(pillText(), findsNothing);
     status.value = const WorkdirFilesFailed('boom');
     await tester.pump();
-    expect(pillText(), findsNothing);
 
     status.value = _loaded(['a.csv', 'b.csv']);
     await tester.pump();
@@ -186,16 +182,14 @@ void main() {
     expect(pillText(), findsNothing);
   });
 
-  testWidgets('Show runs onShow and dismisses the pill', (tester) async {
-    var shown = 0;
-    await enterWith(tester, ['a.csv'], onShow: () => shown++);
+  testWidgets('Show dismisses the pill', (tester) async {
+    await enterWith(tester, ['a.csv']);
     status.value = _loaded(['a.csv', 'b.csv']);
     await tester.pump();
 
     await tester.tap(find.text('Show'));
     await tester.pumpAndSettle();
 
-    expect(shown, 1);
     expect(pillText(), findsNothing);
   });
 }

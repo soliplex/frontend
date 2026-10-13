@@ -13,8 +13,10 @@ import 'notice_pill.dart';
 ///
 /// Derives the added names by diffing successive [WorkdirFilesLoaded]
 /// listings. The first listing seen for a thread is the baseline and fires
-/// nothing: those files were there before the user came. Loading and Failed
-/// listings are skipped, and a name that disappears never fires.
+/// nothing. Within a room visit, returning to a thread re-baselines on its
+/// cached listing, so files added while away are announced when the reopening
+/// fetch lands. Loading and Failed listings are skipped, and a name that
+/// disappears never fires.
 class WorkspaceEventBanner extends StatefulWidget {
   const WorkspaceEventBanner({
     required this.status,
@@ -34,7 +36,7 @@ class WorkspaceEventBanner extends StatefulWidget {
 class _WorkspaceEventBannerState extends State<WorkspaceEventBanner> {
   Set<String>? _previous;
 
-  /// Added names not yet dismissed, in the listing's filename order.
+  /// Added names not yet dismissed, in filename order.
   final SplayTreeSet<String> _added = SplayTreeSet();
   Timer? _dismissTimer;
   VoidCallback? _unsubscribe;

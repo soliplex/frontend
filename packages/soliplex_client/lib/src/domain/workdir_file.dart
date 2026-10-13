@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 
-/// A file written by the agent into the run working directory.
+/// A file at the top level of a thread's sandbox workspace.
 ///
 /// Validation of [filename] (non-empty, no path separators, no NUL bytes)
 /// is enforced at parse time by the mapper, not in this constructor.

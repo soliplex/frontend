@@ -26,7 +26,7 @@ final _logger =
 
 /// Bytes fetched above this size route to the too-large fallback
 /// instead of an in-pager renderer — decoding very large payloads in
-/// the chat scroller causes jank and OOMs.
+/// the preview pager causes jank and OOMs.
 const previewSizeCapBytes = 5 * 1024 * 1024;
 
 class WorkdirFileRow extends StatelessWidget {
@@ -352,12 +352,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _buildError(
-            context,
-            snapshot.error!,
-            snapshot.stackTrace,
-            file,
-          );
+          return _buildError(context, snapshot.error!, file);
         }
         final bytes = snapshot.data!;
         if (bytes.isEmpty) {
@@ -403,7 +398,6 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   Widget _buildError(
     BuildContext context,
     Object error,
-    StackTrace? stackTrace,
     WorkdirFile file,
   ) {
     final theme = Theme.of(context);
@@ -430,15 +424,6 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
         ),
       );
     }
-    _logger.error(
-      'preview bytes fetch failed',
-      error: error,
-      stackTrace: stackTrace,
-      attributes: {
-        'filename': file.filename,
-        'errorType': error.runtimeType.toString(),
-      },
-    );
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -505,8 +490,8 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   }
 
   /// Bottom navigation strip: prev chevron, dot indicators (when the
-  /// file count fits), next chevron. Hidden entirely for single-file
-  /// runs — there's nowhere to go.
+  /// file count fits), next chevron. Hidden entirely when there is
+  /// only one file — there's nowhere to go.
   Widget _buildNavBar(BuildContext context) {
     if (widget.files.length <= 1) return const SizedBox.shrink();
     final hasPrev = _currentIndex > 0;

@@ -20,8 +20,7 @@ class AnimatedNoticePill extends StatelessWidget {
   }
 }
 
-/// A transient one-line notice above the composer, with a close button and
-/// an optional action.
+/// A one-line notice with a close button and an optional action.
 class NoticePill extends StatelessWidget {
   const NoticePill({
     required this.icon,

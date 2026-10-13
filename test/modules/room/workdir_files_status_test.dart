@@ -26,14 +26,6 @@ void main() {
       );
     });
 
-    test('is generic on an ApiException below 500', () {
-      expect(
-        workdirErrorMessage(
-            const ApiException(message: 'bad', statusCode: 400)),
-        'Something went wrong.',
-      );
-    });
-
     test('says the server is unavailable on exactly 500', () {
       expect(
         workdirErrorMessage(

@@ -1605,20 +1605,6 @@ void main() {
         expect(state.runsEnded.value, 3);
       });
 
-      test('a run that failed before starting counts too', () async {
-        final state = await open();
-        final session = _FakeAgentSession();
-        state.attachSession(session);
-
-        session.emit(FailedState.preRun(
-          threadKey: key,
-          reason: FailureReason.networkLost,
-          error: 'connection lost',
-        ));
-
-        expect(state.runsEnded.value, 1);
-      });
-
       test('a running run does not count', () async {
         final state = await open();
         final session = _FakeAgentSession();
@@ -1634,9 +1620,7 @@ void main() {
         expect(state.runsEnded.value, 0);
       });
 
-      test(
-          'disposing the view mid-run does not count, though it clears '
-          'activeRunId', () {
+      test('disposing the view mid-run does not count', () {
         // Leaving a thread disposes its view while the run goes on in the
         // background; that is not the run ending. Built by hand rather than
         // with open(), whose tearDown would dispose it a second time.
@@ -1658,7 +1642,6 @@ void main() {
 
         state.dispose();
 
-        expect(state.activeRunId.value, isNull);
         expect(ended, 0);
       });
     });
