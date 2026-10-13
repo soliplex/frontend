@@ -27,14 +27,12 @@ Future<String?> _defaultSaveFile({
 }
 
 class _ThreadFiles {
-  // Not disposed: a refresh still awaiting its response may write to it after
-  // the controller is disposed, and a write to a disposed signal throws. Left
-  // undisposed, that write lands on a signal nobody watches.
   final signal = Signal<WorkdirFilesStatus>(const WorkdirFilesLoading());
   CancelToken? fetchToken;
 
   void dispose() {
     fetchToken?.cancel('disposed');
+    signal.dispose();
   }
 }
 
