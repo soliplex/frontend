@@ -9,7 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/assistant_files_section.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 
@@ -100,7 +100,7 @@ void main() {
   setUp(() => PaintingBinding.instance.imageCache.clear());
 
   testWidgets('renders each filename', (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf'), _file('plot.png')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -114,7 +114,7 @@ void main() {
 
   testWidgets('shows check icon briefly on success and reverts after 2s',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -136,7 +136,7 @@ void main() {
 
   testWidgets('shows error icon briefly on failed and reverts after 2s',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -157,7 +157,7 @@ void main() {
 
   testWidgets('cancellation reverts to idle without any feedback swap',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -175,7 +175,7 @@ void main() {
 
   testWidgets('a throwing onDownload still flips to the error icon',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -193,7 +193,7 @@ void main() {
       (tester) async {
     final completer = Completer<DownloadOutcome>();
     var calls = 0;
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -224,7 +224,7 @@ void main() {
     // asserts build() actively wires onTap to null mid-flight, which
     // is what gives the user the disabled InkWell ripple / a11y state.
     final completer = Completer<DownloadOutcome>();
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -252,7 +252,7 @@ void main() {
 
   testWidgets('preview eye icon shown only for previewable files',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png'), _file('report.pdf')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -266,7 +266,7 @@ void main() {
   testWidgets('tapping the eye opens the preview page and fetches bytes',
       (tester) async {
     var fetchCalls = 0;
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -292,7 +292,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -312,7 +312,7 @@ void main() {
 
   testWidgets('tapping rotate turns the previewed image a quarter turn',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -334,7 +334,7 @@ void main() {
   testWidgets('preview shows generic error + Retry when fetch fails',
       (tester) async {
     var fetchCalls = 0;
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -363,7 +363,7 @@ void main() {
 
   testWidgets('preview shows "no longer exists" without Retry on 404',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -383,7 +383,7 @@ void main() {
   });
 
   testWidgets('.PNG (uppercase) is treated as previewable', (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('PLOT.PNG')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -397,7 +397,7 @@ void main() {
   testWidgets(
       'empty bytes short-circuit to Download (not Retry), no InteractiveViewer',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -419,7 +419,7 @@ void main() {
   testWidgets(
       'non-image bytes show Download (not Retry) as a peer of InteractiveViewer',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -438,7 +438,7 @@ void main() {
   testWidgets(
       'leading icon is image_outlined for previewable, file icon otherwise',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png'), _file('report.pdf')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -454,7 +454,7 @@ void main() {
       'tapping a previewable row opens the preview and does not download',
       (tester) async {
     var downloads = 0;
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async {
@@ -478,7 +478,7 @@ void main() {
       'tapping the trailing download icon on a previewable row downloads',
       (tester) async {
     var downloads = 0;
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async {
@@ -499,7 +499,7 @@ void main() {
 
   testWidgets('code file opens preview with a HighlightView code block',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('script.py')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -518,7 +518,7 @@ void main() {
 
   testWidgets('markdown file opens preview through the markdown renderer',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('NOTES.md')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -538,7 +538,7 @@ void main() {
 
   testWidgets('json file is pretty-printed inside a HighlightView',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('data.json')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -561,7 +561,7 @@ void main() {
       (tester) async {
     const svg =
         '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>';
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('chart.svg')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -584,7 +584,7 @@ void main() {
     // bytes hit the fast errorBuilder fallback without exercising a
     // text/markdown decoder on 5 MB of zeros.
     final atCap = Uint8List(5 * 1024 * 1024);
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('boundary.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -601,7 +601,7 @@ void main() {
   testWidgets('bytes over the 5 MB cap render the too-large placeholder',
       (tester) async {
     final overCap = Uint8List(5 * 1024 * 1024 + 1);
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('huge.log')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -621,7 +621,7 @@ void main() {
 
   testWidgets('pdf row is not previewable — no eye icon, generic file icon',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('paper.pdf')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -636,7 +636,7 @@ void main() {
 
   testWidgets('unknown extension row is not previewable — no eye icon',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('blob.xyz')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -650,7 +650,7 @@ void main() {
 
   testWidgets('per-kind leading icons appear on previewable rows',
       (tester) async {
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([
         _file('script.py'),
         _file('data.json'),
@@ -671,7 +671,7 @@ void main() {
 
   testWidgets('second tap during feedback window is a no-op', (tester) async {
     var calls = 0;
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
@@ -712,7 +712,7 @@ void main() {
 
     testWidgets('opens at the tapped file when multiple files exist',
         (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([
           _file('a.png'),
           _file('b.md'),
@@ -737,7 +737,7 @@ void main() {
 
     testWidgets('next arrow advances; disabled at the last index',
         (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -761,7 +761,7 @@ void main() {
     });
 
     testWidgets('prev arrow is disabled at the first index', (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -777,7 +777,7 @@ void main() {
 
     testWidgets('keyboard right arrow advances to the next file',
         (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -797,7 +797,7 @@ void main() {
     });
 
     testWidgets('dots jump to the tapped index', (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([
           _file('a.md'),
           _file('b.md'),
@@ -826,7 +826,7 @@ void main() {
 
     testWidgets('dots are hidden when more than 12 files', (tester) async {
       final many = List.generate(15, (i) => _file('f$i.md'));
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded(many),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -852,7 +852,7 @@ void main() {
     testWidgets('non-previewable slot renders Can\'t preview without fetching',
         (tester) async {
       var fetchCalls = 0;
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('a.png'), _file('paper.pdf')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -884,7 +884,7 @@ void main() {
       // and re-runs fetch. A regression that reused the failed future
       // would leave fetchCalls at 1 across all retries.
       var attempts = 0;
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -914,7 +914,7 @@ void main() {
 
     testWidgets('bytes cache prevents refetch on swipe back', (tester) async {
       final fetchCounts = <String, int>{};
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -942,7 +942,7 @@ void main() {
 
     testWidgets('arrowLeft at first slide is a no-op (no wrap, no exception)',
         (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -965,7 +965,7 @@ void main() {
 
     testWidgets('arrowRight at last slide is a no-op (no wrap, no exception)',
         (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -993,7 +993,7 @@ void main() {
     // file isn't conflated with an unsupported one.
 
     testWidgets('empty bytes show the "File is empty" message', (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -1018,7 +1018,7 @@ void main() {
       // dropped the strict-decode try would silently render U+FFFD
       // mojibake — the test would then see the decoded content rather
       // than the dedicated "binary" message.
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('config.txt')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -1041,7 +1041,7 @@ void main() {
       // errorBuilder fires for non-PNG bytes and the page swaps to
       // _ImageOrFallback's fallback. A regression that collapsed image
       // and generic fallbacks would lose this specific copy.
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -1062,7 +1062,7 @@ void main() {
       // `.svg` routes through the text-decode path, then SvgPreview's
       // parser rejects the content and swaps in its fallback. Distinct
       // from the image corrupt-copy and the generic unsupported copy.
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('chart.svg')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -1087,7 +1087,7 @@ void main() {
 
     testWidgets('successful download flips Download → Saved, reverts after 2s',
         (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.success,
@@ -1108,7 +1108,7 @@ void main() {
     });
 
     testWidgets('failed download flips to Couldn\'t save', (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.failed,
@@ -1126,7 +1126,7 @@ void main() {
     });
 
     testWidgets('cancelled stays idle — no feedback swap', (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async => DownloadOutcome.cancelled,
@@ -1158,7 +1158,7 @@ void main() {
 
     testWidgets('throwing onDownload still flips to the error state',
         (tester) async {
-      await tester.pumpWidget(_wrap(AssistantFilesSection(
+      await tester.pumpWidget(_wrap(WorkspaceFilesSection(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async => throw Exception('boom'),
@@ -1185,7 +1185,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,
@@ -1207,7 +1207,7 @@ void main() {
     // _handleKey) would double-advance on a single physical keypress because
     // sendKeyEvent fires Down followed by Up. Send Down then Up separately
     // and pin that only the Down advances.
-    await tester.pumpWidget(_wrap(AssistantFilesSection(
+    await tester.pumpWidget(_wrap(WorkspaceFilesSection(
       status: WorkdirFilesLoaded([_file('a.md'), _file('b.md'), _file('c.md')]),
       onRetry: () {},
       onDownload: (_) async => DownloadOutcome.success,

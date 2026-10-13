@@ -57,7 +57,6 @@ import '../lay_out_timeline.dart';
 import '../workdir_controller.dart';
 import 'approval_handler.dart';
 import '../workdir_files_status.dart';
-import 'assistant_files_section.dart';
 import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
 import 'chat_input.dart';
@@ -74,6 +73,8 @@ import 'room_welcome.dart';
 import 'thread_sidebar.dart';
 import 'thread_state_warning_banner.dart';
 import 'upload_event_banner.dart';
+import 'workspace_event_banner.dart';
+import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 import '../../../shared/selectable_content.dart';
@@ -160,21 +161,17 @@ const double _maxContentWidth = SoliplexBreakpoints.desktop;
 const Key filePanelKey = Key('room-attached-files-panel');
 
 /// Builds the files button's tooltip from each section's count, e.g.
-/// `1 room · 3 from the assistant (2 new)`. `Files` when nothing is counted,
+/// `1 room · 1 thread · 3 in workspace`. `Files` when nothing is counted,
 /// which is the case when the only thing to show is a failed list.
 String filesButtonLabel({
   required int roomCount,
   required int threadCount,
-  required int assistantCount,
-  required int newCount,
+  required int workspaceCount,
 }) {
   final parts = [
     if (roomCount > 0) '$roomCount room',
     if (threadCount > 0) '$threadCount thread',
-    if (assistantCount > 0)
-      newCount > 0
-          ? '$assistantCount from the assistant ($newCount new)'
-          : '$assistantCount from the assistant',
+    if (workspaceCount > 0) '$workspaceCount in workspace',
   ];
   return parts.isEmpty ? 'Files' : parts.join(' \u00b7 ');
 }
@@ -286,7 +283,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void Function()? _anchorAdvanceUnsub;
 
   /// Disposer for the active thread's run-end subscription that refetches its
-  /// assistant files. Re-wired on thread switch, cancelled on dispose.
+  /// workspace files. Re-wired on thread switch, cancelled on dispose.
   void Function()? _runEndUnsub;
 
   /// Disposer for the thread-list subscription that keeps the room read marker
@@ -815,7 +812,7 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  /// Fetches the thread's assistant files now and again whenever one of its
+  /// Fetches the thread's workspace files now and again whenever one of its
   /// runs ends, since a run is what writes them. Must run after
   /// `selectThread([threadId])`.
   void _beginWorkdirTracking(String threadId) {
@@ -1029,12 +1026,6 @@ class _RoomScreenState extends State<RoomScreen> {
       // reads as content while it loads, so an expanded flag outliving its
       // rows pops a spinner over the incoming thread and closes again when the
       // fetch lands.
-      //
-      // Leaving with the panel open closes it, as a tap would, so its new
-      // files stop being new.
-      if (_filesExpanded && oldWidget.threadId != null) {
-        _workdirs.markSeen(oldWidget.threadId!);
-      }
       _filesExpanded = false;
     }
     if (roomChanged) {
@@ -1883,7 +1874,7 @@ class _RoomScreenState extends State<RoomScreen> {
             .threadUploads(widget.roomId, threadId)
             .watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
-    final WorkdirFilesStatus assistantStatus = threadId != null
+    final WorkdirFilesStatus workspaceStatus = threadId != null
         ? _workdirs.files(threadId).watch(context)
         : const WorkdirFilesLoaded(<WorkdirFile>[]);
 
@@ -1897,7 +1888,7 @@ class _RoomScreenState extends State<RoomScreen> {
     // this frame's output, since the panel below is gated on it and the control
     // that renders it selected is withheld by the same test. Nothing to
     // rebuild, so nothing to schedule.
-    if (!_panelHasContent(roomStatus, threadStatus, assistantStatus)) {
+    if (!_panelHasContent(roomStatus, threadStatus, workspaceStatus)) {
       _filesExpanded = false;
     }
 
@@ -1915,7 +1906,7 @@ class _RoomScreenState extends State<RoomScreen> {
             serverLabel: widget.serverEntry.displayName,
           ),
           if (showHeader)
-            _buildRoomHeader(room, roomStatus, threadStatus, assistantStatus),
+            _buildRoomHeader(room, roomStatus, threadStatus, workspaceStatus),
           // Below the header slot, so the band lands under the app bar on
           // narrow layouts and under the in-page header on wide ones.
           const ChatClassificationBand(),
@@ -1923,7 +1914,7 @@ class _RoomScreenState extends State<RoomScreen> {
             _buildFilePanel(
               roomStatus,
               threadStatus,
-              assistantStatus,
+              workspaceStatus,
               threadId,
             ),
           Expanded(child: _capWidth(body)),
@@ -1936,7 +1927,7 @@ class _RoomScreenState extends State<RoomScreen> {
       headerActions: _buildRoomHeaderActions(
         roomStatus,
         threadStatus,
-        assistantStatus,
+        workspaceStatus,
         Theme.of(context),
       ),
     );
@@ -1956,7 +1947,7 @@ class _RoomScreenState extends State<RoomScreen> {
     Room? room,
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
-    WorkdirFilesStatus assistantStatus,
+    WorkdirFilesStatus workspaceStatus,
   ) {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
@@ -1975,7 +1966,7 @@ class _RoomScreenState extends State<RoomScreen> {
           ..._buildRoomHeaderActions(
             roomStatus,
             threadStatus,
-            assistantStatus,
+            workspaceStatus,
             theme,
           ),
         ],
@@ -1988,13 +1979,13 @@ class _RoomScreenState extends State<RoomScreen> {
   List<Widget> _buildRoomHeaderActions(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
-    WorkdirFilesStatus assistantStatus,
+    WorkdirFilesStatus workspaceStatus,
     ThemeData theme,
   ) {
     final documentsButton = _buildDocumentsButton(
       roomStatus,
       threadStatus,
-      assistantStatus,
+      workspaceStatus,
       theme,
     );
     return [
@@ -2086,13 +2077,12 @@ class _RoomScreenState extends State<RoomScreen> {
   /// The top-right documents button: a simple icon toggle for the files
   /// panel. Returns null to hide it when none of the panel's three sections
   /// has anything to show. The icon reflects upload state (spinner while in
-  /// flight, error glyph on any section's failure) and carries a dot while
-  /// the assistant has files the user has not seen; the per-section counts
+  /// flight, error glyph on any section's failure); the per-section counts
   /// appear in the tooltip once both upload scopes load.
   Widget? _buildDocumentsButton(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
-    WorkdirFilesStatus assistantStatus,
+    WorkdirFilesStatus workspaceStatus,
     ThemeData theme,
   ) {
     final roomFiles = _uploadsOrNull(roomStatus);
@@ -2103,7 +2093,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyFailed =
         roomStatus is UploadsFailed || threadStatus is UploadsFailed;
 
-    if (!_panelHasContent(roomStatus, threadStatus, assistantStatus)) {
+    if (!_panelHasContent(roomStatus, threadStatus, workspaceStatus)) {
       return null;
     }
 
@@ -2111,9 +2101,9 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyPending = all.any((e) => e is PendingUpload);
     final anyUploadFailed = all.any((e) => e is FailedUpload);
     final isError =
-        anyFailed || anyUploadFailed || assistantStatus is WorkdirFilesFailed;
-    final assistant =
-        assistantStatus is WorkdirFilesLoaded ? assistantStatus : null;
+        anyFailed || anyUploadFailed || workspaceStatus is WorkdirFilesFailed;
+    final workspace =
+        workspaceStatus is WorkdirFilesLoaded ? workspaceStatus : null;
 
     final Widget icon;
     if (anyLoading || anyPending) {
@@ -2124,20 +2114,14 @@ class _RoomScreenState extends State<RoomScreen> {
     } else if (isError) {
       icon = Icon(Icons.error_outline, color: theme.colorScheme.error);
     } else {
-      icon = Badge(
-        isLabelVisible: assistant?.unseen.isNotEmpty ?? false,
-        smallSize: SoliplexSpacing.s2,
-        backgroundColor: theme.colorScheme.primary,
-        child: const Icon(Icons.folder_outlined),
-      );
+      icon = const Icon(Icons.folder_outlined);
     }
 
     final label = (roomFiles != null && threadFiles != null)
         ? filesButtonLabel(
             roomCount: roomFiles.length,
             threadCount: threadFiles.length,
-            assistantCount: assistant?.files.length ?? 0,
-            newCount: assistant?.unseen.length ?? 0,
+            workspaceCount: workspace?.files.length ?? 0,
           )
         : 'Files';
 
@@ -2145,18 +2129,8 @@ class _RoomScreenState extends State<RoomScreen> {
       icon: icon,
       isSelected: _filesExpanded,
       tooltip: label,
-      onPressed: () {
-        if (_filesExpanded) _markAssistantFilesSeen();
-        setState(() => _filesExpanded = !_filesExpanded);
-      },
+      onPressed: () => setState(() => _filesExpanded = !_filesExpanded),
     );
-  }
-
-  /// Closing the panel is when the user has had the chance to see what it
-  /// listed, so that is when its new files stop being new.
-  void _markAssistantFilesSeen() {
-    final threadId = _state.activeThreadView?.threadId;
-    if (threadId != null) _workdirs.markSeen(threadId);
   }
 
   List<DisplayUpload>? _uploadsOrNull(UploadsStatus s) =>
@@ -2174,11 +2148,11 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _panelHasContent(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
-    WorkdirFilesStatus assistantStatus,
+    WorkdirFilesStatus workspaceStatus,
   ) =>
       _scopeRendersContent(roomStatus) ||
       _scopeRendersContent(threadStatus) ||
-      _assistantRendersContent(assistantStatus);
+      _workspaceRendersContent(workspaceStatus);
 
   bool _scopeRendersContent(UploadsStatus s) => switch (s) {
         UploadsLoading() => true,
@@ -2189,7 +2163,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Loading is not content: every thread open fetches the list, and in a
   /// room without a sandbox the answer is always empty, so counting the
   /// fetch would flash the button on every switch.
-  bool _assistantRendersContent(WorkdirFilesStatus s) => switch (s) {
+  bool _workspaceRendersContent(WorkdirFilesStatus s) => switch (s) {
         WorkdirFilesLoading() => false,
         WorkdirFilesLoaded(:final files) => files.isNotEmpty,
         WorkdirFilesFailed() => true,
@@ -2216,21 +2190,21 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _buildFilePanel(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
-    WorkdirFilesStatus assistantStatus,
+    WorkdirFilesStatus workspaceStatus,
     String? threadId,
   ) {
     final theme = Theme.of(context);
     // A section is visible when its status renders a row: an upload scope
-    // while Loading or Failed or with at least one file, the assistant's list
+    // while Loading or Failed or with at least one file, the workspace list
     // when Failed or with at least one file.
     final sections = <Widget>[
       if (_scopeRendersContent(roomStatus))
         _buildScopeSection('Room', roomStatus, theme),
       if (_scopeRendersContent(threadStatus))
         _buildScopeSection('Thread', threadStatus, theme),
-      if (threadId != null && _assistantRendersContent(assistantStatus))
-        AssistantFilesSection(
-          status: assistantStatus,
+      if (threadId != null && _workspaceRendersContent(workspaceStatus))
+        WorkspaceFilesSection(
+          status: workspaceStatus,
           onDownload: (file) => _workdirs.downloadFile(threadId, file),
           onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
           onRetry: () => unawaited(_workdirs.refresh(threadId)),
@@ -2613,6 +2587,11 @@ class _RoomScreenState extends State<RoomScreen> {
                 roomId: widget.roomId,
                 threadId: threadView.threadId,
               ),
+            WorkspaceEventBanner(
+              status: _workdirs.files(threadView.threadId),
+              threadId: threadView.threadId,
+              onShow: () => setState(() => _filesExpanded = true),
+            ),
           ],
         ),
       ],

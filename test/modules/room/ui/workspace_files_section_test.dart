@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/assistant_files_section.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 
@@ -20,7 +20,7 @@ Widget _section(
     MaterialApp(
       theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
       home: Scaffold(
-        body: AssistantFilesSection(
+        body: WorkspaceFilesSection(
           status: status,
           onDownload: onDownload ?? (_) async => DownloadOutcome.success,
           onFetchBytes: (_) async => Uint8List(0),
@@ -33,38 +33,23 @@ void main() {
   testWidgets('Loading renders nothing', (tester) async {
     await tester.pumpWidget(_section(const WorkdirFilesLoading()));
 
-    expect(find.text('FROM THE ASSISTANT'), findsNothing);
+    expect(find.text('WORKSPACE'), findsNothing);
   });
 
   testWidgets('Loaded with no files renders nothing', (tester) async {
     await tester.pumpWidget(_section(const WorkdirFilesLoaded([])));
 
-    expect(find.text('FROM THE ASSISTANT'), findsNothing);
+    expect(find.text('WORKSPACE'), findsNothing);
   });
 
-  testWidgets('Loaded lists the files and badges only the unseen ones',
-      (tester) async {
+  testWidgets('Loaded lists the files', (tester) async {
     await tester.pumpWidget(_section(
-      WorkdirFilesLoaded(
-        [_file('a.csv'), _file('b.png')],
-        unseen: const {'b.png'},
-      ),
+      WorkdirFilesLoaded([_file('a.csv'), _file('b.png')]),
     ));
 
-    expect(find.text('FROM THE ASSISTANT'), findsOneWidget);
+    expect(find.text('WORKSPACE'), findsOneWidget);
     expect(find.text('a.csv'), findsOneWidget);
     expect(find.text('b.png'), findsOneWidget);
-    expect(find.text('New'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.ancestor(
-          of: find.text('b.png'),
-          matching: find.byType(WorkdirFileRow),
-        ),
-        matching: find.text('New'),
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('tapping a row download icon downloads that file',
@@ -107,7 +92,7 @@ void main() {
       onRetry: () => retries++,
     ));
 
-    expect(find.text('FROM THE ASSISTANT'), findsOneWidget);
+    expect(find.text('WORKSPACE'), findsOneWidget);
     expect(find.textContaining("Couldn't load files"), findsOneWidget);
 
     await tester.tap(find.byTooltip('Retry'));
@@ -131,10 +116,12 @@ void main() {
       const WorkdirFilesFailed('boom', retrying: true),
     ));
 
-    expect(find.text('FROM THE ASSISTANT'), findsOneWidget);
+    expect(find.text('WORKSPACE'), findsOneWidget);
     expect(find.textContaining("Couldn't load files"), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.byTooltip('Retry'), findsNothing);
+    expect(find.byTooltip('Retrying'), findsOneWidget,
+        reason: 'the disabled button still names itself to screen readers');
   });
 
   testWidgets('the error row keeps its height while a retry is in flight',
@@ -142,7 +129,11 @@ void main() {
     Widget row({required bool isRetrying}) => MaterialApp(
           theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
           home: Scaffold(
-            body: WorkdirErrorRow(onRetry: () {}, isRetrying: isRetrying),
+            body: WorkdirErrorRow(
+              onRetry: () {},
+              isRetrying: isRetrying,
+              reason: 'Something went wrong.',
+            ),
           ),
         );
 

@@ -16,10 +16,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Changed
 
 - Files the assistant writes in a sandbox room are listed in the room
-  header's files panel under "From the assistant", for the whole thread,
-  instead of under each reply. A dot on the files button marks files added
-  since you last closed the panel, and those files carry a New badge. Needs
-  soliplex 0.84 or later; older servers show no assistant files.
+  header's files panel (under the folder button) in a Workspace section, for
+  the whole thread, instead of under each reply. When a run adds files to
+  the open thread's workspace, a notice above the input says "Added … to the
+  workspace", with Show to open the panel. Needs soliplex 0.84 or later;
+  older servers show no workspace files.
 - **Library consumers (breaking):** `SoliplexApi.getRunWorkdirFiles` and
   `getRunWorkdirFile` are replaced by `getThreadWorkdirFiles(roomId,
   threadId)` and `getThreadWorkdirFile(roomId, threadId, filename)`, matching

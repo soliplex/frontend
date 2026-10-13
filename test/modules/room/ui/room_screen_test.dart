@@ -31,7 +31,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
-    show WorkdirErrorRow, WorkdirFileRow;
+    show WorkdirErrorRow;
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
@@ -2423,7 +2423,7 @@ void main() {
     });
   });
 
-  group('assistant files', () {
+  group('workspace files', () {
     setUpAll(registerLiveSessionFallbacks);
 
     // One per test, held across that test's re-pumps.
@@ -2452,7 +2452,8 @@ void main() {
             messageExpansionsProvider.overrideWithValue(expansions),
           ],
           child: MaterialApp(
-            // The files panel's "New" badge reads the brand theme.
+            // The files panel's rows and the workspace pill read the brand
+            // theme.
             theme:
                 lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
             home: RoomScreen(
@@ -2475,11 +2476,6 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
     }
 
-    Finder filesBadge() => find.ancestor(
-          of: find.byIcon(Icons.folder_outlined),
-          matching: find.byType(Badge),
-        );
-
     testWidgets('lists them under the files button', (tester) async {
       wideView(tester);
       api.nextWorkdirFiles = [file('report.csv')];
@@ -2487,24 +2483,14 @@ void main() {
       await tester.pumpWidget(screen('thread-1'));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('1 from the assistant'), findsOneWidget);
-      expect(tester.widget<Badge>(filesBadge()).isLabelVisible, isFalse,
-          reason: 'a first load is not news');
+      expect(find.byTooltip('1 in workspace'), findsOneWidget);
       expect(find.text('report.csv'), findsNothing);
 
       await tester.tap(find.byIcon(Icons.folder_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('FROM THE ASSISTANT'), findsOneWidget);
+      expect(find.text('WORKSPACE'), findsOneWidget);
       expect(find.text('report.csv'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(WorkdirFileRow),
-          matching: find.text('New'),
-        ),
-        findsNothing,
-        reason: 'a first load is what the user is looking at, not news',
-      );
     });
 
     testWidgets('a room without a sandbox never shows the files button',
@@ -2515,56 +2501,23 @@ void main() {
       wideView(tester);
       api.nextWorkdirFilesError =
           const NotFoundException(message: 'x', resource: '/x');
+      // Every upload count is zero here, so the files button would carry the
+      // tooltip 'Files' whatever its icon: folder, spinner or error glyph.
+      Finder filesButton() => find.byTooltip('Files');
 
       await tester.pumpWidget(screen('thread-1'));
-      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      expect(filesButton(), findsNothing);
       await tester.pump();
-      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      expect(filesButton(), findsNothing);
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      expect(filesButton(), findsNothing);
 
       await tester.pumpWidget(screen('thread-2'));
-      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      expect(filesButton(), findsNothing);
       await tester.pump();
-      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      expect(filesButton(), findsNothing);
       expect(api.workdirListRequests, ['thread-1', 'thread-2'],
           reason: 'precondition: both threads were asked');
-    });
-
-    testWidgets('marks files that arrived since the panel was last closed',
-        (tester) async {
-      wideView(tester);
-      api.nextWorkdirFiles = [file('a.csv')];
-      await tester.pumpWidget(screen('thread-1'));
-      await tester.pumpAndSettle();
-      await tester.pumpWidget(screen('thread-2'));
-      await tester.pumpAndSettle();
-
-      api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
-      await tester.pumpWidget(screen('thread-1'));
-      await tester.pumpAndSettle();
-
-      expect(find.byTooltip('2 from the assistant (1 new)'), findsOneWidget);
-      expect(tester.widget<Badge>(filesBadge()).isLabelVisible, isTrue);
-
-      await tester.tap(find.byIcon(Icons.folder_outlined));
-      await tester.pumpAndSettle();
-
-      Finder newBeside(String name) => find.descendant(
-            of: find.ancestor(
-              of: find.text(name),
-              matching: find.byType(WorkdirFileRow),
-            ),
-            matching: find.text('New'),
-          );
-      expect(newBeside('b.csv'), findsOneWidget);
-      expect(newBeside('a.csv'), findsNothing);
-
-      await tester.tap(find.byIcon(Icons.folder_outlined));
-      await tester.pumpAndSettle();
-
-      expect(find.byTooltip('2 from the assistant'), findsOneWidget);
-      expect(tester.widget<Badge>(filesBadge()).isLabelVisible, isFalse);
     });
 
     testWidgets('a retry keeps the panel open until the files arrive',
@@ -2611,52 +2564,8 @@ void main() {
       expect(find.text('a.csv'), findsOneWidget);
     });
 
-    group('a run ending refetches the list', () {
-      final endings = <String, void Function(LiveSession live)>{
-        'completed': (live) => live.events
-          ..add(const TextMessageStartEvent(messageId: 'm1'))
-          ..add(const TextMessageContentEvent(messageId: 'm1', delta: 'Done.'))
-          ..add(const TextMessageEndEvent(messageId: 'm1'))
-          ..add(const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1')),
-        'failed': (live) =>
-            live.events.add(const RunErrorEvent(message: 'upstream said no')),
-        'cancelled': (live) => live.session.cancel(),
-      };
-
-      for (final MapEntry(key: ending, value: end) in endings.entries) {
-        testWidgets(ending, (tester) async {
-          wideView(tester);
-          final key = (
-            serverId: entry.serverId,
-            roomId: 'room-1',
-            threadId: 'thread-1',
-          );
-          final live = startLiveSession(key: key, runId: 'run-1');
-          registry.register(key, live.session);
-          await tester.pump();
-          live.events.add(
-            RunStartedEvent(threadId: 'thread-1', runId: 'run-1'),
-          );
-
-          await tester.pumpWidget(screen('thread-1'));
-          for (var i = 0; i < 5; i++) {
-            await tester.pump();
-          }
-          expect(api.workdirListRequests, ['thread-1'],
-              reason: 'precondition: opening the thread fetched once');
-
-          end(live);
-          for (var i = 0; i < 5; i++) {
-            await tester.pump();
-          }
-
-          expect(api.workdirListRequests, ['thread-1', 'thread-1']);
-        });
-      }
-    });
-
-    testWidgets('leaving a running thread does not refetch it', (tester) async {
-      wideView(tester);
+    /// Opens thread-1 with a run in flight and lets its first listing land.
+    Future<LiveSession> openRunningThread(WidgetTester tester) async {
       final key = (
         serverId: entry.serverId,
         roomId: 'room-1',
@@ -2673,13 +2582,112 @@ void main() {
       for (var i = 0; i < 5; i++) {
         await tester.pump();
       }
+      return live;
+    }
+
+    void completeRun(LiveSession live) => live.events
+      ..add(const TextMessageStartEvent(messageId: 'm1'))
+      ..add(const TextMessageContentEvent(messageId: 'm1', delta: 'Done.'))
+      ..add(const TextMessageEndEvent(messageId: 'm1'))
+      ..add(const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'));
+
+    Future<void> pumpFrames(WidgetTester tester) async {
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+    }
+
+    group('a run ending refetches the list', () {
+      final endings = <String, void Function(LiveSession live)>{
+        'completed': completeRun,
+        'failed': (live) =>
+            live.events.add(const RunErrorEvent(message: 'upstream said no')),
+        'cancelled': (live) => live.session.cancel(),
+      };
+
+      for (final MapEntry(key: ending, value: end) in endings.entries) {
+        testWidgets(ending, (tester) async {
+          wideView(tester);
+          api.nextWorkdirFiles = [file('a.csv')];
+          final live = await openRunningThread(tester);
+          expect(find.textContaining('to the workspace'), findsNothing,
+              reason: 'precondition: the first listing is not news');
+
+          api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
+          end(live);
+          await pumpFrames(tester);
+
+          expect(find.text('Added b.csv to the workspace'), findsOneWidget);
+        });
+      }
+    });
+
+    testWidgets('opening a thread that already has files shows no pill',
+        (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('2 in workspace'), findsOneWidget,
+          reason: 'precondition: the listing landed');
+      expect(find.textContaining('to the workspace'), findsNothing);
+    });
+
+    testWidgets('Show opens the files panel on the added file', (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('a.csv')];
+      final live = await openRunningThread(tester);
+      expect(find.byKey(filePanelKey), findsNothing, reason: 'precondition');
+
+      api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
+      completeRun(live);
+      await pumpFrames(tester);
+      await tester.tap(find.text('Show'));
+      await pumpFrames(tester);
+
+      expect(
+        find.descendant(
+          of: find.byKey(filePanelKey),
+          matching: find.text('b.csv'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('to the workspace'), findsNothing);
+    });
+
+    testWidgets('Show keeps an open files panel open', (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('a.csv')];
+      final live = await openRunningThread(tester);
+      await tester.tap(find.byTooltip('1 in workspace'));
+      await pumpFrames(tester);
+      expect(find.byKey(filePanelKey), findsOneWidget, reason: 'precondition');
+
+      api.nextWorkdirFiles = [file('a.csv'), file('b.csv')];
+      completeRun(live);
+      await pumpFrames(tester);
+      await tester.tap(find.text('Show'));
+      await pumpFrames(tester);
+
+      expect(
+        find.descendant(
+          of: find.byKey(filePanelKey),
+          matching: find.text('b.csv'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('leaving a running thread does not refetch it', (tester) async {
+      wideView(tester);
+      final live = await openRunningThread(tester);
       final beforeSwitch = api.workdirListRequests.length;
       expect(beforeSwitch, greaterThan(0), reason: 'precondition');
 
       await tester.pumpWidget(screen('thread-2'));
-      for (var i = 0; i < 5; i++) {
-        await tester.pump();
-      }
+      await pumpFrames(tester);
 
       expect(api.workdirListRequests.sublist(beforeSwitch), ['thread-2']);
 

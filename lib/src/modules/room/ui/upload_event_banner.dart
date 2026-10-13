@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'notice_pill.dart';
+
 /// Transient inline notifications that announce upload transitions the
 /// user may have missed while focused on the composer.
 ///
@@ -29,8 +31,6 @@ class UploadEventBanner extends StatefulWidget {
 }
 
 class _UploadEventBannerState extends State<UploadEventBanner> {
-  static const _successDismissDelay = Duration(seconds: 4);
-
   List<DisplayUpload>? _prevRoom;
   List<DisplayUpload>? _prevThread;
   final List<String> _successes = [];
@@ -112,7 +112,7 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
       }
       if (_successes.isNotEmpty) {
         _successTimer?.cancel();
-        _successTimer = Timer(_successDismissDelay, _clearSuccesses);
+        _successTimer = Timer(successNoticeDismissDelay, _clearSuccesses);
       }
     });
   }
@@ -171,8 +171,8 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _AnimatedPill(child: _failurePill(theme)),
-          _AnimatedPill(child: _successPill(theme)),
+          AnimatedNoticePill(child: _failurePill(theme)),
+          AnimatedNoticePill(child: _successPill(theme)),
         ],
       ),
     );
@@ -186,7 +186,7 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
         ? 'Failed to upload ${_failures.first.filename}: '
             '${_failures.first.message}'
         : 'Failed to upload ${_failures.length} files';
-    return _Pill(
+    return NoticePill(
       key: ValueKey('failure:$message'),
       icon: Icons.error_outline,
       background: theme.colorScheme.errorContainer,
@@ -204,86 +204,13 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
         ? 'Uploaded ${_successes.first}'
         : 'Uploaded ${_successes.first} and ${_successes.length - 1} more';
     final colors = SoliplexTheme.of(context).colors;
-    return _Pill(
+    return NoticePill(
       key: ValueKey('success:$message'),
       icon: Icons.check_circle_outline,
       background: colors.successContainer,
       foreground: colors.onSuccessContainer,
       message: message,
       onDismiss: _dismissSuccesses,
-    );
-  }
-}
-
-class _AnimatedPill extends StatelessWidget {
-  const _AnimatedPill({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 150),
-      child: child,
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({
-    required this.icon,
-    required this.background,
-    required this.foreground,
-    required this.message,
-    required this.onDismiss,
-    super.key,
-  });
-
-  final IconData icon;
-  final Color background;
-  final Color foreground;
-  final String message;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(
-          left: SoliplexSpacing.s3, bottom: SoliplexSpacing.s1),
-      padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(context.radii.lg),
-      ),
-      constraints: const BoxConstraints(maxWidth: 420),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: foreground),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Flexible(
-            child: Text(
-              message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: foreground),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: SoliplexSpacing.s1),
-          IconButton(
-            icon: const Icon(Icons.close, size: 14),
-            color: foreground,
-            onPressed: onDismiss,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
-      ),
     );
   }
 }
