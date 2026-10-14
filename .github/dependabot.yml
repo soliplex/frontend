@@ -6,6 +6,8 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(deps)"
+    labels:
+      - "Department: Dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -13,3 +15,6 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(ci)"
+    labels:
+      - "Department: Dependencies"
+      - "Department: CI/CD"
