@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- **Library consumers:** `SourceReference.chunkDocItemRefs` and
+  `SourceReference.chunkPageNumbers`, the doc-item refs and pages of the cited
+  chunk itself, read from the citation's `chunk_meta`. Empty when the citation
+  does not report them.
+
 ## [0.110.0+96] - 2026-10-13
 
 ### Added
