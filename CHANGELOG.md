@@ -15,8 +15,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   rule the AG-UI stream already used to decide whether to resume.
 - **Library consumers:** `ChunkVisualization.database`, the RAG database the
   backend found the chunk in. Null from a backend that does not report it.
-- A chunk looked up by id in room info shows which database it was found in,
-  since chunk ids repeat between copies of a database.
+- A chunk opened without a known database, such as one looked up by id in
+  room info, shows which database the backend found it in, since chunk ids
+  repeat between copies of a database.
 
 ### Fixed
 

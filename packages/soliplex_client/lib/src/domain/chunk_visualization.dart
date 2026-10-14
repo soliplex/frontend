@@ -67,10 +67,6 @@ class ChunkVisualization {
     );
   }
 
-  /// The RAG database the backend found the chunk in. Null from a backend
-  /// that does not report it.
-  final String? database;
-
   /// The chunk ID this visualization is for.
   final String chunkId;
 
@@ -79,6 +75,10 @@ class ChunkVisualization {
 
   /// Base64-encoded page images with chunk text highlighted.
   final List<String> imagesBase64;
+
+  /// The RAG database the backend found the chunk in. Null from a backend
+  /// that does not report it.
+  final String? database;
 
   /// Whether there are images to display.
   bool get hasImages => imagesBase64.isNotEmpty;

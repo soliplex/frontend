@@ -110,7 +110,8 @@ class ChunkVisualizationPage extends StatefulWidget {
 
   /// Opens the pages a chunk looked up by its id alone is drawn on. Nothing
   /// else about it is known, so the title shows the id, the backend asks each
-  /// database until one holds it, and the page names the one that did.
+  /// database until one holds it, and the page names the one that did when
+  /// the backend reports it.
   static Future<void> showChunk({
     required BuildContext context,
     required SoliplexApi api,
@@ -164,8 +165,8 @@ class ChunkVisualizationPage extends StatefulWidget {
   State<ChunkVisualizationPage> createState() => _ChunkVisualizationPageState();
 }
 
-/// Where one view of the page stands: its fetch in flight, its pages, or the
-/// failure that ended its fetch.
+/// Where one view of the page stands: its fetch in flight, its pages and the
+/// database they came from, or the failure that ended its fetch.
 sealed class _ViewLoad {
   const _ViewLoad();
 }
@@ -179,7 +180,8 @@ final class _Loaded extends _ViewLoad {
 
   final List<PageImage> pages;
 
-  /// The database the backend found the chunk in, as the response names it.
+  /// The database the backend found the chunk in. Null when the response
+  /// names none.
   final String? database;
 }
 
@@ -351,9 +353,10 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   bool get _quotesBeyondChunk =>
       widget.docItemRefs.any((ref) => !widget.chunkDocItemRefs.contains(ref));
 
-  // The database that answered, when the page named none and the backend
-  // took the first one holding the id: chunk ids repeat between copies of a
-  // database. A database the page named is only echoed back.
+  // The database that answered, shown only when the page named none. The
+  // backend then takes the first database holding the id, and chunk ids
+  // repeat between copies of a database. Given a database, the backend asks
+  // only that one, so naming it again would tell the user nothing.
   String? get _answeringDatabase => switch (_views[_showContext]) {
         _Loaded(:final database) when widget.database == null => database,
         _ => null,
@@ -377,8 +380,8 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     );
   }
 
-  // Shared by the switch and the notes beside it, so the notes sit at the
-  // switch row's inset.
+  // Shared by the context switch and the notes, so every row above the pages
+  // sits at one inset.
   static const _contextRowPadding =
       EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4);
 
