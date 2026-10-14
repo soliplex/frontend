@@ -32,6 +32,7 @@ const _read = <String, Map<String, String>>{
     'document_id': 'string',
     'source': 'string | null',
     'chunk_id': 'string',
+    'chunk_meta': 'map[any]',
     'document_uri': 'string',
     'document_title': 'string | null',
     'document_meta': 'map[any]',
@@ -59,8 +60,6 @@ const _unread = <String, Map<String, String>>{
   'citation_policy': {'violations': 'grounding indicator'},
   'Citation': {
     'chunk_ids': 'retrieval panel',
-    'chunk_meta': 'retrieval panel; recommend declining: raw third-party '
-        'chunker metadata, no defined meaning',
   },
   'SearchResult': {
     'content': 'retrieval panel',
