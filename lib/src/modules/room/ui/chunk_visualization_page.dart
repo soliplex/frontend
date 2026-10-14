@@ -109,8 +109,8 @@ class ChunkVisualizationPage extends StatefulWidget {
       );
 
   /// Opens the pages a chunk looked up by its id alone is drawn on. Nothing
-  /// else about it is known, so the title shows the id and the backend asks
-  /// each database until one holds it.
+  /// else about it is known, so the title shows the id, the backend asks each
+  /// database until one holds it, and the page names the one that did.
   static Future<void> showChunk({
     required BuildContext context,
     required SoliplexApi api,
@@ -175,9 +175,12 @@ final class _Loading extends _ViewLoad {
 }
 
 final class _Loaded extends _ViewLoad {
-  const _Loaded(this.pages);
+  const _Loaded(this.pages, this.database);
 
   final List<PageImage> pages;
+
+  /// The database the backend found the chunk in, as the response names it.
+  final String? database;
 }
 
 final class _Failed extends _ViewLoad {
@@ -206,7 +209,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   void _fetch({required bool sendRefs}) {
     _views[sendRefs] = const _Loading();
     _fetchAndDecode(sendRefs: sendRefs).then(
-      (pages) => _settle(sendRefs, _Loaded(pages)),
+      (load) => _settle(sendRefs, load),
       onError: (Object error) => _settle(sendRefs, _Failed(error)),
     );
   }
@@ -216,7 +219,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     setState(() => _views[sendRefs] = load);
   }
 
-  Future<List<PageImage>> _fetchAndDecode({required bool sendRefs}) async {
+  Future<_Loaded> _fetchAndDecode({required bool sendRefs}) async {
     final refs = sendRefs ? widget.docItemRefs : const <String>[];
     final refCount = refs.length;
     final grounded = refCount > 0;
@@ -245,7 +248,10 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           'pageCount': viz.imagesBase64.length,
         },
       );
-      return viz.imagesBase64.map(_decodePageImage).toList();
+      return _Loaded(
+        viz.imagesBase64.map(_decodePageImage).toList(),
+        viz.database,
+      );
     } catch (error, stack) {
       _logger.error(
         'chunk visualization fetch failed',
@@ -345,20 +351,34 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   bool get _quotesBeyondChunk =>
       widget.docItemRefs.any((ref) => !widget.chunkDocItemRefs.contains(ref));
 
+  // The database that answered, when the page named none and the backend
+  // took the first one holding the id: chunk ids repeat between copies of a
+  // database. A database the page named is only echoed back.
+  String? get _answeringDatabase => switch (_views[_showContext]) {
+        _Loaded(:final database) when widget.database == null => database,
+        _ => null,
+      };
+
   Widget _buildBody(BuildContext context) {
+    final answeringDatabase = _answeringDatabase;
     return Column(
       children: [
         if (_quotesBeyondChunk)
           _buildContextSwitch()
         else if (widget.docItemRefs.isNotEmpty)
-          _buildNoContextNote(context),
+          _buildNote(
+            context,
+            'The answer used no context beyond this passage.',
+          ),
+        if (answeringDatabase != null)
+          _buildNote(context, 'Database: $answeringDatabase'),
         Expanded(child: _buildContent(context)),
       ],
     );
   }
 
-  // Shared by the switch and the note that replaces it, so the note sits at
-  // the switch row's inset.
+  // Shared by the switch and the notes beside it, so the notes sit at the
+  // switch row's inset.
   static const _contextRowPadding =
       EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4);
 
@@ -374,11 +394,11 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     );
   }
 
-  Widget _buildNoContextNote(BuildContext context) {
+  Widget _buildNote(BuildContext context, String text) {
     final theme = Theme.of(context);
     return ListTile(
       title: Text(
-        'The answer used no context beyond this passage.',
+        text,
         style: theme.textTheme.bodySmall
             ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
       ),

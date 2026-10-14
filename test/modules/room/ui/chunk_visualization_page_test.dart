@@ -673,6 +673,86 @@ void main() {
     expect(find.text('chunk-42'), findsOneWidget);
   });
 
+  for (final useDialogLayout in [true, false]) {
+    final layout = useDialogLayout ? 'dialog' : 'full-screen';
+    testWidgets(
+        '$layout layout: a page naming no database shows the one that '
+        'answered', (tester) async {
+      final api = _ChunkVizApi()
+        ..nextVisualization = ChunkVisualization(
+          chunkId: 'chunk-42',
+          documentUri: null,
+          imagesBase64: [_pngBase64],
+          database: 'papers',
+        );
+
+      await tester.pumpWidget(_wrap(
+        ChunkVisualizationPage(
+          api: api,
+          roomId: 'room-1',
+          chunkId: 'chunk-42',
+          useDialogLayout: useDialogLayout,
+          database: null,
+          pageNumbers: const [],
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Database: papers'), findsOneWidget);
+    });
+  }
+
+  testWidgets('a page naming its database does not repeat it', (tester) async {
+    final api = _ChunkVizApi()
+      ..holdingDatabase = 'papers'
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: null,
+        imagesBase64: [_pngBase64],
+        database: 'papers',
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        database: 'papers',
+        documentTitle: 'Cited Doc',
+        pageNumbers: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PageView), findsOneWidget);
+    expect(find.textContaining('Database:'), findsNothing);
+  });
+
+  testWidgets('a response naming no database shows none', (tester) async {
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'chunk-42',
+        documentUri: null,
+        imagesBase64: [_pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'chunk-42',
+        useDialogLayout: false,
+        database: null,
+        pageNumbers: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PageView), findsOneWidget);
+    expect(find.textContaining('Database:'), findsNothing);
+  });
+
   testWidgets('empty result shows the empty-state message', (tester) async {
     final api = _ChunkVizApi()
       ..nextVisualization = ChunkVisualization(
