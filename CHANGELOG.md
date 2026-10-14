@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- **Library consumers:** `isRetryable(error)`, whether sending the same
+  request again may succeed: a transport failure or a 5xx error. It is the
+  rule the AG-UI stream already used to decide whether to resume.
+
 ## [0.111.0+97] - 2026-10-14
 
 ### Added

@@ -242,3 +242,17 @@ class UnexpectedException extends SoliplexException {
   @override
   String toString() => 'UnexpectedException: $message';
 }
+
+/// Whether sending the same request again may succeed: a transport failure
+/// or a server-side (5xx) error. A missing resource, a refused credential, a
+/// cancellation or a malformed response fails the same way every time.
+bool isRetryable(Object error) => switch (error) {
+      CancelledException() => false,
+      AuthException() ||
+      PermissionDeniedException() ||
+      NotFoundException() =>
+        false,
+      ApiException(:final statusCode) => statusCode >= 500 && statusCode < 600,
+      NetworkException() => true,
+      _ => false,
+    };
