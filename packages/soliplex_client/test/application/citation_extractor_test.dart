@@ -34,14 +34,17 @@ void main() {
         String? documentTitle,
         List<String>? headings,
         List<int>? pageNumbers,
+        List<String>? docItemRefs,
         List<String>? pictureRefs,
         List<String>? chunkIds,
         int? index,
         Map<String, dynamic>? documentMeta,
+        Map<String, dynamic>? chunkMeta,
         String? source,
       }) {
         return {
           'chunk_id': chunkId,
+          if (chunkMeta != null) 'chunk_meta': chunkMeta,
           if (source != null) 'source': source,
           'content': content,
           'document_id': documentId,
@@ -50,6 +53,7 @@ void main() {
           if (documentTitle != null) 'document_title': documentTitle,
           if (headings != null) 'headings': headings,
           if (pageNumbers != null) 'page_numbers': pageNumbers,
+          if (docItemRefs != null) 'doc_item_refs': docItemRefs,
           if (pictureRefs != null) 'picture_refs': pictureRefs,
           if (chunkIds != null) 'chunk_ids': chunkIds,
           if (index != null) 'index': index,
@@ -122,6 +126,33 @@ void main() {
 
         expect(refs[0].database, 'papers');
         expect(refs[1].database, isNull);
+      });
+
+      test("carries the cited chunk's own refs and pages from chunk_meta", () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(
+              chunkId: 'c1',
+              docItemRefs: ['#/texts/1', '#/texts/2', '#/texts/3'],
+              pageNumbers: [3, 4, 5],
+              chunkMeta: {
+                'doc_item_refs': ['#/texts/2'],
+                'page_numbers': [4],
+              },
+            ),
+            'c2': createCitation(chunkId: 'c2'),
+          },
+          citations: ['c1', 'c2'],
+        );
+
+        final refs = extract(state);
+
+        expect(refs[0].docItemRefs, ['#/texts/1', '#/texts/2', '#/texts/3']);
+        expect(refs[0].chunkDocItemRefs, ['#/texts/2']);
+        expect(refs[0].pageNumbers, [3, 4, 5]);
+        expect(refs[0].chunkPageNumbers, [4]);
+        expect(refs[1].chunkDocItemRefs, isEmpty);
+        expect(refs[1].chunkPageNumbers, isEmpty);
       });
 
       test('reads sourceUrl from the citation document_meta', () {
