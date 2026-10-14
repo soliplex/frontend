@@ -232,6 +232,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         'chunkId': widget.chunkId,
         'refCount': refCount,
         'grounded': grounded,
+        'database': widget.database,
       },
     );
     try {
@@ -248,6 +249,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           'refCount': refCount,
           'grounded': grounded,
           'pageCount': viz.imagesBase64.length,
+          'database': viz.database,
         },
       );
       return _Loaded(
