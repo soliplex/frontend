@@ -19,22 +19,72 @@ final _pngBase64 = base64Encode(_pngBytes);
 
 class _ChunkVizApi extends FakeSoliplexApi {
   ChunkVisualization? nextVisualization;
+
+  /// Answers a request that sends refs, when set; otherwise such a request
+  /// gets [nextVisualization] like any other.
+  ChunkVisualization? nextVisualizationWithRefs;
   Exception? nextVizError;
+
+  int requestsWithRefs = 0;
+  int requestsWithoutRefs = 0;
 
   @override
   Future<ChunkVisualization> getChunkVisualization(
     String roomId,
     String chunkId, {
     List<String>? refs,
-    bool expand = true,
+    bool expand = false,
     String? database,
     CancelToken? cancelToken,
   }) async {
+    final sendsRefs = refs != null && refs.isNotEmpty;
+    if (sendsRefs) {
+      requestsWithRefs++;
+    } else {
+      requestsWithoutRefs++;
+    }
     if (nextVizError != null) throw nextVizError!;
+    if (sendsRefs && nextVisualizationWithRefs != null) {
+      return nextVisualizationWithRefs!;
+    }
     if (nextVisualization != null) return nextVisualization!;
     throw StateError('Set nextVisualization or nextVizError before calling');
   }
 }
+
+ChunkVisualization _vizWithPages(int count) => ChunkVisualization(
+      chunkId: 'c1',
+      documentUri: 'doc.pdf',
+      imagesBase64: List.filled(count, _pngBase64),
+    );
+
+/// The refs-not-sent answer has two pages and the refs-sent answer three, so
+/// the dot count tells which one rendered.
+_ChunkVizApi _apiAnsweringPerMode() => _ChunkVizApi()
+  ..nextVisualization = _vizWithPages(2)
+  ..nextVisualizationWithRefs = _vizWithPages(3);
+
+Widget _citationPage(
+  _ChunkVizApi api, {
+  bool useDialogLayout = false,
+  List<int> pageNumbers = const [],
+  List<int> chunkPageNumbers = const [],
+  List<String> chunkDocItemRefs = const [],
+}) =>
+    ChunkVisualizationPage(
+      api: api,
+      roomId: 'room-1',
+      chunkId: 'c1',
+      useDialogLayout: useDialogLayout,
+      database: null,
+      documentTitle: 'Cited Doc',
+      pageNumbers: pageNumbers,
+      chunkPageNumbers: chunkPageNumbers,
+      docItemRefs: const ['#/texts/1', '#/texts/2'],
+      chunkDocItemRefs: chunkDocItemRefs,
+    );
+
+const _noContextMessage = 'The answer used no context beyond this passage.';
 
 Widget _wrap(Widget child) =>
     ProviderScope(child: MaterialApp(home: Scaffold(body: child)));
@@ -46,6 +96,200 @@ void main() {
     PaintingBinding.instance.imageCache
       ..clear()
       ..clearLiveImages();
+  });
+
+  testWidgets('a citation opens without sending its refs', (tester) async {
+    final api = _apiAnsweringPerMode();
+
+    await tester.pumpWidget(_wrap(_citationPage(api)));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircleAvatar), findsNWidgets(2));
+  });
+
+  testWidgets(
+      "off labels the chunk's own pages, on labels the citation's pages",
+      (tester) async {
+    // Off draws only the chunk's items, on pages 4–5; on draws the whole
+    // cited passage, on pages 3–5.
+    await tester.pumpWidget(_wrap(_citationPage(
+      _apiAnsweringPerMode(),
+      pageNumbers: const [3, 4, 5],
+      chunkPageNumbers: const [4, 5],
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Page 4'), findsOneWidget);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(find.text('Page 3'), findsOneWidget);
+  });
+
+  testWidgets('off without the chunk pages labels by image position',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_citationPage(
+      _apiAnsweringPerMode(),
+      pageNumbers: const [3, 4, 5],
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Image 1 of 2'), findsOneWidget);
+  });
+
+  for (final (description, chunkRefs) in [
+    ('the same refs as the chunk', ['#/texts/1', '#/texts/2']),
+    // Budget clipping left the citation only part of the chunk.
+    ('a subset of the chunk refs', ['#/texts/1', '#/texts/2', '#/texts/3']),
+  ]) {
+    testWidgets(
+        'a citation quoting $description says so instead of offering the '
+        'switch', (tester) async {
+      await tester.pumpWidget(_wrap(_citationPage(
+        _apiAnsweringPerMode(),
+        chunkDocItemRefs: chunkRefs,
+      )));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Switch), findsNothing);
+      expect(find.text('Show context the answer used'), findsNothing);
+      expect(find.text(_noContextMessage), findsOneWidget);
+      expect(find.byType(CircleAvatar), findsNWidgets(2));
+    });
+  }
+
+  testWidgets('a citation quoting beyond the chunk offers the switch',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_citationPage(
+      _apiAnsweringPerMode(),
+      chunkDocItemRefs: const ['#/texts/1'],
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Switch), findsOneWidget);
+    expect(find.text(_noContextMessage), findsNothing);
+  });
+
+  testWidgets('a citation with refs offers the context switch', (tester) async {
+    await tester.pumpWidget(_wrap(_citationPage(_apiAnsweringPerMode())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Show context the answer used'), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
+  });
+
+  testWidgets('turning the context switch on shows the refs-sent result',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_citationPage(_apiAnsweringPerMode())));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    expect(find.byType(CircleAvatar), findsNWidgets(3));
+  });
+
+  testWidgets('switching back shows each earlier result without a new request',
+      (tester) async {
+    final api = _apiAnsweringPerMode();
+    await tester.pumpWidget(_wrap(_citationPage(api)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(find.byType(CircleAvatar), findsNWidgets(2));
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(find.byType(CircleAvatar), findsNWidgets(3));
+
+    expect(api.requestsWithoutRefs, 1);
+    expect(api.requestsWithRefs, 1);
+  });
+
+  testWidgets('retry re-fetches only the selected mode', (tester) async {
+    final api = _apiAnsweringPerMode();
+    await tester.pumpWidget(_wrap(_citationPage(api)));
+    await tester.pumpAndSettle();
+
+    api.nextVizError = Exception('boom');
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(find.text('Failed to load visualization'), findsOneWidget);
+
+    api.nextVizError = null;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CircleAvatar), findsNWidgets(3));
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(find.byType(CircleAvatar), findsNWidgets(2));
+    expect(api.requestsWithRefs, 2);
+    expect(api.requestsWithoutRefs, 1);
+  });
+
+  testWidgets('switching mode returns the pager to the first page',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_citationPage(_apiAnsweringPerMode())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Next'));
+    await tester.pumpAndSettle();
+    expect(find.text('Image 2 of 2'), findsOneWidget);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Image 1 of 3'), findsOneWidget);
+  });
+
+  for (final useDialogLayout in [true, false]) {
+    final layout = useDialogLayout ? 'dialog' : 'full-screen';
+    testWidgets(
+        '$layout layout: the switch sits under the title and its label '
+        'toggles it', (tester) async {
+      await tester.pumpWidget(_wrap(
+        _citationPage(_apiAnsweringPerMode(), useDialogLayout: useDialogLayout),
+      ));
+      await tester.pumpAndSettle();
+
+      final label = find.text('Show context the answer used');
+      expect(label, findsOneWidget);
+      expect(
+        tester.getTopLeft(label).dy,
+        greaterThan(tester.getBottomLeft(find.text('Cited Doc')).dy),
+      );
+      expect(
+        tester.getBottomLeft(label).dy,
+        lessThan(tester.getTopLeft(find.byType(PageView)).dy),
+      );
+
+      await tester.tap(label);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CircleAvatar), findsNWidgets(3));
+    });
+  }
+
+  testWidgets('a page without refs offers no context switch', (tester) async {
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: _apiAnsweringPerMode(),
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        database: null,
+        documentTitle: 'Cited Doc',
+        pageNumbers: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Show context the answer used'), findsNothing);
+    expect(find.byType(Switch), findsNothing);
+    expect(find.text(_noContextMessage), findsNothing);
   });
 
   testWidgets('shows loading indicator while fetching', (tester) async {
