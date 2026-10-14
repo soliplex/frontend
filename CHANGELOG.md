@@ -14,6 +14,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   request again may succeed: a transport failure or a 5xx error. It is the
   rule the AG-UI stream already used to decide whether to resume.
 
+### Fixed
+
+- Switching a citation's chunk view back to a view already loaded shows its
+  pages at once, without a loading spinner in between.
+- The chunk view offers Retry only for a failure retrying can fix. When the
+  backend has no page images to draw, it says so instead of reporting a
+  failure, and in the chunk-only view suggests "Show context the answer used".
+
 ## [0.111.0+97] - 2026-10-14
 
 ### Added
