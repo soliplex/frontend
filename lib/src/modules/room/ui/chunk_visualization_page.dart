@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_client/soliplex_client.dart'
+    show SoliplexApi, SourceReference;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
@@ -83,32 +84,58 @@ class ChunkVisualizationPage extends StatefulWidget {
   /// for a bare chunk-id lookup, or a citation that names none.
   final String? database;
 
-  static Future<void> show({
+  /// Opens the pages the chunk [source] cites is drawn on, carrying every
+  /// field of the citation the page reads.
+  static Future<void> showCitation({
+    required BuildContext context,
+    required SoliplexApi api,
+    required String roomId,
+    required SourceReference source,
+  }) =>
+      _present(
+        context,
+        (useDialogLayout) => ChunkVisualizationPage(
+          api: api,
+          roomId: roomId,
+          chunkId: source.chunkId,
+          documentTitle: source.displayTitle,
+          pageNumbers: source.pageNumbers,
+          useDialogLayout: useDialogLayout,
+          docItemRefs: source.docItemRefs,
+          chunkDocItemRefs: source.chunkDocItemRefs,
+          chunkPageNumbers: source.chunkPageNumbers,
+          database: source.database,
+        ),
+      );
+
+  /// Opens the pages a chunk looked up by its id alone is drawn on. Nothing
+  /// else about it is known, so the title shows the id and the backend asks
+  /// each database until one holds it.
+  static Future<void> showChunk({
     required BuildContext context,
     required SoliplexApi api,
     required String roomId,
     required String chunkId,
-    required List<int> pageNumbers,
-    String? documentTitle,
-    List<String> docItemRefs = const [],
-    List<String> chunkDocItemRefs = const [],
-    List<int> chunkPageNumbers = const [],
-    required String? database,
-  }) {
+  }) =>
+      _present(
+        context,
+        (useDialogLayout) => ChunkVisualizationPage(
+          api: api,
+          roomId: roomId,
+          chunkId: chunkId,
+          pageNumbers: const [],
+          useDialogLayout: useDialogLayout,
+          database: null,
+        ),
+      );
+
+  static Future<void> _present(
+    BuildContext context,
+    ChunkVisualizationPage Function(bool useDialogLayout) build,
+  ) {
     final useDialog =
         MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
-    final child = ChunkVisualizationPage(
-      api: api,
-      roomId: roomId,
-      chunkId: chunkId,
-      documentTitle: documentTitle,
-      pageNumbers: pageNumbers,
-      useDialogLayout: useDialog,
-      docItemRefs: docItemRefs,
-      chunkDocItemRefs: chunkDocItemRefs,
-      chunkPageNumbers: chunkPageNumbers,
-      database: database,
-    );
+    final child = build(useDialog);
 
     if (useDialog) {
       // Zero-duration transition — the default fade adds a visible

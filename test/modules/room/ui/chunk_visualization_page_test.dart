@@ -25,6 +25,9 @@ class _ChunkVizApi extends FakeSoliplexApi {
   ChunkVisualization? nextVisualizationWithRefs;
   Exception? nextVizError;
 
+  /// When set, a request naming any other database (or none) fails, as the
+  /// backend does when the database it asks does not hold the chunk.
+  String? holdingDatabase;
   int requestsWithRefs = 0;
   int requestsWithoutRefs = 0;
 
@@ -44,6 +47,9 @@ class _ChunkVizApi extends FakeSoliplexApi {
       requestsWithoutRefs++;
     }
     if (nextVizError != null) throw nextVizError!;
+    if (holdingDatabase != null && database != holdingDatabase) {
+      throw Exception('chunk not in that database');
+    }
     if (sendsRefs && nextVisualizationWithRefs != null) {
       return nextVisualizationWithRefs!;
     }
@@ -167,6 +173,74 @@ void main() {
 
     expect(find.byType(Switch), findsOneWidget);
     expect(find.text(_noContextMessage), findsNothing);
+  });
+
+  testWidgets('showCitation opens the page with every field of the citation',
+      (tester) async {
+    final api = _apiAnsweringPerMode()..holdingDatabase = 'papers';
+    const source = SourceReference(
+      documentId: 'd1',
+      documentUri: 'file:///docs/report.pdf',
+      content: 'text',
+      chunkId: 'c1',
+      pageNumbers: [3, 4, 5],
+      chunkPageNumbers: [4, 5],
+      docItemRefs: ['#/texts/1', '#/texts/2'],
+      chunkDocItemRefs: ['#/texts/1', '#/texts/2', '#/texts/3'],
+      database: 'papers',
+    );
+    await tester.pumpWidget(_wrap(Builder(
+      builder: (context) => TextButton(
+        onPressed: () => ChunkVisualizationPage.showCitation(
+          context: context,
+          api: api,
+          roomId: 'room-1',
+          source: source,
+        ),
+        child: const Text('open'),
+      ),
+    )));
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('report.pdf'), findsOneWidget);
+    expect(find.text('Failed to load visualization'), findsNothing);
+    expect(find.text(_noContextMessage), findsOneWidget);
+    expect(find.text('Page 4'), findsOneWidget);
+  });
+
+  testWidgets("showCitation labels the on view with the citation's pages",
+      (tester) async {
+    const source = SourceReference(
+      documentId: 'd1',
+      documentUri: 'file:///docs/report.pdf',
+      content: 'text',
+      chunkId: 'c1',
+      pageNumbers: [3, 4, 5],
+      chunkPageNumbers: [4, 5],
+      docItemRefs: ['#/texts/1', '#/texts/2'],
+      chunkDocItemRefs: ['#/texts/2'],
+    );
+    final api = _apiAnsweringPerMode();
+    await tester.pumpWidget(_wrap(Builder(
+      builder: (context) => TextButton(
+        onPressed: () => ChunkVisualizationPage.showCitation(
+          context: context,
+          api: api,
+          roomId: 'room-1',
+          source: source,
+        ),
+        child: const Text('open'),
+      ),
+    )));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Page 3'), findsOneWidget);
   });
 
   testWidgets('a citation with refs offers the context switch', (tester) async {

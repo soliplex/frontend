@@ -35,15 +35,13 @@ class _ChunkLookupCardState extends State<ChunkLookupCard> {
   void _view() {
     final id = _chunkId.trim();
     if (id.isEmpty) return;
-    ChunkVisualizationPage.show(
+    // No document title, page numbers or database are known for a bare id
+    // lookup; the title bar falls back to showing the chunk id.
+    ChunkVisualizationPage.showChunk(
       context: context,
       api: widget.api,
       roomId: widget.roomId,
       chunkId: id,
-      // No document title, page numbers or database are known for a bare id
-      // lookup; the title bar falls back to showing the chunk id.
-      pageNumbers: const [],
-      database: null,
     );
   }
 
