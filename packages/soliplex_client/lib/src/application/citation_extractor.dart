@@ -206,6 +206,8 @@ class CitationExtractor {
       headings: c.headings ?? [],
       pageNumbers: c.pageNumbers ?? [],
       docItemRefs: c.docItemRefs ?? [],
+      chunkDocItemRefs: c.chunkMeta.docItemRefs,
+      chunkPageNumbers: c.chunkMeta.pageNumbers,
       figures: figures,
       index: c.index,
       database: c.source,

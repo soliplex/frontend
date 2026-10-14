@@ -1,5 +1,6 @@
-// Dart mirror of haiku.rag's `Citation` schema type, carrying the fields the
-// frontend reads; `agui_feature_schema_drift_test.dart` lists the rest. The
+// Dart mirror of haiku.rag's `Citation` schema type and the `ChunkMetadata`
+// its `chunk_meta` holds, carrying the fields the frontend reads;
+// `agui_feature_schema_drift_test.dart` lists the rest of `Citation`. The
 // lint suppressions below keep the wire-oriented parsing and layout
 // (double-quoted keys, field order, dynamic JSON access) of this schema
 // mirror intact.
@@ -20,6 +21,7 @@ import 'package:soliplex_client/src/utils/parse_utils.dart';
 ///supports UI display ordering in chat contexts.
 class Citation {
   final String chunkId;
+  final ChunkMetadata chunkMeta;
   final String content;
   final List<String>? docItemRefs;
   final String documentId;
@@ -34,6 +36,7 @@ class Citation {
 
   Citation({
     required this.chunkId,
+    this.chunkMeta = const ChunkMetadata(),
     required this.content,
     this.docItemRefs,
     required this.documentId,
@@ -49,6 +52,9 @@ class Citation {
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
         chunkId: requireString(json["chunk_id"], "chunk_id"),
+        chunkMeta: ChunkMetadata.fromJson(
+          jsonMap(json["chunk_meta"], "chunk_meta"),
+        ),
         content: requireString(json["content"], "content"),
         docItemRefs: stringList(json["doc_item_refs"], "doc_item_refs"),
         documentId: requireString(json["document_id"], "document_id"),
@@ -60,5 +66,28 @@ class Citation {
         pageNumbers: intList(json["page_numbers"], "page_numbers"),
         pictureRefs: stringList(json["picture_refs"], "picture_refs"),
         source: stringOrNull(json["source"], "source"),
+      );
+}
+
+///The cited chunk's own stored metadata, as haiku.rag's `ChunkMetadata`
+///defines it. `chunk_meta` is the chunk's raw metadata, where chunks imported
+///pre-built rather than chunked by haiku.rag may keep fields of their own;
+///only these defined keys are read. Empty when the citation does not report
+///them.
+class ChunkMetadata {
+  final List<String> docItemRefs;
+  final List<int> pageNumbers;
+
+  const ChunkMetadata({
+    this.docItemRefs = const [],
+    this.pageNumbers = const [],
+  });
+
+  factory ChunkMetadata.fromJson(Map<String, dynamic> json) => ChunkMetadata(
+        docItemRefs: stringList(
+          json["doc_item_refs"],
+          "chunk_meta.doc_item_refs",
+        ),
+        pageNumbers: intList(json["page_numbers"], "chunk_meta.page_numbers"),
       );
 }

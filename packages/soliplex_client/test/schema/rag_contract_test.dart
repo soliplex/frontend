@@ -59,6 +59,49 @@ void main() {
         });
         expect(withoutMeta.documentMeta, isEmpty);
       });
+
+      test("chunk_meta yields the chunk's own doc_item_refs and page_numbers",
+          () {
+        final citation = Citation.fromJson({
+          'chunk_id': 'c1',
+          'content': 'text',
+          'document_id': 'd1',
+          'document_uri': 'uri',
+          'doc_item_refs': ['#/texts/1', '#/texts/2', '#/texts/3'],
+          'page_numbers': [3, 4, 5],
+          'chunk_meta': {
+            'doc_item_refs': ['#/texts/2'],
+            'page_numbers': [4],
+            'headings': ['H1'],
+            'labels': ['paragraph'],
+          },
+        });
+
+        expect(citation.chunkMeta.docItemRefs, equals(['#/texts/2']));
+        expect(citation.chunkMeta.pageNumbers, equals([4]));
+      });
+
+      test('chunk refs and pages are empty when chunk_meta does not carry them',
+          () {
+        final withoutChunkMeta = Citation.fromJson({
+          'chunk_id': 'c1',
+          'content': 'text',
+          'document_id': 'd1',
+          'document_uri': 'uri',
+        });
+        expect(withoutChunkMeta.chunkMeta.docItemRefs, isEmpty);
+        expect(withoutChunkMeta.chunkMeta.pageNumbers, isEmpty);
+
+        final withoutKeys = Citation.fromJson({
+          'chunk_id': 'c1',
+          'content': 'text',
+          'document_id': 'd1',
+          'document_uri': 'uri',
+          'chunk_meta': {'custom': 'value'},
+        });
+        expect(withoutKeys.chunkMeta.docItemRefs, isEmpty);
+        expect(withoutKeys.chunkMeta.pageNumbers, isEmpty);
+      });
     });
 
     group('malformed-field resilience', () {
@@ -97,6 +140,29 @@ void main() {
         });
 
         expect(citation.pageNumbers, equals([1, 3]));
+      });
+
+      test('malformed chunk_meta keys degrade to empty, other fields survive',
+          () {
+        final citation = Citation.fromJson({
+          ...validBase(),
+          'chunk_meta': {'doc_item_refs': 'not-a-list', 'page_numbers': 4},
+        });
+
+        expect(citation.chunkMeta.docItemRefs, isEmpty);
+        expect(citation.chunkMeta.pageNumbers, isEmpty);
+        expect(citation.content, equals('text'));
+      });
+
+      test('a chunk_meta that is not a map degrades to empty', () {
+        final citation = Citation.fromJson({
+          ...validBase(),
+          'chunk_meta': ['#/texts/2'],
+        });
+
+        expect(citation.chunkMeta.docItemRefs, isEmpty);
+        expect(citation.chunkMeta.pageNumbers, isEmpty);
+        expect(citation.content, equals('text'));
       });
 
       test('malformed optional scalar degrades to null', () {

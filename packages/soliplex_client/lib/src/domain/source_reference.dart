@@ -53,6 +53,8 @@ class SourceReference {
     this.headings = const [],
     this.pageNumbers = const [],
     this.docItemRefs = const [],
+    this.chunkDocItemRefs = const [],
+    this.chunkPageNumbers = const [],
     this.figures = const [],
     this.index,
     this.database,
@@ -86,6 +88,18 @@ class SourceReference {
   /// The doc-item refs the model saw for this citation, passed to the
   /// visualization endpoint so the highlight matches the cited content.
   final List<String> docItemRefs;
+
+  /// The doc-item refs of the cited chunk itself, as stored with it — the
+  /// items the visualization draws as the matched chunk. [docItemRefs] covers
+  /// the whole cited passage: these, plus the context search added around
+  /// them, less any a size budget clipped. Empty when the citation does not
+  /// report them, so use them to tell when [docItemRefs] adds nothing beyond
+  /// the chunk, never to conclude the chunk has none.
+  final List<String> chunkDocItemRefs;
+
+  /// The pages the cited chunk itself appears on, where [pageNumbers] covers
+  /// the whole cited passage. Empty when the citation does not report them.
+  final List<int> chunkPageNumbers;
 
   /// The cited figures the backend shipped inline (a picture ref with its
   /// decoded bytes and optional caption). Only figures that resolved to
@@ -199,6 +213,8 @@ class SourceReference {
         listEquals.equals(headings, other.headings) &&
         listEquals.equals(pageNumbers, other.pageNumbers) &&
         listEquals.equals(docItemRefs, other.docItemRefs) &&
+        listEquals.equals(chunkDocItemRefs, other.chunkDocItemRefs) &&
+        listEquals.equals(chunkPageNumbers, other.chunkPageNumbers) &&
         const ListEquality<Figure>().equals(figures, other.figures) &&
         index == other.index &&
         database == other.database;
@@ -215,6 +231,8 @@ class SourceReference {
         const ListEquality<String>().hash(headings),
         const ListEquality<int>().hash(pageNumbers),
         const ListEquality<String>().hash(docItemRefs),
+        const ListEquality<String>().hash(chunkDocItemRefs),
+        const ListEquality<int>().hash(chunkPageNumbers),
         const ListEquality<Figure>().hash(figures),
         index,
         database,

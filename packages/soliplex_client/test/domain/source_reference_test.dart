@@ -100,6 +100,47 @@ void main() {
         expect(ref1, isNot(equals(ref2)));
       });
 
+      SourceReference chunkRef({
+        List<String> chunkDocItemRefs = const [],
+        List<int> chunkPageNumbers = const [],
+      }) =>
+          SourceReference(
+            documentId: 'doc-1',
+            documentUri: 'https://example.com/doc.pdf',
+            content: 'Test content',
+            chunkId: 'chunk-1',
+            chunkDocItemRefs: chunkDocItemRefs,
+            chunkPageNumbers: chunkPageNumbers,
+          );
+
+      test('different chunkDocItemRefs makes references unequal', () {
+        expect(
+          chunkRef(chunkDocItemRefs: ['#/texts/1']),
+          isNot(equals(chunkRef(chunkDocItemRefs: ['#/texts/2']))),
+        );
+      });
+
+      test('different chunkPageNumbers makes references unequal', () {
+        expect(
+          chunkRef(chunkPageNumbers: [3]),
+          isNot(equals(chunkRef(chunkPageNumbers: [4]))),
+        );
+      });
+
+      test('equal chunk refs and pages in separate lists are equal', () {
+        final ref1 = chunkRef(
+          chunkDocItemRefs: ['#/texts/1'],
+          chunkPageNumbers: [3],
+        );
+        final ref2 = chunkRef(
+          chunkDocItemRefs: ['#/texts/1'],
+          chunkPageNumbers: [3],
+        );
+
+        expect(ref1, equals(ref2));
+        expect(ref1.hashCode, equals(ref2.hashCode));
+      });
+
       final png = Uint8List.fromList([1, 2, 3]);
 
       SourceReference figureRef({
