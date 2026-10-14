@@ -1,6 +1,7 @@
-// Dart mirror of haiku.rag's `Citation` schema type and the `ChunkMetadata`
-// its `chunk_meta` holds, carrying the fields the frontend reads;
-// `agui_feature_schema_drift_test.dart` lists the rest of `Citation`. The
+// Dart mirror of haiku.rag's `Citation` schema type, and of the
+// `ChunkMetadata` keys its `chunk_meta` map carries, holding the fields the
+// frontend reads; `agui_feature_schema_drift_test.dart` lists the rest of
+// `Citation`. The
 // lint suppressions below keep the wire-oriented parsing and layout
 // (double-quoted keys, field order, dynamic JSON access) of this schema
 // mirror intact.
@@ -69,11 +70,11 @@ class Citation {
       );
 }
 
-///The cited chunk's own stored metadata, as haiku.rag's `ChunkMetadata`
-///defines it. `chunk_meta` is the chunk's raw metadata, where chunks imported
-///pre-built rather than chunked by haiku.rag may keep fields of their own;
-///only these defined keys are read. Empty when the citation does not report
-///them.
+///Two keys of the cited chunk's stored metadata, as haiku.rag's
+///`ChunkMetadata` defines them; its `headings` and `labels` are not read.
+///`chunk_meta` is the chunk's raw metadata, where chunks imported pre-built
+///rather than chunked by haiku.rag may keep other keys or lack these. Empty
+///when the citation does not report them.
 class ChunkMetadata {
   final List<String> docItemRefs;
   final List<int> pageNumbers;
