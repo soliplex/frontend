@@ -49,6 +49,8 @@ class ChunkVisualizationPage extends StatefulWidget {
     required this.useDialogLayout,
     this.documentTitle,
     this.docItemRefs = const [],
+    this.chunkDocItemRefs = const [],
+    this.chunkPageNumbers = const [],
     required this.database,
   });
 
@@ -63,9 +65,18 @@ class ChunkVisualizationPage extends StatefulWidget {
   final List<int> pageNumbers;
   final bool useDialogLayout;
 
-  /// The citation's doc-item refs, sent to the backend so the highlight
-  /// matches the cited content instead of re-expanding.
+  /// The citation's doc-item refs. Sent to the backend only once the user
+  /// turns on the context switch, so the highlight then covers the passage
+  /// the citation quoted rather than just the matched chunk.
   final List<String> docItemRefs;
+
+  /// The doc-item refs of the cited chunk itself — what the backend draws as
+  /// the matched chunk. Empty when the citation does not report them.
+  final List<String> chunkDocItemRefs;
+
+  /// The pages the cited chunk itself appears on, where [pageNumbers] covers
+  /// the whole cited passage. Empty when the citation does not report them.
+  final List<int> chunkPageNumbers;
 
   /// The RAG database the chunk came from, as its citation reports it, so
   /// the backend asks that one rather than the first holding the id. Null
@@ -80,6 +91,8 @@ class ChunkVisualizationPage extends StatefulWidget {
     required List<int> pageNumbers,
     String? documentTitle,
     List<String> docItemRefs = const [],
+    List<String> chunkDocItemRefs = const [],
+    List<int> chunkPageNumbers = const [],
     required String? database,
   }) {
     final useDialog =
@@ -92,6 +105,8 @@ class ChunkVisualizationPage extends StatefulWidget {
       pageNumbers: pageNumbers,
       useDialogLayout: useDialog,
       docItemRefs: docItemRefs,
+      chunkDocItemRefs: chunkDocItemRefs,
+      chunkPageNumbers: chunkPageNumbers,
       database: database,
     );
 
@@ -123,9 +138,18 @@ class ChunkVisualizationPage extends StatefulWidget {
 }
 
 class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
-  late Future<List<PageImage>> _future;
-  // Bumped on retry so the pager remounts with fresh rotation/page state.
+  // Each mode's fetch, keyed by whether it sends the refs, kept for the life
+  // of the page so switching back shows the earlier result without a request.
+  final _futures = <bool, Future<List<PageImage>>>{};
+  // Bumped on retry so the pager remounts with fresh rotation/page state; the
+  // pager key also carries the mode, as the two can differ in page count.
   int _reloadNonce = 0;
+
+  // Whether the request sends the citation's refs. Off by default, so refs
+  // leave the client only after the user asks for the context.
+  bool _showContext = false;
+
+  Future<List<PageImage>> get _future => _futures[_showContext]!;
 
   @override
   void initState() {
@@ -134,11 +158,20 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   void _loadVisualization() {
-    _future = _fetchAndDecode();
+    _futures[_showContext] ??= _fetchSelectedMode();
   }
 
-  Future<List<PageImage>> _fetchAndDecode() async {
-    final refCount = widget.docItemRefs.length;
+  // A mode's fetch can fail while nothing listens — before the next frame
+  // builds its FutureBuilder, or after the user switched to the other mode.
+  // The fetch logs its own failure and the FutureBuilder still receives the
+  // error once it listens, so mark it handled rather than let it surface as
+  // uncaught.
+  Future<List<PageImage>> _fetchSelectedMode() =>
+      _fetchAndDecode(sendRefs: _showContext)..ignore();
+
+  Future<List<PageImage>> _fetchAndDecode({required bool sendRefs}) async {
+    final refs = sendRefs ? widget.docItemRefs : const <String>[];
+    final refCount = refs.length;
     final grounded = refCount > 0;
     _logger.debug(
       'fetching chunk visualization',
@@ -153,7 +186,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       final viz = await widget.api.getChunkVisualization(
         widget.roomId,
         widget.chunkId,
-        refs: widget.docItemRefs,
+        refs: refs,
         database: widget.database,
       );
       _logger.debug(
@@ -201,12 +234,17 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   void _retry() {
     setState(() {
       _reloadNonce++;
-      _loadVisualization();
+      _futures[_showContext] = _fetchSelectedMode();
     });
   }
 
   String _pageLabel(int index, int total) {
-    final pn = widget.pageNumbers;
+    // The backend returns one image per page holding a drawn item: with the
+    // refs, the cited passage's pages; without, only the chunk's own. A
+    // citation with no refs was never expanded, so its pages are the chunk's.
+    final pn = _showContext || widget.docItemRefs.isEmpty
+        ? widget.pageNumbers
+        : widget.chunkPageNumbers;
     if (pn.isEmpty) return 'Image ${index + 1} of $total';
     // Chunk spans more pages than images — show combined label.
     if (pn.length > total && total == 1) {
@@ -245,7 +283,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildTitleBar(context),
-              Expanded(child: _buildContent(context)),
+              Expanded(child: _buildBody(context)),
             ],
           ),
         ),
@@ -260,7 +298,55 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       // Without SafeArea, the system gesture inset (iOS home indicator,
       // Android nav bar) sits on top of the dots row at the bottom of
       // the page strip — making them effectively untappable.
-      body: SafeArea(top: false, child: _buildContent(context)),
+      body: SafeArea(top: false, child: _buildBody(context)),
+    );
+  }
+
+  // Whether the citation quotes items outside its chunk: the only ones that
+  // sending the refs adds, drawn as context. Chunk refs the citation does not
+  // report are empty, so every ref counts as outside and the switch shows.
+  bool get _quotesBeyondChunk =>
+      widget.docItemRefs.any((ref) => !widget.chunkDocItemRefs.contains(ref));
+
+  Widget _buildBody(BuildContext context) {
+    return Column(
+      children: [
+        if (_quotesBeyondChunk)
+          _buildContextSwitch()
+        else if (widget.docItemRefs.isNotEmpty)
+          _buildNoContextNote(context),
+        Expanded(child: _buildContent(context)),
+      ],
+    );
+  }
+
+  // Shared by the switch and the note that replaces it: both are one-line list
+  // tiles, so with the same padding the note takes the switch row's inset and
+  // height.
+  static const _contextRowPadding =
+      EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4);
+
+  Widget _buildContextSwitch() {
+    return SwitchListTile(
+      title: const Text('Show context the answer used'),
+      value: _showContext,
+      onChanged: (value) => setState(() {
+        _showContext = value;
+        _loadVisualization();
+      }),
+      contentPadding: _contextRowPadding,
+    );
+  }
+
+  Widget _buildNoContextNote(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      title: Text(
+        'The answer used no context beyond this passage.',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      contentPadding: _contextRowPadding,
     );
   }
 
@@ -345,7 +431,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       return const Center(child: Text('No page images available'));
     }
     return PagedZoomableImages(
-      key: ValueKey(_reloadNonce),
+      key: ValueKey((_showContext, _reloadNonce)),
       itemCount: pages.length,
       pageBuilder: (context, index, rotation) => _buildPageImage(
         pages[index],

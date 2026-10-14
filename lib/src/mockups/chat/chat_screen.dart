@@ -2415,6 +2415,8 @@ class _RoomScreenState extends State<RoomScreen> {
                             documentTitle: ref.displayTitle,
                             pageNumbers: ref.pageNumbers,
                             docItemRefs: ref.docItemRefs,
+                            chunkDocItemRefs: ref.chunkDocItemRefs,
+                            chunkPageNumbers: ref.chunkPageNumbers,
                             database: ref.database,
                           ),
                         ),

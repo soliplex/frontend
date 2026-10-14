@@ -13,7 +13,7 @@ class _ChunkVizApi extends FakeSoliplexApi {
     String roomId,
     String chunkId, {
     List<String>? refs,
-    bool expand = true,
+    bool expand = false,
     String? database,
     CancelToken? cancelToken,
   }) async =>

@@ -15,6 +15,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   chunk itself, read from the citation's `chunk_meta`. Empty when the citation
   does not report them.
 
+### Changed
+
+- A citation's chunk view highlights only the matched chunk, and no longer
+  sends the citation's doc-item refs to the backend when it opens. A "Show
+  context the answer used" switch above the pages restores the highlight of
+  the passage the citation quotes, sending the refs for that citation only
+  once it is turned on. When the citation quotes nothing beyond the matched
+  chunk, the view says so in place of the switch.
+
 ## [0.110.0+96] - 2026-10-13
 
 ### Added
