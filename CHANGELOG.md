@@ -6,14 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.111.0+97] - 2026-10-14
 
 ### Added
 
 - **Library consumers:** `SourceReference.chunkDocItemRefs` and
   `SourceReference.chunkPageNumbers`, the doc-item refs and pages of the cited
   chunk itself, read from the citation's `chunk_meta`. Empty when the citation
-  does not report them.
+  does not report them. The `Citation` that `RagSnapshot.resolveCitation`
+  returns carries them as `Citation.chunkMeta`.
 
 ### Changed
 
