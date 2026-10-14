@@ -137,6 +137,29 @@ cache-busted web build (the `Dockerfile`'s `web` target) to GHCR as
 release tag like `v0.109.0+95` becomes the image tags `0.109.0`,
 `0.109.0-95`, `0.109`, and `latest`.
 
+## Issue and PR Labels
+
+Labels are grouped by prefix. Each label's description is its definition: run
+`gh label list` to read them.
+
+- **Type** -- exactly one per issue: `Type: Bug`, `Enhancement`, `Feature`,
+  `Maintenance`, `Question`, `Accessibility`, or `Decision` (needs an ADR or
+  an explicit decision before work starts).
+- **Priority** -- one per triaged issue: `P1` (critical) to `P4` (low).
+- **Module / Package** -- where the change lives:
+  - `Module: <name>` for code under `lib/src/modules/`;
+  - `Package: <name>` for code under `packages/`.
+- **Department** -- the discipline involved:
+  - `CI/CD`, `Dependencies`, `Documentation`, `Testing` and `Design`.
+- **Status** -- only states a project board column cannot express:
+  - `Triaged`, `Blocked`, `Duplicate` and `Refused`.
+
+An issue is triaged once it has a Type, a Priority, and a Module or Package.
+Mark it `Status: Triaged` at that point.
+
+Do not label or describe security vulnerabilities in public issues; this
+repository is public.
+
 ## Pre-commit Hooks
 
 Configured via `.pre-commit-config.yaml`:
