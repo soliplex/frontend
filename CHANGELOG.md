@@ -13,6 +13,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Library consumers:** `isRetryable(error)`, whether sending the same
   request again may succeed: a transport failure or a 5xx error. It is the
   rule the AG-UI stream already used to decide whether to resume.
+- **Library consumers:** `ChunkVisualization.database`, the RAG database the
+  backend found the chunk in. Null from a backend that does not report it.
 
 ### Fixed
 

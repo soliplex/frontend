@@ -64,6 +64,27 @@ void main() {
         expect(visualization.documentUri, isNull);
       });
 
+      test('parses the database the backend found the chunk in', () {
+        final visualization = ChunkVisualization.fromJson(const {
+          'database': 'papers',
+          'chunk_id': 'chunk-abc',
+          'document_uri': 'doc.pdf',
+          'images_base_64': <String>[],
+        });
+
+        expect(visualization.database, equals('papers'));
+      });
+
+      test('parses JSON without database as a null database', () {
+        final visualization = ChunkVisualization.fromJson(const {
+          'chunk_id': 'chunk-abc',
+          'document_uri': 'doc.pdf',
+          'images_base_64': <String>[],
+        });
+
+        expect(visualization.database, isNull);
+      });
+
       test('parses JSON with empty images array', () {
         final json = {
           'chunk_id': 'chunk-abc',
@@ -104,6 +125,18 @@ void main() {
           () => ChunkVisualization.fromJson(const {
             'chunk_id': 'chunk-abc',
             'document_uri': 42,
+            'images_base_64': <String>[],
+          }),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test('throws MalformedResponseException when database is not a String',
+          () {
+        expect(
+          () => ChunkVisualization.fromJson(const {
+            'database': 42,
+            'chunk_id': 'chunk-abc',
             'images_base_64': <String>[],
           }),
           throwsA(isA<MalformedResponseException>()),
@@ -165,6 +198,7 @@ void main() {
           chunkId: 'chunk-roundtrip',
           documentUri: 'test.pdf',
           imagesBase64: const ['img1', 'img2', 'img3'],
+          database: 'papers',
         );
 
         final json = original.toJson();
@@ -173,6 +207,7 @@ void main() {
         expect(restored.chunkId, equals(original.chunkId));
         expect(restored.documentUri, equals(original.documentUri));
         expect(restored.imagesBase64, equals(original.imagesBase64));
+        expect(restored.database, equals(original.database));
       });
     });
 
@@ -260,6 +295,23 @@ void main() {
           chunkId: 'chunk-123',
           documentUri: 'doc2.pdf',
           imagesBase64: const ['img1'],
+        );
+
+        expect(a, isNot(equals(b)));
+      });
+
+      test('not equal when database differs', () {
+        final a = ChunkVisualization(
+          chunkId: 'chunk-123',
+          documentUri: 'doc.pdf',
+          imagesBase64: const ['img1'],
+          database: 'papers',
+        );
+        final b = ChunkVisualization(
+          chunkId: 'chunk-123',
+          documentUri: 'doc.pdf',
+          imagesBase64: const ['img1'],
+          database: 'papers-copy',
         );
 
         expect(a, isNot(equals(b)));

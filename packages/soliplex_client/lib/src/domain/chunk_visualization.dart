@@ -12,13 +12,14 @@ class ChunkVisualization {
     required this.chunkId,
     required this.documentUri,
     required List<String> imagesBase64,
+    this.database,
   }) : imagesBase64 = List.unmodifiable(imagesBase64);
 
   /// Creates a ChunkVisualization from JSON.
   ///
   /// Throws [MalformedResponseException] when `chunk_id` is missing or not a
-  /// string, `document_uri` is present but not a string, or `images_base_64`
-  /// is not a list of strings.
+  /// string, `document_uri` or `database` is present but not a string, or
+  /// `images_base_64` is not a list of strings.
   factory ChunkVisualization.fromJson(Map<String, dynamic> json) {
     final chunkId = json['chunk_id'];
     if (chunkId is! String) {
@@ -32,6 +33,13 @@ class ChunkVisualization {
       throw MalformedResponseException(
         message: 'ChunkVisualization: expected a String or null '
             '"document_uri", got ${documentUri.runtimeType}.',
+      );
+    }
+    final database = json['database'];
+    if (database != null && database is! String) {
+      throw MalformedResponseException(
+        message: 'ChunkVisualization: expected a String or null '
+            '"database", got ${database.runtimeType}.',
       );
     }
     final rawImages = json['images_base_64'];
@@ -55,8 +63,13 @@ class ChunkVisualization {
       chunkId: chunkId,
       documentUri: documentUri as String?,
       imagesBase64: images,
+      database: database as String?,
     );
   }
+
+  /// The RAG database the backend found the chunk in. Null from a backend
+  /// that does not report it.
+  final String? database;
 
   /// The chunk ID this visualization is for.
   final String chunkId;
@@ -78,6 +91,7 @@ class ChunkVisualization {
         'chunk_id': chunkId,
         'document_uri': documentUri,
         'images_base_64': imagesBase64,
+        'database': database,
       };
 
   @override
@@ -86,13 +100,16 @@ class ChunkVisualization {
       other is ChunkVisualization &&
           chunkId == other.chunkId &&
           documentUri == other.documentUri &&
-          const ListEquality<String>().equals(imagesBase64, other.imagesBase64);
+          const ListEquality<String>()
+              .equals(imagesBase64, other.imagesBase64) &&
+          database == other.database;
 
   @override
   int get hashCode => Object.hash(
         chunkId,
         documentUri,
         const ListEquality<String>().hash(imagesBase64),
+        database,
       );
 
   @override
