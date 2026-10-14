@@ -85,16 +85,16 @@ class SourceReference {
   /// Page numbers where this content appears.
   final List<int> pageNumbers;
 
-  /// The doc-item refs the model saw for this citation, passed to the
-  /// visualization endpoint so the highlight matches the cited content.
+  /// The doc-item refs the model saw for this citation. Sent to the
+  /// visualization endpoint only when the user asks for the context the answer
+  /// used, so the highlight then covers the cited passage.
   final List<String> docItemRefs;
 
   /// The doc-item refs of the cited chunk itself, as stored with it — the
   /// items the visualization draws as the matched chunk. [docItemRefs] covers
   /// the whole cited passage: these, plus the context search added around
   /// them, less any a size budget clipped. Empty when the citation does not
-  /// report them, so use them to tell when [docItemRefs] adds nothing beyond
-  /// the chunk, never to conclude the chunk has none.
+  /// report them, so an empty list does not mean the chunk has none.
   final List<String> chunkDocItemRefs;
 
   /// The pages the cited chunk itself appears on, where [pageNumbers] covers
