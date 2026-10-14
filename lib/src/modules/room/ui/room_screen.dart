@@ -2543,17 +2543,11 @@ class _RoomScreenState extends State<RoomScreen> {
                                 AppRoutes.diagnosticsForRun(runId),
                               ),
                               onShowChunkVisualization: (ref) =>
-                                  ChunkVisualizationPage.show(
+                                  ChunkVisualizationPage.showCitation(
                                 context: context,
                                 api: widget.serverEntry.connection.api,
                                 roomId: widget.roomId,
-                                chunkId: ref.chunkId,
-                                documentTitle: ref.displayTitle,
-                                pageNumbers: ref.pageNumbers,
-                                docItemRefs: ref.docItemRefs,
-                                chunkDocItemRefs: ref.chunkDocItemRefs,
-                                chunkPageNumbers: ref.chunkPageNumbers,
-                                database: ref.database,
+                                source: ref,
                               ),
                             ),
                   },
