@@ -100,7 +100,7 @@ class AgUiStreamClient {
         rethrow;
       } on Object catch (e) {
         if (!isResumeRequest) rethrow;
-        if (!_retryable(e) || !_canRetry(policy, attempt)) {
+        if (!isRetryable(e) || !_hasAttemptsLeft(policy, attempt)) {
           onReconnectStatus?.call(
             ReconnectFailed(attempt: attempt, error: e),
           );
@@ -192,7 +192,7 @@ class AgUiStreamClient {
       // first new id.
       if (lastEventId != resumedFrom) attempt = 0;
 
-      if (!_canRetry(policy, attempt)) {
+      if (!_hasAttemptsLeft(policy, attempt)) {
         onReconnectStatus?.call(
           ReconnectFailed(attempt: attempt, error: streamError),
         );
@@ -221,19 +221,7 @@ class AgUiStreamClient {
   /// Closes the underlying transport. Subsequent [runAgent] calls fail.
   void close() => _httpTransport.close();
 
-  bool _retryable(Object e) => switch (e) {
-        CancelledException() => false,
-        AuthException() ||
-        PermissionDeniedException() ||
-        NotFoundException() =>
-          false,
-        ApiException(:final statusCode) =>
-          statusCode >= 500 && statusCode < 600,
-        NetworkException() => true,
-        _ => false,
-      };
-
-  bool _canRetry(ResumePolicy policy, int attemptsSoFar) =>
+  bool _hasAttemptsLeft(ResumePolicy policy, int attemptsSoFar) =>
       policy.enabled && attemptsSoFar < policy.maxAttempts;
 
   Future<StreamedHttpResponse> _attempt(

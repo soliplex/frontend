@@ -354,4 +354,24 @@ void main() {
       }
     });
   });
+
+  group('isRetryable', () {
+    for (final (error, retryable) in <(Object, bool)>[
+      (const NetworkException(message: 'down'), true),
+      (const ApiException(message: 'busy', statusCode: 503), true),
+      (const ApiException(message: 'bad', statusCode: 400), false),
+      (const NotFoundException(message: 'gone'), false),
+      (const AuthException(message: 'expired'), false),
+      (const PermissionDeniedException(message: 'denied'), false),
+      (const CancelledException(), false),
+      (const MalformedResponseException(message: 'shape'), false),
+      (StateError('unexpected'), false),
+    ]) {
+      test(
+          '${error.runtimeType} ${retryable ? 'is' : 'is not'} retryable '
+          '${error is ApiException ? '(${error.statusCode})' : ''}', () {
+        expect(isRetryable(error), retryable);
+      });
+    }
+  });
 }
