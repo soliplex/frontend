@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show SoliplexApi, SourceReference;
+    show NotFoundException, SoliplexApi, SourceReference, isRetryable;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
@@ -84,8 +84,8 @@ class ChunkVisualizationPage extends StatefulWidget {
   /// for a bare chunk-id lookup, or a citation that names none.
   final String? database;
 
-  /// Opens the pages the chunk [source] cites is drawn on, carrying every
-  /// field of the citation the page reads.
+  /// Opens the page images of the chunk [source] cites, carrying every field
+  /// of the citation the page reads.
   static Future<void> showCitation({
     required BuildContext context,
     required SoliplexApi api,
@@ -164,37 +164,57 @@ class ChunkVisualizationPage extends StatefulWidget {
   State<ChunkVisualizationPage> createState() => _ChunkVisualizationPageState();
 }
 
+/// Where one view of the page stands: its fetch in flight, its pages, or the
+/// failure that ended its fetch.
+sealed class _ViewLoad {
+  const _ViewLoad();
+}
+
+final class _Loading extends _ViewLoad {
+  const _Loading();
+}
+
+final class _Loaded extends _ViewLoad {
+  const _Loaded(this.pages);
+
+  final List<PageImage> pages;
+}
+
+final class _Failed extends _ViewLoad {
+  const _Failed(this.error);
+
+  final Object error;
+}
+
 class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
-  // Each mode's fetch, keyed by whether it sends the refs, kept for the life
+  // Each view's load, keyed by whether it sends the refs, kept for the life
   // of the page so switching back shows the earlier result without a request.
-  final _futures = <bool, Future<List<PageImage>>>{};
-  // Bumped on retry so the pager remounts with fresh rotation/page state; the
-  // pager key also carries the mode, as the two can differ in page count.
-  int _reloadNonce = 0;
+  final _views = <bool, _ViewLoad>{};
 
   // Whether the request sends the citation's refs. Off by default, so refs
   // leave the client only after the user asks for the context.
   bool _showContext = false;
 
-  Future<List<PageImage>> get _future => _futures[_showContext]!;
-
   @override
   void initState() {
     super.initState();
-    _loadVisualization();
+    _fetch(sendRefs: _showContext);
   }
 
-  void _loadVisualization() {
-    _futures[_showContext] ??= _fetchSelectedMode();
+  // A view is fetched when first shown and on retry, which is offered only
+  // once its fetch has failed, so no view has two fetches in flight.
+  void _fetch({required bool sendRefs}) {
+    _views[sendRefs] = const _Loading();
+    _fetchAndDecode(sendRefs: sendRefs).then(
+      (pages) => _settle(sendRefs, _Loaded(pages)),
+      onError: (Object error) => _settle(sendRefs, _Failed(error)),
+    );
   }
 
-  // A mode's fetch can fail while nothing listens — before the next frame
-  // builds its FutureBuilder, or after the user switched to the other mode.
-  // The fetch logs its own failure and the FutureBuilder still receives the
-  // error once it listens, so mark it handled rather than let it surface as
-  // uncaught.
-  Future<List<PageImage>> _fetchSelectedMode() =>
-      _fetchAndDecode(sendRefs: _showContext)..ignore();
+  void _settle(bool sendRefs, _ViewLoad load) {
+    if (!mounted) return;
+    setState(() => _views[sendRefs] = load);
+  }
 
   Future<List<PageImage>> _fetchAndDecode({required bool sendRefs}) async {
     final refs = sendRefs ? widget.docItemRefs : const <String>[];
@@ -258,12 +278,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     }
   }
 
-  void _retry() {
-    setState(() {
-      _reloadNonce++;
-      _futures[_showContext] = _fetchSelectedMode();
-    });
-  }
+  void _retry() => setState(() => _fetch(sendRefs: _showContext));
 
   String _pageLabel(int index, int total) {
     // The backend returns one image per page holding a drawn item: with the
@@ -281,20 +296,14 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     return 'Image ${index + 1} of $total';
   }
 
-  Widget _buildContent(BuildContext context) {
-    return FutureBuilder<List<PageImage>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return _buildError(context, snapshot.error!);
-        }
-        return _buildLoaded(context, snapshot.data!);
-      },
-    );
-  }
+  Widget _buildContent(BuildContext context) => switch (_views[_showContext]!) {
+        _Loading() => const Center(child: CircularProgressIndicator()),
+        // The backend answers 404 when it draws nothing for the view (or
+        // holds no such chunk) — the same outcome as an empty result.
+        _Failed(error: NotFoundException()) => _buildNoImages(context),
+        _Failed(:final error) => _buildError(context, error),
+        _Loaded(:final pages) => _buildLoaded(context, pages),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -330,8 +339,9 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   // Whether the citation quotes items outside its chunk: the only ones that
-  // sending the refs adds, drawn as context. Chunk refs the citation does not
-  // report are empty, so every ref counts as outside and the switch shows.
+  // sending the refs adds, drawn as context. When the citation does not
+  // report its chunk's refs, `chunkDocItemRefs` is empty, so every ref counts
+  // as outside and the switch shows.
   bool get _quotesBeyondChunk =>
       widget.docItemRefs.any((ref) => !widget.chunkDocItemRefs.contains(ref));
 
@@ -347,9 +357,8 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     );
   }
 
-  // Shared by the switch and the note that replaces it: both are one-line list
-  // tiles, so with the same padding the note takes the switch row's inset and
-  // height.
+  // Shared by the switch and the note that replaces it, so the note sits at
+  // the switch row's inset.
   static const _contextRowPadding =
       EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4);
 
@@ -359,7 +368,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       value: _showContext,
       onChanged: (value) => setState(() {
         _showContext = value;
-        _loadVisualization();
+        if (!_views.containsKey(value)) _fetch(sendRefs: value);
       }),
       contentPadding: _contextRowPadding,
     );
@@ -417,13 +426,42 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             'Failed to load visualization',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: SoliplexSpacing.s4),
-          SoliplexButton.filled(
-            onPressed: _retry,
-            icon: const Icon(Icons.refresh),
-            child: const Text('Retry'),
-          ),
+          if (isRetryable(error)) ...[
+            const SizedBox(height: SoliplexSpacing.s4),
+            SoliplexButton.filled(
+              onPressed: _retry,
+              icon: const Icon(Icons.refresh),
+              child: const Text('Retry'),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  // The off view draws only the chunk's own items; when they give no page
+  // image, the cited passage may still have one.
+  Widget _buildNoImages(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(SoliplexSpacing.s4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('No page images available'),
+            if (!_showContext && _quotesBeyondChunk) ...[
+              const SizedBox(height: SoliplexSpacing.s2),
+              Text(
+                'Try “Show context the answer used” above to see the cited '
+                'passage.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -454,11 +492,11 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   Widget _buildLoaded(BuildContext context, List<PageImage> pages) {
-    if (pages.isEmpty) {
-      return const Center(child: Text('No page images available'));
-    }
+    if (pages.isEmpty) return _buildNoImages(context);
     return PagedZoomableImages(
-      key: ValueKey((_showContext, _reloadNonce)),
+      // Keyed by view: the two can differ in page count, so switching views
+      // starts the pager at its first page, unrotated.
+      key: ValueKey(_showContext),
       itemCount: pages.length,
       pageBuilder: (context, index, rotation) => _buildPageImage(
         pages[index],

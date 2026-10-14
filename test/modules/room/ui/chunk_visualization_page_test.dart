@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -25,9 +26,13 @@ class _ChunkVizApi extends FakeSoliplexApi {
   ChunkVisualization? nextVisualizationWithRefs;
   Exception? nextVizError;
 
-  /// When set, a request naming any other database (or none) fails, as the
-  /// backend does when the database it asks does not hold the chunk.
+  /// When set, a request naming any other database fails, as the backend does
+  /// when the database it asks does not hold the chunk. A request naming none
+  /// fails too, so a caller that drops the database is caught.
   String? holdingDatabase;
+
+  /// When set, every request waits for it before answering.
+  Completer<void>? hold;
   int requestsWithRefs = 0;
   int requestsWithoutRefs = 0;
 
@@ -46,9 +51,10 @@ class _ChunkVizApi extends FakeSoliplexApi {
     } else {
       requestsWithoutRefs++;
     }
+    await hold?.future;
     if (nextVizError != null) throw nextVizError!;
     if (holdingDatabase != null && database != holdingDatabase) {
-      throw Exception('chunk not in that database');
+      throw const NotFoundException(message: 'chunk not in that database');
     }
     if (sendsRefs && nextVisualizationWithRefs != null) {
       return nextVisualizationWithRefs!;
@@ -91,6 +97,8 @@ Widget _citationPage(
     );
 
 const _noContextMessage = 'The answer used no context beyond this passage.';
+const _switchHint =
+    'Try “Show context the answer used” above to see the cited passage.';
 
 Widget _wrap(Widget child) =>
     ProviderScope(child: MaterialApp(home: Scaffold(body: child)));
@@ -205,7 +213,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('report.pdf'), findsOneWidget);
-    expect(find.text('Failed to load visualization'), findsNothing);
     expect(find.text(_noContextMessage), findsOneWidget);
     expect(find.text('Page 4'), findsOneWidget);
   });
@@ -243,7 +250,8 @@ void main() {
     expect(find.text('Page 3'), findsOneWidget);
   });
 
-  testWidgets('a citation with refs offers the context switch', (tester) async {
+  testWidgets('a citation whose chunk refs are not reported offers the switch',
+      (tester) async {
     await tester.pumpWidget(_wrap(_citationPage(_apiAnsweringPerMode())));
     await tester.pumpAndSettle();
 
@@ -263,8 +271,9 @@ void main() {
     expect(find.byType(CircleAvatar), findsNWidgets(3));
   });
 
-  testWidgets('switching back shows each earlier result without a new request',
-      (tester) async {
+  testWidgets(
+      'switching back shows each earlier result in the next frame, without a '
+      'new request', (tester) async {
     final api = _apiAnsweringPerMode();
     await tester.pumpWidget(_wrap(_citationPage(api)));
     await tester.pumpAndSettle();
@@ -272,11 +281,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.byType(CircleAvatar), findsNWidgets(2));
 
     await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.byType(CircleAvatar), findsNWidgets(3));
 
     expect(api.requestsWithoutRefs, 1);
@@ -288,7 +299,7 @@ void main() {
     await tester.pumpWidget(_wrap(_citationPage(api)));
     await tester.pumpAndSettle();
 
-    api.nextVizError = Exception('boom');
+    api.nextVizError = const NetworkException(message: 'boom');
     await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
     expect(find.text('Failed to load visualization'), findsOneWidget);
@@ -305,9 +316,13 @@ void main() {
     expect(api.requestsWithoutRefs, 1);
   });
 
-  testWidgets('switching mode returns the pager to the first page',
+  testWidgets('switching to a loaded view starts its pager at the first page',
       (tester) async {
     await tester.pumpWidget(_wrap(_citationPage(_apiAnsweringPerMode())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Next'));
     await tester.pumpAndSettle();
@@ -454,7 +469,8 @@ void main() {
 
   testWidgets('shows error with retry on failure', (tester) async {
     final api = _ChunkVizApi()
-      ..nextVizError = Exception('network-leak-do-not-show');
+      ..nextVizError =
+          const NetworkException(message: 'network-leak-do-not-show');
 
     await tester.pumpWidget(_wrap(
       ChunkVisualizationPage(
@@ -683,7 +699,8 @@ void main() {
 
   testWidgets('error state shows failure and retry, without the chunk id',
       (tester) async {
-    final api = _ChunkVizApi()..nextVizError = Exception('boom');
+    final api = _ChunkVizApi()
+      ..nextVizError = const NetworkException(message: 'boom');
 
     await tester.pumpWidget(_wrap(
       ChunkVisualizationPage(
@@ -701,5 +718,67 @@ void main() {
     expect(find.text('Failed to load visualization'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
     expect(find.text('c-err'), findsNothing);
+  });
+
+  testWidgets('closing the page before its fetch answers is safe',
+      (tester) async {
+    final api = _apiAnsweringPerMode()..hold = Completer<void>();
+    await tester.pumpWidget(_wrap(_citationPage(api)));
+    await tester.pumpWidget(_wrap(const SizedBox()));
+
+    api.hold!.complete();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a failure retrying cannot fix offers no retry', (tester) async {
+    final api = _ChunkVizApi()
+      ..nextVizError = const MalformedResponseException(message: 'shape');
+
+    await tester.pumpWidget(_wrap(_citationPage(api)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Failed to load visualization'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets('a chunk with no page images says so, with no retry',
+      (tester) async {
+    final api = _ChunkVizApi()
+      ..nextVizError = const NotFoundException(message: 'no images');
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        database: null,
+        pageNumbers: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No page images available'), findsOneWidget);
+    expect(find.text('Failed to load visualization'), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text(_switchHint), findsNothing);
+  });
+
+  testWidgets('the off view with no page images points to the switch',
+      (tester) async {
+    final api = _ChunkVizApi()
+      ..nextVizError = const NotFoundException(message: 'no images');
+
+    await tester.pumpWidget(_wrap(_citationPage(api)));
+    await tester.pumpAndSettle();
+    expect(find.text('No page images available'), findsOneWidget);
+    expect(find.text(_switchHint), findsOneWidget);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(find.text('No page images available'), findsOneWidget);
+    expect(find.text(_switchHint), findsNothing);
   });
 }
