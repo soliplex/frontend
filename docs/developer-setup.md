@@ -132,8 +132,28 @@ open -a Transporter build/ios/ipa/soliplex_frontend.ipa
 
 ### Android
 
-No special signing setup required for debug builds. For release builds, see
-[Android signing docs](https://docs.flutter.dev/deployment/android#signing-the-app).
+No special signing setup required for debug builds.
+
+#### Release Signing
+
+Release builds (`flutter build apk --release`, `flutter build appbundle`,
+`flutter run --release`) sign with the app's release keystore and fail without
+it. The keystore and its passwords are not in the repo; get them from whoever
+cuts releases, keep the keystore outside the repo, and create
+`android/key.properties` (gitignored):
+
+```properties
+storePassword=<store password>
+keyPassword=<key password>
+keyAlias=soliplex
+storeFile=/absolute/path/to/soliplex-release.jks
+```
+
+Without it, a release build stops at packaging with
+`SigningConfig "release" is missing required property "storeFile"`.
+
+Every release must be signed with the same keystore: Android refuses to
+install an APK over one signed by a different key.
 
 ### Web
 
@@ -256,5 +276,6 @@ cd macos && pod deintegrate && pod install && cd ..
 | `ios/Runner/Configs/Local.xcconfig.template` | Template for iOS signing |
 | `ios/Runner/Configs/Local.xcconfig` | Your iOS signing config (gitignored) |
 | `ios/Runner/Info.plist` | iOS privacy descriptions and app config |
+| `android/key.properties` | Your Android release signing config (gitignored) |
 | `.gitignore` | Excludes `**/Local.xcconfig` |
 | `.fvmrc` | The Flutter SDK version CI builds with |
