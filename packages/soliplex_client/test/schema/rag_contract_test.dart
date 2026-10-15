@@ -30,6 +30,7 @@ void main() {
 
         final citation = Citation.fromJson(json);
         expect(citation.chunkId, equals('c1'));
+        expect(citation.chunkIds, equals(['c1', 'c2']));
         expect(citation.documentTitle, equals('Title'));
         expect(citation.headings, equals(['H1']));
         expect(citation.index, equals(5));
@@ -60,8 +61,9 @@ void main() {
         expect(withoutMeta.documentMeta, isEmpty);
       });
 
-      test("chunk_meta yields the chunk's own doc_item_refs and page_numbers",
-          () {
+      test(
+          "chunk_meta yields the chunk's own doc_item_refs, page_numbers "
+          'and headings', () {
         final citation = Citation.fromJson({
           'chunk_id': 'c1',
           'content': 'text',
@@ -79,6 +81,7 @@ void main() {
 
         expect(citation.chunkMeta.docItemRefs, equals(['#/texts/2']));
         expect(citation.chunkMeta.pageNumbers, equals([4]));
+        expect(citation.chunkMeta.headings, equals(['H1']));
       });
 
       test('chunk refs and pages are empty when chunk_meta does not carry them',

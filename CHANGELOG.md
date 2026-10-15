@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- A citation that merged passages from several sections shows the cited
+  section's own heading path, instead of chaining every section's heading as
+  if each were nested in the one before. A merged citation recorded without
+  its chunk's heading path shows none.
+- **Library consumers:** `SourceReference.headings` is the cited chunk's
+  heading path. For a citation that merged several chunks it was every merged
+  chunk's headings in one list; it is now the cited chunk's path, and empty
+  when the citation does not report it.
+
 ## [0.111.1+98] - 2026-10-15
 
 ### Added

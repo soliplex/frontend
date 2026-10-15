@@ -22,6 +22,7 @@ import 'package:soliplex_client/src/utils/parse_utils.dart';
 ///supports UI display ordering in chat contexts.
 class Citation {
   final String chunkId;
+  final List<String>? chunkIds;
   final ChunkMetadata chunkMeta;
   final String content;
   final List<String>? docItemRefs;
@@ -37,6 +38,7 @@ class Citation {
 
   Citation({
     required this.chunkId,
+    this.chunkIds,
     this.chunkMeta = const ChunkMetadata(),
     required this.content,
     this.docItemRefs,
@@ -53,6 +55,7 @@ class Citation {
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
         chunkId: requireString(json["chunk_id"], "chunk_id"),
+        chunkIds: stringList(json["chunk_ids"], "chunk_ids"),
         chunkMeta: ChunkMetadata.fromJson(
           jsonMap(json["chunk_meta"], "chunk_meta"),
         ),
@@ -70,18 +73,20 @@ class Citation {
       );
 }
 
-///Two keys of the cited chunk's stored metadata, as haiku.rag's
-///`ChunkMetadata` defines them; its `headings` and `labels` are not read.
-///`chunk_meta` is the chunk's raw metadata, where chunks imported pre-built
-///rather than chunked by haiku.rag may keep other keys or lack these. Empty
-///when the citation does not report them.
+///Three keys of the cited chunk's stored metadata, as haiku.rag's
+///`ChunkMetadata` defines them; its `labels` are not read. `chunk_meta` is
+///the chunk's raw metadata, where chunks imported pre-built rather than
+///chunked by haiku.rag may keep other keys or lack these. Empty when the
+///citation does not report them.
 class ChunkMetadata {
   final List<String> docItemRefs;
   final List<int> pageNumbers;
+  final List<String> headings;
 
   const ChunkMetadata({
     this.docItemRefs = const [],
     this.pageNumbers = const [],
+    this.headings = const [],
   });
 
   factory ChunkMetadata.fromJson(Map<String, dynamic> json) => ChunkMetadata(
@@ -90,5 +95,6 @@ class ChunkMetadata {
           "chunk_meta.doc_item_refs",
         ),
         pageNumbers: intList(json["page_numbers"], "chunk_meta.page_numbers"),
+        headings: stringList(json["headings"], "chunk_meta.headings"),
       );
 }

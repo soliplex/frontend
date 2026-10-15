@@ -91,7 +91,7 @@ void main() {
               headings: ['Chapter 1'],
               pageNumbers: [1, 2],
               pictureRefs: ['#/pictures/0', '#/pictures/1'],
-              chunkIds: ['chunk-1', 'chunk-2'],
+              chunkIds: ['chunk-1'],
               index: 1,
             ),
           },
@@ -153,6 +153,73 @@ void main() {
         expect(refs[0].chunkPageNumbers, [4]);
         expect(refs[1].chunkDocItemRefs, isEmpty);
         expect(refs[1].chunkPageNumbers, isEmpty);
+      });
+
+      // haiku.rag gives a merged citation the union of its chunks' heading
+      // paths; joined as a breadcrumb, sibling sections read as nested.
+      test("a merged citation's headings are its cited chunk's path", () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(
+              chunkId: 'c1',
+              chunkIds: ['c0', 'c1'],
+              headings: [
+                'Installation Configuration',
+                'Installation ID',
+                'OIDC Auth Provider Paths',
+              ],
+              chunkMeta: {
+                'headings': [
+                  'Installation Configuration',
+                  'OIDC Auth Provider Paths',
+                ],
+              },
+            ),
+          },
+          citations: ['c1'],
+        );
+
+        final refs = extract(state);
+
+        expect(
+          refs.single.headings,
+          ['Installation Configuration', 'OIDC Auth Provider Paths'],
+        );
+      });
+
+      test('a merged citation whose cited chunk has no headings has none', () {
+        final state = createState(
+          citationIndex: {
+            'c3': createCitation(
+              chunkId: 'c3',
+              chunkIds: ['c0', 'c1', 'c2', 'c3'],
+              headings: ['Pressure Points'],
+              chunkMeta: {'headings': null},
+            ),
+          },
+          citations: ['c3'],
+        );
+
+        final refs = extract(state);
+
+        expect(refs.single.headings, isEmpty);
+      });
+
+      test('a merged citation without chunk_meta has no headings', () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(
+              chunkId: 'c1',
+              chunkIds: ['c0', 'c1'],
+              headings: ['Server Setup', 'Prerequisites', 'Installation'],
+            ),
+          },
+          citations: ['c1'],
+        );
+
+        final refs = extract(state);
+
+        expect(refs.single.headings, isEmpty);
       });
 
       test('reads sourceUrl from the citation document_meta', () {
