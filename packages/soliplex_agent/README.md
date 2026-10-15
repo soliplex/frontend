@@ -128,3 +128,6 @@ before spawning on that thread.
 - `messages` -- prior `ChatMessage`s in chronological order, for display
 - `aguiState` -- AG-UI state (e.g. citation history) to restore
 - `messageStates` -- per-message metadata (sources/citations)
+- `runs` -- the decoded events of each run that was read, in run order, for
+  replaying each run's work (steps, tool calls, activities)
+- `runOutcomes` -- how each run that ended ended, keyed by run id
