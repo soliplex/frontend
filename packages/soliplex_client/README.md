@@ -23,6 +23,7 @@ dart analyze --fatal-infos
 ### Application Layer
 
 - `AgUiEventProcessor` (`processEvent`) -- pure-function state machine that processes AG-UI events into `Conversation` + `StreamingState`
+- `RunFold` -- folds one AG-UI run's events into a `Conversation`; the live stream and a reopened thread's stored runs both go through it, so a run reads the same either way
 - `CitationExtractor` -- extracts citation references from streamed content
 - `JsonPatch` -- applies JSON-patch deltas to AG-UI state
 - `StreamingState` -- ephemeral state tracking during an active SSE stream

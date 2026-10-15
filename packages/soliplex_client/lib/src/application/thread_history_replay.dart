@@ -1,13 +1,17 @@
 import 'package:ag_ui/ag_ui.dart';
 import 'package:collection/collection.dart';
 import 'package:soliplex_client/src/api/agui_message_mapper.dart';
+import 'package:soliplex_client/src/api/mappers.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
+import 'package:soliplex_client/src/application/rag_snapshot.dart'
+    show ragSourcesKey, ragStateKey;
 import 'package:soliplex_client/src/application/run_fold.dart';
 import 'package:soliplex_client/src/application/thread_state_warnings.dart';
 import 'package:soliplex_client/src/application/transcript_events.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
+import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_state_warning.dart';
@@ -61,6 +65,162 @@ typedef ReplayRun = ({
   StackTrace? fetchStackTrace,
   DateTime? created,
 });
+
+/// What fetching one run's payload yielded. A run whose fetch failed
+/// carries [noRunData] and the error that kept it from being read.
+typedef FetchedRun = ({
+  String runId,
+  RunPayload payload,
+  SoliplexException? fetchError,
+  StackTrace? fetchStackTrace,
+});
+
+/// A run with nothing to replay. `events` is empty rather than null so the
+/// replay loop reads one shape either way.
+///
+/// Not a sentinel: records compare field-wise, so a run the backend genuinely
+/// returned empty can compare equal to this. What marks a run as missing is its
+/// `fetchError`, never a comparison against this value.
+const RunPayload noRunData = (
+  events: <Object?>[],
+  userMessage: null,
+  toolResults: <ToolMessage>[],
+);
+
+/// Builds the history of thread [threadId] from its listing, [thread],
+/// fetching each finished run's payload through [fetchRun].
+///
+/// Throws [MalformedResponseException] when the listing's `runs` has an
+/// unexpected shape.
+Future<ThreadHistory> assembleThreadHistory(
+  Map<String, dynamic> thread,
+  String threadId,
+  Future<FetchedRun> Function(String runId) fetchRun,
+) async {
+  // Envelope-level shape drift (`runs` arrives as a list/scalar instead
+  // of a map) is a backend bug — retry can't fix it. Throw so the UI
+  // surfaces a non-retryable error rather than rendering an empty
+  // thread (which is indistinguishable from a fresh thread). Null /
+  // missing stays a legitimate empty thread.
+  final rawRuns = thread['runs'];
+  if (rawRuns != null && rawRuns is! Map<String, dynamic>) {
+    throw MalformedResponseException(
+      message: 'Thread history `runs` field has unexpected shape: '
+          '${rawRuns.runtimeType}',
+    );
+  }
+  final runs =
+      rawRuns is Map<String, dynamic> ? rawRuns : const <String, dynamic>{};
+  if (runs.isEmpty) return ThreadHistory(messages: const []);
+  final documentFilter = _extractLatestDocumentFilter(runs);
+  final databaseSources = _extractLatestDatabaseSources(runs);
+  final scopeWarnings = {
+    if (_latestScopeUnreadable(runs)) ThreadStateWarning.scopeUnreadable,
+  };
+  final latestUsage = _extractLatestUsage(runs);
+
+  // 1. Walk runs once, in creation order. Each becomes a slot: a completed
+  //    run to fetch, or a malformed entry, kept as a drop-tile placeholder
+  //    so the run is visibly absent rather than silently filtered out (its
+  //    `runId` is then the entry's key). Unfinished runs are skipped without
+  //    surfacing — they are still in flight, not corrupted.
+  final slots = <({
+    String runId,
+    MalformedResponseException? malformed,
+    DateTime? created,
+  })>[];
+  for (final MapEntry(:key, :value) in _sortRunsByCreationTime(runs)) {
+    final created = _runCreated(value, key, threadId);
+    if (value is! Map<String, dynamic>) {
+      slots.add(
+        (
+          runId: key,
+          malformed: MalformedResponseException(
+            message: 'Run entry $key has unexpected shape: '
+                '${value.runtimeType}',
+          ),
+          created: created,
+        ),
+      );
+      continue;
+    }
+    if (value['finished'] == null) continue;
+    final rawRunId = value['run_id'];
+    // Blank is rejected alongside the wrong type: a run id stands in for a
+    // missing message id below, where two runs sharing one would have the
+    // second's message dropped as a repeat.
+    if (rawRunId is! String || rawRunId.isEmpty) {
+      final got =
+          rawRunId is String ? 'an empty String' : '${rawRunId.runtimeType}';
+      slots.add(
+        (
+          runId: key,
+          malformed: MalformedResponseException(
+            message: 'Run entry $key missing `run_id` (got $got)',
+          ),
+          created: created,
+        ),
+      );
+      continue;
+    }
+    slots.add((runId: rawRunId, malformed: null, created: created));
+  }
+
+  if (slots.isEmpty) {
+    return ThreadHistory(
+      messages: const [],
+      documentFilter: documentFilter,
+      databaseSources: databaseSources,
+      storedStateWarnings: scopeWarnings,
+      // Nothing was replayed, so the transcript is empty and the count
+      // covers none of it.
+      latestMeasurement: latestUsage == null
+          ? null
+          : MeasuredRun(usage: latestUsage, coveredMessages: 0),
+    );
+  }
+
+  // 2. Fetch all run events in parallel (cache handles duplicates)
+  final results = await Future.wait([
+    for (final slot in slots)
+      if (slot.malformed == null) fetchRun(slot.runId),
+  ]);
+
+  // 3. The slots in creation order, each with what its fetch returned
+  //    (results may arrive out of order).
+  final fetchByRunId = {for (final r in results) r.runId: r};
+  final runsToReplay = <ReplayRun>[
+    for (final (:runId, :malformed, :created) in slots)
+      if (malformed != null)
+        (
+          runId: runId,
+          payload: noRunData,
+          fetchError: malformed,
+          // Built here, not thrown, so there is no stack worth carrying.
+          fetchStackTrace: null,
+          created: created,
+        )
+      else
+        (
+          runId: runId,
+          payload: fetchByRunId[runId]!.payload,
+          fetchError: fetchByRunId[runId]!.fetchError,
+          fetchStackTrace: fetchByRunId[runId]!.fetchStackTrace,
+          created: created,
+        ),
+  ];
+
+  // 4. Replay events to reconstruct history (messages, AG-UI state and the
+  //    transcript)
+  return replayThreadHistory(
+    runsToReplay,
+    threadId,
+    documentFilter,
+    databaseSources,
+    scopeWarnings,
+    latestUsage,
+  );
+}
 
 /// Rebuilds a thread's history (messages, AG-UI state and the transcript)
 /// from its stored runs, in creation order: each run's user message, which
@@ -402,4 +562,378 @@ TextMessage _hydratedUserMessage(
     text: userMessage.text,
     runId: runId,
   );
+}
+
+/// [rawRun], the GET of run [runId] in thread [threadId], read as the
+/// payload replay folds.
+///
+/// `events` is `List<Object?>` rather than `List<Map<String, dynamic>>`:
+/// shape drift on the wire (a non-Map item slipping into `events`)
+/// must reach [replayThreadHistory] as data, not throw at the cast
+/// site. The replay loop type-checks each item and mints a drop tile
+/// for non-Map entries.
+///
+/// `events` not being a list at all is the one drift that cannot become a
+/// drop tile — there is no item to mint one for — so it is logged instead.
+RunPayload runPayloadFromJson(
+  Map<String, dynamic> rawRun,
+  String threadId,
+  String runId,
+) {
+  final rawEvents = rawRun['events'];
+  if (rawEvents is! List && rawEvents != null) {
+    // Absent is normal for a run that streamed nothing; present-but-wrong-
+    // shape erases every reply the run produced, and this is the only place
+    // it is visible.
+    _logger.warning(
+      'replay: run $runId in thread $threadId has `events` as '
+      '${rawEvents.runtimeType}, not a list; the run replays as empty.',
+    );
+  }
+  return (
+    events: rawEvents is List ? rawEvents : const <Object?>[],
+    userMessage: _extractUserMessage(rawRun, threadId, runId),
+    toolResults: _extractToolResults(rawRun, threadId, runId),
+  );
+}
+
+/// The user message that initiated the run [runId], read from `run_input`.
+///
+/// Each run's `run_input.messages` contains the full conversation context,
+/// but only the last user message initiated THIS run. Prior user messages
+/// were already processed in earlier runs.
+///
+/// Null when the run carries no user message to rebuild. That costs more than
+/// the message itself — [replayThreadHistory] keys the turn's citations
+/// and message state off its id — so every shape that reaches it by drift
+/// rather than by absence is logged.
+RunUserMessage? _extractUserMessage(
+  Map<String, dynamic> rawRun,
+  String threadId,
+  String runId,
+) {
+  // Type-checked rather than cast: shape drift here degrades to "no user
+  // message" rather than aborting the run-level fetch.
+  final runInput = rawRun['run_input'];
+  if (runInput is! Map<String, dynamic>) {
+    // Absent is normal for a run the backend has not persisted input for;
+    // present-but-wrong-shape is drift only findable here.
+    if (runInput != null) {
+      _logger.warning(
+        'replay: run $runId in thread $threadId has `run_input` as '
+        '${runInput.runtimeType}, not an object; its user message and tool '
+        'results are lost, and with the message the citations for that turn.',
+      );
+    }
+    return null;
+  }
+
+  final rawMessages = runInput['messages'];
+  if (rawMessages is! List) {
+    if (rawMessages != null) {
+      _logger.warning(
+        'replay: run $runId in thread $threadId has `run_input.messages` as '
+        '${rawMessages.runtimeType}, not a list; its user message and tool '
+        'results are lost, and with the message the citations for that turn.',
+      );
+    }
+    return null;
+  }
+
+  // Find the last user message — the one that initiated this run.
+  Map<String, dynamic>? lastUserMessage;
+  for (var i = rawMessages.length - 1; i >= 0; i--) {
+    final raw = rawMessages[i];
+    if (raw is! Map<String, dynamic>) continue;
+    final role = raw['role'];
+    if ((role is String ? role : 'user') == 'user') {
+      lastUserMessage = raw;
+      break;
+    }
+  }
+  if (lastUserMessage == null) {
+    if (rawMessages.isNotEmpty) {
+      _logger.warning(
+        'replay: run $runId in thread $threadId carries '
+        '${rawMessages.length} input message(s) but none from the user; '
+        'the turn has no citations or message state.',
+      );
+    }
+    return null;
+  }
+
+  // A blank id is no more usable than a missing one: the append guard in
+  // `replayThreadHistory` appends one message per id, so every blank-id
+  // turn in a thread would collapse onto the first. Both fall back
+  // to the run's own id, which the thread listing rejects unless it is a
+  // non-empty String — so two runs cannot collide on it.
+  final rawId = lastUserMessage['id'];
+  if (rawId is! String || rawId.isEmpty) {
+    _logger.warning(
+      'replay: the user message initiating run $runId in thread $threadId '
+      'has no usable id; keying it to the run instead.',
+    );
+  }
+  final id = rawId is String && rawId.isNotEmpty ? rawId : 'user-$runId';
+  final content = readUserMessageContent(
+    lastUserMessage['content'],
+    logContext: 'message $id in run $runId of thread $threadId',
+  );
+
+  return (messageId: id, parts: content.parts, text: content.text);
+}
+
+/// The tool messages that end run [runId]'s input, after its last other
+/// message, in order. For a client tool each is the only record of its
+/// result; for a server tool it may repeat one the run's events carried.
+/// Each is read whole, as the backend's own client keeps a stored message,
+/// so an `error` or `encryptedValue` another client recorded goes back too.
+///
+/// Only the tail is read: every input repeats the thread's earlier results,
+/// and a server that numbers its calls per response reuses ids, so an
+/// earlier result would answer a later call that reuses its id. An input
+/// that ends with the user's message supplies none.
+///
+/// A malformed `run_input` or `messages` is already reported by
+/// [_extractUserMessage], so it reads here as no results.
+List<ToolMessage> _extractToolResults(
+  Map<String, dynamic> rawRun,
+  String threadId,
+  String runId,
+) {
+  final runInput = rawRun['run_input'];
+  if (runInput is! Map<String, dynamic>) return const [];
+  final rawMessages = runInput['messages'];
+  if (rawMessages is! List) return const [];
+
+  final results = <ToolMessage>[];
+  for (final raw in rawMessages.reversed) {
+    if (raw is! Map<String, dynamic>) {
+      _logger.warning(
+        'replay: an item in the input of run $runId in thread $threadId is '
+        'not an object; the tool results before it are not read.',
+      );
+      break;
+    }
+    if (raw['role'] != 'tool') break;
+    try {
+      results.add(ToolMessage.fromJson(raw));
+    } on AGUIValidationError {
+      _logger.warning(
+        'replay: a tool message in the input of run $runId in thread '
+        '$threadId could not be read as a tool message; the call it '
+        'answers keeps no result from it.',
+      );
+    }
+  }
+  return results.reversed.toList();
+}
+
+/// The `document_filter` from the newest run that carries one in its
+/// persisted input state. The backend returns runs in ascending creation
+/// order (`Thread.runs` is `order_by="Run.created"`), and that order is
+/// preserved through the JSON dict into [runs], so the last entry carrying
+/// the key is the newest — no dependence on any per-run `created` value.
+/// Each run stores the complete filter it was sent (the client re-asserts it
+/// every run; the backend keeps no merged state), so the newest run's value
+/// IS the current filter — there is nothing to accumulate. An explicit null
+/// on the newest carrying run means "cleared" and wins over older runs.
+/// A run whose input or state is not a map is skipped; a newest value that
+/// is neither null nor a string reads as null, which
+/// [_latestScopeUnreadable] flags.
+String? _extractLatestDocumentFilter(Map<String, dynamic> runs) {
+  final filter = _latestStateValue(runs, 'document_filter');
+  return filter is String ? filter : null;
+}
+
+/// The `sources` from the newest run whose input state carries one, or
+/// null.
+///
+/// Each namespace a selection is written to is sent the part of it that
+/// namespace lists. A room's skills cover one database set, so each carries
+/// the same list and the first found speaks for the run — `rag` first, for a
+/// room with several. A room with only the analysis skill has it under
+/// `analysis` alone.
+///
+/// A list with a non-string entry reads as null: the selector cannot have
+/// sent it, and "every database" is the reading that loses nothing.
+List<String>? _extractLatestDatabaseSources(Map<String, dynamic> runs) {
+  final sources = _latestStateValue(runs, ragSourcesKey, anyNamespace: true);
+  if (sources is! List || sources.isEmpty) return null;
+  final names = <String>[];
+  for (final entry in sources) {
+    if (entry is! String) return null;
+    names.add(entry);
+  }
+  return names;
+}
+
+/// Whether the newest run's saved `document_filter` or `sources` is one the
+/// selection UI cannot hydrate, so it starts from no document or every
+/// database. A filter is unreadable when it is neither null nor a string,
+/// or a non-empty string [parseDocumentFilter] finds no id in; an empty one
+/// is no filter to haiku.rag, as it is to the UI. `sources` is unreadable
+/// when it is neither null nor a list of names.
+bool _latestScopeUnreadable(Map<String, dynamic> runs) {
+  final filter = _latestStateValue(runs, 'document_filter');
+  final sources = _latestStateValue(runs, ragSourcesKey, anyNamespace: true);
+  final filterUnreadable = filter != null &&
+      (filter is! String ||
+          (filter.isNotEmpty && parseDocumentFilter(filter).isEmpty));
+  final sourcesUnreadable =
+      sources != null && (sources is! List || sources.any((s) => s is! String));
+  return filterUnreadable || sourcesUnreadable;
+}
+
+/// The value under [key] in the newest run's `run_input.state.rag` that
+/// carries the key at all — a run carrying it as `null` is an answer, not a
+/// run to skip past. With [anyNamespace], a run is also read through any
+/// other namespace carrying the key when `rag` does not.
+Object? _latestStateValue(
+  Map<String, dynamic> runs,
+  String key, {
+  bool anyNamespace = false,
+}) {
+  for (final entry in runs.entries.toList().reversed) {
+    final value = entry.value;
+    if (value is! Map<String, dynamic>) continue;
+    final runInput = value['run_input'];
+    if (runInput is! Map<String, dynamic>) continue;
+    final state = runInput['state'];
+    if (state is! Map<String, dynamic>) continue;
+    final namespaces = [
+      state[ragStateKey],
+      if (anyNamespace)
+        for (final other in state.entries)
+          if (other.key != ragStateKey) other.value,
+    ];
+    for (final namespace in namespaces) {
+      if (namespace is! Map<String, dynamic>) continue;
+      if (!namespace.containsKey(key)) continue;
+      return namespace[key];
+    }
+  }
+  return null;
+}
+
+/// The newest run's usage that measured the context, or null.
+///
+/// Walks runs newest-first and stops at the first with a
+/// `final_input_tokens`, so a run the model never answered — which records
+/// no usage, or one without a count — is skipped in favour of the one
+/// before it.
+///
+/// A run with no `created` is passed over rather than read. The sort
+/// puts it at the end, so this walk would otherwise meet it first —
+/// and without a time there is nothing to call it the newest by. An
+/// unfinished run is read: its usage is written once, when the stream
+/// completes, so a row that exists is a whole measurement.
+///
+/// A record that is not an object, whose count is not an integer, or whose
+/// run has no `run_id` ends the walk instead of continuing it. The
+/// thread's messages must not fail to load over an indicator, but an
+/// unreadable record may hold the newest count, and nothing tells it apart
+/// from a run that measured nothing. So the walk stops rather than present
+/// an older count as the one that stands.
+RunUsage? _extractLatestUsage(Map<String, dynamic> runs) {
+  for (final entry in _sortRunsByCreationTime(runs).reversed) {
+    final value = entry.value;
+    if (value is! Map<String, dynamic>) continue;
+    if (value['created'] is! String) continue;
+    final usage = value['usage'];
+    // A run the model never answered recorded no usage, or one without a
+    // count; the run before it still stands.
+    if (usage == null ||
+        (usage is Map<String, dynamic> &&
+            usage['final_input_tokens'] == null)) {
+      continue;
+    }
+    final runId = value['run_id'];
+    if (usage is Map<String, dynamic> &&
+        usage['final_input_tokens'] is int &&
+        runId is String &&
+        runId.isNotEmpty) {
+      return runUsageFromJson(runId, usage);
+    }
+    // The thread reports no measurement from here, which on its own
+    // reads as a thread nobody has counted. This says the record was
+    // there and could not be read, and names which one.
+    _logger.warning(
+      'Usage record could not be read; the thread reports none',
+      attributes: {'runId': entry.key},
+    );
+    return null;
+  }
+  return null;
+}
+
+/// Resolves a run map's `created` to a UTC [DateTime] via [parseTimestamp]
+/// (which reads a naive ISO-8601 string as UTC), or null when the field is
+/// absent. A present-but-wrong-shaped or malformed value logs a warning and
+/// resolves to null, leaving the run's replayed messages without a displayed
+/// timestamp rather than substituting a client `now()`.
+DateTime? _runCreated(dynamic runData, String runId, String threadId) {
+  if (runData is! Map<String, dynamic>) return null;
+  final created = runData['created'];
+  if (created == null) return null;
+  if (created is! String) {
+    _logger.warning(
+      'replay: run $runId in thread $threadId has a non-string `created` '
+      '(${created.runtimeType}); resolving to no timestamp.',
+    );
+    return null;
+  }
+  try {
+    return parseTimestamp(created);
+  } on FormatException catch (error) {
+    // Expected shape drift: a malformed `created` string. Routine — warn
+    // and resolve to no timestamp.
+    _logger.warning(
+      'replay: run $runId in thread $threadId has a malformed `created` '
+      'timestamp; resolving to no timestamp.',
+      error: error,
+    );
+    return null;
+  } on Object catch (error, stackTrace) {
+    // parseTimestamp is documented to throw only FormatException; anything
+    // else is an unexpected contract break worth a louder signal. Still
+    // resolve to null so one run never aborts the whole history replay.
+    _logger.error(
+      'replay: run $runId in thread $threadId threw unexpectedly parsing '
+      '`created`; resolving to no timestamp.',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    return null;
+  }
+}
+
+/// Sorts runs by creation time (oldest first). Non-Map run values
+/// sort to the end; the caller filters them out before fetching.
+List<MapEntry<String, dynamic>> _sortRunsByCreationTime(
+  Map<String, dynamic> runs,
+) {
+  return runs.entries.toList()
+    ..sort((a, b) {
+      final aData = a.value is Map<String, dynamic>
+          ? a.value as Map<String, dynamic>
+          : const <String, dynamic>{};
+      final bData = b.value is Map<String, dynamic>
+          ? b.value as Map<String, dynamic>
+          : const <String, dynamic>{};
+      final aCreated =
+          aData['created'] is String ? aData['created'] as String : null;
+      final bCreated =
+          bData['created'] is String ? bData['created'] as String : null;
+
+      if (aCreated == null && bCreated == null) return 0;
+      if (aCreated == null) return 1;
+      if (bCreated == null) return -1;
+
+      // Use tryParse to handle malformed timestamps gracefully
+      final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+      final aTime = DateTime.tryParse(aCreated) ?? epoch;
+      final bTime = DateTime.tryParse(bCreated) ?? epoch;
+      return aTime.compareTo(bTime);
+    });
 }
