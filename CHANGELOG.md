@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.111.1+98] - 2026-10-15
 
 ### Added
 
