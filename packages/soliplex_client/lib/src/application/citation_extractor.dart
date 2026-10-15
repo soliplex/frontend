@@ -196,6 +196,9 @@ class CitationExtractor {
         '(document ${c.documentId})',
       );
     }
+    // A merged citation's `headings` is the union of its chunks' paths, which
+    // has no hierarchy; `chunk_meta` holds the cited chunk's path alone.
+    final isMerged = (c.chunkIds?.length ?? 0) > 1;
     return SourceReference(
       documentId: c.documentId,
       documentUri: c.documentUri,
@@ -203,7 +206,7 @@ class CitationExtractor {
       chunkId: c.chunkId,
       documentTitle: c.documentTitle,
       sourceUrl: sourceUrlFromMetadata(c.documentMeta),
-      headings: c.headings ?? [],
+      headings: isMerged ? c.chunkMeta.headings : c.headings ?? [],
       pageNumbers: c.pageNumbers ?? [],
       docItemRefs: c.docItemRefs ?? [],
       chunkDocItemRefs: c.chunkMeta.docItemRefs,
