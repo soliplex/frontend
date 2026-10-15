@@ -18,3 +18,14 @@ updates:
     labels:
       - "Department: Dependencies"
       - "Department: CI/CD"
+
+  # Base images in the Dockerfile, pinned by digest.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(docker)"
+    labels:
+      - "Department: Dependencies"
+      - "Department: CI/CD"

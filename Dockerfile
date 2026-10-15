@@ -31,7 +31,10 @@
 # The web build is platform-independent static files, so build it on the
 # builder's own platform: a multi-platform build then runs Flutter once, not
 # under emulation for each target.
-FROM --platform=$BUILDPLATFORM ubuntu:focal AS builder
+#
+# Base images are pinned by digest (multi-platform index) so a rebuild of a
+# release is reproducible; Dependabot's docker ecosystem bumps the digests.
+FROM --platform=$BUILDPLATFORM ubuntu:noble@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS builder
 
 #------------------------------------------------------------------------------
 # Install system utilities / prereqs.
@@ -128,7 +131,7 @@ CMD git config --global --add safe.directory /opt/flutter && \
 ###############################################################################
 # Production stage with nginx
 ###############################################################################
-FROM nginx:alpine
+FROM nginx:alpine@sha256:72aeb3308ef6cb3118242fb16389518923916dfa206e32d1a8377acc328b9870
 
 #------------------------------------------------------------------------------
 # Copy built flutter web app to nginx html directory
