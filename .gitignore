@@ -125,3 +125,4 @@ scratchpad/*
 # Claude Code local config
 .claude/*
 !.claude/skills/
+/packages/*/coverage/

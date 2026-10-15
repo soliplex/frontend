@@ -70,22 +70,31 @@ jobs:
 
       - name: Run package tests
         run: |
-          # Exclude integration-tagged tests (require a live backend)
-          for pkg in packages/soliplex_agent packages/soliplex_client packages/soliplex_logging; do
+          # Each package's report lands in coverage/<pkg>.lcov.info with
+          # repo-relative paths, beside the app's coverage/lcov.info.
+          # Exclude integration-tagged tests (require a live backend).
+          # --coverage-package pins the report to the package's own lib/;
+          # in the workspace it otherwise also counts the sibling packages
+          # it imports.
+          for pkg in soliplex_agent soliplex_client soliplex_logging; do
             echo "::group::Testing $pkg"
-            (cd "$pkg" && dart test --exclude-tags integration)
+            (cd "packages/$pkg" && dart test --exclude-tags integration \
+              --coverage-path=coverage/lcov.info --coverage-package="^$pkg\$")
+            sed "s|^SF:$PWD/|SF:|" "packages/$pkg/coverage/lcov.info" \
+              > "coverage/$pkg.lcov.info"
             echo "::endgroup::"
           done
-          echo "::group::Testing packages/soliplex_client_native"
-          (cd packages/soliplex_client_native && flutter test)
-          echo "::endgroup::"
-          # Full suite incl. goldens. Goldens render per-platform; the
-          # committed baseline is a Linux baseline, so this Linux job
-          # compares rather than skips. Refresh it with the update-goldens
-          # workflow.
-          echo "::group::Testing packages/soliplex_design"
-          (cd packages/soliplex_design && flutter test)
-          echo "::endgroup::"
+          # soliplex_design runs the full suite incl. goldens. Goldens
+          # render per-platform; the committed baseline is a Linux baseline,
+          # so this Linux job compares rather than skips. Refresh it with
+          # the update-goldens workflow.
+          for pkg in soliplex_client_native soliplex_design; do
+            echo "::group::Testing $pkg"
+            (cd "packages/$pkg" && flutter test --coverage)
+            sed "s|^SF:lib/|SF:packages/$pkg/lib/|" \
+              "packages/$pkg/coverage/lcov.info" > "coverage/$pkg.lcov.info"
+            echo "::endgroup::"
+          done
 
       - name: Report seed on failure
         if: failure()
@@ -103,27 +112,31 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Check coverage threshold
+      - name: Check coverage thresholds
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq lcov
           # Mockups are prototypes (see docs/mockups.md); their smoke tests
-          # load them without exercising them.
+          # load them without exercising them. Packages are gated below on
+          # their own reports.
           lcov --remove coverage/lcov.info 'packages/*' 'lib/src/mockups/*' \
             -o coverage/lcov.info --ignore-errors unused
-          COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 \
-            | grep "lines" | sed 's/.*: \([0-9.]*\)%.*/\1/')
-          echo "Coverage: ${COVERAGE}%"
-          if [ -z "$COVERAGE" ]; then
-            echo "::error::Could not parse coverage from lcov.info"
-            exit 1
-          fi
-          COVERAGE_INT=${COVERAGE%.*}
-          if [ "$COVERAGE_INT" -lt 80 ]; then
-            echo "::error::Coverage ${COVERAGE}% is below minimum 80%"
-            exit 1
-          fi
-          echo "::notice::Coverage check passed with ${COVERAGE}%"
+          # Package minimums are the 2026-10 baselines rounded down to a
+          # multiple of 5. Raise them as coverage grows; never lower them
+          # to land a change.
+          STATUS=0
+          scripts/coverage_gate.sh app coverage/lcov.info 80 || STATUS=1
+          while read -r pkg min; do
+            scripts/coverage_gate.sh "$pkg" "coverage/$pkg.lcov.info" "$min" \
+              || STATUS=1
+          done <<'EOF'
+          soliplex_agent 85
+          soliplex_client 90
+          soliplex_client_native 85
+          soliplex_design 90
+          soliplex_logging 90
+          EOF
+          exit "$STATUS"
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v7
