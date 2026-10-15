@@ -296,7 +296,9 @@ Five internal packages under `packages/`:
 
 ## CI
 
-GitHub Actions runs lint, test, and web build. Tests require 80% coverage. See `.github/workflows/flutter.yaml`.
+GitHub Actions runs lint, test, and web build. The app (80%) and each workspace
+package (its own minimum) have a line-coverage gate. See
+`.github/workflows/flutter.yaml`.
 
 ## Platform Identifiers
 

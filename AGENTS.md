@@ -127,8 +127,8 @@ Five internal packages under `packages/`:
 GitHub Actions (`.github/workflows/flutter.yaml`) runs three jobs:
 
 - **lint** -- dart format, flutter analyze, dart doc, markdown lint
-- **test** -- App and package tests with random seed ordering. 80% coverage
-  threshold enforced. Slack notification on failure.
+- **test** -- App and package tests with random seed ordering. Coverage is
+  gated for the app (80%) and per package. Slack notification on failure.
 - **build-web** -- Web release build with artifact upload.
 
 On each published release, `.github/workflows/image.yaml` publishes the

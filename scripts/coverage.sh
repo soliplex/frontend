@@ -5,8 +5,7 @@
 #   ./scripts/coverage.sh          # run all, generate HTML
 #   ./scripts/coverage.sh --no-html  # skip HTML generation
 #
-# Requires: lcov, genhtml (brew install lcov)
-#           format_coverage (dart pub global activate coverage)
+# Requires: lcov, genhtml (brew install lcov / apt install lcov)
 
 set -uo pipefail
 
@@ -34,11 +33,14 @@ flutter test --coverage 2>&1 | tail -1
 
 # Strip package coverage from app report — packages have their own test suites
 # that provide better coverage. Keeping both creates duplicate entries.
-lcov --remove "$COVERAGE_DIR/lcov.info" 'packages/*' \
-  --output-file "$COVERAGE_DIR/app.lcov.info" --quiet
+# Mockups are prototypes, excluded as in CI.
+lcov --remove "$COVERAGE_DIR/lcov.info" 'packages/*' 'lib/src/mockups/*' \
+  --output-file "$COVERAGE_DIR/app.lcov.info" --quiet --ignore-errors unused
 LCOV_FILES+=("$COVERAGE_DIR/app.lcov.info")
 
 # --- Pure Dart packages (dart test) ---
+# --coverage-package pins each report to the package's own lib/; in the
+# workspace it otherwise also counts the sibling packages it imports.
 for pkg in soliplex_agent soliplex_client soliplex_logging; do
   pkg_dir="$ROOT/packages/$pkg"
   if [ ! -d "$pkg_dir/test" ]; then
@@ -49,25 +51,21 @@ for pkg in soliplex_agent soliplex_client soliplex_logging; do
   echo "==> Running $pkg tests..."
   cd "$pkg_dir"
   rm -rf coverage
-  dart test --coverage=coverage 2>&1 | tail -1
+  dart test --exclude-tags integration \
+    --coverage-path=coverage/lcov.info --coverage-package="^$pkg\$" 2>&1 \
+    | tail -1
 
-  pkg_lcov="$COVERAGE_DIR/${pkg}.lcov.info"
-  format_coverage \
-    --lcov \
-    --in=coverage \
-    --out="$pkg_lcov" \
-    --package=. \
-    --report-on=lib/
-
-  # Normalize absolute paths to relative (from project root)
-  sed -i '' "s|SF:$ROOT/|SF:|" "$pkg_lcov"
-
-  rm -rf coverage
-  LCOV_FILES+=("$pkg_lcov")
+  if [ -f coverage/lcov.info ]; then
+    # Normalize absolute paths to relative (from project root)
+    sed "s|^SF:$ROOT/|SF:|" coverage/lcov.info \
+      > "$COVERAGE_DIR/${pkg}.lcov.info"
+    LCOV_FILES+=("$COVERAGE_DIR/${pkg}.lcov.info")
+    rm -rf coverage
+  fi
 done
 
 # --- Flutter packages (flutter test) ---
-for pkg in soliplex_client_native; do
+for pkg in soliplex_client_native soliplex_design; do
   pkg_dir="$ROOT/packages/$pkg"
   if [ ! -d "$pkg_dir/test" ]; then
     echo "==> Skipping $pkg (no test/ directory)"
@@ -79,8 +77,9 @@ for pkg in soliplex_client_native; do
   flutter test --coverage 2>&1 | tail -1
 
   if [ -f coverage/lcov.info ]; then
-    cp coverage/lcov.info "$COVERAGE_DIR/${pkg}.lcov.info"
-    sed -i '' "s|SF:$ROOT/|SF:|" "$COVERAGE_DIR/${pkg}.lcov.info"
+    # Prefix package-relative paths (from project root)
+    sed "s|^SF:lib/|SF:packages/$pkg/lib/|" coverage/lcov.info \
+      > "$COVERAGE_DIR/${pkg}.lcov.info"
     LCOV_FILES+=("$COVERAGE_DIR/${pkg}.lcov.info")
     rm -rf coverage
   fi
