@@ -79,9 +79,10 @@ class SourceReference {
   /// `source_url` metadata. Null when the backend shipped no usable web URL.
   final Uri? sourceUrl;
 
-  /// The cited chunk's heading path, outermost first. For a citation that
-  /// merged several chunks, the path of the one it cites; empty when the
-  /// citation does not report that path, or the chunk sits under no heading.
+  /// The cited chunk's heading path, outermost first, without empty headings.
+  /// For a citation that merged several chunks, the path of the one it cites;
+  /// empty when the citation does not report that path, or the chunk sits
+  /// under no heading.
   final List<String> headings;
 
   /// Page numbers where this content appears.

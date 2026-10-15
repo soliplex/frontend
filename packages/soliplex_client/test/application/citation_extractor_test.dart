@@ -222,6 +222,51 @@ void main() {
         expect(refs.single.headings, isEmpty);
       });
 
+      test('drops empty headings from a single chunk path', () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(
+              chunkId: 'c1',
+              chunkIds: ['c1'],
+              headings: [
+                'Docker Deployment',
+                'Docker Compose Setup',
+                'Services',
+                '',
+              ],
+            ),
+          },
+          citations: ['c1'],
+        );
+
+        final refs = extract(state);
+
+        expect(
+          refs.single.headings,
+          ['Docker Deployment', 'Docker Compose Setup', 'Services'],
+        );
+      });
+
+      test("drops empty headings from a merged citation's chunk path", () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(
+              chunkId: 'c1',
+              chunkIds: ['c0', 'c1'],
+              headings: ['Soliplex Overview', 'Architecture', ''],
+              chunkMeta: {
+                'headings': ['Soliplex Overview', 'Architecture', ''],
+              },
+            ),
+          },
+          citations: ['c1'],
+        );
+
+        final refs = extract(state);
+
+        expect(refs.single.headings, ['Soliplex Overview', 'Architecture']);
+      });
+
       test('reads sourceUrl from the citation document_meta', () {
         final state = createState(
           citationIndex: {
