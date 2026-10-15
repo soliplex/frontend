@@ -803,8 +803,8 @@ class SoliplexApi {
   /// - [AuthException] if not authenticated (401/403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
-  /// - [MalformedResponseException] if the thread or its `runs` has an
-  ///   unexpected shape
+  /// - [MalformedResponseException] if the thread, its `runs`, or a run's
+  ///   payload has an unexpected shape
   /// - [CancelledException] if cancelled via [cancelToken]
   Future<ThreadHistory> getThreadHistory(
     String roomId,
@@ -896,13 +896,15 @@ class SoliplexApi {
 
   /// Resolves a create response's server [created] to a UTC [DateTime],
   /// degrading to the client clock ([DateTime.timestamp], also UTC) when it is
-  /// absent or malformed. Unlike `_runCreated` (replay, which has no acceptable
-  /// client fallback for a historical run), a freshly created run/thread can
-  /// safely stamp the current time rather than fail the create call.
+  /// absent or malformed. Unlike `_runCreated` in thread_history_replay.dart
+  /// (replay, which has no acceptable client fallback for a historical run), a
+  /// freshly created run/thread can safely stamp the current time rather than
+  /// fail the create call.
   static DateTime _createdOrNow(dynamic created) {
     // Absent is the documented fallback; a present-but-wrong-shaped value is
-    // contract drift worth a signal (same warn-on-wrong-shape as `_runCreated`,
-    // which differs only in resolving a bad value to null instead of `now()`).
+    // contract drift worth a signal (same warn-on-wrong-shape as `_runCreated`
+    // in thread_history_replay.dart, which differs only in resolving a bad
+    // value to null instead of `now()`).
     if (created == null) return DateTime.timestamp();
     if (created is! String) {
       _logger.warning(
