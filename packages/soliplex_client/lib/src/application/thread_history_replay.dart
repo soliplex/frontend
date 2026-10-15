@@ -91,7 +91,9 @@ const RunPayload noRunData = (
 /// fetching each finished run's payload through [fetchRun].
 ///
 /// Throws [MalformedResponseException] when the listing's `runs` has an
-/// unexpected shape.
+/// unexpected shape. Whatever [fetchRun] throws fails the whole history; a
+/// run becomes a drop tile only when [fetchRun] returns its failure as the
+/// [FetchedRun]'s `fetchError`.
 Future<ThreadHistory> assembleThreadHistory(
   Map<String, dynamic> thread,
   String threadId,
@@ -180,7 +182,7 @@ Future<ThreadHistory> assembleThreadHistory(
     );
   }
 
-  // 2. Fetch all run events in parallel (cache handles duplicates)
+  // 2. Fetch all run events in parallel
   final results = await Future.wait([
     for (final slot in slots)
       if (slot.malformed == null) fetchRun(slot.runId),
