@@ -14,6 +14,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   request again may succeed: a transport failure or a 5xx error. It is the
   rule the AG-UI stream already used to decide whether to resume.
 
+### Changed
+
+- Android release builds are signed with the app's release key, read from
+  `android/key.properties`, instead of the debug key, and fail when that file
+  is missing. See `docs/developer-setup.md`.
+
 ### Fixed
 
 - Switching a citation's chunk view back to a view already loaded shows its
