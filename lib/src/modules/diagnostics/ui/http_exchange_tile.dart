@@ -7,10 +7,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/copy_button.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
-import '../models/json_tree_model.dart';
+import '../../../shared/json_tree_model.dart';
 import 'http_event_tile.dart';
 import 'http_status_display.dart';
-import 'json_tree_view.dart';
+import '../../../shared/json_tree_view.dart';
 import 'stream_content_view.dart';
 
 /// One HTTP exchange rendered as an expandable row.

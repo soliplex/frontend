@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-import '../../diagnostics/models/json_tree_model.dart';
-import '../../diagnostics/ui/json_tree_view.dart';
+import '../../../shared/json_tree_model.dart';
+import '../../../shared/json_tree_view.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 /// Renders a [DroppedEventMessage] as a low-emphasis, collapsed-by-default

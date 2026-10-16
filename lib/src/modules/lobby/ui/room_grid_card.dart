@@ -4,7 +4,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
 import 'room_markings_row.dart';
-import 'unread_dot.dart';
+import '../../../shared/unread_dot.dart';
 
 /// Vertical card used for the lobby's grid layout: open on tap, info
 /// button, and a quiz indicator, in a shape that tiles cleanly into a

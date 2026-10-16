@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_frontend/src/modules/diagnostics/models/json_tree_model.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_model.dart';
 
 void main() {
   group('buildJsonTree', () {

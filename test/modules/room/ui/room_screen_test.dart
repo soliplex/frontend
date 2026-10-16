@@ -17,7 +17,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
-import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
+import 'package:soliplex_frontend/src/shared/unread_dot.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
