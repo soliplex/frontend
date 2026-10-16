@@ -25,6 +25,7 @@ class ThreadHistory {
     Set<ThreadStateWarning> storedStateWarnings = const {},
     this.transcript = const Transcript(),
     this.latestMeasurement,
+    this.thinkingLevel,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -120,6 +121,15 @@ class ThreadHistory {
   /// those runs carried is in [transcript] after the covered messages, and
   /// is the reader's to estimate.
   final MeasuredRun? latestMeasurement;
+
+  /// The reasoning level the client last asserted for this thread, read from
+  /// the newest run's `run_input.state.thinking.level`. `null` when no run
+  /// carries one, which is also what leaves the room's own default in force.
+  ///
+  /// Read from the run input for the same reason [documentFilter] is: the
+  /// backend keeps no merged state for a client-owned feature, so the run that
+  /// carried it is the only record of it.
+  final String? thinkingLevel;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.

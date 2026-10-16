@@ -6162,6 +6162,88 @@ void main() {
       });
     });
 
+    group('getThreadHistory thinking level', () {
+      Map<String, dynamic> run(
+        String runId,
+        int hour,
+        Map<String, dynamic> state, {
+        bool finished = true,
+      }) =>
+          {
+            'run_id': runId,
+            'created': '2026-01-07T0$hour:00:00.000Z',
+            if (finished) 'finished': '2026-01-07T0$hour:01:00.000Z',
+            'run_input': {'state': state},
+          };
+
+      test('surfaces the level from a run input state', () async {
+        stubThread({
+          'run-1': run('run-1', 1, {
+            'thinking': {'level': 'low'},
+          }),
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.thinkingLevel, equals('low'));
+      });
+
+      test('a newer run clearing the level wins over an older one', () async {
+        // The client asserts null to go back to the room's default, so a
+        // cleared level must not fall through to the one before it.
+        stubThread({
+          'run-1': run('run-1', 1, {
+            'thinking': {'level': 'high'},
+          }),
+          'run-2': run('run-2', 2, {
+            'thinking': {'level': null},
+          }),
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.thinkingLevel, isNull);
+      });
+
+      test('a run without the namespace is skipped past', () async {
+        stubThread({
+          'run-1': run('run-1', 1, {
+            'thinking': {'level': 'medium'},
+          }),
+          'run-2': run('run-2', 2, {
+            'rag': {'document_filter': null},
+          }),
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.thinkingLevel, equals('medium'));
+      });
+
+      test('is read even when no run is finished to replay', () async {
+        stubThread({
+          'run-1': run(
+            'run-1',
+            1,
+            {
+              'thinking': {'level': 'low'},
+            },
+            finished: false,
+          ),
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.messages, isEmpty);
+        expect(history.thinkingLevel, equals('low'));
+      });
+    });
+
     group('getThreadHistory latest usage', () {
       void stubRun(String runId) {
         when(
