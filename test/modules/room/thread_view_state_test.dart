@@ -158,6 +158,37 @@ class _FakeAgentSession implements AgentSession {
       );
 }
 
+/// Captures, for the rest of the test, the runs in progress the view chose
+/// not to follow, with the reason it logged.
+List<({String runId, String reason})> Function() _skippedFollows() {
+  final sink = MemorySink();
+  LogManager.instance.addSink(sink);
+  addTearDown(() => LogManager.instance.removeSink(sink));
+  return () => [
+        for (final r in sink.records)
+          if (r.message.startsWith('Not following a run still going'))
+            (
+              runId: r.attributes['runId']! as String,
+              reason: r.attributes['reason']! as String,
+            ),
+      ];
+}
+
+/// Captures, for the rest of the test, how each followed run ended.
+List<({String runId, String result})> Function() _endedFollows() {
+  final sink = MemorySink();
+  LogManager.instance.addSink(sink);
+  addTearDown(() => LogManager.instance.removeSink(sink));
+  return () => [
+        for (final r in sink.records)
+          if (r.message.startsWith('Followed run ended'))
+            (
+              runId: r.attributes['runId']! as String,
+              result: r.attributes['result']! as String,
+            ),
+      ];
+}
+
 void main() {
   late FakeSoliplexApi api;
   late ServerConnection connection;
@@ -186,6 +217,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -204,6 +236,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -228,6 +261,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
 
@@ -267,6 +301,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
       onHistoryLoaded: (threadId, history) {
         capturedHistory = history;
@@ -291,6 +326,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
 
@@ -317,6 +353,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
 
@@ -347,6 +384,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
     await Future<void>.delayed(Duration.zero);
@@ -378,6 +416,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
 
@@ -399,6 +438,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
 
@@ -519,6 +559,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
 
@@ -612,6 +653,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
     addTearDown(state.dispose);
@@ -765,6 +807,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
@@ -925,6 +968,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -947,6 +991,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -967,6 +1012,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       runtime.seedThreadHistory(
@@ -1005,6 +1051,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -1030,6 +1077,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -1056,6 +1104,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -1082,6 +1131,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1121,6 +1171,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1158,6 +1209,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1196,6 +1248,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1232,6 +1285,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1255,6 +1309,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1281,6 +1336,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1317,6 +1373,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1343,6 +1400,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1373,6 +1431,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1391,6 +1450,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1463,6 +1523,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -1519,6 +1580,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -1558,6 +1620,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
       }
@@ -1679,6 +1742,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(8192),
         );
         addTearDown(state.dispose);
@@ -1804,6 +1868,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(8192),
         );
         addTearDown(state.dispose);
@@ -1892,6 +1957,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -1909,6 +1975,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -1936,6 +2003,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -1975,6 +2043,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2013,6 +2082,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2052,6 +2122,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2089,6 +2160,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2128,6 +2200,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2162,6 +2235,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2207,6 +2281,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         addTearDown(state.dispose);
@@ -2259,6 +2334,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2301,6 +2377,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2345,6 +2422,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2399,6 +2477,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2434,6 +2513,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2467,6 +2547,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2497,6 +2578,7 @@ void main() {
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
+          followRun: neverFollowed,
           contextWindow: Signal<int?>(null),
         );
         await Future<void>.delayed(Duration.zero);
@@ -2541,6 +2623,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2565,6 +2648,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2603,6 +2687,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2660,6 +2745,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -2694,6 +2780,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -2715,6 +2802,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
 
@@ -2756,6 +2844,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2794,6 +2883,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       await Future<void>.delayed(Duration.zero);
@@ -2894,6 +2984,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
@@ -3012,6 +3103,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
@@ -3059,6 +3151,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
@@ -3085,6 +3178,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       addTearDown(state.dispose);
@@ -3185,6 +3279,7 @@ void main() {
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
+        followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
       addTearDown(restored.dispose);
@@ -3193,5 +3288,339 @@ void main() {
       final loaded = restored.messages.value as MessagesLoaded;
       expect(loaded.runOutcomes['run-0'], same(parked));
     });
+  });
+
+  group('a run still going on the backend', () {
+    late FollowableAgUiStreamClient streams;
+    late AgentRuntimeManager runtimeManager;
+    late AgentRuntime runtime;
+    late ThreadViewState state;
+
+    final runInProgress = RunInProgress(
+      runId: 'run-2',
+      userMessage: TextMessage.create(
+        id: 'user-stored',
+        user: ChatUser.user,
+        text: 'Still going?',
+        runId: 'run-2',
+      ),
+    );
+
+    void feed(BaseEvent event) =>
+        streams.followed.add(DecodedEvent(event, const {}));
+
+    setUp(() async {
+      streams = FollowableAgUiStreamClient();
+      connection = ServerConnection(
+        serverId: 'test-server',
+        api: api,
+        agUiStreamClient: streams,
+      );
+      runtimeManager = AgentRuntimeManager(
+        platform: TestPlatformConstraints(),
+        toolRegistryResolver: (_) async => const ToolRegistry(),
+        logger: testLogger(),
+        servers: emptyServers(),
+      );
+      runtime = runtimeManager.getRuntime(connection);
+      api.nextThreadHistory =
+          ThreadHistory(messages: const [], runInProgress: runInProgress);
+      state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        followRun: (run) =>
+            runtime.follow(roomId: 'room-1', threadId: 'thread-1', run: run),
+        contextWindow: Signal<int?>(null),
+        onHistoryLoaded: (_, history) =>
+            runtime.seedThreadHistory(state.threadKey, history),
+      );
+      await pumpEventQueue();
+      feed(RunStartedEvent(threadId: 'thread-1', runId: 'run-2'));
+      feed(const TextMessageStartEvent(messageId: 'reply'));
+      feed(const TextMessageContentEvent(messageId: 'reply', delta: 'Partly'));
+      await pumpEventQueue();
+    });
+
+    tearDown(() async {
+      state.dispose();
+      await runtimeManager.dispose();
+      unawaited(streams.followed.close());
+    });
+
+    List<String> texts() => [
+          for (final m in (state.messages.value as MessagesLoaded).messages)
+            if (m is TextMessage) m.text,
+        ];
+
+    test(
+        'a thread opened mid-run shows the message that started it and the '
+        'reply as it streams', () async {
+      expect(texts(), ['Still going?']);
+      expect(
+        state.streamingState.value,
+        isA<TextStreaming>().having((s) => s.text, 'text', 'Partly'),
+      );
+      expect(state.activeRunId.value, 'run-2');
+      expect(state.isCancellable.value, isTrue);
+    });
+
+    test('the composer sends nothing while the followed run goes on', () async {
+      api.nextCreateRun = RunInfo(
+        id: 'run-3',
+        threadId: 'thread-1',
+        createdAt: DateTime.utc(2026),
+      );
+      await state.sendMessage([TextPart('Too soon')], runtime);
+      await pumpEventQueue();
+
+      expect(streams.inputs, isEmpty);
+    });
+
+    test('a send after the followed run ends carries its turn', () async {
+      final ended = _endedFollows();
+      feed(const TextMessageContentEvent(messageId: 'reply', delta: ' done'));
+      feed(const TextMessageEndEvent(messageId: 'reply'));
+      feed(const RunFinishedEvent(threadId: 'thread-1', runId: 'run-2'));
+      await streams.followed.close();
+      await pumpEventQueue();
+      expect(texts(), ['Still going?', 'Partly done']);
+      expect(registry.completedOutcome(state.threadKey), isA<CompletedRun>());
+      expect(ended(), [(runId: 'run-2', result: 'completed')]);
+
+      api.nextCreateRun = RunInfo(
+        id: 'run-3',
+        threadId: 'thread-1',
+        createdAt: DateTime.utc(2026),
+      );
+      await state.sendMessage([TextPart('Next')], runtime);
+      // The send returns once its session starts; the run opens after.
+      await pumpEventQueue();
+
+      expect(
+        [
+          for (final m in streams.inputs.single.messages!) m.toJson()['content']
+        ],
+        ['Still going?', 'Partly done', 'Next'],
+      );
+    });
+
+    test(
+        'Stop while following ends the run cancelled, as Stop on a live run '
+        'does, and the run is not followed again', () async {
+      final skipped = _skippedFollows();
+      final ended = _endedFollows();
+      state.cancelRun();
+      await pumpEventQueue();
+
+      final loaded = state.messages.value as MessagesLoaded;
+      expect(texts(), ['Still going?', 'Partly']);
+      expect(loaded.runOutcomes['run-2']?.reason, TerminalReason.cancelled);
+      expect(state.sessionState.value, isNull);
+      expect(registry.completedOutcome(state.threadKey), isA<CancelledRun>());
+
+      // The backend finishes a stopped run in its own time, so history can
+      // still report it as going.
+      await state.refresh();
+
+      expect(registry.activeSession(state.threadKey), isNull);
+      expect(state.sessionState.value, isNull);
+      expect(skipped(), [(runId: 'run-2', reason: 'outcomeHeld')]);
+      expect(ended(), [(runId: 'run-2', result: 'cancelled')]);
+    });
+  });
+
+  test('a run a session here is already running is not followed a second time',
+      () async {
+    final skipped = _skippedFollows();
+    final running = ManualAgentSession(
+      (serverId: 'test-server', roomId: 'room-1', threadId: 'thread-1'),
+    );
+    registry.register(running.threadKey, running);
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      runInProgress: RunInProgress(
+        runId: 'run-1',
+        userMessage: TextMessage.create(
+          id: 'u-1',
+          user: ChatUser.user,
+          text: 'Hi',
+          runId: 'run-1',
+        ),
+      ),
+    );
+
+    final state = ThreadViewState(
+      connection: connection,
+      auth: auth,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+      registry: registry,
+      followRun: (run) async => ManualAgentSession(running.threadKey),
+      contextWindow: Signal<int?>(null),
+    );
+    await pumpEventQueue();
+
+    expect(registry.activeSession(state.threadKey), same(running));
+    expect(skipped(), [
+      (runId: 'run-1', reason: 'sessionHoldsThread'),
+    ]);
+    state.dispose();
+  });
+
+  group('while a follow is being set up', () {
+    late FollowableAgUiStreamClient streams;
+    late AgentRuntimeManager runtimeManager;
+    late AgentRuntime runtime;
+    late Completer<void> settingUp;
+    late bool setupFails;
+    late ThreadViewState state;
+
+    final runInProgress = RunInProgress(
+      runId: 'run-1',
+      userMessage: TextMessage.create(
+        id: 'u-1',
+        user: ChatUser.user,
+        text: 'Hi',
+        runId: 'run-1',
+      ),
+    );
+
+    /// A view whose follow waits on [settingUp] before it asks the runtime,
+    /// as a follow waits for a concurrency slot or for its session's
+    /// extensions.
+    ThreadViewState openView() => ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+          followRun: (run) async {
+            await settingUp.future;
+            if (setupFails) throw StateError('no session');
+            return runtime.follow(
+              roomId: 'room-1',
+              threadId: 'thread-1',
+              run: run,
+            );
+          },
+          contextWindow: Signal<int?>(null),
+        );
+
+    setUp(() async {
+      streams = FollowableAgUiStreamClient();
+      connection = ServerConnection(
+        serverId: 'test-server',
+        api: api,
+        agUiStreamClient: streams,
+      );
+      runtimeManager = AgentRuntimeManager(
+        platform: TestPlatformConstraints(),
+        toolRegistryResolver: (_) async => const ToolRegistry(),
+        logger: testLogger(),
+        servers: emptyServers(),
+      );
+      runtime = runtimeManager.getRuntime(connection);
+      settingUp = Completer<void>();
+      setupFails = false;
+      api.nextThreadHistory =
+          ThreadHistory(messages: const [], runInProgress: runInProgress);
+      state = openView();
+      await pumpEventQueue();
+    });
+
+    tearDown(() async {
+      state.dispose();
+      await runtimeManager.dispose();
+      unawaited(streams.followed.close());
+    });
+
+    test('Stop pressed then ends the run cancelled once it is followed',
+        () async {
+      expect(state.isCancellable.value, isTrue);
+
+      state.cancelRun();
+      settingUp.complete();
+      await pumpEventQueue();
+
+      final loaded = state.messages.value as MessagesLoaded;
+      expect(loaded.runOutcomes['run-1']?.reason, TerminalReason.cancelled);
+      expect(state.sessionState.value, isNull);
+      expect(registry.completedOutcome(state.threadKey), isA<CancelledRun>());
+    });
+
+    test(
+        'a Stop pressed during a setup that failed does not stop the next '
+        'follow', () async {
+      setupFails = true;
+      state.cancelRun();
+      settingUp.complete();
+      await pumpEventQueue();
+      expect(state.sessionState.value, isNull);
+
+      setupFails = false;
+      await state.refresh();
+      await pumpEventQueue();
+
+      expect(registry.activeSession(state.threadKey), isNotNull);
+      expect(state.isCancellable.value, isTrue);
+    });
+
+    test(
+        'leaving the thread keeps the run followed, and returning restores '
+        'it rather than following it again', () async {
+      final skipped = _skippedFollows();
+      state.dispose();
+      settingUp.complete();
+      await pumpEventQueue();
+
+      state = openView();
+      await pumpEventQueue();
+
+      expect(registry.activeSession(state.threadKey), isNotNull);
+      expect(state.isCancellable.value, isTrue);
+      expect(skipped(), [(runId: 'run-1', reason: 'sessionHoldsThread')]);
+    });
+  });
+
+  test(
+      'a follow that fails to start frees the composer and records why, '
+      'naming the run', () async {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      runInProgress: RunInProgress(
+        runId: 'run-1',
+        userMessage: TextMessage.create(
+          id: 'u-1',
+          user: ChatUser.user,
+          text: 'Hi',
+          runId: 'run-1',
+        ),
+      ),
+    );
+    final state = ThreadViewState(
+      connection: connection,
+      auth: auth,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+      registry: registry,
+      followRun: (_) async => throw StateError('runtime disposed'),
+      contextWindow: Signal<int?>(null),
+    );
+    await pumpEventQueue();
+
+    expect(state.sessionState.value, isNull);
+    final records = sink.records
+        .where((r) => r.message.contains('Could not follow'))
+        .toList();
+    expect(records, hasLength(1));
+    expect(records.single.level, LogLevel.warning);
+    expect(records.single.attributes['runId'], 'run-1');
+    state.dispose();
   });
 }

@@ -204,6 +204,8 @@ class RoomState {
       roomId: _roomId,
       threadId: threadId,
       registry: _registry,
+      followRun: (run) =>
+          runtime.follow(roomId: _roomId, threadId: threadId, run: run),
       contextWindow: _contextWindow,
       onHistoryLoaded: (id, history) {
         runtime.seedThreadHistory(

@@ -86,12 +86,14 @@ class ThreadViewState {
     required String roomId,
     required this.threadId,
     required RunRegistry registry,
+    required Future<AgentSession> Function(RunInProgress run) followRun,
     required ReadonlySignal<int?> contextWindow,
     this.onHistoryLoaded,
   })  : _connection = connection,
         _auth = auth,
         _roomId = roomId,
         _registry = registry,
+        _followRun = followRun,
         _contextWindow = contextWindow {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
     // What the registry holds shows at once. It is only what this app saw of
@@ -107,6 +109,9 @@ class ThreadViewState {
   final String threadId;
   final HistoryLoadedCallback? onHistoryLoaded;
   final RunRegistry _registry;
+
+  /// Starts a session following a run still going on the backend.
+  final Future<AgentSession> Function(RunInProgress run) _followRun;
   final ReadonlySignal<int?> _contextWindow;
 
   /// This thread's context reading. Built on first use and disposed with
@@ -131,6 +136,14 @@ class ThreadViewState {
   void Function()? _reconnectStatusUnsub;
   void Function()? _authUnsub;
   bool _isDisposed = false;
+
+  /// Whether [_follow] is waiting for its session: the view shows a run that
+  /// can be stopped, but has no session to stop yet.
+  bool _settingUpFollow = false;
+
+  /// Whether Stop was pressed while [_settingUpFollow], so the session is
+  /// stopped as soon as it exists.
+  bool _stopOnceFollowing = false;
 
   late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
@@ -232,7 +245,8 @@ class ThreadViewState {
 
   /// Whether the cancel/stop affordance should take effect.
   ///
-  /// True when a spawn is in progress, or when the active session's
+  /// True when a spawn or a follow is being set up (a Stop then is queued
+  /// until the follow's session exists), or when the active session's
   /// orchestrator is in a state from which [cancelRun] can actually
   /// transition to [CancelledState]. False during the IdleState window
   /// between session attach and the first SSE event, where [cancelRun]
@@ -414,6 +428,10 @@ class ThreadViewState {
       // even if the backend went on to name one. Nothing here will
       // report on the send.
       contextUsage.sendEnded(null);
+      return;
+    }
+    if (_settingUpFollow) {
+      _stopOnceFollowing = true;
       return;
     }
     _activeSession.value?.cancel();
@@ -751,6 +769,7 @@ class ThreadViewState {
       }
       onHistoryLoaded?.call(threadId, history);
       contextUsage.historyLoaded(history);
+      if (history.runInProgress case final run?) unawaited(_follow(run));
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
@@ -788,6 +807,86 @@ class ThreadViewState {
         _messages.value = MessagesFailed(error);
       }
     }
+  }
+
+  /// Follows [run], which history reports still going on the backend, as the
+  /// view's live session: it renders, blocks a send and can be stopped as a
+  /// run sent from here does.
+  ///
+  /// Not when a session already holds the thread (a send, a run already
+  /// followed, or one restored from the registry), nor when the view already
+  /// holds how [run] ended: a run stopped here goes on until the backend
+  /// finishes it, and following it again would undo the stop.
+  Future<void> _follow(RunInProgress run) async {
+    final heldOutcome = switch (_messages.value) {
+      MessagesLoaded(:final runOutcomes) => runOutcomes.containsKey(run.runId),
+      _ => false,
+    };
+    final skipReason = _sessionState.value != null
+        ? 'sessionHoldsThread'
+        : heldOutcome
+            ? 'outcomeHeld'
+            : null;
+    if (skipReason != null) {
+      _logger.info(
+        'Not following a run still going on the backend',
+        attributes: {
+          'threadId': threadId,
+          'runId': run.runId,
+          'reason': skipReason,
+        },
+      );
+      return;
+    }
+    _sessionState.value = AgentSessionState.spawning;
+    _settingUpFollow = true;
+    try {
+      final session = await _followRun(run);
+      _logger.info(
+        'Following a run still going on the backend',
+        attributes: {'threadId': threadId, 'runId': run.runId},
+      );
+      unawaited(session.result.then((result) => _logFollowEnded(run, result)));
+      _registry.register(threadKey, session);
+      if (_stopOnceFollowing) session.cancel();
+      if (_isDisposed) return;
+      _attachSession(session);
+    } on Object catch (error, stackTrace) {
+      _logger.warning(
+        'Could not follow a run still going on the backend',
+        stackTrace: stackTrace,
+        attributes: {
+          'threadId': threadId,
+          'runId': run.runId,
+          'failure': describeFailure(error),
+        },
+      );
+      if (!_isDisposed) _sessionState.value = null;
+    } finally {
+      _settingUpFollow = false;
+      _stopOnceFollowing = false;
+    }
+  }
+
+  void _logFollowEnded(RunInProgress run, AgentResult result) {
+    _logger.info(
+      'Followed run ended',
+      attributes: {
+        'threadId': threadId,
+        'runId': run.runId,
+        ...switch (result) {
+          AgentSuccess() => {'result': 'completed'},
+          AgentFailure(reason: FailureReason.cancelled) => {
+              'result': 'cancelled',
+            },
+          AgentFailure(:final reason) => {
+              'result': 'failed',
+              'reason': reason.name,
+            },
+          AgentTimedOut() => {'result': 'timedOut'},
+        },
+      },
+    );
   }
 
   void dispose() {
