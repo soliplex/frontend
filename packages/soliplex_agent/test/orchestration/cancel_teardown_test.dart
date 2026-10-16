@@ -37,6 +37,15 @@ class _ParkedProvider implements AgentLlmProvider {
     return LlmRunHandle(runId: 'run-1', events: _events());
   }
 
+  @override
+  LlmRunHandle followRun({
+    required ThreadKey key,
+    required String runId,
+    CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      LlmRunHandle(runId: runId, events: _events());
+
   Stream<DecodeOutcome> _events() async* {
     await for (final outcome in inner.stream) {
       yield outcome;

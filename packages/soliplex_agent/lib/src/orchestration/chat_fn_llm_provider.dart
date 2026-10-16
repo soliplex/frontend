@@ -81,6 +81,16 @@ class ChatFnLlmProvider implements AgentLlmProvider {
     return LlmRunHandle(runId: runId, events: events);
   }
 
+  /// Runs in-process, so there is no stored run to follow.
+  @override
+  LlmRunHandle followRun({
+    required ThreadKey key,
+    required String runId,
+    CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      throw UnsupportedError('An in-process provider has no runs to follow');
+
   Stream<DecodeOutcome> _run(
     ThreadKey key,
     SimpleRunAgentInput input,

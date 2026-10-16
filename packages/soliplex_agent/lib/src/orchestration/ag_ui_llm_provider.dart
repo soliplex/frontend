@@ -33,15 +33,33 @@ class AgUiLlmProvider implements AgentLlmProvider {
       tools: input.tools,
       state: input.state,
     );
-    final endpoint = 'rooms/${key.roomId}/agui/${key.threadId}/$runId';
     final events = _agUiStreamClient.runAgent(
-      endpoint,
+      _endpoint(key, runId),
       updatedInput,
       cancelToken: cancelToken,
       onReconnectStatus: onReconnectStatus,
     );
     return LlmRunHandle(runId: runId, events: events);
   }
+
+  @override
+  LlmRunHandle followRun({
+    required ThreadKey key,
+    required String runId,
+    CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) {
+    final events = _agUiStreamClient.followRun(
+      _endpoint(key, runId),
+      runId,
+      cancelToken: cancelToken,
+      onReconnectStatus: onReconnectStatus,
+    );
+    return LlmRunHandle(runId: runId, events: events);
+  }
+
+  String _endpoint(ThreadKey key, String runId) =>
+      'rooms/${key.roomId}/agui/${key.threadId}/$runId';
 
   Future<String> _createRun(ThreadKey key) async {
     final runInfo = await _api.createRun(key.roomId, key.threadId);

@@ -407,11 +407,44 @@ class AgentSession implements ToolExecutionContext {
     String? existingRunId,
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
-  }) async {
+  }) =>
+      _begin(
+        () => _orchestrator.runToCompletion(
+          key: threadKey,
+          userMessage: userMessage,
+          toolExecutor: _executeAll,
+          existingRunId: existingRunId,
+          cachedHistory: cachedHistory,
+          stateOverlay: stateOverlay,
+          onReconnectStatus: _onReconnectStatus,
+        ),
+      );
+
+  /// Follows [run], already going on the backend, as [start] runs a new one:
+  /// the session ends when the run's turn does.
+  ///
+  /// Called internally by `AgentRuntime`.
+  Future<void> follow({
+    required RunInProgress run,
+    required ThreadHistory? cachedHistory,
+  }) =>
+      _begin(
+        () => _orchestrator.followToCompletion(
+          key: threadKey,
+          run: run,
+          toolExecutor: _executeAll,
+          cachedHistory: cachedHistory,
+          onReconnectStatus: _onReconnectStatus,
+        ),
+      );
+
+  /// Attaches the extensions, then drives the turn [drive] runs to its end.
+  Future<void> _begin(Future<RunState> Function() drive) async {
     await _attachExtensions();
-    // `AgentRuntime.spawn` registers this session with its parent before
-    // awaiting `start`, so a parent cancel can land during the attach above.
-    // Starting anyway would create a backend run the user already stopped.
+    // A cancel can land during the attach above: `AgentRuntime.spawn`
+    // registers this session with its parent before awaiting `start`, so the
+    // parent's cancel reaches it. Driving the turn anyway would start, or
+    // follow, a run the user already stopped.
     //
     // Settle the result rather than just returning: `AgentRuntime` awaits it
     // before draining the spawn queue, and before disposing the session when
@@ -425,7 +458,7 @@ class AgentSession implements ToolExecutionContext {
         AgentFailure(
           threadKey: threadKey,
           reason: FailureReason.cancelled,
-          error: 'Cancelled before the run started',
+          error: 'Cancelled before the session began',
         ),
       );
       return;
@@ -439,26 +472,14 @@ class AgentSession implements ToolExecutionContext {
     // expected outcome — including a cancel — comes back as a `RunState`
     // (terminal, or idle after a reset ended a client-tool wait), so reaching
     // this handler means a bug, not a failed run.
-    unawaited(
-      _orchestrator
-          .runToCompletion(
-            key: threadKey,
-            userMessage: userMessage,
-            toolExecutor: _executeAll,
-            existingRunId: existingRunId,
-            cachedHistory: cachedHistory,
-            stateOverlay: stateOverlay,
-            onReconnectStatus: _onReconnectStatus,
-          )
-          .catchError(_settleFailedRun),
-    );
+    unawaited(drive().catchError(_settleFailedRun));
   }
 
-  /// Settles the session when `runToCompletion` throws instead of returning a
+  /// Settles the session when driving its turn throws instead of returning a
   /// `RunState`, so the runtime's wait on [result] cannot hang.
   RunState _settleFailedRun(Object error, StackTrace stackTrace) {
     _logger.error(
-      'runToCompletion threw (session=$id, thread=${threadKey.threadId})',
+      'Driving the turn threw (session=$id, thread=${threadKey.threadId})',
       attributes: {'failure': describeFailure(error)},
       stackTrace: stackTrace,
     );

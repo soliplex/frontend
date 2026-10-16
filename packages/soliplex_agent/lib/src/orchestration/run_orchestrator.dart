@@ -25,6 +25,7 @@ typedef ToolExecutorCallback = Future<List<ToolCallInfo>> Function(
 ///
 /// The recommended entry point is [runToCompletion], which drives the full
 /// tool-yield/resume cycle internally and returns the terminal [RunState].
+/// [followToCompletion] does the same for a run already going on the backend.
 ///
 /// ```dart
 /// final result = await orchestrator.runToCompletion(
@@ -144,6 +145,49 @@ class RunOrchestrator {
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
     void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      _toCompletion(
+        key,
+        toolExecutor,
+        onReconnectStatus,
+        open: () => _initializeStream(
+          key,
+          userMessage,
+          existingRunId,
+          cachedHistory,
+          stateOverlay,
+        ),
+      );
+
+  /// Follows [run], already going on the backend, to the end of its turn, as
+  /// [runToCompletion] drives a run it starts: the same states, the same
+  /// endings, and a client tool the run waits on is run and the turn resumed.
+  ///
+  /// Sends nothing to start [run]; only a resume after a client tool creates
+  /// a run, the next one, as live does. The conversation is [cachedHistory]
+  /// with the message [run] was sent, under the id it was sent with, and the
+  /// run's events, from its first, are folded onto it.
+  Future<RunState> followToCompletion({
+    required ThreadKey key,
+    required RunInProgress run,
+    required ToolExecutorCallback toolExecutor,
+    required ThreadHistory? cachedHistory,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      _toCompletion(
+        key,
+        toolExecutor,
+        onReconnectStatus,
+        open: () async => _followStream(key, run, cachedHistory),
+      );
+
+  /// What [runToCompletion] and [followToCompletion] share: [open] subscribes
+  /// to the turn's first run, and the tool loop drives the turn from there.
+  Future<RunState> _toCompletion(
+    ThreadKey key,
+    ToolExecutorCallback toolExecutor,
+    void Function(ReconnectStatus)? onReconnectStatus, {
+    required Future<void> Function() open,
   }) async {
     _guardRunToCompletion();
     _runToCompletionActive = true;
@@ -154,13 +198,7 @@ class RunOrchestrator {
     _toolDepth = 0;
     try {
       try {
-        await _initializeStream(
-          key,
-          userMessage,
-          existingRunId,
-          cachedHistory,
-          stateOverlay,
-        );
+        await open();
       } on Object catch (error, stackTrace) {
         _handleStartError(key, error, stackTrace);
         return _currentState;
@@ -179,7 +217,7 @@ class RunOrchestrator {
   /// handle [ToolYieldingState] by calling [submitToolOutputs] manually.
   ///
   /// Throws [StateError] if already running, disposed, or
-  /// [runToCompletion] is active.
+  /// [runToCompletion] or [followToCompletion] is active.
   Future<void> startRun({
     required ThreadKey key,
     required List<MessagePart> userMessage,
@@ -307,7 +345,7 @@ class RunOrchestrator {
   /// backend run** for the continuation.
   ///
   /// Throws [StateError] if not in [ToolYieldingState], disposed, or
-  /// [runToCompletion] is active.
+  /// [runToCompletion] or [followToCompletion] is active.
   Future<void> submitToolOutputs(List<ToolCallInfo> executedTools) async {
     _guardSubmitToolOutputs();
     final yielding = _currentState as ToolYieldingState;
@@ -398,6 +436,33 @@ class RunOrchestrator {
       _drainUnownedStream(handle.events, 'initialize drain (cancelled)');
       throw CancelledException(reason: _cancelToken?.reason);
     }
+    _subscribeToStream(
+      handle.events,
+      RunningState(
+        threadKey: key,
+        runId: handle.runId,
+        conversation: conversation,
+        streaming: const AwaitingText(),
+      ),
+    );
+  }
+
+  /// Subscribes to [run]'s stream, from its first event, for
+  /// [followToCompletion].
+  void _followStream(
+    ThreadKey key,
+    RunInProgress run,
+    ThreadHistory? cachedHistory,
+  ) {
+    _cancelToken ??= CancelToken();
+    final conversation =
+        _conversationOpenedBy(key, run.userMessage, cachedHistory, null);
+    final handle = _llmProvider.followRun(
+      key: key,
+      runId: run.runId,
+      cancelToken: _cancelToken,
+      onReconnectStatus: _activeOnReconnectStatus,
+    );
     _subscribeToStream(
       handle.events,
       RunningState(
@@ -693,7 +758,9 @@ class RunOrchestrator {
   void _guardRunToCompletion() {
     _guardNotDisposed();
     if (_runToCompletionActive) {
-      throw StateError('runToCompletion is already active');
+      throw StateError(
+        'runToCompletion or followToCompletion is already active',
+      );
     }
     if (_currentState is RunningState || _currentState is ToolYieldingState) {
       throw StateError('A run is already active');
@@ -703,7 +770,10 @@ class RunOrchestrator {
   void _guardNotRunning() {
     _guardNotDisposed();
     if (_runToCompletionActive) {
-      throw StateError('Cannot call startRun while runToCompletion is active');
+      throw StateError(
+        'Cannot call startRun while runToCompletion or followToCompletion is '
+        'active',
+      );
     }
     if (_currentState is RunningState || _currentState is ToolYieldingState) {
       throw StateError('A run is already active');
@@ -720,7 +790,8 @@ class RunOrchestrator {
     _guardNotDisposed();
     if (_runToCompletionActive) {
       throw StateError(
-        'Cannot call submitToolOutputs while runToCompletion is active',
+        'Cannot call submitToolOutputs while runToCompletion or '
+        'followToCompletion is active',
       );
     }
     if (_currentState is! ToolYieldingState) {
@@ -826,6 +897,18 @@ class RunOrchestrator {
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
       parts: numbered,
     );
+    return _conversationOpenedBy(key, userMsg, cachedHistory, stateOverlay);
+  }
+
+  /// [cachedHistory] with [userMessage] appended: the conversation the run
+  /// [userMessage] opens starts from. [userMessage] becomes the turn's user
+  /// message, which the run's fold stamps and keys the turn's citations by.
+  Conversation _conversationOpenedBy(
+    ThreadKey key,
+    TextMessage userMessage,
+    ThreadHistory? cachedHistory,
+    Map<String, dynamic>? stateOverlay,
+  ) {
     // Seeding with the run-scoped keys emptied is what makes a namespace's
     // non-empty `citations` in the run's terminal snapshot definitionally this
     // turn's. The overlay merges on top, so a caller-set `document_filter`
@@ -839,11 +922,11 @@ class RunOrchestrator {
     final aguiState =
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
     _fold = null;
-    _userMessageId = userMsg.id;
+    _userMessageId = userMessage.id;
     return appendUserMessage(
       Conversation(
         threadId: key.threadId,
-        messages: priorMessages,
+        messages: cachedHistory?.messages ?? const <ChatMessage>[],
         aguiState: aguiState,
         aguiStateIncomplete: cachedHistory?.aguiStateIncomplete ?? false,
         messageStates: cachedHistory?.messageStates ?? const {},
@@ -852,7 +935,7 @@ class RunOrchestrator {
         runOutcomes: cachedHistory?.runOutcomes ?? const {},
         transcript: cachedHistory?.transcript ?? const Transcript(),
       ),
-      userMsg,
+      userMessage,
     );
   }
 

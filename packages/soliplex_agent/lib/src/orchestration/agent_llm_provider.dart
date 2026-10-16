@@ -4,7 +4,8 @@ import 'package:soliplex_client/soliplex_client.dart';
 
 /// Handle for an active LLM run.
 ///
-/// Returned by [AgentLlmProvider.startRun]. The [events] stream yields
+/// Returned by [AgentLlmProvider.startRun] and
+/// [AgentLlmProvider.followRun]. The [events] stream yields
 /// [DecodeOutcome]s — `DecodedEvent` for structurally-valid AG-UI events
 /// and `DecodeFailed` for payloads the live decoder couldn't parse.
 /// Backends that synthesize events in-process emit only `DecodedEvent`s;
@@ -53,6 +54,19 @@ abstract interface class AgentLlmProvider {
     required ThreadKey key,
     required SimpleRunAgentInput input,
     String? existingRunId,
+    CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  });
+
+  /// Follow run [runId], already going on the backend, and return its event
+  /// stream from its first event: the ones it has stored, then the rest.
+  ///
+  /// Starts nothing and sends nothing, so it never creates a run. Only a
+  /// backend that stores runs can follow one; a provider that runs in-process
+  /// throws [UnsupportedError].
+  LlmRunHandle followRun({
+    required ThreadKey key,
+    required String runId,
     CancelToken? cancelToken,
     void Function(ReconnectStatus)? onReconnectStatus,
   });
