@@ -132,8 +132,8 @@ before spawning on that thread.
   replaying each run's work (steps, tool calls, activities)
 - `runOutcomes` -- how each run that ended ended, keyed by run id
 - `runInProgress` -- the thread's newest run when the backend is still
-  going on it, with the message that started it; null otherwise. It is in
-  none of the fields above.
+  going on it, with the message that started it; null when there is none a
+  client can follow. It is in none of the fields above.
 
 A run still going on the backend (one another device sent, or this app sent
 before it restarted) can be followed to its end with `runtime.follow`. The
@@ -142,6 +142,7 @@ once it ends the next `spawn` on the thread sends its turn.
 
 ```dart
 final history = await api.getThreadHistory('chat', threadId);
+final key = (serverId: runtime.serverId, roomId: 'chat', threadId: threadId);
 runtime.seedThreadHistory(key, history);
 if (history.runInProgress case final run?) {
   final session = await runtime.follow(

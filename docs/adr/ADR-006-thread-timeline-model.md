@@ -108,7 +108,7 @@ flowchart LR
      resumed it, would otherwise end the turn early (`0f67979b`).
    - History reads no run the backend has not finished. It reports the
      thread's newest run, if still going, sent a message, and not resuming a
-     turn the thread already holds (§5), as
+     turn the thread already holds (§5, item 5), as
      `ThreadHistory.runInProgress`, and the view follows it as a live run
      (`AgentRuntime.follow`): the same fold, states, tile and registry entry,
      from the run's first stored event. It is not followed while a session

@@ -441,10 +441,10 @@ class AgentSession implements ToolExecutionContext {
   /// Attaches the extensions, then drives the turn [drive] runs to its end.
   Future<void> _begin(Future<RunState> Function() drive) async {
     await _attachExtensions();
-    // A cancel can land during the attach above: `AgentRuntime.spawn`
-    // registers this session with its parent before awaiting `start`, so the
-    // parent's cancel reaches it. Driving the turn anyway would start, or
-    // follow, a run the user already stopped.
+    // A cancel can land during the attach above: `AgentRuntime` tracks this
+    // session, and `spawn` registers it with its parent, before awaiting it.
+    // Driving the turn anyway would start, or follow, a run the user already
+    // stopped.
     //
     // Settle the result rather than just returning: `AgentRuntime` awaits it
     // before draining the spawn queue, and before disposing the session when

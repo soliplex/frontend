@@ -244,9 +244,9 @@ class AgUiStreamClient {
 
       if (lastEventId == null) {
         // No cursor (none given, none emitted), so no resume is possible.
-        // Rethrow the underlying error directly — wrapping with
-        // `streamResumeFailedPrefix`
-        // would mislead consumers into treating this as a resume failure.
+        // Rethrow the underlying error directly: wrapping it with
+        // `streamResumeFailedPrefix` would mislead consumers into treating
+        // this as a resume failure.
         Error.throwWithStackTrace(
           streamError,
           streamErrorStack ?? StackTrace.current,
@@ -460,18 +460,15 @@ final class _IdleEndingBody {
     // The connection is dropped on purpose, so a failure to tear it down
     // changes nothing for the run; it is logged rather than left to reach the
     // zone unhandled.
-    final released = _subscription?.cancel();
-    if (released != null) {
-      unawaited(
-        released.catchError((Object error, StackTrace stackTrace) {
-          _logger.warning(
-            'Releasing an idle followed stream failed',
-            stackTrace: stackTrace,
-            attributes: {'failure': describeFailure(error)},
-          );
-        }),
-      );
-    }
+    unawaited(
+      _subscription?.cancel().catchError((Object error, StackTrace stackTrace) {
+        _logger.warning(
+          'Releasing an idle followed stream failed',
+          stackTrace: stackTrace,
+          attributes: {'failure': describeFailure(error)},
+        );
+      }),
+    );
     unawaited(_controller.close());
   }
 }

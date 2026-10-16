@@ -3474,7 +3474,7 @@ void main() {
     late FollowableAgUiStreamClient streams;
     late AgentRuntimeManager runtimeManager;
     late AgentRuntime runtime;
-    late Completer<void> settingUp;
+    late List<Completer<void>> setups;
     late bool setupFails;
     late ThreadViewState state;
 
@@ -3488,9 +3488,9 @@ void main() {
       ),
     );
 
-    /// A view whose follow waits on [settingUp] before it asks the runtime,
-    /// as a follow waits for a concurrency slot or for its session's
-    /// extensions.
+    /// A view whose follow waits on a gate of its own, added to [setups],
+    /// before it asks the runtime, as a follow waits for a concurrency slot
+    /// or for its session's extensions.
     ThreadViewState openView() => ThreadViewState(
           connection: connection,
           auth: auth,
@@ -3498,7 +3498,9 @@ void main() {
           threadId: 'thread-1',
           registry: registry,
           followRun: (run) async {
-            await settingUp.future;
+            final gate = Completer<void>();
+            setups.add(gate);
+            await gate.future;
             if (setupFails) throw StateError('no session');
             return runtime.follow(
               roomId: 'room-1',
@@ -3523,7 +3525,7 @@ void main() {
         servers: emptyServers(),
       );
       runtime = runtimeManager.getRuntime(connection);
-      settingUp = Completer<void>();
+      setups = [];
       setupFails = false;
       api.nextThreadHistory =
           ThreadHistory(messages: const [], runInProgress: runInProgress);
@@ -3542,7 +3544,7 @@ void main() {
       expect(state.isCancellable.value, isTrue);
 
       state.cancelRun();
-      settingUp.complete();
+      setups.single.complete();
       await pumpEventQueue();
 
       final loaded = state.messages.value as MessagesLoaded;
@@ -3556,12 +3558,13 @@ void main() {
         'follow', () async {
       setupFails = true;
       state.cancelRun();
-      settingUp.complete();
+      setups.single.complete();
       await pumpEventQueue();
       expect(state.sessionState.value, isNull);
 
       setupFails = false;
       await state.refresh();
+      setups.last.complete();
       await pumpEventQueue();
 
       expect(registry.activeSession(state.threadKey), isNotNull);
@@ -3569,19 +3572,27 @@ void main() {
     });
 
     test(
-        'leaving the thread keeps the run followed, and returning restores '
-        'it rather than following it again', () async {
+        'a view left while its follow is set up does not follow, so the view '
+        'opened next keeps its own follow', () async {
       final skipped = _skippedFollows();
-      state.dispose();
-      settingUp.complete();
-      await pumpEventQueue();
-
+      final left = state;
+      left.dispose();
       state = openView();
       await pumpEventQueue();
+      expect(setups, hasLength(2));
 
-      expect(registry.activeSession(state.threadKey), isNotNull);
+      // The returning view's follow is set up first; the left view's last.
+      setups[1].complete();
+      await pumpEventQueue();
+      setups[0].complete();
+      await pumpEventQueue();
+
       expect(state.isCancellable.value, isTrue);
-      expect(skipped(), [(runId: 'run-1', reason: 'sessionHoldsThread')]);
+      expect(registry.activeSession(state.threadKey), isNotNull);
+      expect(state.messages.value, isA<MessagesLoaded>());
+      final loaded = state.messages.value as MessagesLoaded;
+      expect(loaded.runOutcomes, isNot(contains('run-1')));
+      expect(skipped(), [(runId: 'run-1', reason: 'viewClosed')]);
     });
   });
 

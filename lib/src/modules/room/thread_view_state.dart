@@ -137,8 +137,8 @@ class ThreadViewState {
   void Function()? _authUnsub;
   bool _isDisposed = false;
 
-  /// Whether [_follow] is waiting for its session: the view shows a run that
-  /// can be stopped, but has no session to stop yet.
+  /// Whether [_follow] is waiting for its session: the view offers Stop, but
+  /// has no session to stop yet.
   bool _settingUpFollow = false;
 
   /// Whether Stop was pressed while [_settingUpFollow], so the session is
@@ -818,30 +818,30 @@ class ThreadViewState {
   /// holds how [run] ended: a run stopped here goes on until the backend
   /// finishes it, and following it again would undo the stop.
   Future<void> _follow(RunInProgress run) async {
-    final heldOutcome = switch (_messages.value) {
-      MessagesLoaded(:final runOutcomes) => runOutcomes.containsKey(run.runId),
-      _ => false,
+    final skipReason = switch (_messages.value) {
+      _ when _sessionState.value != null => 'sessionHoldsThread',
+      MessagesLoaded(:final runOutcomes)
+          when runOutcomes.containsKey(run.runId) =>
+        'outcomeHeld',
+      _ => null,
     };
-    final skipReason = _sessionState.value != null
-        ? 'sessionHoldsThread'
-        : heldOutcome
-            ? 'outcomeHeld'
-            : null;
     if (skipReason != null) {
-      _logger.info(
-        'Not following a run still going on the backend',
-        attributes: {
-          'threadId': threadId,
-          'runId': run.runId,
-          'reason': skipReason,
-        },
-      );
+      _logSkippedFollow(run, skipReason);
       return;
     }
     _sessionState.value = AgentSessionState.spawning;
     _settingUpFollow = true;
     try {
       final session = await _followRun(run);
+      if (_isDisposed) {
+        // Nothing shows this follow, and the next view of the thread follows
+        // the run itself; registering this one too would make one of the two
+        // cancel the other. Disposed rather than cancelled, so the runtime
+        // takes no history from a run still going.
+        session.dispose();
+        _logSkippedFollow(run, 'viewClosed');
+        return;
+      }
       _logger.info(
         'Following a run still going on the backend',
         attributes: {'threadId': threadId, 'runId': run.runId},
@@ -849,7 +849,6 @@ class ThreadViewState {
       unawaited(session.result.then((result) => _logFollowEnded(run, result)));
       _registry.register(threadKey, session);
       if (_stopOnceFollowing) session.cancel();
-      if (_isDisposed) return;
       _attachSession(session);
     } on Object catch (error, stackTrace) {
       _logger.warning(
@@ -866,6 +865,13 @@ class ThreadViewState {
       _settingUpFollow = false;
       _stopOnceFollowing = false;
     }
+  }
+
+  void _logSkippedFollow(RunInProgress run, String reason) {
+    _logger.info(
+      'Not following a run still going on the backend',
+      attributes: {'threadId': threadId, 'runId': run.runId, 'reason': reason},
+    );
   }
 
   void _logFollowEnded(RunInProgress run, AgentResult result) {
