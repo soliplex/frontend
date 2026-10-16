@@ -11,9 +11,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Added
 
 - **Library consumers:** following a run still going on the backend.
-  `ThreadHistory.runInProgress` reports the thread's newest run when the
-  backend has not finished it, with the user message that started it, as a
-  `RunInProgress`. `AgentRuntime.follow` follows it in a new session that
+  `ThreadHistory.runInProgress` reports the thread's newest run, when the
+  backend has not finished it and a client can follow it, with the user
+  message that started it, as a `RunInProgress`. `AgentRuntime.follow` follows it in a new session that
   renders and ends as a run from `spawn` does, without creating a run, built
   on `AgentSession.follow`, `RunOrchestrator.followToCompletion` and
   `AgUiStreamClient.followRun`. `AgentLlmProvider` gains `followRun`; an
@@ -23,9 +23,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - A thread opened while a reply is still being written shows it and follows
   it to the end: after a page reload or an app restart, or on another device.
-  It used to show neither the reply nor the message that asked for it, and a
-  message sent before reopening the thread left that turn out of what the
-  model was sent. The reply can be stopped as one sent from the thread can. If
+  It used to show neither the reply nor the message that asked for it, and the
+  next message sent left that turn out of what the model was sent. The reply can be stopped as one sent from the thread can. If
   the backend lost the run (it restarted mid-run), the reply stops being
   followed after 10 minutes with no new output, and shows as cut off.
 
