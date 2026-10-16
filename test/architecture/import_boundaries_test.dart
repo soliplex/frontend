@@ -83,22 +83,7 @@ final _layers = <String, int>{
 
 /// Today's violations, tracked by #607. Each migration step of ADR-005
 /// removes entries; nothing may be added.
-const _baseline = {
-  // core -> modules/auth. Step 4: core defines the inactivity interface and
-  // auth overrides it.
-  'lib/src/core/inactivity/inactivity_monitor.dart -> '
-      'lib/src/modules/auth/auth_tokens.dart',
-  'lib/src/core/inactivity/inactivity_monitor.dart -> '
-      'lib/src/modules/auth/inactivity_logout_storage.dart',
-  'lib/src/core/inactivity/inactivity_monitor.dart -> '
-      'lib/src/modules/auth/server_entry.dart',
-  'lib/src/core/inactivity/inactivity_provider.dart -> '
-      'lib/src/modules/auth/auth_providers.dart',
-  'lib/src/core/inactivity/inactivity_provider.dart -> '
-      'lib/src/modules/auth/inactivity_logout_storage.dart',
-  'lib/src/core/inactivity/inactivity_provider.dart -> '
-      'lib/src/modules/auth/server_manager.dart',
-};
+const _baseline = <String>{};
 
 typedef _Edge = ({String from, String to});
 

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../core/app_module.dart';
+import '../../core/inactivity/inactivity_provider.dart';
 import '../../core/routes.dart';
 import '../../core/util/signal_listenable.dart';
 import '../../interfaces/auth_state.dart';
@@ -11,6 +12,7 @@ import 'consent_notice.dart';
 import 'inactivity_logout_storage.dart';
 import 'platform/auth_flow.dart';
 import 'platform/callback_params.dart';
+import 'server_inactivity_sessions.dart';
 import 'server_manager.dart';
 import 'ui/auth_callback_screen.dart';
 import 'ui/home_screen.dart';
@@ -31,6 +33,10 @@ class AuthAppModule extends AppModule {
         _authFlow = authFlow,
         _appName = appName,
         _inactivityLogoutFlags = inactivityLogoutFlags,
+        _inactivitySessions = ServerInactivitySessions(
+          servers: serverManager.servers,
+          inactivityLogoutFlags: inactivityLogoutFlags,
+        ),
         _callbackParams = callbackParams,
         _consentNotice = consentNotice,
         _logo = logo,
@@ -42,6 +48,7 @@ class AuthAppModule extends AppModule {
   final AuthFlow _authFlow;
   final String _appName;
   final InactivityLogoutFlagStorage _inactivityLogoutFlags;
+  final ServerInactivitySessions _inactivitySessions;
   final CallbackParams? _callbackParams;
   final ConsentNotice? _consentNotice;
   final Widget? _logo;
@@ -64,6 +71,7 @@ class AuthAppModule extends AppModule {
           probeClientProvider.overrideWithValue(_probeClient),
           inactivityLogoutFlagsProvider
               .overrideWithValue(_inactivityLogoutFlags),
+          inactivitySessionsProvider.overrideWithValue(_inactivitySessions),
           if (_callbackParams != null)
             callbackParamsProvider.overrideWithValue(_callbackParams),
           if (_consentNotice != null)
