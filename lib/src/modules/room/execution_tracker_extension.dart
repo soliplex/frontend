@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import 'execution_step.dart';
 import 'execution_tracker.dart';
 import 'tracker_registry.dart';
 
@@ -89,12 +88,10 @@ class ExecutionTrackerExtension extends SessionExtension
         registry.onStreaming(streaming, runId);
         _sync(registry);
       case CompletedState():
-        registry.onRunTerminated(StepStatus.completed);
+        registry.onRunEnded(completed: true);
         _sync(registry);
-      // A step still running when the user stops the run, or when the run
-      // fails, did not finish. Reporting it green would say the work landed.
       case FailedState() || CancelledState():
-        registry.onRunTerminated(StepStatus.failed);
+        registry.onRunEnded(completed: false);
         _sync(registry);
       case IdleState() || ToolYieldingState():
         break;

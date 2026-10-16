@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../../helpers/replayed_band.dart';
 import '../../../../helpers/test_logger.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
@@ -109,7 +110,7 @@ void main() {
       // the dangling id rather than throw on the missing lookup: an id and
       // its record arrive by two independent routes, so either can be
       // present without the other.
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       ));
@@ -136,7 +137,7 @@ void main() {
   );
 
   testWidgets('header counts step + nested activities', (tester) async {
-    tracker.observe(const ClientToolExecuting(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'execute_skill',
       toolCallId: 'tc-1',
     ));
@@ -169,7 +170,7 @@ void main() {
   });
 
   testWidgets('tap expands to show step and nested activity', (tester) async {
-    tracker.observe(const ClientToolExecuting(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'execute_skill',
       toolCallId: 'tc-1',
     ));
@@ -200,7 +201,7 @@ void main() {
       'tool_name': 'execute_script',
       'args': '{"script":"print(42)"}',
     };
-    tracker.observe(const ClientToolExecuting(
+    tracker.observe(const ServerToolCallStarted(
       toolName: 'execute_skill',
       toolCallId: 'tc-1',
     ));
@@ -504,7 +505,7 @@ void main() {
 
     testWidgets('source expansion persists across parent-key swap',
         (tester) async {
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       ));
@@ -610,7 +611,7 @@ void main() {
 
     testWidgets('source toggle in loading phase uses local state only',
         (tester) async {
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       ));
@@ -964,9 +965,8 @@ void main() {
   group('step duration', () {
     testWidgets('renders the offset derived from the stored event times',
         (tester) async {
-      final historical = ExecutionTracker.historical(
+      final historical = replayedBand(
         unfinishedAs: StepStatus.failed,
-        origin: 1000,
         events: const [
           (event: ThinkingStarted(), timestamp: 1000),
           (
@@ -976,7 +976,6 @@ void main() {
           ),
           (event: RunCompleted(), timestamp: 5000),
         ],
-        activities: const [],
         logger: testLogger(),
       );
       addTearDown(historical.dispose);
@@ -994,14 +993,12 @@ void main() {
         (tester) async {
       // Stored events that carry no emission time give nothing to offset
       // from; the row must say nothing rather than claim 0.0s.
-      final historical = ExecutionTracker.historical(
+      final historical = replayedBand(
         unfinishedAs: StepStatus.failed,
-        origin: null,
         events: const [
           (event: ThinkingStarted(), timestamp: null),
           (event: RunCompleted(), timestamp: null),
         ],
-        activities: const [],
         logger: testLogger(),
       );
       addTearDown(historical.dispose);

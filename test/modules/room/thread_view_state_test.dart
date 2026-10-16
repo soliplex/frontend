@@ -19,6 +19,7 @@ import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_view_state.dart';
 
 import '../../helpers/fakes.dart';
+import '../../helpers/live_session.dart';
 import '../../helpers/test_server_entry.dart';
 
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
@@ -44,19 +45,28 @@ Map<String, dynamic> _legacyRagState() => {
 class _PendingHistoryApi extends FakeSoliplexApi {
   Completer<ThreadHistory>? _pending;
   CancelToken? capturedToken;
+  ReplayObserver? _observer;
 
   @override
   Future<ThreadHistory> getThreadHistory(
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
+    ReplayObserver? observer,
   }) {
     capturedToken = cancelToken;
+    _observer = observer;
     _pending ??= Completer<ThreadHistory>();
     return _pending!.future;
   }
 
-  void completeWith(ThreadHistory history) {
+  /// Answers the request with [history], having first replayed [stored] to
+  /// the request's observer as the real client replays the runs it reads.
+  Future<void> completeWith(
+    ThreadHistory history, {
+    List<StoredRun> stored = const [],
+  }) async {
+    if (stored.isNotEmpty) await storedHistory(stored, observer: _observer);
     _pending?.complete(history);
   }
 }
@@ -190,14 +200,16 @@ List<({String runId, String result})> Function() _endedFollows() {
 }
 
 void main() {
-  late FakeSoliplexApi api;
+  setUpAll(registerLiveSessionFallbacks);
+
+  late StoredHistoryApi api;
   late ServerConnection connection;
   late AuthSession auth;
   late RunRegistry registry;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    api = FakeSoliplexApi();
+    api = StoredHistoryApi();
     connection = _fakeConnection(api);
     auth = AuthSession(refreshService: FakeTokenRefreshService());
     registry = RunRegistry(servers: emptyServers());
@@ -637,13 +649,8 @@ void main() {
         ),
       },
       runs: [
-        RunEventBundle(
-            runId: 'run-waits', events: const [], continuesTurn: false),
-        RunEventBundle(
-          runId: 'run-continues',
-          events: const [],
-          continuesTurn: true,
-        ),
+        const RunEventBundle(runId: 'run-waits', continuesTurn: false),
+        const RunEventBundle(runId: 'run-continues', continuesTurn: true),
       ],
     );
 
@@ -714,6 +721,9 @@ void main() {
     late List<ChatMessage> beforeTool;
     late ThreadHistory history;
 
+    /// The run that waited as the backend stored it, which replay reads.
+    late List<StoredRun> stored;
+
     /// Leaves the run that waited waiting on its tool, having said [said]
     /// before the call when [speaksFirst].
     Future<void> waitOnTool({bool speaksFirst = false}) async {
@@ -776,27 +786,31 @@ void main() {
               thinkingText: '',
             ),
         },
-        runs: [
-          RunEventBundle(
-            runId: 'run-waits',
-            continuesTurn: false,
-            events: [
-              RunStartedEvent(threadId: 'thread-1', runId: 'run-waits'),
-              if (speaksFirst) ...[
-                TextMessageStartEvent(messageId: said.id),
-                TextMessageContentEvent(messageId: said.id, delta: said.text),
-                TextMessageEndEvent(messageId: said.id),
-              ],
-              const ToolCallStartEvent(
-                toolCallId: 'c1',
-                toolCallName: 'search',
-              ),
-              const ToolCallEndEvent(toolCallId: 'c1'),
-              const RunFinishedEvent(threadId: 'thread-1', runId: 'run-waits'),
-            ],
-          ),
+        runs: const [
+          RunEventBundle(runId: 'run-waits', continuesTurn: false),
         ],
       );
+      stored = [
+        (
+          runId: 'run-waits',
+          userMessageId: user.id,
+          prompt: user.text,
+          events: [
+            RunStartedEvent(threadId: 'thread-1', runId: 'run-waits'),
+            if (speaksFirst) ...[
+              TextMessageStartEvent(messageId: said.id),
+              TextMessageContentEvent(messageId: said.id, delta: said.text),
+              TextMessageEndEvent(messageId: said.id),
+            ],
+            const ToolCallStartEvent(
+              toolCallId: 'c1',
+              toolCallName: 'search',
+            ),
+            const ToolCallEndEvent(toolCallId: 'c1'),
+            const RunFinishedEvent(threadId: 'thread-1', runId: 'run-waits'),
+          ],
+        ),
+      ];
     }
 
     void openView() {
@@ -814,7 +828,7 @@ void main() {
     }
 
     Future<void> historyLands() async {
-      historyApi.completeWith(history);
+      await historyApi.completeWith(history, stored: stored);
       await Future<void>.delayed(Duration.zero);
     }
 
@@ -1495,27 +1509,23 @@ void main() {
       );
 
       // Seed history so _fetch installs a historical tracker for 'asst-1'.
-      api.nextThreadHistory = ThreadHistory(
-        messages: [
-          TextMessage(
-            id: 'asst-1',
-            user: ChatUser.assistant,
-            createdAt: DateTime(2026, 3, 1),
-            text: 'historical',
-          ),
-        ],
-        runs: [
-          RunEventBundle(
-            continuesTurn: false,
-            runId: 'run-prior',
-            events: const [
-              TextMessageStartEvent(messageId: 'asst-1'),
-              TextMessageContentEvent(messageId: 'asst-1', delta: 'historical'),
-              TextMessageEndEvent(messageId: 'asst-1'),
-            ],
-          ),
-        ],
-      );
+      api.stored = [
+        (
+          runId: 'run-prior',
+          userMessageId: 'user-prior',
+          prompt: 'Q',
+          events: [
+            RunStartedEvent(threadId: 'thread-1', runId: 'run-prior'),
+            const TextMessageStartEvent(messageId: 'asst-1'),
+            const TextMessageContentEvent(
+              messageId: 'asst-1',
+              delta: 'historical',
+            ),
+            const TextMessageEndEvent(messageId: 'asst-1'),
+            RunFinishedEvent(threadId: 'thread-1', runId: 'run-prior'),
+          ],
+        ),
+      ];
 
       final state = ThreadViewState(
         connection: connection,
@@ -1530,7 +1540,7 @@ void main() {
 
       final historicalTracker = state.executionTrackers['asst-1'];
       expect(historicalTracker, isNotNull,
-          reason: 'replayToTrackers must seed a tracker for asst-1');
+          reason: 'the replay must seed a band for asst-1');
 
       // Attach a session whose extension will produce a live tracker under
       // the same message id.
@@ -3019,54 +3029,34 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      api.nextThreadHistory = ThreadHistory(
-        messages: const [
-          TextMessage(
-            id: 'u0',
-            user: ChatUser.user,
-            createdAt: null,
-            text: 'ask',
-            runId: 'run-0',
-          ),
-          TextMessage(
-            id: 'm1',
-            user: ChatUser.assistant,
-            createdAt: null,
-            text: 'Found it.',
-            runId: 'run-0',
-          ),
-        ],
-        runOutcomes: {
-          'run-0': NoResponseTile.finished(runId: 'run-0', thinkingText: ''),
-        },
-        runs: [
-          RunEventBundle(
-            continuesTurn: false,
-            runId: 'run-0',
-            events: [
-              RunStartedEvent(threadId: 'thread-1', runId: 'run-0'),
-              const TextMessageStartEvent(messageId: 'm1'),
-              const TextMessageContentEvent(
-                messageId: 'm1',
-                delta: 'Found it.',
-              ),
-              const TextMessageEndEvent(messageId: 'm1'),
-              const ToolCallStartEvent(
-                toolCallId: 'c1',
-                toolCallName: 'search',
-                parentMessageId: 'm1',
-              ),
-              const ToolCallEndEvent(toolCallId: 'c1'),
-              const ToolCallResultEvent(
-                messageId: 'tr-c1',
-                toolCallId: 'c1',
-                content: 'ok',
-              ),
-              RunFinishedEvent(threadId: 'thread-1', runId: 'run-0'),
-            ],
-          ),
-        ],
-      );
+      api.stored = [
+        (
+          runId: 'run-0',
+          userMessageId: 'u0',
+          prompt: 'ask',
+          events: [
+            RunStartedEvent(threadId: 'thread-1', runId: 'run-0'),
+            const TextMessageStartEvent(messageId: 'm1'),
+            const TextMessageContentEvent(
+              messageId: 'm1',
+              delta: 'Found it.',
+            ),
+            const TextMessageEndEvent(messageId: 'm1'),
+            const ToolCallStartEvent(
+              toolCallId: 'c1',
+              toolCallName: 'search',
+              parentMessageId: 'm1',
+            ),
+            const ToolCallEndEvent(toolCallId: 'c1'),
+            const ToolCallResultEvent(
+              messageId: 'tr-c1',
+              toolCallId: 'c1',
+              content: 'ok',
+            ),
+            RunFinishedEvent(threadId: 'thread-1', runId: 'run-0'),
+          ],
+        ),
+      ];
       await state.refresh();
 
       final loaded = state.messages.value as MessagesLoaded;

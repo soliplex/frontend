@@ -41,11 +41,11 @@ flowchart LR
   stored["Reload: stored run events"] --> dec
   dec --> fold["RunFold<br/>one reducer per run"]
   fold --> conv["Conversation<br/>messages, runOutcomes, citations"]
-  ev["Session ExecutionEvents"] --> trk["TrackerRegistry<br/>live bands"]
-  hist["ThreadHistory"] --> rep["replayToTrackers<br/>reload bands"]
+  ev["Live: session states + ExecutionEvents"] --> trk["TrackerRegistry<br/>bands"]
+  fold --> rep["Reload: ReplayedBands<br/>replay's fold, step by step"]
+  rep --> trk
   conv --> tvs["ThreadViewState<br/>MessagesLoaded"]
   trk --> tvs
-  rep --> tvs
   tvs --> lay["layOutTimeline<br/>pure, total"]
   lay --> tiles["tiles + dropped bands"]
 ```
@@ -69,8 +69,17 @@ flowchart LR
    - Before any message speaks for it, it is keyed by
      `noResponseMessageId(runId)`, the same id as the run's parked outcome.
    - Once a reply speaks, the band is handed to it (#578).
-   - Live bands route only through `TrackerRegistry`. Reload bands come from
-     `replayToTrackers`. Both use the same `ResponseSegmenter`.
+   - Bands are built only by `TrackerRegistry`, on both paths. Live, the
+     session feeds it each run state and then the event bridged from it.
+     On reload, `ReplayedBands` (`lib/src/modules/room/replayed_bands.dart`)
+     watches history replay's fold through a `ReplayObserver` and feeds a
+     registry per turn the same, in the same order.
+   - What a band is fed is the same. A live band times its steps by a
+     running clock, a reloaded one by the stored events' times. Replay holds
+     a run's terminal event until it knows whether the run waited on a client
+     tool, which live knows at once.
+   - A client tool's call has one step, from the model's `TOOL_CALL_START`.
+     Running the tool adds none; its card shows how it went.
 4. **Where things render is decided once, by a pure function.**
    `layOutTimeline` (`lib/src/modules/room/lay_out_timeline.dart`) takes the
    committed messages, the bands, the parked outcomes and the active run's
@@ -177,7 +186,7 @@ These follow from §2. They are what a reviewer should check.
 | ---- | --------- |
 | The layout invariant, over the full case matrix | `test/modules/room/lay_out_timeline_matrix_test.dart` ("no band renders nowhere", "every band renders on a tile of its own run", "no tile renders two bands", "every run that ended reaches a tile") |
 | Drop over misplace | `test/modules/room/lay_out_timeline_test.dart` |
-| Live and reload agree on messages, states and outcomes | `test/modules/room/replay_parity_test.dart` |
+| Live and reload agree on messages, states, outcomes and bands | `test/modules/room/replay_parity_test.dart` |
 | Live and reload produce the same layout, after every event | `test/modules/room/live_reload_parity_test.dart` |
 | History taken only once the turn's last run was read | `test/modules/room/thread_return_test.dart`, `thread_view_state_test.dart` |
 | A followed run ends as the live run of the same events | `packages/soliplex_agent/test/orchestration/follow_run_test.dart` |
@@ -194,13 +203,12 @@ From #619's "Not in this PR" and #566's known issues:
 
    Client-tool support is best effort and not used in production.
 2. **Remaining display gaps.**
-   - A client tool's step shows twice in the live band.
    - A row created before any timed event is undated live but dated on
      reload.
 3. **Unhosted combinations.** A system-role reply cannot host a band. The
    `GenUiMessage` combination is "unsupported rather than intended".
-   Changing either touches `layOutTimeline`, `TrackerRegistry`, replay and the
-   tile together.
+   Changing either touches `layOutTimeline`, `TrackerRegistry` and the tile
+   together.
 4. **Backend assumptions.**
    - Drop-tile ids match across paths only because the backend stores one
      event per streamed event. That assumption is unpinned.
@@ -236,6 +244,7 @@ What was tried, and why it was replaced:
 | Per-tile `try/catch` around rendering | Drop tiles at the data layer (`0fabfb60`, #223) | It caught nothing that `build()` throws and "gave false confidence" |
 | Separate fold logic for live and replay, and replay inside `SoliplexApi` | `RunFold` on both paths (#619) | The copies drifted |
 | Bands subscribing themselves | Routing only through `TrackerRegistry` (`79febc27`) | Production never used the self-subscription; tests did |
+| Reload bands bucketed by `replayToTrackers` against the replayed messages | Reload feeding a `TrackerRegistry`, the one live uses, from replay's fold | A second copy of the speaking rule, the band endings and the activities, which drifted from live |
 | A run-keyed band held until the response ended | Handing the band to the reply as soon as it speaks (#578) | The band sat on the loading tile |
 | Restore from the registry and skip the fetch | Restore, then always fetch, history authoritative per run (#578) | The fetch was skipped for turns the backend had not stored yet |
 | A red `ErrorMessage` under a surviving reply | The outcome beside the reply (`eb839986`) | It looked like a fresh error on every reload |

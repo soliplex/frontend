@@ -8,12 +8,8 @@ import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
+import '../../helpers/replayed_band.dart';
 import '../../helpers/test_logger.dart';
-
-/// Pairs bridged events with no source time — the shape a stored thread has
-/// when the backend that produced it did not stamp its events.
-List<TimedExecutionEvent> _untimed(List<ExecutionEvent> events) =>
-    [for (final event in events) (event: event, timestamp: null)];
 
 void main() {
   late Signal<List<ActivityRecord>> activities;
@@ -129,29 +125,30 @@ void main() {
     expect(tracker.steps.value.first.status, StepStatus.completed);
   });
 
-  test('ClientToolExecuting adds a step', () {
+  test('running a client tool adds no step beside its call', () {
+    // In the order a live session emits them: the model's call, the session
+    // starting the tool, the waiting run's RUN_FINISHED, the tool's result.
+    // Running the tool is not stored, so a band showing it would differ from
+    // the same band after a reload; the tool's card shows how it went.
+    tracker.observe(const ServerToolCallStarted(
+      toolName: 'calculator',
+      toolCallId: 'tc-2',
+    ));
     tracker.observe(const ClientToolExecuting(
       toolName: 'calculator',
       toolCallId: 'tc-2',
     ));
-
-    expect(tracker.steps.value.length, 1);
-    expect(tracker.steps.value.first.label, 'calculator');
-    expect(tracker.steps.value.first.status, StepStatus.active);
-  });
-
-  test('ClientToolCompleted marks step completed', () {
-    tracker.observe(const ClientToolExecuting(
-      toolName: 'calculator',
-      toolCallId: 'tc-2',
-    ));
+    tracker.observe(const RunCompleted());
     tracker.observe(const ClientToolCompleted(
       toolCallId: 'tc-2',
-      result: '42',
-      status: ToolCallStatus.completed,
+      result: 'divide by zero',
+      status: ToolCallStatus.failed,
     ));
 
-    expect(tracker.steps.value.first.status, StepStatus.completed);
+    final step = tracker.timeline.value.single as TimelineStep;
+    expect(step.toolCallId, 'tc-2');
+    expect(step.step.status, StepStatus.completed);
+    expect(step.result, isNull);
   });
 
   test('RunCompleted marks all steps completed', () {
@@ -234,18 +231,6 @@ void main() {
     List<TimelineStep> steps() =>
         tracker.timeline.value.whereType<TimelineStep>().toList();
 
-    test('thinking and client-tool steps carry no toolCallId', () {
-      // Only a server tool call has args and a result to show, so only its
-      // step is expandable. A null id is what makes the chevron absent.
-      tracker.observe(const ThinkingStarted());
-      tracker.observe(const ClientToolExecuting(
-        toolName: 'local_tool',
-        toolCallId: 'tc-client',
-      ));
-
-      expect(steps().map((s) => s.toolCallId), [null, null]);
-    });
-
     test('args deltas concatenate onto the step in arrival order', () {
       tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
@@ -319,9 +304,10 @@ void main() {
     });
 
     test('a call id reused by a later run resolves to the later step', () {
-      // The reload path buckets several runs' events into one tracker, so the
-      // same id can open two steps. Detail must land on the one that opened
-      // most recently, or the later run's args overwrite the earlier run's row.
+      // A turn resumed after a client tool collects several runs into one
+      // band, live and on reload, so the same id can open two steps. Detail
+      // must land on the one that opened most recently, or the later run's
+      // args overwrite the earlier run's row.
       tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
@@ -412,9 +398,9 @@ void main() {
     });
 
     test('a later run does not re-report an earlier run\'s gap', () {
-      // A replay bucket holds several runs, and the scan covers the whole
-      // timeline, so without per-id dedup run 1's gap is reported again at
-      // every later run's completion.
+      // A band spans every run of a turn resumed after a client tool, and the
+      // scan covers the whole timeline, so without per-id dedup run 1's gap is
+      // reported again at every later run's completion.
       subject.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
@@ -588,7 +574,7 @@ void main() {
     });
 
     test('activity during active step nests under it', () {
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       ));
@@ -658,7 +644,7 @@ void main() {
       // Both placements are asserted because that gate sat upstream of the
       // choice between them, and every other test in this group uses a type
       // the old gate admitted.
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'plan_step',
         toolCallId: 'tc-1',
       ));
@@ -668,10 +654,9 @@ void main() {
         content: {'steps': 3},
         timestamp: 100,
       ));
-      tracker.observe(const ClientToolCompleted(
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
-        status: ToolCallStatus.completed,
       ));
       tracker.observe(const ActivitySnapshot(
         messageId: 'audit:1',
@@ -691,14 +676,13 @@ void main() {
     test(
         'activity after a completed step with no new active step is standalone',
         () {
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       ));
-      tracker.observe(const ClientToolCompleted(
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
-        status: ToolCallStatus.completed,
       ));
       tracker.observe(const ActivitySnapshot(
         messageId: 'bwrap:call_1',
@@ -712,7 +696,7 @@ void main() {
     });
 
     test('multiple steps each get their own activities', () {
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       ));
@@ -722,12 +706,11 @@ void main() {
         content: {'tool_name': 'execute_script', 'args': '{}'},
         timestamp: 100,
       ));
-      tracker.observe(const ClientToolCompleted(
+      tracker.observe(const ServerToolCallCompleted(
         toolCallId: 'tc-1',
         result: 'ok',
-        status: ToolCallStatus.completed,
       ));
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-2',
       ));
@@ -754,7 +737,7 @@ void main() {
     });
 
     test('replace updates nested activity in place', () {
-      tracker.observe(const ClientToolExecuting(
+      tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       ));
@@ -807,128 +790,14 @@ void main() {
       expect(step.activityIds, ['bwrap:call_1']);
       expect(tracker.activities.value.single.content['status'], 'done');
     });
-
-    test('step completion updates status in timeline entry', () {
-      tracker.observe(const ClientToolExecuting(
-        toolName: 'execute_skill',
-        toolCallId: 'tc-1',
-      ));
-      tracker.observe(const ClientToolCompleted(
-        toolCallId: 'tc-1',
-        result: 'ok',
-        status: ToolCallStatus.completed,
-      ));
-
-      final step = tracker.timeline.value.single as TimelineStep;
-      expect(step.step.status, StepStatus.completed);
-    });
   });
 
-  group('ExecutionTracker.historical', () {
-    test('returns frozen tracker', () {
-      final tracker = ExecutionTracker.historical(
-        unfinishedAs: StepStatus.failed,
-        origin: null,
-        events: const [],
-        activities: const [],
-        logger: testLogger(),
-      );
-      expect(tracker.isFrozen, isTrue);
-      tracker.dispose();
-    });
-
-    test('seeds steps from events', () {
-      final tracker = ExecutionTracker.historical(
-        unfinishedAs: StepStatus.failed,
-        origin: null,
-        events: _untimed(const [
-          ThinkingStarted(),
-          ThinkingContent(delta: 'hello'),
-          ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
-          ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
-          RunCompleted(),
-        ]),
-        activities: const [],
-        logger: testLogger(),
-      );
-
-      expect(tracker.steps.value.map((s) => s.label), ['Thinking', 'search']);
-      expect(tracker.steps.value.every((s) => s.status.isTerminal), isTrue);
-      expect(tracker.thinkingBlocks.value, ['hello']);
-      tracker.dispose();
-    });
-
-    test('seeds activities under active step when present', () {
-      final tracker = ExecutionTracker.historical(
-        unfinishedAs: StepStatus.failed,
-        origin: null,
-        events: _untimed(const [
-          ClientToolExecuting(toolName: 'execute_skill', toolCallId: 'tc-1'),
-          ActivitySnapshot(
-            messageId: 'bwrap:call_1',
-            activityType: 'skill_tool_call',
-            content: {'tool_name': 'execute_script', 'args': '{}'},
-            timestamp: 100,
-          ),
-        ]),
-        activities: const [
-          ActivityRecord(
-            messageId: 'bwrap:call_1',
-            activityType: 'skill_tool_call',
-            content: {'tool_name': 'execute_script', 'args': '{}'},
-            timestamp: 100,
-          ),
-        ],
-        logger: testLogger(),
-      );
-
-      final step = tracker.timeline.value.single as TimelineStep;
-      expect(step.activityIds, ['bwrap:call_1']);
-      expect(
-        tracker.activities.value.single.content['tool_name'],
-        'execute_script',
-      );
-      tracker.dispose();
-    });
-
-    test('empty events list yields empty timeline', () {
-      final tracker = ExecutionTracker.historical(
-        unfinishedAs: StepStatus.failed,
-        origin: null,
-        events: const [],
-        activities: const [],
-        logger: testLogger(),
-      );
-      expect(tracker.steps.value, isEmpty);
-      expect(tracker.timeline.value, isEmpty);
-      tracker.dispose();
-    });
-
-    test(
-        'events ending mid-thinking are finalized: no spinner, no '
-        'active step', () {
-      final tracker = ExecutionTracker.historical(
-        unfinishedAs: StepStatus.failed,
-        origin: null,
-        events: _untimed(const [
-          ThinkingStarted(),
-          ThinkingContent(delta: 'reasoning'),
-        ]),
-        activities: const [],
-        logger: testLogger(),
-      );
-
-      expect(tracker.isThinkingStreaming.value, isFalse);
-      expect(tracker.steps.value.every((s) => s.status.isTerminal), isTrue);
-      tracker.dispose();
-    });
-
+  group('a replayed band', () {
     test('offsets steps from the stored events own emission times', () {
       // A clock started at replay times the loop, not the run it replays, so
       // the offsets have to come from the times the events were emitted with.
-      final tracker = ExecutionTracker.historical(
+      final band = replayedBand(
         unfinishedAs: StepStatus.failed,
-        origin: 1000,
         events: const [
           (event: ThinkingStarted(), timestamp: 1000),
           (
@@ -942,15 +811,13 @@ void main() {
           ),
           (event: RunCompleted(), timestamp: 6400),
         ],
-        activities: const [],
-        logger: testLogger(),
       );
+      addTearDown(band.dispose);
 
       expect(
-        tracker.steps.value.map((s) => s.timestamp),
+        band.steps.value.map((s) => s.timestamp),
         const [Duration(milliseconds: 2100), Duration(milliseconds: 5400)],
       );
-      tracker.dispose();
     });
 
     test('a settling event with no time leaves that step with no offset', () {
@@ -958,9 +825,8 @@ void main() {
       // that result settles the step before any later event can. Carrying the
       // previous offset forward would settle it at the instant it opened,
       // printing the figure the row started with as the one it ended on.
-      final tracker = ExecutionTracker.historical(
+      final band = replayedBand(
         unfinishedAs: StepStatus.failed,
-        origin: 1000,
         events: const [
           (
             event:
@@ -972,17 +838,15 @@ void main() {
             timestamp: null,
           ),
         ],
-        activities: const [],
-        logger: testLogger(),
       );
+      addTearDown(band.dispose);
 
-      expect(tracker.steps.value.single.status, StepStatus.completed);
-      expect(tracker.steps.value.single.timestamp, isNull);
-      tracker.dispose();
+      expect(band.steps.value.single.status, StepStatus.completed);
+      expect(band.steps.value.single.timestamp, isNull);
     });
 
     test(
-        'a step still open when an unstamped event ends the bucket has no '
+        'a step still open when an unstamped event ends the band has no '
         'offset', () {
       // A run interrupted mid-call emits its tool result unstamped, and that
       // result can be the last thing stored for the reply. `freeze` then
@@ -990,68 +854,91 @@ void main() {
       // event ever accounted for it — at an instant nothing recorded, so the
       // figure has to go. `_completeAllSteps` folds the step list and the
       // timeline separately, and the row reads the timeline.
-      final tracker = ExecutionTracker.historical(
+      final band = replayedBand(
         unfinishedAs: StepStatus.failed,
-        origin: 1000,
         events: const [
+          (event: null, timestamp: 1000),
           (event: ThinkingStarted(), timestamp: 2500),
           (
             event: ServerToolCallCompleted(toolCallId: 'tc-other', result: 'x'),
             timestamp: null,
           ),
         ],
-        activities: const [],
-        logger: testLogger(),
       );
+      addTearDown(band.dispose);
 
-      expect(tracker.steps.value.single.status, StepStatus.failed);
-      expect(tracker.steps.value.single.timestamp, isNull);
-      final entry = tracker.timeline.value.single as TimelineStep;
+      expect(band.steps.value.single.status, StepStatus.failed);
+      expect(band.steps.value.single.timestamp, isNull);
+      final entry = band.timeline.value.single as TimelineStep;
       expect(entry.step.timestamp, isNull);
-      tracker.dispose();
     });
 
-    test('anchors offsets on the origin the caller supplies', () {
-      // The events that open a bucket — RUN_STARTED, and a later reply's
-      // TEXT_MESSAGE_START — bridge to nothing, so the caller reads the anchor
-      // from the raw events. Without it the clock would start at the first
-      // thinking event and drop the wait before it from every figure.
-      final tracker = ExecutionTracker.historical(
+    test(
+        'counts from the first timed event fed since it opened, though it '
+        'bridged to nothing', () {
+      // The events that open a stretch of the run — RUN_STARTED, and a later
+      // reply's first text — bridge to no step. Counting from the first step
+      // would drop the wait before it from every figure.
+      final band = replayedBand(
         unfinishedAs: StepStatus.failed,
-        origin: 1000,
         events: const [
+          (event: null, timestamp: null),
+          (event: null, timestamp: 1000),
           (event: ThinkingStarted(), timestamp: 4000),
           (event: RunCompleted(), timestamp: 6000),
         ],
-        activities: const [],
-        logger: testLogger(),
       );
+      addTearDown(band.dispose);
 
       expect(
-        tracker.steps.value.single.timestamp,
+        band.steps.value.single.timestamp,
         const Duration(milliseconds: 5000),
       );
-      tracker.dispose();
     });
 
     test('leaves offsets unknown when the stored events carry no time', () {
-      final tracker = ExecutionTracker.historical(
+      final band = replayedBand(
         unfinishedAs: StepStatus.failed,
-        origin: null,
-        events: _untimed(const [
+        events: untimed(const [
           ThinkingStarted(),
           ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
           RunCompleted(),
         ]),
-        activities: const [],
-        logger: testLogger(),
       );
+      addTearDown(band.dispose);
 
       expect(
-        tracker.steps.value.map((s) => s.timestamp),
+        band.steps.value.map((s) => s.timestamp),
         [isNull, isNull],
       );
-      tracker.dispose();
+    });
+
+    test('does not repeat the per-call detail log live already wrote', () {
+      const loggerName = 'replayed-band-test';
+      final sink = _RecordingSink(loggerName);
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      const call = [
+        ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
+        ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
+      ];
+      final live = ExecutionTracker(
+        activities: activities,
+        logger: testLogger(loggerName),
+      );
+      addTearDown(live.dispose);
+      call.forEach(live.observe);
+      expect(sink.records, hasLength(1), reason: 'live writes it once');
+      sink.records.clear();
+
+      final band = replayedBand(
+        logger: testLogger(loggerName),
+        events: untimed(call),
+      );
+      addTearDown(band.dispose);
+
+      expect(sink.records, isEmpty);
     });
   });
 
@@ -1072,7 +959,7 @@ void main() {
       () {
     // Live, nothing else settles it: the state change that closes the band is
     // published before the terminal event that bridges to `RunFailed`, so the
-    // band is already unsubscribed when that event would arrive.
+    // registry has already closed the band when that event arrives.
     tracker.observe(const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'c1',
@@ -1084,11 +971,6 @@ void main() {
 
     expect(tracker.steps.value.single.status, StepStatus.failed);
   });
-}
-
-extension on StepStatus {
-  bool get isTerminal =>
-      this == StepStatus.completed || this == StepStatus.failed;
 }
 
 /// Captures records from one tracker's logger, ignoring the other traffic the

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
@@ -25,9 +25,8 @@ void main() {
   tearDown(() => registry.dispose());
 
   test('only an assistant message speaks for a response', () {
-    // Layout hosts a band only on an assistant reply, and history replay lets
-    // only an assistant message speak; a system message taking the band here
-    // would leave it on a tile that renders none.
+    // Layout hosts a band only on an assistant reply; a system message taking
+    // the band here would leave it on a tile that renders none.
     registry.onStreaming(const AwaitingText(), 'run-0');
     events.value = const ThinkingStarted();
     registry.onStreaming(
@@ -38,10 +37,34 @@ void main() {
       ),
       'run-0',
     );
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
 
     expect(registry.trackers.containsKey('sys-1'), isFalse);
     expect(registry.trackers.containsKey(noResponseMessageId('run-0')), isTrue);
+  });
+
+  test('a run that finishes with a call left unanswered says so', () {
+    // A finished run whose call never got its result lost detail in transit,
+    // and the row is the only other trace of it. The run's end freezes the
+    // band before the run's RUN_FINISHED is routed, so that event cannot be
+    // what reports it.
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    registry.onStreaming(const AwaitingText(), 'run-0');
+    events.value =
+        const ServerToolCallStarted(toolName: 'search', toolCallId: 'c1');
+    registry.onRunEnded(completed: true);
+    events.value = const RunCompleted();
+
+    expect(
+      sink.records.where(
+        (r) =>
+            r.level == LogLevel.warning &&
+            r.message.contains('whose result never arrived'),
+      ),
+      hasLength(1),
+    );
   });
 
   test('a system message opens its run\'s band without speaking for it', () {
@@ -56,7 +79,7 @@ void main() {
       'run-0',
     );
     events.value = const ThinkingStarted();
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
 
     expect(
       registry.trackers[noResponseMessageId('run-0')]!.timeline.value,
@@ -78,11 +101,11 @@ void main() {
     test('a terminated run does not hand its band to the next run', () {
       awaiting();
       events.value = const ThinkingStarted();
-      registry.onRunTerminated(StepStatus.completed);
+      registry.onRunEnded(completed: true);
 
       awaiting();
       speaking('m1');
-      registry.onRunTerminated(StepStatus.completed);
+      registry.onRunEnded(completed: true);
 
       expect(
         registry.trackers['m1']!.timeline.value,
@@ -103,7 +126,7 @@ void main() {
         result: 'ok',
       );
       speaking('m2');
-      registry.onRunTerminated(StepStatus.completed);
+      registry.onRunEnded(completed: true);
 
       expect(
         registry.trackers['m1']!.timeline.value,
@@ -120,7 +143,7 @@ void main() {
     test('a band still keeps the work done after it opened', () {
       awaiting();
       events.value = const ThinkingStarted();
-      registry.onRunTerminated(StepStatus.completed);
+      registry.onRunEnded(completed: true);
 
       awaiting();
       speaking('m1');
@@ -128,7 +151,7 @@ void main() {
         toolCallId: 'c-1',
         toolName: 'search',
       );
-      registry.onRunTerminated(StepStatus.completed);
+      registry.onRunEnded(completed: true);
 
       expect(registry.trackers['m1']!.timeline.value, hasLength(1));
     });
@@ -144,7 +167,7 @@ void main() {
         runId);
 
     speakIn('run-0', 'm1');
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
 
     // The next run never reaches an awaiting phase, so this is where it reads
     // its key from. Its response then ends on a tool result, which is what
@@ -156,7 +179,7 @@ void main() {
       result: 'ok',
     );
     events.value = const ThinkingStarted();
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
 
     expect(registry.trackers['m2']!.timeline.value, hasLength(1));
     expect(
@@ -201,7 +224,7 @@ void main() {
     expect(registry.trackers['msg-1'], same(band));
     expect(band!.isFrozen, isFalse, reason: 'its response is still open');
 
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
 
     expect(registry.trackers.keys, equals(['msg-1']));
     expect(band.isFrozen, isTrue);
@@ -218,7 +241,7 @@ void main() {
 
     expect(registry.trackers, hasLength(1));
 
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
     expect(registry.trackers.containsKey('msg-1'), isTrue);
   });
 
@@ -279,13 +302,13 @@ void main() {
         ),
         'run-0');
 
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
 
     expect(registry.trackers['msg-1']!.isFrozen, isTrue);
   });
 
-  test('onRunTerminated is safe when idle', () {
-    registry.onRunTerminated(StepStatus.completed);
+  test('onRunEnded is safe when idle', () {
+    registry.onRunEnded(completed: true);
     expect(registry.trackers, isEmpty);
   });
 
@@ -298,7 +321,7 @@ void main() {
         ),
         'run-0');
 
-    registry.onRunTerminated(StepStatus.completed);
+    registry.onRunEnded(completed: true);
 
     registry.onStreaming(
         const TextStreaming(

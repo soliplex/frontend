@@ -3,19 +3,44 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'execution_step.dart';
 import 'ui/execution/timeline_entry.dart';
 
-/// A bridged execution event paired with the epoch-millisecond emission time
-/// of the AG-UI event it came from, or null when that event carried none.
-typedef TimedExecutionEvent = ({ExecutionEvent event, int? timestamp});
-
 class ExecutionTracker {
-  /// A band being collected live. Its events arrive through [observe].
+  /// A band being collected live, its steps timed by a clock started now.
+  /// Its events arrive through [observe].
   ExecutionTracker({
     required ReadonlySignal<List<ActivityRecord>> activities,
     required Logger logger,
+  }) : this._(
+          activities: activities,
+          elapsed: _startedNow(),
+          historical: false,
+          logger: logger,
+        );
+
+  /// A band rebuilt from a thread's stored events, as live collected it.
+  ///
+  /// [elapsed] reads how far into the band the stored event being fed is, or
+  /// null when that is unknown: a clock started here would time the replay,
+  /// not the run it replays.
+  ExecutionTracker.replayed({
+    required ReadonlySignal<List<ActivityRecord>> activities,
+    required Duration? Function() elapsed,
+    required Logger logger,
+  }) : this._(
+          activities: activities,
+          elapsed: elapsed,
+          historical: true,
+          logger: logger,
+        );
+
+  ExecutionTracker._({
+    required ReadonlySignal<List<ActivityRecord>> activities,
+    required Duration? Function() elapsed,
+    required bool historical,
+    required Logger logger,
   })  : _logger = logger,
+        _elapsed = elapsed,
         _activities = Signal<List<ActivityRecord>>(activities.value),
-        _historical = false {
-    _stopwatch.start();
+        _historical = historical {
     // Mirror the session-owned activities into our local signal so the
     // tracker stays self-contained when ThreadViewState absorbs it on
     // detach: freeze() drops the subscription, and the captured list
@@ -25,51 +50,9 @@ class ExecutionTracker {
     });
   }
 
-  /// Builds a frozen tracker seeded from a list of already-emitted
-  /// execution events — used on the reload path to reconstruct the
-  /// timeline for a completed run.
-  ///
-  /// The tracker opens no subscription; callers should not pass the
-  /// returned instance to any signal. It is immutable from construction
-  /// ([isFrozen] returns `true`). [activities] is the already-folded
-  /// activities list (see `applyActivityEvent`) — historical replay
-  /// folds the raw AG-UI events through the same function the live
-  /// processor uses, so snapshot + delta application produces the same
-  /// result as a live run with the same event stream.
-  ///
-  /// Step offsets are measured from [origin], the epoch-millisecond instant
-  /// this tracker's stretch of the run began: a clock started here would time
-  /// the replay loop, not the run it is replaying. Callers take [origin] from
-  /// the first stored event of the same bucket, including the ones that bridge
-  /// to nothing, so it lands on the start of that stretch rather than on the
-  /// first event that happens to carry an execution step. Null leaves every
-  /// offset unknown, which is a bucket whose stored events carry no time at
-  /// all — no stretch of it can be placed.
-  ///
-  /// An entry with no emission time leaves the offset unknown for as long as
-  /// it is the one being handled. Its step opens, or settles, with no figure:
-  /// a run interrupted mid-call emits its tool result unstamped, and carrying
-  /// the previous offset forward would settle that step at the instant it
-  /// opened.
-  ExecutionTracker.historical({
-    required List<TimedExecutionEvent> events,
-    required int? origin,
-    required List<ActivityRecord> activities,
-    required StepStatus unfinishedAs,
-    required Logger logger,
-  })  : _logger = logger,
-        _activities = Signal<List<ActivityRecord>>(activities),
-        _historical = true {
-    for (final (:event, :timestamp) in events) {
-      _replayOffset = (timestamp == null || origin == null)
-          ? null
-          : Duration(milliseconds: timestamp - origin);
-      _onEvent(event);
-    }
-    // Only the caller knows why this bucket ended. A run that moved on to
-    // another reply finished the stretch it is closing; a run whose events ran
-    // out left whatever was open unaccounted for.
-    freeze(unfinishedAs);
+  static Duration? Function() _startedNow() {
+    final stopwatch = Stopwatch()..start();
+    return () => stopwatch.elapsed;
   }
 
   final Logger _logger;
@@ -80,6 +63,9 @@ class ExecutionTracker {
   /// its row) are gated so they don't fire again on every thread reload.
   final bool _historical;
 
+  /// How far into this band the step changing now is, or null when unknown.
+  final Duration? Function() _elapsed;
+
   /// `<toolCallId>#<phase>` keys already reported as having no step, so one
   /// call's delta stream logs once rather than per delta.
   final Set<String> _loggedUnmatchedCalls = <String>{};
@@ -87,19 +73,7 @@ class ExecutionTracker {
   /// Tool call ids already reported as finishing a run without a result.
   final Set<String> _reportedMissingResults = <String>{};
 
-  final Stopwatch _stopwatch = Stopwatch();
-
-  /// Where the event being replayed sits relative to the tracker's anchor,
-  /// or null when that event carried no emission time. Rewritten for every
-  /// entry rather than retained, so an unstamped event yields no figure
-  /// instead of repeating the previous one. Unused on the live path, which
-  /// reads the running clock instead.
-  Duration? _replayOffset;
-
-  /// The offset to stamp on a step changing now: the running clock on the
-  /// live path, and on the replay path the offset of the event being handled
-  /// — or, once the loop has finished, of the last one.
-  Duration? get _now => _historical ? _replayOffset : _stopwatch.elapsed;
+  Duration? get _now => _elapsed();
 
   void Function()? _activitiesUnsub;
   bool _isFrozen = false;
@@ -153,7 +127,6 @@ class ExecutionTracker {
     _completeAllSteps(unfinishedAs);
     _activitiesUnsub?.call();
     _activitiesUnsub = null;
-    _stopwatch.stop();
     _isFrozen = true;
   }
 
@@ -222,12 +195,6 @@ class ExecutionTracker {
         _appendCallArgs(toolCallId, delta);
       case ServerToolCallCompleted(:final toolCallId, :final result):
         _completeCall(toolCallId, result);
-      case ClientToolExecuting(:final toolName):
-        _completeActiveStep();
-        _isThinkingStreaming.value = false;
-        _addStep(toolName, StepType.toolCall);
-      case ClientToolCompleted():
-        _completeActiveStep();
       case RunCompleted():
         _completeAllSteps(StepStatus.completed);
         _isThinkingStreaming.value = false;
@@ -240,7 +207,13 @@ class ExecutionTracker {
         _isThinkingStreaming.value = false;
       case ActivitySnapshot(:final messageId, :final content):
         _placeActivityInTimeline(messageId, content['tool_call_id']);
-      case TextDelta() ||
+      // A client tool's call already has its step, from the model's
+      // TOOL_CALL_START, and its card shows how running it went. Running it is
+      // not stored, so a step for it would leave this band differing from the
+      // same band after a reload.
+      case ClientToolExecuting() ||
+            ClientToolCompleted() ||
+            TextDelta() ||
             StateUpdated() ||
             AwaitingApproval() ||
             CustomExecutionEvent():
@@ -476,6 +449,5 @@ class ExecutionTracker {
   void dispose() {
     _activitiesUnsub?.call();
     _activitiesUnsub = null;
-    _stopwatch.stop();
   }
 }

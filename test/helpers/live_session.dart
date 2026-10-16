@@ -11,6 +11,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 
+import 'fakes.dart' show FakeSoliplexApi;
 import 'test_logger.dart';
 
 /// Real sessions over scripted AG-UI streams, and real history replayed from
@@ -46,12 +47,18 @@ typedef LiveSession = ({
   AgentSession session,
   RunOrchestrator orchestrator,
   ExecutionTrackerExtension trackers,
-  StreamController<BaseEvent> events,
+  StreamController<Map<String, dynamic>> events,
   List<SimpleRunAgentInput> sent,
 });
 
+/// [event] as the stream client delivers it: sent as JSON text, decoded by
+/// [decodeMapSafely], the boundary replay crosses too.
+DecodeOutcome overTheWire(Map<String, dynamic> event) =>
+    decodeMapSafely(jsonDecode(jsonEncode(event)) as Map<String, dynamic>);
+
 /// Starts a session on [key] whose backend answers with [runId] and then
-/// streams whatever is added to `events`. Yield once before adding any.
+/// streams whatever is added to `events`, each event the JSON the backend
+/// sends. Yield once before adding any.
 ///
 /// [cachedHistory] is the thread as the runtime last loaded it, which a real
 /// send builds its conversation on. [toolRegistry] holds the client tools the
@@ -63,11 +70,12 @@ LiveSession startLiveSession({
   String prompt = 'Q',
   ThreadHistory? cachedHistory,
   ToolRegistry toolRegistry = const ToolRegistry(),
-  List<({String runId, List<BaseEvent> events})> laterRuns = const [],
+  List<({String runId, List<Map<String, dynamic>> events})> laterRuns =
+      const [],
 }) {
   final api = _MockApi();
   final streamClient = _MockStreamClient();
-  final events = StreamController<BaseEvent>();
+  final events = StreamController<Map<String, dynamic>>();
   final runIds = [runId, for (final run in laterRuns) run.runId];
   when(() => api.createRun(any(), any())).thenAnswer(
     (_) async => RunInfo(
@@ -91,9 +99,7 @@ LiveSession startLiveSession({
     ),
   ).thenAnswer((invocation) {
     sent.add(invocation.positionalArguments[1] as SimpleRunAgentInput);
-    return streams
-        .removeAt(0)
-        .map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+    return streams.removeAt(0).map(overTheWire);
   });
 
   final orchestrator = RunOrchestrator(
@@ -141,9 +147,12 @@ typedef StoredRun = ({
 });
 
 /// The history the backend serves for [runs], every one of them finished,
-/// decoded by the real client.
-Future<ThreadHistory> storedHistory(List<StoredRun> runs) =>
-    storedHistoryFromJson([
+/// decoded by the real client, which tells [observer] each step of its replay.
+Future<ThreadHistory> storedHistory(
+  List<StoredRun> runs, {
+  ReplayObserver? observer,
+}) =>
+    storedHistoryFromJson(observer: observer, [
       for (final run in runs)
         (
           runId: run.runId,
@@ -165,8 +174,12 @@ typedef StoredRunJson = ({
 });
 
 /// The history the backend serves for [runs], every one of them finished and
-/// each created a minute after the one before, decoded by the real client.
-Future<ThreadHistory> storedHistoryFromJson(List<StoredRunJson> runs) async {
+/// each created a minute after the one before, decoded by the real client,
+/// which tells [observer] each step of its replay.
+Future<ThreadHistory> storedHistoryFromJson(
+  List<StoredRunJson> runs, {
+  ReplayObserver? observer,
+}) async {
   final transport = _MockHttpTransport();
   final api = SoliplexApi(
     transport: transport,
@@ -212,5 +225,32 @@ Future<ThreadHistory> storedHistoryFromJson(List<StoredRunJson> runs) async {
     });
   }
 
-  return api.getThreadHistory('r', 't');
+  return api.getThreadHistory('r', 't', observer: observer);
+}
+
+/// A backend whose thread history is [stored], served through the real
+/// client on every request, so each request's observer is told each step of
+/// its replay, as a real fetch tells it. Until [stored] is set it serves
+/// [nextThreadHistory] as [FakeSoliplexApi] does.
+class StoredHistoryApi extends FakeSoliplexApi {
+  List<StoredRun>? stored;
+
+  @override
+  Future<ThreadHistory> getThreadHistory(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+    ReplayObserver? observer,
+  }) async {
+    final runs = stored;
+    if (nextThreadHistoryError != null || runs == null) {
+      return super.getThreadHistory(
+        roomId,
+        threadId,
+        cancelToken: cancelToken,
+        observer: observer,
+      );
+    }
+    return storedHistory(runs, observer: observer);
+  }
 }

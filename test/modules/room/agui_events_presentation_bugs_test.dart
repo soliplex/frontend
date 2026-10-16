@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
-import 'package:soliplex_frontend/src/modules/room/historical_replay.dart';
+import 'package:soliplex_frontend/src/modules/room/replayed_bands.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
 import '../../helpers/live_session.dart';
@@ -30,7 +30,8 @@ void main() {
       'historical replay: call snapshot + result snapshot leave one row, '
       'carrying the result',
       () async {
-        final history = await storedHistory([
+        final replay = ReplayedBands();
+        await storedHistory(observer: replay, [
           (
             runId: 'run-1',
             userMessageId: 'user-1',
@@ -74,8 +75,7 @@ void main() {
             ],
           ),
         ]);
-        final trackers = replayToTrackers(history);
-        final tracker = trackers['asst-1']!;
+        final tracker = replay.finish()['asst-1']!;
         final step = tracker.timeline.value.single as TimelineStep;
 
         expect(step.activityIds, ['rag:call_1']);

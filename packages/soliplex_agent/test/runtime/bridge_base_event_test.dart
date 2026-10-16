@@ -53,9 +53,8 @@ void main() {
     test('ActivitySnapshotEvent with non-object content returns null', () {
       // AG-UI types `content` as `Object?`; `ActivitySnapshot.content` is
       // a map, so a non-object payload does not bridge. This arm logs nothing:
-      // on the live path `processEvent` throws on that shape before the event
-      // reaches here, and historical replay logs it separately when it folds
-      // the same event through `applyActivityEvent`.
+      // `processEvent` throws on that shape, so neither path reports the event
+      // processed, and the drop tile `RunFold` mints is its one trace.
       const event = ActivitySnapshotEvent(
         messageId: 'rag:call_1',
         activityType: 'skill_tool_call',

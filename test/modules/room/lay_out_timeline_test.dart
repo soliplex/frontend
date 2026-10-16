@@ -4,6 +4,7 @@ import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 
+import '../../helpers/replayed_band.dart';
 import '../../helpers/test_logger.dart';
 
 /// An assistant reply. Empty text plus [named] is the message a response
@@ -354,22 +355,18 @@ void main() {
       // tile hosts it. That tile already says the run failed — a second notice
       // beside it would say so twice, and it appears only once a later message
       // makes the layout settle the run a second time.
-      final trailing = ExecutionTracker.historical(
+      final trailing = replayedBand(
         unfinishedAs: StepStatus.failed,
         events: const [
           (event: ThinkingStarted(), timestamp: null),
           (event: ThinkingContent(delta: 'one more check'), timestamp: null),
         ],
-        origin: null,
-        activities: const [],
         logger: testLogger(),
       );
       addTearDown(trailing.dispose);
-      final spoken = ExecutionTracker.historical(
+      final spoken = replayedBand(
         unfinishedAs: StepStatus.completed,
         events: const [],
-        origin: null,
-        activities: const [],
         logger: testLogger(),
       );
       addTearDown(spoken.dispose);
@@ -577,11 +574,9 @@ void main() {
 
   group('placing the band', () {
     ExecutionTracker band() {
-      final tracker = ExecutionTracker.historical(
+      final tracker = replayedBand(
         unfinishedAs: StepStatus.failed,
         events: const [],
-        origin: null,
-        activities: const [],
         logger: testLogger(),
       );
       addTearDown(tracker.dispose);

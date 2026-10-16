@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:soliplex_client/src/api/mappers.dart';
+import 'package:soliplex_client/src/application/replay_observer.dart';
 import 'package:soliplex_client/src/application/thread_history_replay.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chunk_visualization.dart';
@@ -806,10 +807,14 @@ class SoliplexApi {
   /// - [MalformedResponseException] if the thread, its `runs`, or a run's
   ///   payload has an unexpected shape
   /// - [CancelledException] if cancelled via [cancelToken]
+  ///
+  /// [observer] is told each run whose events were read, and each of its
+  /// events, as the replay folds them.
   Future<ThreadHistory> getThreadHistory(
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
+    ReplayObserver? observer,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(threadId, 'threadId');
@@ -862,7 +867,12 @@ class SoliplexApi {
       );
     }
 
-    return assembleThreadHistory(response, threadId, fetch);
+    return assembleThreadHistory(
+      response,
+      threadId,
+      fetch,
+      observer: observer,
+    );
   }
 
   /// Fetches events for a single run, using cache for completed runs.

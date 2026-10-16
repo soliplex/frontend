@@ -765,9 +765,8 @@ List<ActivityRecord> conversationActivitiesOf(RunState runState) =>
 /// consumers of [AgentSession.lastExecutionEvent] should observe, or
 /// `null` when the event does not map to an execution-event emission.
 ///
-/// Used on the live path by [AgentSession] and on the historical replay
-/// path by the app layer when hydrating execution-tracker state from a
-/// loaded `ThreadHistory`.
+/// Used on the live path by [AgentSession], and on reload by the app for each
+/// event history replay processes.
 ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
   return switch (event) {
     TextMessageContentEvent(:final delta) => TextDelta(delta: delta),
@@ -808,11 +807,10 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     // The bare `ActivitySnapshotEvent` reaches here only when `content` is not
     // a `Map<String, dynamic>`, which AG-UI's `Object?` typing permits. Such a
     // snapshot is dropped rather than synthesized into an empty one: the
-    // tracker must not hold an entry with no matching `ActivityRecord`. The
-    // live path never reaches this arm — `processEvent` throws on that shape
-    // and the orchestrator returns before republishing the event. Historical
-    // replay does reach it and drops silently by design, because the
-    // chat-message side already mints one tile for the same event.
+    // tracker must not hold an entry with no matching `ActivityRecord`.
+    // Neither path reaches this arm: `processEvent` throws on that shape, so
+    // the orchestrator does not republish the event and replay does not report
+    // it processed, and the drop tile `RunFold` mints is its one trace.
     RunStartedEvent() ||
     TextMessageStartEvent() ||
     TextMessageEndEvent() ||

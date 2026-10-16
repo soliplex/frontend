@@ -61,7 +61,7 @@ Future<void> _settle() async {
 }
 
 void main() {
-  late FakeSoliplexApi api;
+  late StoredHistoryApi api;
   late AuthSession auth;
   late RunRegistry registry;
 
@@ -69,7 +69,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    api = FakeSoliplexApi();
+    api = StoredHistoryApi();
     auth = AuthSession(refreshService: FakeTokenRefreshService());
     registry = RunRegistry(servers: emptyServers());
   });
@@ -105,26 +105,26 @@ void main() {
     return view;
   }
 
-  /// Opens the thread on [history], sends from it as the room does, and
-  /// streams [events] into the run, one at a time.
+  /// Opens the thread on the [stored] runs, sends from it as the room does,
+  /// and streams [events] into the run, one at a time.
   Future<(ThreadViewState, LiveSession)> sendIn(
-    ThreadHistory history, {
+    List<StoredRun> stored, {
     required String runId,
     required List<BaseEvent> events,
   }) async {
-    api.nextThreadHistory = history;
+    api.stored = stored;
     final view = open();
     await _settle();
     final live = startLiveSession(
       key: _key,
       runId: runId,
-      cachedHistory: history,
+      cachedHistory: await storedHistory(stored),
     );
     registry.register(_key, live.session);
     view.attachSession(live.session);
     await _settle();
     for (final event in events) {
-      live.events.add(event);
+      live.events.add(event.toJson());
       await Future<void>.delayed(Duration.zero);
     }
     await _settle();
@@ -153,7 +153,7 @@ void main() {
   test('a finished run keeps every band after navigating back', () async {
     final events = _speaksWorksAnswers('run-1');
     final (view, live) = await sendIn(
-      ThreadHistory(messages: const []),
+      const [],
       runId: 'run-1',
       events: events,
     );
@@ -162,9 +162,9 @@ void main() {
     expect(tileOf(view, 'm1')?.band, isNotNull, reason: 'precondition');
     leave(view);
 
-    api.nextThreadHistory = await storedHistory([
+    api.stored = [
       (runId: 'run-1', userMessageId: 'u1', prompt: 'Q', events: events),
-    ]);
+    ];
     final back = open();
     await _settle();
 
@@ -183,7 +183,7 @@ void main() {
   test('a run stopped before it spoke shows the answer the backend stored',
       () async {
     final (view, live) = await sendIn(
-      ThreadHistory(messages: const []),
+      const [],
       runId: 'run-1',
       events: [
         RunStartedEvent(threadId: 'thread-1', runId: 'run-1'),
@@ -201,7 +201,7 @@ void main() {
     leave(view);
 
     // The backend runs a stopped run to its end and stores it.
-    api.nextThreadHistory = await storedHistory([
+    api.stored = [
       (
         runId: 'run-1',
         userMessageId: 'u1',
@@ -214,7 +214,7 @@ void main() {
           RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'),
         ],
       ),
-    ]);
+    ];
     final back = open();
     await _settle();
 
@@ -229,7 +229,7 @@ void main() {
   });
 
   test('a run still in flight keeps its turn when history lacks it', () async {
-    final earlier = await storedHistory([
+    final earlier = <StoredRun>[
       (
         runId: 'run-0',
         userMessageId: 'u0',
@@ -240,7 +240,7 @@ void main() {
           RunFinishedEvent(threadId: 'thread-1', runId: 'run-0'),
         ],
       ),
-    ]);
+    ];
     final (view, live) = await sendIn(
       earlier,
       runId: 'run-1',
@@ -254,7 +254,7 @@ void main() {
     leave(view);
 
     // The backend stores a run only once it finishes.
-    api.nextThreadHistory = earlier;
+    api.stored = earlier;
     final back = open();
     await _settle();
 
@@ -271,9 +271,12 @@ void main() {
     );
 
     live.events
-      ..add(const TextMessageContentEvent(messageId: 'm1', delta: ' it up.'))
-      ..add(const TextMessageEndEvent(messageId: 'm1'))
-      ..add(RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'));
+      ..add(
+        const TextMessageContentEvent(messageId: 'm1', delta: ' it up.')
+            .toJson(),
+      )
+      ..add(const TextMessageEndEvent(messageId: 'm1').toJson())
+      ..add(RunFinishedEvent(threadId: 'thread-1', runId: 'run-1').toJson());
     await live.events.close();
     await _settle();
 
@@ -287,7 +290,7 @@ void main() {
   test('a run whose stream failed before the backend stored it stays failed',
       () async {
     final (view, live) = await sendIn(
-      ThreadHistory(messages: const []),
+      const [],
       runId: 'run-1',
       events: const [],
     );
@@ -301,7 +304,7 @@ void main() {
     );
     leave(view);
 
-    api.nextThreadHistory = ThreadHistory(messages: const []);
+    api.stored = const [];
     final back = open();
     await _settle();
 
@@ -322,7 +325,7 @@ void main() {
       () async {
     final events = _speaksWorksAnswers('run-1');
     final (view, live) = await sendIn(
-      ThreadHistory(messages: const []),
+      const [],
       runId: 'run-1',
       events: events,
     );
@@ -331,9 +334,7 @@ void main() {
     final before = tilesOf(view).map((t) => t.message.id).toList();
     leave(view);
 
-    api
-      ..nextThreadHistory = null
-      ..nextThreadHistoryError = Exception('offline');
+    api.nextThreadHistoryError = Exception('offline');
     final back = open();
     await _settle();
 

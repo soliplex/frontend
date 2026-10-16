@@ -2563,7 +2563,7 @@ void main() {
       registry.register(key, live.session);
       await tester.pump();
       live.events.add(
-        RunStartedEvent(threadId: 'thread-1', runId: 'run-1'),
+        RunStartedEvent(threadId: 'thread-1', runId: 'run-1').toJson(),
       );
 
       await tester.pumpWidget(screen('thread-1'));
@@ -2574,10 +2574,14 @@ void main() {
     }
 
     void completeRun(LiveSession live) => live.events
-      ..add(const TextMessageStartEvent(messageId: 'm1'))
-      ..add(const TextMessageContentEvent(messageId: 'm1', delta: 'Done.'))
-      ..add(const TextMessageEndEvent(messageId: 'm1'))
-      ..add(const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'));
+      ..add(const TextMessageStartEvent(messageId: 'm1').toJson())
+      ..add(
+        const TextMessageContentEvent(messageId: 'm1', delta: 'Done.').toJson(),
+      )
+      ..add(const TextMessageEndEvent(messageId: 'm1').toJson())
+      ..add(
+        const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1').toJson(),
+      );
 
     Future<void> pumpFrames(WidgetTester tester) async {
       for (var i = 0; i < 5; i++) {

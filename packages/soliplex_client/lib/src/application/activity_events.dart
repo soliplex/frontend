@@ -19,9 +19,8 @@ final Logger _defaultLogger =
 ///   match the existing record.
 /// - Any other event is returned unchanged.
 ///
-/// Missing timestamps fall back to `DateTime.now().millisecondsSinceEpoch`
-/// so historical replay produces stable timestamps even when the
-/// backend omits them.
+/// Missing timestamps fall back to `DateTime.now().millisecondsSinceEpoch`,
+/// so a record whose event carries no time is dated when it is processed.
 List<ActivityRecord> applyActivityEvent(
   List<ActivityRecord> current,
   BaseEvent event, {
