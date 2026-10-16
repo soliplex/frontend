@@ -3,14 +3,12 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import '../../modules/auth/auth_tokens.dart';
-import '../../modules/auth/inactivity_logout_storage.dart';
-import '../../modules/auth/server_entry.dart';
 import 'inactivity_config.dart';
+import 'inactivity_sessions.dart';
 
 /// Tracks user activity and drives the "are you still there?" prompt.
 ///
-/// The monitor watches every authenticated `ServerEntry` and arms a
+/// The monitor watches [InactivitySessions.hasActiveSession] and arms a
 /// warning timer whenever at least one session is active. UI code calls
 /// [bumpActivity] in response to pointer and keyboard events; if no
 /// activity arrives within [InactivityConfig.warningDuration], the
@@ -21,12 +19,10 @@ import 'inactivity_config.dart';
 /// dialog without rebuilding the whole tree.
 class InactivityMonitor {
   InactivityMonitor({
-    required ReadonlySignal<Map<String, ServerEntry>> servers,
+    required InactivitySessions sessions,
     required InactivityConfig config,
-    InactivityLogoutFlagStorage? inactivityLogoutFlags,
-  })  : _servers = servers,
-        _config = config,
-        _inactivityLogoutFlags = inactivityLogoutFlags {
+  })  : _sessions = sessions,
+        _config = config {
     assert(
       config.warningDuration >= Duration.zero &&
           config.graceDuration >= Duration.zero,
@@ -41,19 +37,12 @@ class InactivityMonitor {
       '(warning=${config.warningDuration}, grace=${config.graceDuration}).',
     );
     if (!_config.isEnabled) return;
-    final hasAnyActive = computed(() {
-      return _servers.value.values
-          .any((e) => e.auth.session.value is ActiveSession);
-    });
-    _hasAnyActive = hasAnyActive;
-    _activeSubscription = hasAnyActive.subscribe(_onActiveChanged);
+    _activeSubscription =
+        _sessions.hasActiveSession.subscribe(_onActiveChanged);
   }
 
-  final ReadonlySignal<Map<String, ServerEntry>> _servers;
+  final InactivitySessions _sessions;
   final InactivityConfig _config;
-  final InactivityLogoutFlagStorage? _inactivityLogoutFlags;
-
-  ReadonlySignal<bool>? _hasAnyActive;
   void Function()? _activeSubscription;
 
   Timer? _warningTimer;
@@ -72,7 +61,7 @@ class InactivityMonitor {
   void bumpActivity() {
     if (!_config.isEnabled) return;
     if (_warningVisible.value) return;
-    if (_hasAnyActive?.value != true) return;
+    if (!_sessions.hasActiveSession.value) return;
     _armWarningTimer();
   }
 
@@ -125,17 +114,8 @@ class InactivityMonitor {
   }
 
   void _performLogout() {
-    final active = _servers.value.values
-        .where((e) => e.auth.session.value is ActiveSession)
-        .toList();
-    for (final entry in active) {
-      // Persist the flag best-effort (fire-and-forget); logout proceeds
-      // regardless. The storage layer swallows and logs its own failures,
-      // so the unawaited future never rejects.
-      unawaited(_inactivityLogoutFlags?.mark(entry.serverId) ?? Future.value());
-      entry.auth.logout();
-    }
-    // The hasAnyActive subscription handles dialog dismiss and timer
+    _sessions.signOutForInactivity();
+    // The hasActiveSession subscription handles dialog dismiss and timer
     // cleanup when the last session flips to NoSession.
   }
 

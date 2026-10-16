@@ -5,6 +5,7 @@ import 'package:soliplex_frontend/src/core/inactivity/inactivity_config.dart';
 import 'package:soliplex_frontend/src/core/inactivity/inactivity_dialog.dart';
 import 'package:soliplex_frontend/src/core/inactivity/inactivity_dialog_host.dart';
 import 'package:soliplex_frontend/src/core/inactivity/inactivity_monitor.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_inactivity_sessions.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -29,7 +30,7 @@ void main() {
       // Short warning so a pump can fire it; long grace so the logout
       // timer doesn't fire mid-test.
       final monitor = InactivityMonitor(
-        servers: servers,
+        sessions: ServerInactivitySessions(servers: servers),
         config: const InactivityConfig(
           warningDuration: Duration(seconds: 1),
           graceDuration: Duration(minutes: 5),
