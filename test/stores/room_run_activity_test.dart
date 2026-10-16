@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_frontend/src/modules/room/room_run_activity.dart';
+import 'package:soliplex_frontend/src/stores/room_run_activity.dart';
 
 ThreadKey _key(String server, String room, String thread) =>
     (serverId: server, roomId: room, threadId: thread);

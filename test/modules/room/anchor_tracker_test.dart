@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/anchor_tracker.dart';
-import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart'
+import 'package:soliplex_frontend/src/stores/thread_read_markers.dart'
     show ThreadActivityKey;
 import 'package:soliplex_frontend/src/modules/room/unread_boundary.dart';
 

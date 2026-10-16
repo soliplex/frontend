@@ -10,11 +10,11 @@ import 'package:soliplex_frontend/src/modules/auth/selected_server_storage.dart'
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/core/activity_read.dart';
-import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
+import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
-import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
-import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
+import 'package:soliplex_frontend/src/stores/thread_anchor_storage.dart';
+import 'package:soliplex_frontend/src/stores/thread_read_markers.dart';
 
 import '../../helpers/fakes.dart';
 import '../../helpers/test_server_entry.dart';

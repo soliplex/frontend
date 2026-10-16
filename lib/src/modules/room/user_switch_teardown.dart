@@ -3,9 +3,9 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
-import 'database_selections.dart';
-import 'document_selections.dart';
-import 'run_registry.dart';
+import '../../stores/database_selections.dart';
+import '../../stores/document_selections.dart';
+import '../../stores/run_registry.dart';
 import 'upload_tracker_registry.dart';
 
 final Logger _logger =
@@ -51,7 +51,8 @@ final Logger _logger =
 /// unauthenticated bucket for persistent state (see
 /// `AuthSession.currentUserId`).
 ///
-/// Owned by [RoomAppModule] alongside `RemovedServerCleanup`.
+/// Owned by [RoomAppModule]. Server removal is `RemovedServerCleanup`'s job,
+/// in `StoresAppModule`.
 class UserSwitchTeardown {
   UserSwitchTeardown({
     required ReadonlySignal<Map<String, ServerEntry>> servers,

@@ -17,11 +17,11 @@ import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
-import '../room/room_run_activity.dart';
-import '../room/run_registry.dart';
-import '../room/thread_anchor_storage.dart' show ThreadAnchorStorage;
-import '../room/thread_read_markers.dart' show ThreadReadMarkerStorage;
-import 'lobby_read_markers.dart';
+import '../../stores/room_run_activity.dart';
+import '../../stores/run_registry.dart';
+import '../../stores/thread_anchor_storage.dart' show ThreadAnchorStorage;
+import '../../stores/thread_read_markers.dart' show ThreadReadMarkerStorage;
+import '../../stores/lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
 

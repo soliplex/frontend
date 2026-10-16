@@ -12,7 +12,7 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/composer_draft.dart';
 import 'package:soliplex_frontend/src/modules/room/room_state.dart';
-import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
+import 'package:soliplex_frontend/src/stores/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 

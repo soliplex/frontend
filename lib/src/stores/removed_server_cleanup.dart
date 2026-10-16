@@ -4,12 +4,11 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../modules/auth/return_to_storage.dart';
 import '../modules/auth/server_manager.dart';
-import '../modules/lobby/lobby_read_markers.dart'
-    show RoomReadMarkers, ServerReadMarkers;
-import '../modules/room/database_selections.dart';
-import '../modules/room/document_selections.dart';
-import '../modules/room/thread_anchor_storage.dart';
-import '../modules/room/thread_read_markers.dart';
+import 'lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
+import 'database_selections.dart';
+import 'document_selections.dart';
+import 'thread_anchor_storage.dart';
+import 'thread_read_markers.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.removed_server_cleanup');
@@ -19,13 +18,14 @@ final Logger _logger =
 /// draft, or its in-memory document filter and database selections. Server ids
 /// derive from the URL, so a re-add reuses the id.
 ///
-/// Owned by [RoomAppModule] (like [UploadTrackerRegistry]) rather than a screen
-/// because removal fires from surfaces that don't mount the lobby — notably the
-/// home screen's server list. Registering on [ServerManager.onServerRemoved] at
-/// module scope runs the cleanup for every removal path across the whole app
-/// session. The shared in-memory read-marker models are the same instances the
-/// lobby and room screens watch, so clearing them updates a mounted screen
-/// reactively too.
+/// Owned by `StoresAppModule`, beside the stores it clears, rather than a
+/// screen because removal fires from surfaces that don't mount the lobby —
+/// notably the home screen's server list. A store added there that holds
+/// per-server state is cleared here too. Registering on
+/// [ServerManager.onServerRemoved] at module scope runs the cleanup for every
+/// removal path across the whole app session. The shared in-memory
+/// read-marker models are the same instances the lobby and room screens
+/// watch, so clearing them updates a mounted screen reactively too.
 ///
 /// Only a genuine [ServerManager.removeServer] clears disk state. Shell
 /// teardown empties the servers signal without firing the removal event, so

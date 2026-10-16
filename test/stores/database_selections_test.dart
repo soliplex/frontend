@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:soliplex_frontend/src/modules/room/database_selections.dart';
+import 'package:soliplex_frontend/src/stores/database_selections.dart';
 
 void main() {
   late DatabaseSelections selections;
