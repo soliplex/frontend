@@ -88,7 +88,9 @@ const RunPayload noRunData = (
 );
 
 /// Builds the history of thread [threadId] from its listing, [thread],
-/// fetching each finished run's payload through [fetchRun].
+/// fetching each finished run's payload through [fetchRun]. No unfinished run
+/// is fetched; the newest may be reported as [ThreadHistory.runInProgress],
+/// read from the listing alone.
 ///
 /// Throws [MalformedResponseException] when the listing's `runs` has an
 /// unexpected shape. Whatever [fetchRun] throws fails the whole history; a
@@ -124,14 +126,17 @@ Future<ThreadHistory> assembleThreadHistory(
   // 1. Walk runs once, in creation order. Each becomes a slot: a completed
   //    run to fetch, or a malformed entry, kept as a drop-tile placeholder
   //    so the run is visibly absent rather than silently filtered out (its
-  //    `runId` is then the entry's key). Unfinished runs are skipped without
-  //    surfacing — they are still in flight, not corrupted.
+  //    `runId` is then the entry's key). Unfinished runs are not replayed:
+  //    their stored events are only what they have sent so far. The newest
+  //    one, if it was sent a message, is the candidate run in progress.
   final slots = <({
     String runId,
     MalformedResponseException? malformed,
     DateTime? created,
   })>[];
-  for (final MapEntry(:key, :value) in _sortRunsByCreationTime(runs)) {
+  final sorted = _sortRunsByCreationTime(runs);
+  final runInProgress = _runInProgress(sorted.last, threadId);
+  for (final MapEntry(:key, :value) in sorted) {
     final created = _runCreated(value, key, threadId);
     if (value is! Map<String, dynamic>) {
       slots.add(
@@ -146,7 +151,16 @@ Future<ThreadHistory> assembleThreadHistory(
       );
       continue;
     }
-    if (value['finished'] == null) continue;
+    if (value['finished'] == null) {
+      if (key != sorted.last.key && value['run_input'] != null) {
+        _logger.warning(
+          'replay: an unfinished run is older than a later run in the '
+          'thread; it is not shown or followed.',
+          attributes: {'threadId': threadId, 'runId': key},
+        );
+      }
+      continue;
+    }
     final rawRunId = value['run_id'];
     // Blank is rejected alongside the wrong type: a run id stands in for a
     // missing message id below, where two runs sharing one would have the
@@ -179,6 +193,7 @@ Future<ThreadHistory> assembleThreadHistory(
       latestMeasurement: latestUsage == null
           ? null
           : MeasuredRun(usage: latestUsage, coveredMessages: 0),
+      runInProgress: runInProgress,
     );
   }
 
@@ -221,6 +236,7 @@ Future<ThreadHistory> assembleThreadHistory(
     databaseSources,
     scopeWarnings,
     latestUsage,
+    runInProgress,
   );
 }
 
@@ -236,6 +252,7 @@ ThreadHistory replayThreadHistory(
   List<String>? databaseSources,
   Set<ThreadStateWarning> scopeWarnings,
   RunUsage? latestUsage,
+  RunInProgress? runInProgress,
 ) {
   var conversation = Conversation.empty(threadId: threadId);
   final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
@@ -450,6 +467,21 @@ ThreadHistory replayThreadHistory(
     }
   }
 
+  // A run in progress whose message the thread already holds continues that
+  // message's turn, as a run resumed after a client tool does. Following it
+  // would need the turn resumed as live resumes it (the waiting run's outcome
+  // taken back, the tool results it was sent added), so it is not reported.
+  var followable = runInProgress;
+  if (followable != null &&
+      appendedUserText.containsKey(followable.userMessage.id)) {
+    _logger.info(
+      'replay: the run in progress continues a turn the thread already '
+      'holds; it is not followed.',
+      attributes: {'threadId': threadId, 'runId': followable.runId},
+    );
+    followable = null;
+  }
+
   if (latestUsage != null && coveredByLatest == null) {
     _logger.warning(
       'Measured run was not replayed; its count is taken to cover the '
@@ -479,6 +511,42 @@ ThreadHistory replayThreadHistory(
             coveredMessages:
                 coveredByLatest ?? conversation.transcript.messages.length,
           ),
+    runInProgress: followable,
+  );
+}
+
+/// [newest], the thread's newest run entry, as the run in progress: one the
+/// backend has not finished and that was sent a user message.
+///
+/// A run is created before it is sent anything, so an unfinished run with no
+/// stored input is one nobody has written in yet, such as a new thread's
+/// initial run, and not a run still going.
+RunInProgress? _runInProgress(
+  MapEntry<String, dynamic> newest,
+  String threadId,
+) {
+  final value = newest.value;
+  if (value is! Map<String, dynamic> || value['finished'] != null) {
+    return null;
+  }
+  final runId = value['run_id'];
+  if (runId is! String || runId.isEmpty) {
+    // A run that was never sent anything is not a run in progress either way;
+    // one that was is lost from the thread here, and this is the only place
+    // that can say so.
+    if (value['run_input'] != null) {
+      _logger.warning(
+        'replay: the newest run has no usable `run_id`; it is not followed.',
+        attributes: {'threadId': threadId, 'runId': newest.key},
+      );
+    }
+    return null;
+  }
+  final userMessage = _extractUserMessage(value, threadId, runId);
+  if (userMessage == null) return null;
+  return RunInProgress(
+    runId: runId,
+    userMessage: _hydratedUserMessage(userMessage, threadId, runId),
   );
 }
 

@@ -25,6 +25,7 @@ class ThreadHistory {
     Set<ThreadStateWarning> storedStateWarnings = const {},
     this.transcript = const Transcript(),
     this.latestMeasurement,
+    this.runInProgress,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -120,6 +121,41 @@ class ThreadHistory {
   /// those runs carried is in [transcript] after the covered messages, and
   /// is the reader's to estimate.
   final MeasuredRun? latestMeasurement;
+
+  /// The thread's newest run when the backend has not finished it yet: a run
+  /// still going, which a client can follow to its end. Null when the newest
+  /// run has finished; was never sent a message (a thread's initial run before
+  /// its first send); has an entry whose id or message cannot be read; or
+  /// continues a turn the thread already holds, as a run resumed after a
+  /// client tool does, which cannot be followed without resuming that turn.
+  ///
+  /// Not part of [messages], [transcript], [runs] or [runOutcomes]: nothing
+  /// of it is replayed, because its stored events are only what it has sent
+  /// so far.
+  final RunInProgress? runInProgress;
+}
+
+/// A run the backend is still going on, with the message that started it.
+@immutable
+class RunInProgress {
+  /// Creates the record of run [runId], started by [userMessage], a user's
+  /// message stamped with [runId].
+  RunInProgress({required this.runId, required this.userMessage})
+      : assert(
+          userMessage.user == ChatUser.user,
+          'a run is started by a user message',
+        ),
+        assert(
+          userMessage.runId == runId,
+          'the message is stamped with the run it started',
+        );
+
+  /// The run still going.
+  final String runId;
+
+  /// The user message the run was sent, read from its stored input, because
+  /// the run's events never carry it.
+  final TextMessage userMessage;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.

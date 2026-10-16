@@ -5686,6 +5686,180 @@ void main() {
       });
     });
 
+    group('getThreadHistory run in progress', () {
+      Map<String, dynamic> sentHello(String messageId) => {
+            'messages': [
+              {'id': messageId, 'role': 'user', 'content': 'hello'},
+            ],
+          };
+
+      const finishedRunOne = {
+        'run_id': 'run-1',
+        'created': '2026-01-07T01:00:00.000Z',
+        'finished': '2026-01-07T01:01:00.000Z',
+      };
+
+      final runOneEvents = [
+        {
+          'type': 'TEXT_MESSAGE_START',
+          'messageId': 'msg-1',
+          'role': 'assistant',
+        },
+        {'type': 'TEXT_MESSAGE_CONTENT', 'messageId': 'msg-1', 'delta': 'Hi'},
+        {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-1'},
+        {'type': 'RUN_FINISHED', 'threadId': 'thread-456', 'runId': 'run-1'},
+      ];
+
+      test(
+          'reports the newest run the backend has not finished, with its '
+          'user message, and leaves it out of everything replayed', () async {
+        stubThread({
+          'run-1': {...finishedRunOne, 'run_input': sentHello('user-1')},
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'run_input': sentHello('user-2'),
+          },
+        });
+        stubRun('run-1', events: runOneEvents, runInput: sentHello('user-1'));
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        final inProgress = history.runInProgress!;
+        expect(inProgress.runId, 'run-2');
+        expect(inProgress.userMessage.id, 'user-2');
+        expect(inProgress.userMessage.text, 'hello');
+        expect(
+          [for (final m in history.messages) m.id],
+          ['user-1', 'msg-1'],
+        );
+        expect([for (final r in history.runs) r.runId], ['run-1']);
+        expect(history.runOutcomes.keys, ['run-1']);
+        expect(history.transcript.messages, hasLength(2));
+      });
+
+      test(
+          'a fetch after the run finishes reads its finished events, not '
+          'partial ones from while it was going', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'run_input': sentHello('user-1'),
+          },
+        });
+        stubRun(
+          'run-1',
+          events: runOneEvents.take(2).toList(),
+          runInput: sentHello('user-1'),
+        );
+        await api.getThreadHistory('room-123', 'thread-456');
+
+        stubThread({
+          'run-1': {...finishedRunOne, 'run_input': sentHello('user-1')},
+        });
+        stubRun('run-1', events: runOneEvents, runInput: sentHello('user-1'));
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.runInProgress, isNull);
+        final reply = history.messages.whereType<TextMessage>().last;
+        expect(reply.id, 'msg-1');
+        expect(reply.text, 'Hi');
+        expect(history.runOutcomes['run-1']?.reason, TerminalReason.finished);
+      });
+
+      test(
+          'does not report a run that was never sent a message, such as the '
+          'initial run of a thread nobody has written in', () async {
+        stubThread({
+          'run-1': {'run_id': 'run-1', 'created': '2026-01-07T01:00:00.000Z'},
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.runInProgress, isNull);
+      });
+
+      test(
+          'does not report a newest unfinished run with no usable run_id, and '
+          'says so in the log', () async {
+        final unreadable = captureRecords('no usable `run_id`');
+        stubThread({
+          'run-1': {
+            'run_id': '',
+            'created': '2026-01-07T01:00:00.000Z',
+            'run_input': sentHello('user-1'),
+          },
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.runInProgress, isNull);
+        expect(unreadable(), hasLength(1));
+        expect(unreadable().single.level, LogLevel.warning);
+        expect(unreadable().single.attributes['runId'], 'run-1');
+      });
+
+      test(
+          'does not report a run that continues the turn of the run before '
+          'it, as a run resumed after a client tool does, and says so in the '
+          'log', () async {
+        final notFollowed = captureRecords('continues a turn');
+        stubThread({
+          'run-1': {...finishedRunOne, 'run_input': sentHello('user-1')},
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'hello'},
+                {
+                  'id': 'tool-result-1',
+                  'role': 'tool',
+                  'toolCallId': 'call-1',
+                  'content': 'sunny',
+                },
+              ],
+            },
+          },
+        });
+        stubRun('run-1', events: runOneEvents, runInput: sentHello('user-1'));
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.runInProgress, isNull);
+        expect(notFollowed(), hasLength(1));
+        expect(notFollowed().single.attributes['runId'], 'run-2');
+      });
+
+      test(
+          'does not report an unfinished run older than a finished one, and '
+          'says so in the log', () async {
+        final warnings = captureRecords('is older than');
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'run_input': sentHello('user-1'),
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'finished': '2026-01-07T02:01:00.000Z',
+            'run_input': sentHello('user-2'),
+          },
+        });
+        stubRun('run-2', runInput: sentHello('user-2'));
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.runInProgress, isNull);
+        expect(warnings(), hasLength(1));
+        expect(warnings().single.level, LogLevel.warning);
+        expect(warnings().single.attributes['runId'], 'run-1');
+      });
+    });
+
     group('getThreadHistory document filter', () {
       test('surfaces the filter from a run input state', () async {
         stubThread({

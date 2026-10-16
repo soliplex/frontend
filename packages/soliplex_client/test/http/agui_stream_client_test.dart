@@ -10,8 +10,10 @@ import 'package:soliplex_client/src/http/agui_stream_client.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
 import 'package:soliplex_client/src/http/resume_policy.dart';
+import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 import '_constant_random.dart';
@@ -1318,6 +1320,245 @@ void main() {
           expect(statuses.whereType<ReconnectFailed>(), hasLength(1));
         },
       );
+    });
+
+    group('followRun', () {
+      String dataFrame(String id, Map<String, dynamic> event) =>
+          'id: $id\ndata: ${json.encode(event)}\n\n';
+
+      const runStarted = {
+        'type': 'RUN_STARTED',
+        'threadId': 'thread-1',
+        'runId': 'run-1',
+      };
+
+      void stubBody(Stream<List<int>> body) {
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(statusCode: 200, body: body),
+        );
+      }
+
+      test(
+          "opens the run's stream from its first stored event and sends no "
+          'input', () async {
+        stubBody(
+          sseByteStreamWithIds([
+            ('run-1:0', runStarted),
+            (
+              'run-1:1',
+              {
+                'type': 'RUN_FINISHED',
+                'threadId': 'thread-1',
+                'runId': 'run-1',
+              },
+            ),
+          ]),
+        );
+
+        final events =
+            _decodedOnly(await client.followRun(endpoint, 'run-1').toList());
+
+        expect(events.first, isA<RunStartedEvent>());
+        expect(events.last, isA<RunFinishedEvent>());
+        final request = verify(
+          () => mockTransport.requestStream(
+            captureAny(),
+            captureAny(),
+            headers: captureAny(named: 'headers'),
+            body: captureAny(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).captured;
+        expect(request[0], 'POST');
+        expect(request[1], Uri.parse('$baseUrl/$endpoint'));
+        final headers = request[2] as Map<String, String>;
+        expect(headers['Last-Event-ID'], 'run-1:-1');
+        expect(request[3], isNull);
+      });
+
+      test(
+          'a first request that fails throws its own error and is not retried '
+          'as a resume', () async {
+        final statuses = <ReconnectStatus>[];
+        final following = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: _fastPolicy,
+        );
+        addTearDown(following.close);
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenThrow(const NetworkException(message: 'connection refused'));
+
+        await expectLater(
+          following
+              .followRun(endpoint, 'run-1', onReconnectStatus: statuses.add)
+              .toList(),
+          throwsA(
+            isA<NetworkException>().having(
+              (e) => e.message,
+              'message',
+              'connection refused',
+            ),
+          ),
+        );
+        expect(statuses, isEmpty);
+      });
+
+      test('a follow that drops before any event resumes from the first event',
+          () async {
+        final following = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: _fastPolicy,
+        );
+        addTearDown(following.close);
+        final cursors = <String?>[];
+        var attempt = 0;
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((invocation) async {
+          final headers =
+              invocation.namedArguments[#headers] as Map<String, String>;
+          cursors.add(headers['Last-Event-ID']);
+          attempt++;
+          return StreamedHttpResponse(
+            statusCode: 200,
+            body: attempt == 1
+                ? Stream<List<int>>.error(
+                    const NetworkException(message: 'connection reset'),
+                  )
+                : sseByteStreamWithIds([
+                    ('run-1:0', runStarted),
+                    (
+                      'run-1:1',
+                      {
+                        'type': 'RUN_FINISHED',
+                        'threadId': 'thread-1',
+                        'runId': 'run-1',
+                      },
+                    ),
+                  ]),
+          );
+        });
+
+        final events =
+            _decodedOnly(await following.followRun(endpoint, 'run-1').toList());
+
+        expect(cursors, ['run-1:-1', 'run-1:-1']);
+        expect(events.first, isA<RunStartedEvent>());
+        expect(events.last, isA<RunFinishedEvent>());
+      });
+
+      test(
+          'ends without an error once no event has arrived for the HTTP '
+          'timeout, counting events and not keepalives, and logs why',
+          () async {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+        var done = false;
+        Object? error;
+        final outcomes = <DecodeOutcome>[];
+        fakeAsync((async) {
+          final body = StreamController<List<int>>();
+          addTearDown(() => unawaited(body.close()));
+          stubBody(body.stream);
+          final keepalives = Timer.periodic(
+            const Duration(seconds: 15),
+            (_) => body.add(utf8.encode(': keepalive\n\n')),
+          );
+          addTearDown(keepalives.cancel);
+          client.followRun(endpoint, 'run-1').listen(
+                outcomes.add,
+                onError: (Object e) => error = e,
+                onDone: () => done = true,
+              );
+
+          body.add(utf8.encode(dataFrame('run-1:0', runStarted)));
+          async.elapse(const Duration(minutes: 5));
+          body.add(
+            utf8.encode(
+              dataFrame('run-1:1', {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'm-1',
+                'role': 'assistant',
+              }),
+            ),
+          );
+          async.elapse(defaultHttpTimeout - const Duration(seconds: 1));
+          expect(
+            body.hasListener,
+            isTrue,
+            reason: 'an event restarts the bound',
+          );
+
+          async.elapse(const Duration(seconds: 2));
+          expect(
+            body.hasListener,
+            isFalse,
+            reason: 'the connection is released',
+          );
+        });
+        // Cancelling the test's body controller completes in the root zone,
+        // so the end of the stream is delivered once the fake clock is gone.
+        await pumpEventQueue();
+        expect(done, isTrue);
+        expect(error, isNull);
+        expect(_decodedOnly(outcomes), hasLength(2));
+        final records =
+            sink.records.where((r) => r.message.contains('no event')).toList();
+        expect(records, hasLength(1));
+        expect(records.single.level, LogLevel.warning);
+        expect(records.single.attributes['lastEventId'], 'run-1:1');
+      });
+    });
+
+    group('runAgent idle', () {
+      test('a run this client started keeps its connection through silence',
+          () {
+        fakeAsync((async) {
+          final body = StreamController<List<int>>();
+          addTearDown(() => unawaited(body.close()));
+          when(
+            () => mockTransport.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer(
+            (_) async =>
+                StreamedHttpResponse(statusCode: 200, body: body.stream),
+          );
+          client.runAgent(endpoint, input).listen((_) {});
+
+          async.elapse(defaultHttpTimeout * 2);
+
+          expect(body.hasListener, isTrue);
+        });
+      });
     });
 
     group('raceBackoff (cancel-aware backoff)', () {
