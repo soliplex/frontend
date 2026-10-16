@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
-import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
+import 'package:soliplex_frontend/src/stores/document_selections.dart';
 
 const _doc1 = RagDocument(id: '1', title: 'Report');
 const _doc2 = RagDocument(id: '2', title: 'Summary');

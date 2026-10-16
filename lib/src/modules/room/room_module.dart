@@ -2,17 +2,16 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_module.dart';
-import '../../core/removed_server_cleanup.dart';
 import '../auth/require_connected_server.dart';
 import '../auth/server_manager.dart';
-import '../lobby/lobby_read_markers.dart'
+import '../../stores/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
 import 'agent_runtime_manager.dart';
-import 'database_selections.dart';
-import 'document_selections.dart';
+import '../../stores/database_selections.dart';
+import '../../stores/document_selections.dart';
 import 'message_expansions.dart';
 import 'room_providers.dart';
-import 'run_registry.dart';
+import '../../stores/run_registry.dart';
 import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
 import 'upload_tracker_registry.dart';
@@ -25,33 +24,29 @@ class RoomAppModule extends AppModule {
     required this.registry,
     required this.roomReadMarkers,
     required this.serverReadMarkers,
+    required this.documentSelections,
+    required this.databaseSelections,
     required this.appName,
     this.logo,
     this.enableDocumentFilter = false,
-  })  : _documentSelections = DocumentSelections(),
-        _databaseSelections = DatabaseSelections(),
-        _messageExpansions = MessageExpansions(),
+  })  : _messageExpansions = MessageExpansions(),
         _uploadRegistry =
             UploadTrackerRegistry(servers: serverManager.servers) {
-    _removedServerCleanup = RemovedServerCleanup(
-      serverManager: serverManager,
-      roomReadMarkers: roomReadMarkers,
-      serverReadMarkers: serverReadMarkers,
-      documentSelections: _documentSelections,
-      databaseSelections: _databaseSelections,
-    );
     _userSwitchTeardown = UserSwitchTeardown(
       servers: serverManager.servers,
       runtimeManager: runtimeManager,
       registry: registry,
       uploadRegistry: _uploadRegistry,
-      documentSelections: _documentSelections,
-      databaseSelections: _databaseSelections,
+      documentSelections: documentSelections,
+      databaseSelections: databaseSelections,
     );
   }
 
   final ServerManager serverManager;
   final AgentRuntimeManager runtimeManager;
+
+  /// Shared with the lobby; owned and disposed by `StoresAppModule`, like the
+  /// other stores below.
   final RunRegistry registry;
 
   /// Shared room read markers, also watched by the lobby so a room stamped read
@@ -62,17 +57,19 @@ class RoomAppModule extends AppModule {
   /// floors every room and thread on the server for the rail's unread checks.
   final ServerReadMarkers serverReadMarkers;
 
+  /// Cleared on server removal by the stores' `RemovedServerCleanup`, and on a
+  /// user switch by this module's [UserSwitchTeardown].
+  final DocumentSelections documentSelections;
+  final DatabaseSelections databaseSelections;
+
   /// The product's own name — the room-info screen's branded header, and the
   /// AI disclaimer under the chat composer.
   final String appName;
   final Widget? logo;
   final bool enableDocumentFilter;
 
-  final DocumentSelections _documentSelections;
-  final DatabaseSelections _databaseSelections;
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
-  late final RemovedServerCleanup _removedServerCleanup;
   late final UserSwitchTeardown _userSwitchTeardown;
 
   @override
@@ -130,8 +127,8 @@ class RoomAppModule extends AppModule {
             registry: registry,
             uploadRegistry: _uploadRegistry,
             enableDocumentFilter: enableDocumentFilter,
-            documentSelections: _documentSelections,
-            databaseSelections: _databaseSelections,
+            documentSelections: documentSelections,
+            databaseSelections: databaseSelections,
             roomReadMarkers: roomReadMarkers,
             serverReadMarkers: serverReadMarkers,
           ),
@@ -143,9 +140,7 @@ class RoomAppModule extends AppModule {
   @override
   Future<void> onDispose() async {
     _userSwitchTeardown.dispose();
-    _removedServerCleanup.dispose();
     await runtimeManager.dispose();
-    registry.dispose();
     _uploadRegistry.dispose();
   }
 }

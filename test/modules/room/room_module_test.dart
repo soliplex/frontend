@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
-import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
+import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
-import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
+import 'package:soliplex_frontend/src/stores/database_selections.dart';
+import 'package:soliplex_frontend/src/stores/document_selections.dart';
+import 'package:soliplex_frontend/src/stores/run_registry.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -40,12 +42,16 @@ void main() {
       registry: registry,
       roomReadMarkers: RoomReadMarkers(),
       serverReadMarkers: ServerReadMarkers(),
+      documentSelections: DocumentSelections(),
+      databaseSelections: DatabaseSelections(),
       appName: 'Soliplex',
     );
   });
 
   tearDown(() async {
     await module.onDispose();
+    // The registry is owned by StoresAppModule, not the room module.
+    registry.dispose();
   });
 
   test('contributes room routes', () {
@@ -98,6 +104,8 @@ void main() {
       registry: registry,
       roomReadMarkers: RoomReadMarkers(),
       serverReadMarkers: ServerReadMarkers(),
+      documentSelections: DocumentSelections(),
+      databaseSelections: DatabaseSelections(),
       appName: 'Acme',
     );
     addTearDown(forkModule.onDispose);

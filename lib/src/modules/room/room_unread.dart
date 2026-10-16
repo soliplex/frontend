@@ -2,9 +2,9 @@ import 'package:soliplex_client/soliplex_client.dart';
 
 import '../../core/activity_read.dart'
     show RoomActivityKey, isActivityUnread, latestSeen;
-import 'thread_read_markers.dart' show ThreadActivityKey;
+import '../../stores/thread_read_markers.dart' show ThreadActivityKey;
 
-export 'thread_read_markers.dart' show ThreadActivityKey;
+export '../../stores/thread_read_markers.dart' show ThreadActivityKey;
 
 /// The ids of rooms with activity newer than the device's last-seen marker, for
 /// the room rail. [currentRoomId] is excluded — the open room reads as read, so

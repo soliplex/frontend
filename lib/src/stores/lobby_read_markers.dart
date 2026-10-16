@@ -5,10 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show ReadonlySignal, Signal;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../core/activity_read.dart' show RoomMarkerKey, ServerMarkerKey;
-import '../../core/keyed_storage.dart';
+import '../core/activity_read.dart' show RoomMarkerKey, ServerMarkerKey;
+import '../core/keyed_storage.dart';
 
-export '../../core/activity_read.dart' show RoomMarkerKey, ServerMarkerKey;
+export '../core/activity_read.dart' show RoomMarkerKey, ServerMarkerKey;
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.lobby_read_markers');
