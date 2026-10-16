@@ -14,6 +14,17 @@ void main() {
       );
     }
 
+    test('has no stored run to follow', () {
+      final provider = ChatFnLlmProvider(
+        chatFn: (messages, {systemPrompt, maxTokens}) async => '',
+      );
+
+      expect(
+        () => provider.followRun(key: key, runId: 'run-1'),
+        throwsUnsupportedError,
+      );
+    });
+
     test('text response emits correct AG-UI event sequence', () async {
       final provider = ChatFnLlmProvider(
         chatFn: (messages, {systemPrompt, maxTokens}) async =>

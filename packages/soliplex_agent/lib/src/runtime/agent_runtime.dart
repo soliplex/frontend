@@ -16,7 +16,7 @@ import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/runtime/thread_state.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show MessagePart, ThreadHistory;
+    show MessagePart, RunInProgress, ThreadHistory;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// Facade for spawning and coordinating multiple [AgentSession]s.
@@ -211,20 +211,39 @@ class AgentRuntime {
       ephemeral: ephemeral,
       depth: depth,
     );
-    _trackSession(session);
-    parent?.addChild(session);
-    try {
-      await session.start(
+    return _launch(
+      session,
+      () => session.start(
         userMessage: prompt,
         existingRunId: existingRunId,
         cachedHistory: history,
         stateOverlay: stateOverlay,
-      );
+      ),
+      parent: parent,
+      timeout: timeout,
+      autoDispose: autoDispose,
+    );
+  }
+
+  /// Tracks [session] and runs [start] on it, then schedules what follows its
+  /// end. A [start] that throws leaves nothing behind: the session is
+  /// untracked and disposed, and an ephemeral thread deleted.
+  Future<AgentSession> _launch(
+    AgentSession session,
+    Future<void> Function() start, {
+    required AgentSession? parent,
+    required Duration? timeout,
+    required bool autoDispose,
+  }) async {
+    _trackSession(session);
+    parent?.addChild(session);
+    try {
+      await start();
     } on Object {
       parent?.removeChild(session);
       _removeSession(session);
-      if (ephemeral) {
-        await _deleteThreadSafe(key);
+      if (session.ephemeral) {
+        await _deleteThreadSafe(session.threadKey);
       }
       session.dispose();
       rethrow;
@@ -232,6 +251,37 @@ class AgentRuntime {
     _scheduleCompletion(session, timeout, autoDispose: autoDispose);
     _scheduleRootTimeout(session, parent);
     return session;
+  }
+
+  /// Follows [run], already going on the backend in thread [threadId], in a
+  /// new session, as [spawn] starts one: it takes a concurrency slot, and once
+  /// it ends, the thread's history it ended with is what the next [spawn] on
+  /// the thread sends.
+  ///
+  /// Creates no thread and no run; the session's conversation is the thread's
+  /// cached history with [run]'s user message.
+  Future<AgentSession> follow({
+    required String roomId,
+    required String threadId,
+    required RunInProgress run,
+  }) async {
+    _guardNotDisposed();
+    await _waitForSlot();
+    final key = (serverId: serverId, roomId: roomId, threadId: threadId);
+    final session = await _buildSession(
+      key: key,
+      roomId: roomId,
+      ephemeral: false,
+      depth: 0,
+    );
+    final history = _threadStates[key]?.history;
+    return _launch(
+      session,
+      () => session.follow(run: run, cachedHistory: history),
+      parent: null,
+      timeout: null,
+      autoDispose: false,
+    );
   }
 
   /// Waits for all sessions to complete, collecting results.

@@ -304,6 +304,62 @@ void main() {
     });
   });
 
+  group('follow', () {
+    test(
+        'a run followed to its end is in the history the next send on the '
+        'thread carries', () async {
+      when(
+        () => agUiStreamClient.followRun(
+          'rooms/$_roomId/agui/$_threadId/$_runId',
+          _runId,
+          cancelToken: any(named: 'cancelToken'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) => _wrap(Stream.fromIterable(_happyPathEvents())));
+      final followed = await runtime.follow(
+        roomId: _roomId,
+        threadId: _threadId,
+        run: RunInProgress(
+          runId: _runId,
+          userMessage: TextMessage.create(
+            id: 'user-stored',
+            user: ChatUser.user,
+            text: 'Hi there',
+            runId: _runId,
+          ),
+        ),
+      );
+      expect(await followed.result, isA<AgentSuccess>());
+      await pumpEventQueue();
+
+      stubCreateRun();
+      SimpleRunAgentInput? sent;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((invocation) {
+        sent = invocation.positionalArguments[1] as SimpleRunAgentInput;
+        return _wrap(Stream.fromIterable(_happyPathEvents()));
+      });
+      final next = await runtime.spawn(
+        roomId: _roomId,
+        prompt: [const TextPart('And now?')],
+        threadId: _threadId,
+      );
+      await next.result;
+
+      expect(
+        [for (final m in sent!.messages!) m.toJson()['content']],
+        ['Hi there', 'Hello', 'And now?'],
+      );
+    });
+  });
+
   group('spawn', () {
     test('creates thread, starts session, returns AgentSuccess', () async {
       stubCreateThread();

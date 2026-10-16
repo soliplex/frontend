@@ -7,6 +7,23 @@ void main() {
   const key = (serverId: 'server', roomId: 'room', threadId: 'thread');
 
   group('StreamingLlmProvider', () {
+    test('has no stored run to follow', () {
+      final provider = StreamingLlmProvider(
+        chatFn: ({
+          required messages,
+          tools,
+          systemPrompt,
+          maxTokens,
+          abortTrigger,
+        }) async* {},
+      );
+
+      expect(
+        () => provider.followRun(key: key, runId: 'run-1'),
+        throwsUnsupportedError,
+      );
+    });
+
     test(
       'emits RunStarted, text events, RunFinished for text stream',
       () async {
