@@ -1,13 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../modules/auth/auth_providers.dart';
-import '../../modules/auth/inactivity_logout_storage.dart';
-import '../../modules/auth/server_manager.dart';
 import 'inactivity_config.dart';
 import 'inactivity_monitor.dart';
-
-final Logger _logger = LogManager.instance.getLogger('soliplex.inactivity');
+import 'inactivity_sessions.dart';
 
 /// Holds the active [InactivityConfig].
 ///
@@ -16,38 +11,22 @@ final inactivityConfigProvider = Provider<InactivityConfig>(
   (_) => throw UnimplementedError('must be overridden by SoliplexShell'),
 );
 
-/// The shell-scoped [InactivityMonitor], or `null` when the auth-module
-/// providers it depends on (`serverManagerProvider`,
-/// `inactivityLogoutFlagsProvider`) are not configured.
+/// The [InactivitySessions] the monitor watches, or `null` when no module
+/// supplies one. The auth module overrides it.
+final inactivitySessionsProvider = Provider<InactivitySessions?>((_) => null);
+
+/// The shell-scoped [InactivityMonitor], or `null` when nothing supplies
+/// [inactivitySessionsProvider].
 ///
-/// Returning nullable keeps the library bootable by consumers that
-/// don't include the auth module — inactivity logout simply stays
-/// disabled instead of crashing the shell.
+/// Returning nullable keeps the library bootable by consumers that don't
+/// include the auth module: inactivity logout simply stays disabled instead
+/// of crashing the shell.
 final inactivityMonitorProvider = Provider<InactivityMonitor?>((ref) {
-  final ServerManager serverManager;
-  final InactivityLogoutFlagStorage flags;
-  try {
-    serverManager = ref.watch(serverManagerProvider);
-    flags = ref.watch(inactivityLogoutFlagsProvider);
-  } catch (e) {
-    // The auth-module providers throw UnimplementedError when not
-    // overridden, but riverpod wraps that in a ProviderException that it
-    // doesn't export — so it can't be caught by type. In practice this is
-    // the only thing this catch sees: those providers are currently always
-    // installed via overrideWithValue (a pre-built instance that can't
-    // throw at read time). Returning null keeps the shell bootable for
-    // consumers that don't include the auth module; logging leaves a
-    // breadcrumb if that assumption ever stops holding.
-    _logger.warning(
-      'Inactivity monitor disabled: auth providers unavailable',
-      error: e,
-    );
-    return null;
-  }
+  final sessions = ref.watch(inactivitySessionsProvider);
+  if (sessions == null) return null;
   final monitor = InactivityMonitor(
-    servers: serverManager.servers,
+    sessions: sessions,
     config: ref.watch(inactivityConfigProvider),
-    inactivityLogoutFlags: flags,
   );
   ref.onDispose(monitor.dispose);
   return monitor;

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
+import 'package:soliplex_frontend/src/core/inactivity/inactivity_provider.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_module.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_inactivity_sessions.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -40,6 +42,22 @@ void main() {
       // At minimum: serverManager, authFlow, probeClient.
       // Optional overrides only added when non-null.
       expect(contribution.overrides, isNotEmpty);
+    });
+
+    test('supplies the inactivity sessions, so the monitor runs', () {
+      final container = ProviderContainer(
+        overrides: [
+          ..._createModule().build().overrides,
+          inactivityConfigProvider.overrideWithValue(InactivityConfig.disabled),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        container.read(inactivitySessionsProvider),
+        isA<ServerInactivitySessions>(),
+      );
+      expect(container.read(inactivityMonitorProvider), isNotNull);
     });
   });
 
