@@ -22,7 +22,7 @@ that the rule can be changed deliberately rather than eroded.
 | [ADR-002](ADR-002-customizable-brand-theme.md) | Customizable `BrandTheme` via a façade and a lowering buffer | Accepted, amended by ADR-003 §1.3 | 2026-06-24 |
 | [ADR-003](ADR-003-flavor-object.md) | Reify the `Flavor`: a declaration object between composition and boot | Accepted, amended by #536 | 2026-07-16 |
 | [ADR-004](ADR-004-module-composition-contract.md) | The `AppModule` composition contract | Accepted (retroactive) | 2026-10-13 |
-| [ADR-005](ADR-005-module-layering.md) | Module layering and cross-feature state | Proposed | 2026-10-13 |
+| [ADR-005](ADR-005-module-layering.md) | Module layering and cross-feature state | Accepted | 2026-10-13 |
 | [ADR-006](ADR-006-thread-timeline-model.md) | The thread timeline model: runs, `RunFold`, bands and one layout | Accepted (retroactive) | 2026-10-13 |
 
 The repo-wide rule "Riverpod is DI only; signals carry state" is argued in
