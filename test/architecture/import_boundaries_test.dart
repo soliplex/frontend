@@ -84,8 +84,8 @@ final _layers = <String, int>{
 /// Today's violations, tracked by #607. Each migration step of ADR-005
 /// removes entries; nothing may be added.
 const _baseline = {
-  // core -> modules/auth. Step 4 (the inactivity interface) and step 3
-  // (RemovedServerCleanup moves to stores/).
+  // core -> modules/auth. Step 4: core defines the inactivity interface and
+  // auth overrides it.
   'lib/src/core/inactivity/inactivity_monitor.dart -> '
       'lib/src/modules/auth/auth_tokens.dart',
   'lib/src/core/inactivity/inactivity_monitor.dart -> '
@@ -98,40 +98,6 @@ const _baseline = {
       'lib/src/modules/auth/inactivity_logout_storage.dart',
   'lib/src/core/inactivity/inactivity_provider.dart -> '
       'lib/src/modules/auth/server_manager.dart',
-  'lib/src/core/removed_server_cleanup.dart -> '
-      'lib/src/modules/auth/return_to_storage.dart',
-  'lib/src/core/removed_server_cleanup.dart -> '
-      'lib/src/modules/auth/server_manager.dart',
-  // core -> modules/lobby. Step 3: RemovedServerCleanup moves to stores/.
-  'lib/src/core/removed_server_cleanup.dart -> '
-      'lib/src/modules/lobby/lobby_read_markers.dart',
-  // core -> modules/room. Step 3: RemovedServerCleanup moves to stores/.
-  'lib/src/core/removed_server_cleanup.dart -> '
-      'lib/src/modules/room/database_selections.dart',
-  'lib/src/core/removed_server_cleanup.dart -> '
-      'lib/src/modules/room/document_selections.dart',
-  'lib/src/core/removed_server_cleanup.dart -> '
-      'lib/src/modules/room/thread_anchor_storage.dart',
-  'lib/src/core/removed_server_cleanup.dart -> '
-      'lib/src/modules/room/thread_read_markers.dart',
-  // modules/lobby -> modules/room. Step 3: the shared stores move to stores/.
-  'lib/src/modules/lobby/lobby_module.dart -> '
-      'lib/src/modules/room/run_registry.dart',
-  'lib/src/modules/lobby/lobby_state.dart -> '
-      'lib/src/modules/room/room_run_activity.dart',
-  'lib/src/modules/lobby/lobby_state.dart -> '
-      'lib/src/modules/room/run_registry.dart',
-  'lib/src/modules/lobby/lobby_state.dart -> '
-      'lib/src/modules/room/thread_anchor_storage.dart',
-  'lib/src/modules/lobby/lobby_state.dart -> '
-      'lib/src/modules/room/thread_read_markers.dart',
-  'lib/src/modules/lobby/ui/lobby_screen.dart -> '
-      'lib/src/modules/room/run_registry.dart',
-  // modules/room -> modules/lobby. Step 3: the read markers move to stores/.
-  'lib/src/modules/room/room_module.dart -> '
-      'lib/src/modules/lobby/lobby_read_markers.dart',
-  'lib/src/modules/room/ui/room_screen.dart -> '
-      'lib/src/modules/lobby/lobby_read_markers.dart',
 };
 
 typedef _Edge = ({String from, String to});

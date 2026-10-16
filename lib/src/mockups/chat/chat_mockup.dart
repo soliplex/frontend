@@ -6,7 +6,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../../core/app_identity.dart';
 import '../../core/routes.dart';
 import '../../core/status_message_config.dart';
-import '../../modules/room/document_selections.dart';
+import '../../stores/document_selections.dart';
 import '../../modules/room/message_expansions.dart';
 import '../../modules/room/room_providers.dart';
 import 'chat_screen.dart';

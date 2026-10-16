@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'thread_read_markers.dart' show ThreadActivityKey;
+import '../../stores/thread_read_markers.dart' show ThreadActivityKey;
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.thread_read_tracker');

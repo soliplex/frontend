@@ -4,8 +4,9 @@ import '../../core/app_module.dart';
 import '../../core/app_identity.dart';
 import '../../core/routes.dart';
 import '../auth/server_manager.dart';
-import '../room/run_registry.dart';
-import 'lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
+import '../../stores/run_registry.dart';
+import '../../stores/lobby_read_markers.dart'
+    show RoomReadMarkers, ServerReadMarkers;
 import 'ui/lobby_screen.dart';
 
 class LobbyAppModule extends AppModule {

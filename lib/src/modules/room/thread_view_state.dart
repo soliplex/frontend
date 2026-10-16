@@ -12,7 +12,7 @@ import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
 import 'human_approval_extension.dart';
-import 'run_registry.dart';
+import '../../stores/run_registry.dart';
 import 'send_error.dart';
 import 'session_spawner.dart';
 import 'tool_calls_extension.dart';

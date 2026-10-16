@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../core/keyed_storage.dart';
+import '../core/keyed_storage.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.thread_anchor_storage');

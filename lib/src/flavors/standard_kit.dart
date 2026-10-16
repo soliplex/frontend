@@ -24,14 +24,12 @@ import '../modules/auth/server_storage.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
-import '../modules/lobby/lobby_read_markers.dart'
-    show RoomReadMarkers, ServerReadMarkers;
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/execution_tracker_extension.dart';
 import '../modules/room/human_approval_extension.dart';
 import '../modules/room/room_module.dart';
-import '../modules/room/run_registry.dart';
+import '../stores/stores_module.dart';
 import '../modules/room/tool_calls_extension.dart';
 import '../modules/versions/versions_module.dart';
 
@@ -57,9 +55,9 @@ typedef StandardKit = ({
 /// Builds the standard flavor's module graph and shared state.
 ///
 /// Owns construction order and cross-module wiring (auth, server discovery,
-/// agent runtime, read markers). `standardFlavor` maps this onto a `Flavor`;
-/// flavor authors can call this directly to build their own module set on
-/// top of the same shared state.
+/// agent runtime, the shared stores). `standardFlavor` maps this onto a
+/// `Flavor`; flavor authors can call this directly to build their own module
+/// set on top of the same shared state.
 Future<StandardKit> buildStandardKit({
   required AppIdentity identity,
   String redirectScheme = 'ai.soliplex.client',
@@ -143,15 +141,9 @@ Future<StandardKit> buildStandardKit({
     servers: serverManager.servers,
   );
 
-  final registry = RunRegistry(servers: serverManager.servers);
-
-  // Shared in-memory read-marker model so a room stamped read in the room
-  // screen clears its lobby unread dot immediately, with no storage race.
-  final roomReadMarkers = RoomReadMarkers();
-
-  // Shared server-level read markers, watched by both modules so a server
-  // marker floors every room and thread on it across both surfaces.
-  final serverReadMarkers = ServerReadMarkers();
+  // The state lobby and room both read, and its server-removal cleanup.
+  // Registered before the features, so it is disposed after them.
+  final stores = StoresAppModule(serverManager: serverManager);
 
   final inactivityLogoutFlags = LocalInactivityLogoutFlagStorage();
 
@@ -181,19 +173,22 @@ Future<StandardKit> buildStandardKit({
         inspector: inspector,
       ),
       authMod,
+      stores,
       LobbyAppModule(
         serverManager: serverManager,
         identity: identity,
-        registry: registry,
-        roomReadMarkers: roomReadMarkers,
-        serverReadMarkers: serverReadMarkers,
+        registry: stores.registry,
+        roomReadMarkers: stores.roomReadMarkers,
+        serverReadMarkers: stores.serverReadMarkers,
       ),
       RoomAppModule(
         serverManager: serverManager,
         runtimeManager: runtimeManager,
-        registry: registry,
-        roomReadMarkers: roomReadMarkers,
-        serverReadMarkers: serverReadMarkers,
+        registry: stores.registry,
+        roomReadMarkers: stores.roomReadMarkers,
+        serverReadMarkers: stores.serverReadMarkers,
+        documentSelections: stores.documentSelections,
+        databaseSelections: stores.databaseSelections,
         appName: identity.appName,
         logo: brandLogo,
         enableDocumentFilter: enableDocumentFilter,
