@@ -81,6 +81,10 @@ Six feature modules composed in the standard flavor (`lib/src/flavors/standard.d
   injection; `build()` returns `ModuleRoutes`. No registry.
 - **Flavors**: A `Flavor` object composes module instances into a
   `ShellConfig`. Add/remove a module by adding/removing it from the list.
+- **Layering** (ADR-005): import only downward through `shared`/`interfaces`
+  → `core` → `modules/auth` → `stores` → feature modules → `flavors`.
+  Features never import each other; shared state goes in `lib/src/stores/`.
+  Enforced by `test/architecture/import_boundaries_test.dart`.
 - **State management**: Riverpod for DI/service locator only. Reactive state
   via `signals` (from `soliplex_agent` package). No AsyncNotifier or
   FutureProvider chains.
