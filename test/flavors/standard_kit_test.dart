@@ -7,8 +7,10 @@ import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
+import 'package:soliplex_frontend/src/modules/lobby/lobby_module.dart';
 import 'package:soliplex_frontend/src/modules/preferences/preferences_module.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
+import 'package:soliplex_frontend/src/stores/stores_module.dart';
 
 import '../helpers/fakes.dart';
 import 'platform_mocks.dart';
@@ -26,6 +28,7 @@ void main() {
       [
         'diagnostics',
         'auth',
+        'stores',
         'lobby',
         'room',
         'quiz',
@@ -35,6 +38,22 @@ void main() {
       reason: 'the standard composition, in registration order',
     );
     expect(kit.initialRoute, AppRoutes.home);
+  });
+
+  test('lobby and room share the stores module\'s instances', () async {
+    final kit = await buildStandardKit(identity: AppIdentity.soliplex);
+    final stores = kit.modules.whereType<StoresAppModule>().single;
+    final lobby = kit.modules.whereType<LobbyAppModule>().single;
+    final room = kit.modules.whereType<RoomAppModule>().single;
+
+    expect(lobby.registry, same(stores.registry));
+    expect(room.registry, same(stores.registry));
+    expect(lobby.roomReadMarkers, same(stores.roomReadMarkers));
+    expect(room.roomReadMarkers, same(stores.roomReadMarkers));
+    expect(lobby.serverReadMarkers, same(stores.serverReadMarkers));
+    expect(room.serverReadMarkers, same(stores.serverReadMarkers));
+    expect(room.documentSelections, same(stores.documentSelections));
+    expect(room.databaseSelections, same(stores.databaseSelections));
   });
 
   test('initialRoute is the auth callback when callback params are present',

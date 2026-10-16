@@ -6,9 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_module.dart';
-import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
+import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
-import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
+import 'package:soliplex_frontend/src/stores/run_registry.dart';
 
 import '../../helpers/fakes.dart';
 

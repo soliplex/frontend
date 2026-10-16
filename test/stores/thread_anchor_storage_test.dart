@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
+import 'package:soliplex_frontend/src/stores/thread_anchor_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

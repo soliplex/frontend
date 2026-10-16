@@ -3,8 +3,8 @@ import 'dart:async' show unawaited;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../version.dart';
-import '../auth/server_entry.dart';
+import '../../version.dart';
+import '../modules/auth/server_entry.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.run_registry');
 
