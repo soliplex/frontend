@@ -158,10 +158,12 @@ String _unitOf(String path) {
   return parts.first == 'modules' ? 'modules/${parts[1]}' : parts.first;
 }
 
-// An import or export URI, or the URI of a conditional import's
-// `if (...) '...'` clause on a line of its own.
+// The URI of an import or export, or of a conditional import's
+// `if (dart.library.x) '...'` clause on a line of its own. Horizontal
+// whitespace only, and a `.dart` URI, so a collection-if keyed by a string
+// literal (`if (cond) 'key': value`) is not read as a URI.
 final _directive = RegExp(
-  r"^\s*(?:(?:import|export)\s+|if\s*\([^)]*\)\s*)'([^']+)'",
+  r"""^[ \t]*(?:(?:import|export)[ \t]+|if[ \t]*\([\w.]+(?:[ \t]*==[ \t]*'[^'\n]*')?\)[ \t]*)'([^'\n]+\.dart)'""",
   multiLine: true,
 );
 
