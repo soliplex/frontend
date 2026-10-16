@@ -8,7 +8,26 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- **Library consumers:** following a run still going on the backend.
+  `ThreadHistory.runInProgress` reports the thread's newest run when the
+  backend has not finished it, with the user message that started it, as a
+  `RunInProgress`. `AgentRuntime.follow` follows it in a new session that
+  renders and ends as a run from `spawn` does, without creating a run, built
+  on `AgentSession.follow`, `RunOrchestrator.followToCompletion` and
+  `AgUiStreamClient.followRun`. `AgentLlmProvider` gains `followRun`; an
+  implementation that runs in-process throws `UnsupportedError` from it.
+
 ### Fixed
+
+- A thread opened while a reply is still being written shows it and follows
+  it to the end: after a page reload or an app restart, or on another device.
+  It used to show neither the reply nor the message that asked for it, and a
+  message sent before reopening the thread left that turn out of what the
+  model was sent. The reply can be stopped as one sent from the thread can. If
+  the backend lost the run (it restarted mid-run), the reply stops being
+  followed after 10 minutes with no new output, and shows as cut off.
 
 - A citation that merged passages from several sections shows the cited
   section's own heading path, instead of chaining every section's heading as

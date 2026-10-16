@@ -106,6 +106,14 @@ flowchart LR
    - A turn is taken from history only once the fetch read the turn's last
      run. A run that waited on a client tool, read without the run that
      resumed it, would otherwise end the turn early (`0f67979b`).
+   - History reads no run the backend has not finished. It reports the
+     thread's newest run, if still going, sent a message, and not resuming a
+     turn the thread already holds (§5), as
+     `ThreadHistory.runInProgress`, and the view follows it as a live run
+     (`AgentRuntime.follow`): the same fold, states, tile and registry entry,
+     from the run's first stored event. It is not followed while a session
+     holds the thread, nor once the view holds how it ended: a run stopped
+     here goes on until the backend finishes it.
 8. **Runs outlive views.** `RunRegistry` holds sessions by `ThreadKey` and
    captures terminal outcomes, "because a view unmounts. A run that fails
    after the user navigates away must still be recorded". Only the cancel
@@ -172,6 +180,8 @@ These follow from §2. They are what a reviewer should check.
 | Live and reload agree on messages, states and outcomes | `test/modules/room/replay_parity_test.dart` |
 | Live and reload produce the same layout, after every event | `test/modules/room/live_reload_parity_test.dart` |
 | History taken only once the turn's last run was read | `test/modules/room/thread_return_test.dart`, `thread_view_state_test.dart` |
+| A followed run ends as the live run of the same events | `packages/soliplex_agent/test/orchestration/follow_run_test.dart` |
+| A run still going is followed once, and not after a stop | `test/modules/room/thread_view_state_test.dart` ("a run still going on the backend") |
 
 ## 5. Known Limitations and Open Questions
 
@@ -196,7 +206,21 @@ From #619's "Not in this PR" and #566's known issues:
      event per streamed event. That assumption is unpinned.
    - The backend keeps no run status, which is why the registry files
      failures as feedback.
-5. **Mutation-testing survivors.** #566 listed survivors (the whitespace
+   - A run the backend lost (it restarted mid-run) is never marked finished,
+     and its stored stream sends keepalives forever. A followed run therefore
+     ends as cut off after 10 minutes without an event (`defaultHttpTimeout`).
+     A live run that resumes after a dropped connection reads the same stream
+     and has no such bound.
+   - An unfinished run that is not the thread's newest is taken to be lost: it
+     is neither shown nor followed.
+5. **Following a client-tool turn.**
+   - A followed run that waits on a client tool has the follower run the tool
+     and resume the turn, as live does. A run followed in two places at once
+     would be resumed twice.
+   - A run already resuming a turn when the thread loads (its message repeats
+     the run before it) is not followed: that needs the turn resumed first, as
+     live resumes it, which is the turn model of item 1.
+6. **Mutation-testing survivors.** #566 listed survivors (the whitespace
    guard, the active-run guard, a dead known-run entry). It is not recorded
    whether later work closed them.
 

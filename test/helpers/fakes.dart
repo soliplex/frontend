@@ -29,6 +29,12 @@ import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
 ReadonlySignal<Map<String, ServerEntry>> emptyServers() =>
     Signal<Map<String, ServerEntry>>({});
 
+/// `ThreadViewState.followRun` for a view whose history never reports a run
+/// in progress. It throws if called, but the view catches the throw, so a test
+/// that does meet a run in progress does not fail on it.
+Future<AgentSession> neverFollowed(RunInProgress run) =>
+    throw StateError('Unexpected run in progress: ${run.runId}');
+
 /// Minimal app identity for widget tests: a trivial inline logo (no asset
 /// loading) plus a placeholder name.
 AppIdentity testIdentity() => const AppIdentity(
@@ -631,6 +637,22 @@ class RecordingAgUiStreamClient extends FakeAgUiStreamClient {
     inputs.add(input);
     return const Stream.empty();
   }
+}
+
+/// Stream client for a thread with a run still going on the backend: the
+/// test feeds that run's events through [followed], and every send's input
+/// is kept, as [RecordingAgUiStreamClient] keeps it.
+class FollowableAgUiStreamClient extends RecordingAgUiStreamClient {
+  final followed = StreamController<DecodeOutcome>();
+
+  @override
+  Stream<DecodeOutcome> followRun(
+    String endpoint,
+    String runId, {
+    CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      followed.stream;
 }
 
 /// AgentSession fake whose terminal state and result future are

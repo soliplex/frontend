@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -153,6 +155,59 @@ void main() {
     expect(state.activeThreadView!.threadId, 'thread-1');
 
     state.dispose();
+  });
+
+  test(
+      'a thread opened while a run is still going follows the run in the '
+      "room's runtime", () async {
+    final streams = FollowableAgUiStreamClient();
+    addTearDown(() => unawaited(streams.followed.close()));
+    final following = _fakeServerEntry(
+      ServerConnection(
+        serverId: 'test-server',
+        api: api,
+        agUiStreamClient: streams,
+      ),
+    );
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      runInProgress: RunInProgress(
+        runId: 'run-1',
+        userMessage: TextMessage.create(
+          id: 'u-1',
+          user: ChatUser.user,
+          text: 'Still going?',
+          runId: 'run-1',
+        ),
+      ),
+    );
+    final state = RoomState(
+      serverEntry: following,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+    addTearDown(state.dispose);
+
+    state.selectThread('thread-1');
+    await pumpEventQueue();
+    streams.followed.add(
+      DecodedEvent(
+        const TextMessageContentEvent(messageId: 'reply', delta: 'Partly'),
+        const {},
+      ),
+    );
+    await pumpEventQueue();
+
+    final view = state.activeThreadView!;
+    expect(
+      state.runtime.getSession(view.threadKey),
+      same(registry.activeSession(view.threadKey)),
+    );
+    expect(view.activeRunId.value, 'run-1');
   });
 
   test('selectThread disposes previous ThreadViewState', () async {

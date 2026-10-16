@@ -96,6 +96,7 @@ void main() {
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
+      followRun: neverFollowed,
       contextWindow: Signal<int?>(null),
     );
     addTearDown(() {
