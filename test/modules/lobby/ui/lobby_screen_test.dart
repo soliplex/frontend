@@ -15,7 +15,7 @@ import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_grid_card.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/server_sidebar.dart';
-import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
+import 'package:soliplex_frontend/src/shared/unread_dot.dart';
 
 import '../../../helpers/fakes.dart';
 

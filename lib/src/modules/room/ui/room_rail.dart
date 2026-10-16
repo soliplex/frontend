@@ -9,7 +9,7 @@ import '../../../shared/mark_read_context_menu.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/user_claims.dart';
-import '../../lobby/ui/unread_dot.dart';
+import '../../../shared/unread_dot.dart';
 
 /// The compact, always-visible rail of rooms for the current server.
 ///

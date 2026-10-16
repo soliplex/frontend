@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_frontend/src/modules/diagnostics/models/json_tree_model.dart';
-import 'package:soliplex_frontend/src/modules/diagnostics/ui/json_tree_view.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_model.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 
 void main() {
   group('JsonTreeView', () {
