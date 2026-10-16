@@ -47,6 +47,12 @@ A `Flavor` declares the module list (plus identity, theme, and boot knobs);
 Modules are built in registration order and disposed in reverse. The shell
 flattens routes and collects overrides into a single root `ProviderScope`.
 
+Imports follow ADR-005's layers, lowest first: `shared/` and `interfaces/`,
+`core/`, `modules/auth`, `stores/`, the feature modules, `flavors/`. Import only
+downward; feature modules never import each other. State two features read
+lives in `lib/src/stores/`, owned by `StoresAppModule`.
+`test/architecture/import_boundaries_test.dart` enforces this.
+
 ### State Management
 
 Riverpod is **DI/service locator only** — no AsyncNotifier or FutureProvider chains.
