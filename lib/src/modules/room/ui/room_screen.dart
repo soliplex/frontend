@@ -939,10 +939,10 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Seeds the thread's reasoning level from its newest run.
   ///
   /// The backend keeps no merged state for a client-owned feature, so the run
-  /// that carried the level is the only record of it. A level the room no
-  /// longer offers is dropped rather than shown: the room's model can be
-  /// changed under a thread, and offering a level it would refuse is worse
-  /// than starting from its default.
+  /// that carried the level is the only record of it. The level is kept as
+  /// read, even one the room no longer offers: [_assertedThinkingLevel]
+  /// reads it against the room's current offer at send time, and the
+  /// composer is shown that rather than the level kept here.
   void _hydrateThinkingLevel(String? level) {
     if (level == _thinkingLevel) return;
     setState(() => _thinkingLevel = level);
@@ -2768,7 +2768,9 @@ class _RoomScreenState extends State<RoomScreen> {
       onAttachFile: attachCallback(pickFiles),
       onAttachFolder: attachCallback(pickFolder),
       thinking: _thinkingOffer,
-      thinkingLevel: _thinkingLevel,
+      // What a send would assert, so a level the room no longer offers
+      // shows as the room's default rather than as a choice.
+      thinkingLevel: _assertedThinkingLevel,
       onThinkingLevelChanged: (level) => setState(() => _thinkingLevel = level),
     );
   }
