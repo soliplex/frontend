@@ -6,6 +6,7 @@ import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
 import 'package:soliplex_client/src/application/rag_snapshot.dart'
     show ragSourcesKey, ragStateKey;
+import 'package:soliplex_client/src/application/replay_observer.dart';
 import 'package:soliplex_client/src/application/run_fold.dart';
 import 'package:soliplex_client/src/application/thread_state_warnings.dart';
 import 'package:soliplex_client/src/application/transcript_events.dart';
@@ -99,8 +100,9 @@ const RunPayload noRunData = (
 Future<ThreadHistory> assembleThreadHistory(
   Map<String, dynamic> thread,
   String threadId,
-  Future<FetchedRun> Function(String runId) fetchRun,
-) async {
+  Future<FetchedRun> Function(String runId) fetchRun, {
+  required ReplayObserver? observer,
+}) async {
   // Envelope-level shape drift (`runs` arrives as a list/scalar instead
   // of a map) is a backend bug — retry can't fix it. Throw so the UI
   // surfaces a non-retryable error rather than rendering an empty
@@ -237,6 +239,7 @@ Future<ThreadHistory> assembleThreadHistory(
     scopeWarnings,
     latestUsage,
     runInProgress,
+    observer: observer,
   );
 }
 
@@ -252,8 +255,9 @@ ThreadHistory replayThreadHistory(
   List<String>? databaseSources,
   Set<ThreadStateWarning> scopeWarnings,
   RunUsage? latestUsage,
-  RunInProgress? runInProgress,
-) {
+  RunInProgress? runInProgress, {
+  required ReplayObserver? observer,
+}) {
   var conversation = Conversation.empty(threadId: threadId);
   final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
   final runs = <RunEventBundle>[];
@@ -348,7 +352,6 @@ ThreadHistory replayThreadHistory(
       }
     }
 
-    final decodedEvents = <BaseEvent>[];
     // The events were fetched under this run's id, so the run is known
     // before any of them is read. Waiting for a `RUN_STARTED` to say so
     // leaves a bundle that carries none with every message unattributed and
@@ -378,6 +381,7 @@ ThreadHistory replayThreadHistory(
             resumedFrom?.turnCitations ?? const TurnCitations.empty(),
         runCreated: created,
       );
+      observer?.runStarted(fold, continuesTurn: continuesTurn);
       for (final eventJson in events) {
         final outcome = eventJson is Map<String, dynamic>
             ? decodeMapSafely(eventJson)
@@ -388,8 +392,9 @@ ThreadHistory replayThreadHistory(
                 eventJson,
                 StackTrace.current,
               );
-        if (outcome case DecodedEvent(:final event)) decodedEvents.add(event);
-        fold = fold.apply(outcome).fold;
+        final applied = fold.apply(outcome);
+        fold = applied.fold;
+        observer?.eventFolded(fold, processed: applied.processed);
       }
       // A stored run that ends without saying so. The backend's own unknown
       // and empty status branches describe exactly this, and the run record
@@ -443,11 +448,7 @@ ThreadHistory replayThreadHistory(
     // history tells the runs it read from the ones it could not fetch.
     if (fetchError == null) {
       runs.add(
-        RunEventBundle(
-          runId: runId,
-          events: decodedEvents,
-          continuesTurn: continuesTurn,
-        ),
+        RunEventBundle(runId: runId, continuesTurn: continuesTurn),
       );
     }
 

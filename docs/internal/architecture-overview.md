@@ -421,4 +421,4 @@ No `dependency_overrides` or git dependencies are declared.
 - Unpinned CI inputs (gitleaks `:latest`, trufflehog `@main`). End-of-life Docker base image tracked in [#606](https://github.com/soliplex/frontend/issues/606).
 - Single haiku.rag schema snapshot; supporting more than one deployed backend version requires additional snapshots.
 - Security posture: findings from this mapping are being handled privately with the maintainers.
-- Not reviewed in this pass: `connect_flow.dart`, `connection_probe.dart`, tool-approval implementation, `rag_state_overlay.dart`, `historical_replay.dart`, and catch-site audits for `describeFailure` in agent and client.
+- Not reviewed in this pass: `connect_flow.dart`, `connection_probe.dart`, tool-approval implementation, `rag_state_overlay.dart`, and catch-site audits for `describeFailure` in agent and client.

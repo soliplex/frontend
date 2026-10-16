@@ -10,8 +10,8 @@ import 'composer_persistence.dart';
 import 'context_usage_controller.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
-import 'historical_replay.dart';
 import 'human_approval_extension.dart';
+import 'replayed_bands.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
 import 'session_spawner.dart';
@@ -653,8 +653,14 @@ class ThreadViewState {
     }
 
     try {
-      final history = await _connection.api
-          .getThreadHistory(_roomId, threadId, cancelToken: token);
+      final replay = ReplayedBands();
+      final history = await _connection.api.getThreadHistory(
+        _roomId,
+        threadId,
+        cancelToken: token,
+        observer: replay,
+      );
+      final replayedBands = replay.finish();
       if (token.isCancelled) return;
       _cancelToken = null;
       // The history is authoritative for every run it read, and what the view
@@ -721,8 +727,7 @@ class ThreadViewState {
               stored.contains(runOfHeldMessage[key]),
         )
         ..addAll({
-          for (final MapEntry(:key, :value)
-              in replayToTrackers(history).entries)
+          for (final MapEntry(:key, :value) in replayedBands.entries)
             if (!setAside.any((runId) => key == noResponseMessageId(runId)))
               key: value,
         });

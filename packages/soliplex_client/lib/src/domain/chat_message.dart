@@ -668,10 +668,9 @@ enum DropSource {
 /// Minted by `RunFold.apply`, which both the live and the replay path fold
 /// events through, for an event `decodeMapSafely` could not decode or
 /// `processEvent` threw on, and by replay for a run that could not be
-/// fetched. Citation extraction, historical replay bridging, and tracker
-/// projection log only without minting a tile — failures there don't lose
-/// user-facing content. Never sent: a run sends
-/// `Conversation.transcript`, which holds no display tiles.
+/// fetched. Citation extraction and tracker projection log only without
+/// minting a tile — failures there don't lose user-facing content. Never
+/// sent: a run sends `Conversation.transcript`, which holds no display tiles.
 @immutable
 class DroppedEventMessage extends ChatMessage {
   /// Creates a dropped-event message with all properties.

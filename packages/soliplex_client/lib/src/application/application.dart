@@ -5,6 +5,7 @@ export 'decode_outcome.dart';
 export 'json_patch.dart';
 export 'rag_database_scope.dart';
 export 'rag_snapshot.dart';
+export 'replay_observer.dart';
 export 'run_ending.dart';
 export 'run_fold.dart';
 export 'run_phase.dart';

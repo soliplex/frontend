@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
-import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/unread_boundary.dart';
 
+import '../../helpers/replayed_band.dart';
 import '../../helpers/test_logger.dart';
 
 TextMessage _msg(String id) =>
@@ -157,11 +157,9 @@ void main() {
       // timeline gives that work the run's outcome tile, after the reply, so
       // an anchor laid out without the bands would stop one tile short and
       // mark a tile the reader has already seen as new.
-      final trailing = ExecutionTracker.historical(
+      final trailing = replayedBand(
         unfinishedAs: StepStatus.completed,
         events: const [(event: ThinkingStarted(), timestamp: null)],
-        origin: null,
-        activities: const [],
         logger: testLogger(),
       );
       addTearDown(trailing.dispose);
@@ -195,11 +193,9 @@ void main() {
       // Laid out from the timeline's own inputs, so the open run's band goes to
       // the loading tile as it does on screen — and the loading tile, which
       // names no message that will still be there on reload, is not an anchor.
-      final open = ExecutionTracker.historical(
+      final open = replayedBand(
         unfinishedAs: StepStatus.completed,
         events: const [(event: ThinkingStarted(), timestamp: null)],
-        origin: null,
-        activities: const [],
         logger: testLogger(),
       );
       addTearDown(open.dispose);

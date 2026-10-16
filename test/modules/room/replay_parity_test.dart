@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -9,25 +8,24 @@ import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
 
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
+import 'package:soliplex_frontend/src/modules/room/replayed_bands.dart';
+
+import '../../helpers/band_content.dart';
 import '../../helpers/live_session.dart';
 import '../../helpers/test_logger.dart';
 
 // A run reaches the timeline by two paths: live, as `RunOrchestrator` folds the
 // stream, and on reload, as `SoliplexApi.getThreadHistory` replays what the
 // backend stored. Each case here feeds the same events to both and expects the
-// same messages, transcript, message states and run outcomes. Data only: how
-// the room lays them out is `live_reload_parity_test.dart`.
+// same messages, transcript, message states, run outcomes and execution bands.
+// Data only: how the room lays them out is `live_reload_parity_test.dart`.
 
 class _MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class _MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
 
 const ThreadKey _key = (serverId: 'srv', roomId: 'r', threadId: 't');
-
-/// [event] as the stream client delivers it: sent as JSON text, decoded by
-/// [decodeMapSafely], the boundary replay crosses too.
-DecodeOutcome _overTheWire(Map<String, dynamic> event) =>
-    decodeMapSafely(jsonDecode(jsonEncode(event)) as Map<String, dynamic>);
 
 /// The server time [seconds] into the first run.
 int _at(int seconds) =>
@@ -177,6 +175,7 @@ Map<String, Object?> _parityView({
   required Transcript transcript,
   required Map<String, MessageState> messageStates,
   required Map<String, NoResponseTile> runOutcomes,
+  required Map<String, ExecutionTracker> bands,
 }) =>
     {
       'messages': messages.map(_describeMessage).toList(),
@@ -197,14 +196,16 @@ Map<String, Object?> _parityView({
         for (final MapEntry(:key, :value) in runOutcomes.entries)
           key: _describeMessage(value),
       },
+      'bands': describeBands(bands),
     };
 
-/// How a live run ended: its conversation, and the input each of its runs
-/// was sent.
+/// How a live run ended: its conversation, the input each of its runs was
+/// sent, and the bands the room collected for it.
 typedef _LiveRun = ({
   RunState state,
   Conversation conversation,
   List<SimpleRunAgentInput> sent,
+  Map<String, ExecutionTracker> bands,
 });
 
 void main() {
@@ -250,30 +251,33 @@ void main() {
     return (orchestrator: orchestrator, sent: sent);
   }
 
-  /// Runs [runs] live, one backend run per entry, each answered by its events
-  /// over the wire.
+  /// Runs [runs] live in a session, one backend run per entry, each answered by
+  /// its events over the wire, with the room's band registry attached.
   ///
-  /// [executeTools] answers a run that waits on a client tool in
+  /// A run that waits on a client tool is answered by that tool in
   /// [toolRegistry].
   Future<_LiveRun> runLive(
     Map<String, List<Map<String, dynamic>>> runs, {
     ToolRegistry toolRegistry = const ToolRegistry(),
-    ToolExecutorCallback? executeTools,
   }) async {
-    final (:orchestrator, :sent) = liveOrchestrator(
-      {
-        for (final MapEntry(key: runId, value: events) in runs.entries)
-          runId: Stream.fromIterable(events.map(_overTheWire)),
-      },
-      toolRegistry: toolRegistry,
-    );
-
-    final state = await orchestrator.runToCompletion(
+    final [MapEntry(key: runId, value: events), ...later] =
+        runs.entries.toList();
+    final live = startLiveSession(
       key: _key,
-      userMessage: [const TextPart('Q')],
-      toolExecutor: executeTools ??
-          (pending) => fail('no client tool expected, got $pending'),
+      runId: runId,
+      toolRegistry: toolRegistry,
+      laterRuns: [
+        for (final MapEntry(key: runId, value: events) in later)
+          (runId: runId, events: events),
+      ],
     );
+    addTearDown(live.orchestrator.dispose);
+    await Future<void>.delayed(Duration.zero);
+    events.forEach(live.events.add);
+    await live.events.close();
+    await live.session.result;
+
+    final state = live.orchestrator.currentState;
     final conversation = switch (state) {
       CompletedState(:final conversation) ||
       FailedState(:final conversation?) ||
@@ -281,7 +285,12 @@ void main() {
         conversation,
       _ => fail('expected a run that ended, got $state'),
     };
-    return (state: state, conversation: conversation, sent: sent);
+    return (
+      state: state,
+      conversation: conversation,
+      sent: live.sent,
+      bands: live.trackers.trackers,
+    );
   }
 
   /// Runs [runs] live, then reloads them as the backend stored them — each
@@ -293,14 +302,10 @@ void main() {
   Future<_LiveRun> expectParity(
     Map<String, List<Map<String, dynamic>>> runs, {
     ToolRegistry toolRegistry = const ToolRegistry(),
-    ToolExecutorCallback? executeTools,
   }) async {
-    final live = await runLive(
-      runs,
-      toolRegistry: toolRegistry,
-      executeTools: executeTools,
-    );
-    final reload = await storedHistoryFromJson([
+    final live = await runLive(runs, toolRegistry: toolRegistry);
+    final replay = ReplayedBands();
+    final reload = await storedHistoryFromJson(observer: replay, [
       for (final (index, MapEntry(key: runId, value: events))
           in runs.entries.indexed)
         (
@@ -316,12 +321,14 @@ void main() {
         transcript: reload.transcript,
         messageStates: reload.messageStates,
         runOutcomes: reload.runOutcomes,
+        bands: replay.finish(),
       ),
       _parityView(
         messages: live.conversation.messages,
         transcript: live.conversation.transcript,
         messageStates: live.conversation.messageStates,
         runOutcomes: live.conversation.runOutcomes,
+        bands: live.bands,
       ),
     );
     return live;
@@ -500,16 +507,9 @@ void main() {
           toolRegistry: const ToolRegistry().register(
             ClientTool(
               definition: const Tool(name: 'locate', description: 'Locates'),
-              executor: (_, __) async => fail('answered by executeTools'),
+              executor: (_, __) async => 'Paris',
             ),
           ),
-          executeTools: (pending) async => [
-            for (final call in pending)
-              call.copyWith(
-                status: ToolCallStatus.completed,
-                result: 'Paris',
-              ),
-          ],
         );
 
         expect(live.state, isA<CompletedState>());
@@ -571,13 +571,9 @@ void main() {
         toolRegistry: const ToolRegistry().register(
           ClientTool(
             definition: const Tool(name: 'locate', description: 'Locates'),
-            executor: (_, __) async => fail('answered by executeTools'),
+            executor: (_, __) async => 'Paris',
           ),
         ),
-        executeTools: (pending) async => [
-          for (final call in pending)
-            call.copyWith(status: ToolCallStatus.completed, result: 'Paris'),
-        ],
       );
 
       expect(
@@ -619,13 +615,9 @@ void main() {
         toolRegistry: const ToolRegistry().register(
           ClientTool(
             definition: const Tool(name: 'locate', description: 'Locates'),
-            executor: (_, __) async => fail('answered by executeTools'),
+            executor: (_, __) async => throw StateError('Offline'),
           ),
         ),
-        executeTools: (pending) async => [
-          for (final call in pending)
-            call.copyWith(status: ToolCallStatus.failed, result: 'Offline'),
-        ],
       );
 
       expect(
@@ -667,7 +659,7 @@ void main() {
           delta: "I don'",
           timestamp: _at(5),
         ).toJson(),
-      ].map(_overTheWire).forEach(events.add);
+      ].map(overTheWire).forEach(events.add);
       await Future<void>.delayed(Duration.zero);
 
       orchestrator.dispose();

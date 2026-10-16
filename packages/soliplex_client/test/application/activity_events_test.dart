@@ -177,9 +177,9 @@ void main() {
       // Identity, not just equality: callers short-circuit on
       // `identical(updatedActivities, conversation.activities)` to avoid
       // minting a new Conversation, so returning a fresh copy would cause
-      // silent rebuild churn downstream. This input reaches the fold only from
-      // historical replay — `_processActivitySnapshot` throws on a non-object
-      // `content` before folding.
+      // silent rebuild churn downstream. No production path reaches the fold
+      // with this input: `_processActivitySnapshot` throws on a non-object
+      // `content` before folding, live and on reload.
       expect(result, same(current));
       expect(sink.records, hasLength(1));
       final record = sink.records.single;

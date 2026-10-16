@@ -18,8 +18,20 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   on `AgentSession.follow`, `RunOrchestrator.followToCompletion` and
   `AgUiStreamClient.followRun`. `AgentLlmProvider` gains `followRun`; an
   implementation that runs in-process throws `UnsupportedError` from it.
+- **Library consumers:** `SoliplexApi.getThreadHistory` takes an optional
+  `ReplayObserver`, told each run and each event as the history's replay folds
+  them, with the `RunFold` after each.
+
+### Removed
+
+- **Library consumers:** `RunEventBundle.events`. A reader that needs a run's
+  events as replay folded them passes a `ReplayObserver` to
+  `getThreadHistory`.
 
 ### Fixed
+
+- A client tool's step shows once in the work above a reply, instead of a
+  second time when the client runs the tool.
 
 - A thread opened while a reply is still being written shows it and follows
   it to the end: after a page reload or an app restart, or on another device.

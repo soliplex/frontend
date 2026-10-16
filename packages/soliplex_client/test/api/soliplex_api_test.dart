@@ -5420,7 +5420,8 @@ void main() {
         });
       });
 
-      test('populates runs with decoded events in arrival order', () async {
+      test('tells an observer each run it starts and each event it folds',
+          () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -5488,17 +5489,20 @@ void main() {
           },
         );
 
-        final history = await api.getThreadHistory('room-123', 'thread-456');
+        final observer = _RecordingObserver();
+        await api.getThreadHistory(
+          'room-123',
+          'thread-456',
+          observer: observer,
+        );
 
-        expect(history.runs, hasLength(1));
-        expect(history.runs[0].runId, 'run-1');
-        final types = history.runs[0].events.map((e) => e.eventType).toList();
-        expect(types, [
-          EventType.runStarted,
-          EventType.textMessageStart,
-          EventType.textMessageContent,
-          EventType.textMessageEnd,
-          EventType.runFinished,
+        expect(observer.seen, [
+          'run-1 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'TEXT_MESSAGE_START, TextStreaming ""',
+          'TEXT_MESSAGE_CONTENT, TextStreaming "hello"',
+          'TEXT_MESSAGE_END, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
         ]);
       });
 
@@ -5591,7 +5595,7 @@ void main() {
         expect(history.runs.map((r) => r.runId), ['run-1', 'run-2']);
       });
 
-      test('runs skips malformed events alongside conversation replay',
+      test('tells an observer an event it could not decode folded to nothing',
           () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -5646,17 +5650,19 @@ void main() {
           },
         );
 
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        // Malformed event dropped from both surfaces; the two remaining
-        // events are present in runs, matching what the conversation replay
-        // saw.
-        expect(history.runs, hasLength(1));
-        expect(history.runs[0].events, hasLength(2));
-        expect(
-          history.runs[0].events.map((e) => e.eventType),
-          [EventType.textMessageStart, EventType.textMessageEnd],
+        final observer = _RecordingObserver();
+        await api.getThreadHistory(
+          'room-123',
+          'thread-456',
+          observer: observer,
         );
+
+        expect(observer.seen, [
+          'run-1 starts, continuing no turn, AwaitingText',
+          'nothing, AwaitingText',
+          'TEXT_MESSAGE_START, TextStreaming ""',
+          'TEXT_MESSAGE_END, AwaitingText',
+        ]);
       });
 
       test('runs is empty when no completed runs exist', () async {
@@ -9063,4 +9069,29 @@ void main() {
       });
     });
   });
+}
+
+/// Writes down what replay tells it, one line per call: the run each fold
+/// starts and whether it continues a turn, then each event folded (or
+/// `nothing` when it folded into a drop tile) with the streaming state after.
+class _RecordingObserver implements ReplayObserver {
+  final List<String> seen = [];
+
+  @override
+  void runStarted(RunFold fold, {required bool continuesTurn}) => seen.add(
+        '${fold.runId} starts, '
+        '${continuesTurn ? 'continuing its turn' : 'continuing no turn'}, '
+        '${_streaming(fold.streaming)}',
+      );
+
+  @override
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) => seen.add(
+        '${processed?.eventType.value ?? 'nothing'}, '
+        '${_streaming(fold.streaming)}',
+      );
+
+  static String _streaming(StreamingState streaming) => switch (streaming) {
+        AwaitingText() => 'AwaitingText',
+        TextStreaming(:final text) => 'TextStreaming "$text"',
+      };
 }

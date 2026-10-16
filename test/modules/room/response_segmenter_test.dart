@@ -31,12 +31,5 @@ void main() {
     final segmenter = ResponseSegmenter()..arrives(_result);
 
     expect(segmenter.arrives(const ThinkingStarted()), isNull);
-    expect(segmenter.ends(), isNull);
-  });
-
-  test('the run ending hands the open response to whoever spoke in it', () {
-    final segmenter = ResponseSegmenter()..speaks('m1');
-
-    expect(segmenter.ends(), equals('m1'));
   });
 }

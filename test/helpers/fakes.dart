@@ -391,6 +391,7 @@ class FakeSoliplexApi extends SoliplexApi {
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
+    ReplayObserver? observer,
   }) async {
     if (nextThreadHistoryError != null) throw nextThreadHistoryError!;
     if (nextThreadHistory != null) return nextThreadHistory!;

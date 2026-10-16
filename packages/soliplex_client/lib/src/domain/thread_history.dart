@@ -1,4 +1,3 @@
-import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -57,14 +56,8 @@ class ThreadHistory {
   /// AG-UI state changes at run boundaries.
   final Map<String, MessageState> messageStates;
 
-  /// Decoded AG-UI events grouped per run, in chronological run order: one
-  /// bundle for each run whose events were read, and none for a run that
-  /// could not be fetched.
-  ///
-  /// Preserves the raw event stream so consumers can reconstruct execution
-  /// timelines (steps, tool calls, activities) on the reload path. Messages
-  /// and citations are still derived from [messages] / [messageStates];
-  /// [runs] is an additive surface for execution-tracker replay.
+  /// The runs whose events were read, in chronological run order, and none
+  /// for a run that could not be fetched.
   final List<RunEventBundle> runs;
 
   /// How each run that ended ended, keyed by run id.
@@ -158,17 +151,16 @@ class RunInProgress {
   final TextMessage userMessage;
 }
 
-/// Decoded AG-UI events for a single run, in arrival order.
+/// A run whose events the history read.
 @immutable
 class RunEventBundle {
-  /// Creates a bundle of decoded events for [runId].
-  RunEventBundle({
+  /// Records that [runId]'s events were read.
+  const RunEventBundle({
     required this.runId,
-    required List<BaseEvent> events,
     required this.continuesTurn,
-  }) : events = List.unmodifiable(events);
+  });
 
-  /// The run these events belong to.
+  /// The run read.
   final String runId;
 
   /// Whether this run continues the turn of the run before it: its user
@@ -176,7 +168,4 @@ class RunEventBundle {
   /// Live collects a turn's work into one band across that wait, so reload has
   /// to know.
   final bool continuesTurn;
-
-  /// Decoded AG-UI events in the order they were emitted.
-  final List<BaseEvent> events;
 }

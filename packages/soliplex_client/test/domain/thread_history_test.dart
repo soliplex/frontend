@@ -103,36 +103,13 @@ void main() {
       expect(history.runs, isEmpty);
     });
 
-    test('constructs with runs', () {
-      final bundle = RunEventBundle(
-        continuesTurn: false,
-        runId: 'run-1',
-        events: const [
-          TextMessageStartEvent(messageId: 'm1'),
-          TextMessageEndEvent(messageId: 'm1'),
-        ],
-      );
-
-      final history = ThreadHistory(messages: const [], runs: [bundle]);
-
-      expect(history.runs, hasLength(1));
-      expect(history.runs[0].runId, 'run-1');
-      expect(history.runs[0].events, hasLength(2));
-    });
-
     test('is immutable - runs list cannot be modified externally', () {
       final runs = <RunEventBundle>[
-        RunEventBundle(continuesTurn: false, runId: 'run-1', events: const []),
+        const RunEventBundle(continuesTurn: false, runId: 'run-1'),
       ];
       final history = ThreadHistory(messages: const [], runs: runs);
 
-      runs.add(
-        RunEventBundle(
-          continuesTurn: false,
-          runId: 'run-2',
-          events: const [],
-        ),
-      );
+      runs.add(const RunEventBundle(continuesTurn: false, runId: 'run-2'));
 
       expect(history.runs, hasLength(1));
     });
@@ -158,20 +135,6 @@ void main() {
             .documentFilter,
         equals("id = 'x'"),
       );
-    });
-  });
-
-  group('RunEventBundle', () {
-    test('is immutable - events list cannot be modified externally', () {
-      final events = <BaseEvent>[
-        const TextMessageStartEvent(messageId: 'm1'),
-      ];
-      final bundle =
-          RunEventBundle(continuesTurn: false, runId: 'run-1', events: events);
-
-      events.add(const TextMessageEndEvent(messageId: 'm1'));
-
-      expect(bundle.events, hasLength(1));
     });
   });
 

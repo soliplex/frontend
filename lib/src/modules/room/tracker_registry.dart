@@ -2,6 +2,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_step.dart';
 import 'execution_tracker.dart';
+import 'replay_clock.dart';
 import 'response_segmenter.dart';
 
 /// The turn whose work is being collected: the key its band is open under
@@ -30,12 +31,29 @@ class TrackerRegistry {
     required ReadonlySignal<List<ActivityRecord>> activities,
     required Logger logger,
   })  : _activities = activities,
+        _clock = null,
+        _logger = logger {
+    _sessionUnsub = _routeEvents(events);
+  }
+
+  /// A registry rebuilding one turn's bands from its stored events, fed as a
+  /// live session feeds one, whose bands are timed by [clock].
+  TrackerRegistry.replaying({
+    required ReadonlySignal<ExecutionEvent?> events,
+    required ReadonlySignal<List<ActivityRecord>> activities,
+    required ReplayClock clock,
+    required Logger logger,
+  })  : _activities = activities,
+        _clock = clock,
         _logger = logger {
     _sessionUnsub = _routeEvents(events);
   }
 
   final Map<String, ExecutionTracker> _trackers = {};
   final ReadonlySignal<List<ActivityRecord>> _activities;
+
+  /// What times a replayed turn's bands; null for a live one.
+  final ReplayClock? _clock;
   final Logger _logger;
 
   /// The turn being collected, or null between turns.
@@ -72,9 +90,8 @@ class TrackerRegistry {
         // a band belonging to a turn that did not do it.
         final open = _open ?? _openTurn(runId);
         // Only an assistant reply hosts a band, in layout's
-        // `_standsInForItsRun`, and only an assistant message speaks on reload
-        // too. Letting a system reply host one means changing all three, and
-        // the tile that renders it, together.
+        // `_standsInForItsRun`. Letting a system reply host one means changing
+        // both, and the tile that renders it, together.
         if (user != ChatUser.assistant) return;
         // A reply arriving after a tool result is the next response opening.
         _handOver(open, open.segmenter.speaks(messageId));
@@ -89,7 +106,7 @@ class TrackerRegistry {
   /// so far: its key names the tile the turn's outcome is given if nothing in
   /// the turn speaks. For the same run nothing changes. The response being
   /// collected carries on. Any run arriving while a turn is open belongs to
-  /// it because a registry lives for one session, and a session is one turn.
+  /// it because a registry lives for one turn: a session's, or one replayed.
   void _continueTurn(String runId) {
     final open = _open;
     if (open == null) return;
@@ -114,10 +131,14 @@ class TrackerRegistry {
   }
 
   void _openBand(_OpenTurn open) {
-    _trackers[open.unclaimed] = ExecutionTracker(
-      activities: _activities,
-      logger: _logger,
-    );
+    final clock = _clock;
+    _trackers[open.unclaimed] = clock == null
+        ? ExecutionTracker(activities: _activities, logger: _logger)
+        : ExecutionTracker.replayed(
+            activities: _activities,
+            elapsed: clock.start(),
+            logger: _logger,
+          );
   }
 
   /// Freezes the band of a response that ended under [takes], the message that
@@ -165,15 +186,23 @@ class TrackerRegistry {
     });
   }
 
-  /// Freeze the open band when a run reaches a terminal state.
+  /// Freeze the open band when a run reaches a terminal state, [completed]
+  /// when the run finished rather than failing or being stopped.
   ///
   /// The run ending ends the response being collected — the last response of
-  /// a run has no tool result to end it.
-  void onRunTerminated(StepStatus unfinishedAs) {
+  /// a run has no tool result to end it. A step still running when the run
+  /// fails or is stopped did not finish; reporting it green would say the
+  /// work landed.
+  void onRunEnded({required bool completed}) {
     final open = _open;
     if (open == null) return;
     _open = null;
-    _trackers[_openKey(open)]?.freeze(unfinishedAs);
+    final band = _trackers[_openKey(open)];
+    // The run's own RUN_FINISHED is routed after this, to no band, so the band
+    // settles as that event would, which also reports a call the run finished
+    // without answering.
+    if (completed) band?.observe(const RunCompleted());
+    band?.freeze(completed ? StepStatus.completed : StepStatus.failed);
   }
 
   void dispose() {

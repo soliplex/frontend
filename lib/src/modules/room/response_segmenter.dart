@@ -35,12 +35,12 @@ bool opensResponse(ExecutionEvent event) => switch (event) {
 /// response that says nothing leaves its work where it is, so the next one to
 /// speak takes that too.
 ///
-/// The live registry and history replay both segment a turn through this.
-/// They differ only in how they learn a message spoke and in where they keep
-/// the work, so each tells this what happened and moves the work where it
-/// says. One per turn: a run that resumes the turn after a client tool carries
-/// on the response being collected, and nothing carries from one turn to the
-/// next.
+/// The tracker registry segments a turn through this, live and on reload. It
+/// learns a message spoke from the streaming state and that a response opened
+/// from the event stream, tells this what happened, and moves the work where
+/// it says. One per turn: a run that resumes the turn after a client tool
+/// carries on the response being collected, and nothing carries from one turn
+/// to the next.
 class ResponseSegmenter {
   /// The message that has spoken in the response now being collected, or null
   /// while it has said nothing.
@@ -71,17 +71,6 @@ class ResponseSegmenter {
   String? arrives(ExecutionEvent event) {
     final takes = opensResponse(event) ? _endIfPending() : null;
     if (event is ServerToolCallCompleted) _resultPending = true;
-    return takes;
-  }
-
-  /// The turn's last run ended, and the response being collected ends with it.
-  ///
-  /// Returns the message that spoke in it, which takes its work, or null when
-  /// nothing spoke — the last response of a turn has no tool result to end it.
-  String? ends() {
-    final takes = _voice;
-    _voice = null;
-    _resultPending = false;
     return takes;
   }
 

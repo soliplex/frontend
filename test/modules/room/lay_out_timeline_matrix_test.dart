@@ -4,6 +4,7 @@ import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 
+import '../../helpers/replayed_band.dart';
 import '../../helpers/test_logger.dart';
 
 // The layout half of the case matrix: for every shape the event layer can hand
@@ -330,11 +331,9 @@ void main() {
   ) {
     final bands = {
       for (final key in row.bands.keys)
-        key: ExecutionTracker.historical(
+        key: replayedBand(
           unfinishedAs: StepStatus.failed,
           events: const [],
-          origin: null,
-          activities: const [],
           logger: logger,
         ),
     };

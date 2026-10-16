@@ -5,13 +5,13 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
-import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/notice_bubble.dart';
 
+import '../../../helpers/replayed_band.dart';
 import '../../../helpers/test_logger.dart';
 
 void main() {
@@ -90,11 +90,9 @@ void main() {
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
-    final orphan = ExecutionTracker.historical(
+    final orphan = replayedBand(
       unfinishedAs: StepStatus.completed,
       events: const [(event: ThinkingStarted(), timestamp: null)],
-      origin: null,
-      activities: const [],
       logger: testLogger(),
     );
     addTearDown(orphan.dispose);
