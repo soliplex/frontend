@@ -4,7 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_markings_row.dart';
-import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
+import 'package:soliplex_frontend/src/shared/unread_dot.dart';
 
 ClassificationTheme _classifications() => ClassificationTheme(
       defaultId: 'internal',

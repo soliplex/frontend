@@ -4,7 +4,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
 import 'room_markings_row.dart';
-import 'unread_dot.dart';
+import '../../../shared/unread_dot.dart';
 
 class RoomCard extends StatelessWidget {
   const RoomCard({

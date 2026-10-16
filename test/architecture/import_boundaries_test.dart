@@ -127,22 +127,11 @@ const _baseline = {
       'lib/src/modules/room/thread_read_markers.dart',
   'lib/src/modules/lobby/ui/lobby_screen.dart -> '
       'lib/src/modules/room/run_registry.dart',
-  // modules/room -> modules/lobby. Step 2 (UnreadDot moves to shared/) and
-  // step 3 (the read markers move to stores/).
+  // modules/room -> modules/lobby. Step 3: the read markers move to stores/.
   'lib/src/modules/room/room_module.dart -> '
       'lib/src/modules/lobby/lobby_read_markers.dart',
-  'lib/src/modules/room/ui/room_rail.dart -> '
-      'lib/src/modules/lobby/ui/unread_dot.dart',
   'lib/src/modules/room/ui/room_screen.dart -> '
       'lib/src/modules/lobby/lobby_read_markers.dart',
-  'lib/src/modules/room/ui/thread_tile.dart -> '
-      'lib/src/modules/lobby/ui/unread_dot.dart',
-  // modules/room -> modules/diagnostics. Step 2: the JSON tree moves to
-  // shared/.
-  'lib/src/modules/room/ui/dropped_event_message_tile.dart -> '
-      'lib/src/modules/diagnostics/models/json_tree_model.dart',
-  'lib/src/modules/room/ui/dropped_event_message_tile.dart -> '
-      'lib/src/modules/diagnostics/ui/json_tree_view.dart',
 };
 
 typedef _Edge = ({String from, String to});

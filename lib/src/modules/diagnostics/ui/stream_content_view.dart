@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
 import '../models/event_accumulator.dart';
-import '../models/json_tree_model.dart';
+import '../../../shared/json_tree_model.dart';
 import '../models/sse_event_parser.dart';
-import 'json_tree_view.dart';
+import '../../../shared/json_tree_view.dart';
 
 /// How the parsed SSE stream is rendered.
 enum StreamView {
