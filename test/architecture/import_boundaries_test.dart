@@ -12,10 +12,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// import it.
 void main() {
   final edges = _scanEdges();
-  final violations = {
+  final violations = [
     for (final edge in edges)
       if (_isViolation(edge)) '${edge.from} -> ${edge.to}',
-  };
+  ]..sort();
 
   test('every lib/src directory has a layer', () {
     final unclassified = Directory('lib/src')
@@ -37,23 +37,12 @@ void main() {
   });
 
   test('no import goes against the layer order', () {
-    final added = violations.difference(_baseline).toList()..sort();
     expect(
-      added,
+      violations,
       isEmpty,
       reason: 'These imports break the layer order of ADR-005. Move the '
-          'shared type down a layer (to stores/ or shared/) instead of '
-          'adding to the baseline:\n${added.join('\n')}',
-    );
-  });
-
-  test('the baseline lists only violations that still exist', () {
-    final fixed = _baseline.difference(violations).toList()..sort();
-    expect(
-      fixed,
-      isEmpty,
-      reason: 'These imports no longer exist. Remove them from _baseline:\n'
-          '${fixed.join('\n')}',
+          'shared type down a layer (to stores/ or shared/) instead:\n'
+          '${violations.join('\n')}',
     );
   });
 }
@@ -81,10 +70,6 @@ final _layers = <String, int>{
   for (final feature in _features) feature: 4,
   'flavors': 5,
 };
-
-/// Today's violations, tracked by #607. Each migration step of ADR-005
-/// removes entries; nothing may be added.
-const _baseline = <String>{};
 
 typedef _Edge = ({String from, String to});
 
