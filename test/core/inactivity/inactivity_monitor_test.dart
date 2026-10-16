@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/core/inactivity/inactivity_config.dart';
 import 'package:soliplex_frontend/src/core/inactivity/inactivity_monitor.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_inactivity_sessions.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -36,7 +37,10 @@ void main() {
     test('does not show the warning when no servers are active', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
 
         async.elapse(const Duration(hours: 1));
 
@@ -48,7 +52,10 @@ void main() {
     test('arms the warning timer when the first active session appears', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
 
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
@@ -66,7 +73,10 @@ void main() {
     test('bumpActivity restarts the warning timer', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
 
@@ -87,7 +97,10 @@ void main() {
         () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry1 = _activeEntry(id: 's1');
         servers.value = {entry1.serverId: entry1};
 
@@ -105,7 +118,10 @@ void main() {
     test('bumpActivity is a no-op while the warning dialog is open', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
 
@@ -127,7 +143,10 @@ void main() {
         () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
 
@@ -148,7 +167,10 @@ void main() {
     test('the grace timer signs every active session out locally', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry1 = _activeEntry(id: 's1');
         final entry2 = _activeEntry(id: 's2');
         servers.value = {entry1.serverId: entry1, entry2.serverId: entry2};
@@ -166,7 +188,10 @@ void main() {
     test('logoutNow signs out immediately and dismisses the dialog', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
 
@@ -187,7 +212,10 @@ void main() {
         'the dialog', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
 
@@ -209,7 +237,7 @@ void main() {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
         final monitor = InactivityMonitor(
-          servers: servers,
+          sessions: ServerInactivitySessions(servers: servers),
           config: InactivityConfig.disabled,
         );
         final entry = _activeEntry();
@@ -227,7 +255,10 @@ void main() {
     test('dispose cancels pending timers', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
 
@@ -244,9 +275,11 @@ void main() {
         final servers = Signal<Map<String, ServerEntry>>({});
         final flags = InMemoryInactivityLogoutFlagStorage();
         final monitor = InactivityMonitor(
-          servers: servers,
+          sessions: ServerInactivitySessions(
+            servers: servers,
+            inactivityLogoutFlags: flags,
+          ),
           config: _config,
-          inactivityLogoutFlags: flags,
         );
         final entry1 = _activeEntry(id: 's1');
         final entry2 = _activeEntry(id: 's2');
@@ -264,7 +297,10 @@ void main() {
     test('graceDeadline is set when the warning shows, cleared on extend', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});
-        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final monitor = InactivityMonitor(
+          sessions: ServerInactivitySessions(servers: servers),
+          config: _config,
+        );
         final entry = _activeEntry();
         servers.value = {entry.serverId: entry};
 
@@ -285,7 +321,7 @@ void main() {
 
       expect(
         () => InactivityMonitor(
-          servers: servers,
+          sessions: ServerInactivitySessions(servers: servers),
           config: const InactivityConfig(
             warningDuration: Duration(minutes: 10),
             graceDuration: Duration.zero,
@@ -300,7 +336,7 @@ void main() {
 
       expect(
         () => InactivityMonitor(
-          servers: servers,
+          sessions: ServerInactivitySessions(servers: servers),
           config: const InactivityConfig(
             warningDuration: Duration(minutes: -1),
             graceDuration: Duration(minutes: 5),
