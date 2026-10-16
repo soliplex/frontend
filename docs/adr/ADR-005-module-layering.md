@@ -1,6 +1,6 @@
 # ADR-005: Module Layering and Cross-Feature State
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-16)
 - **Date:** 2026-10-13
 - **Authors:** William Karol Di Cioccio
 - **Supersedes:** —
@@ -168,7 +168,7 @@ progress tracker for #607.
   question.
 
 **Enforcement.** `test/architecture/import_boundaries_test.dart`, run in the
-existing CI test job. Until it lands, review is the only check.
+existing CI test job.
 
 ## 5. Known Limitations and Open Questions
 
