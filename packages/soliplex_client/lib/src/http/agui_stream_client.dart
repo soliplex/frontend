@@ -9,8 +9,10 @@ import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
 import 'package:soliplex_client/src/http/resume_policy.dart';
+import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// Diagnostic prefix used inside
 /// [StreamResumeFailedException.message]. Kept for log/test
@@ -31,6 +33,9 @@ const String streamResumeFailedPrefix = 'Stream resume failed:';
 /// carrying image data. Outbound attachments travel in the request body.
 final SseClient _sseParser = SseClient();
 
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_client.agui_stream');
+
 /// Streams AG-UI events using the Soliplex HTTP stack directly.
 ///
 /// Routes SSE through [HttpTransport] so status code mapping, auth,
@@ -41,8 +46,8 @@ final SseClient _sseParser = SseClient();
 /// when the stream drops mid-run, the client reconnects and reports
 /// progress through an optional [ReconnectStatus] callback. On
 /// exhausted retries — or any retryable failure during a resume that
-/// the policy can no longer cover — `runAgent` throws [NetworkException]
-/// whose message starts with [streamResumeFailedPrefix].
+/// the policy can no longer cover — `runAgent` and `followRun` throw
+/// [NetworkException] whose message starts with [streamResumeFailedPrefix].
 class AgUiStreamClient {
   /// Creates a client that streams AG-UI events via [httpTransport].
   ///
@@ -83,15 +88,62 @@ class AgUiStreamClient {
     CancelToken? cancelToken,
     ResumePolicy? resumePolicy,
     void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      _stream(
+        _urlBuilder.build(path: endpoint),
+        body: input.toJson(),
+        policy: resumePolicy ?? _resumePolicy,
+        cancelToken: cancelToken,
+        onReconnectStatus: onReconnectStatus,
+      );
+
+  /// Streams AG-UI decode outcomes for run [runId], already going on the
+  /// backend: every event it has stored, then the rest as it sends them.
+  ///
+  /// Sends no input, so it starts nothing. The backend serves the run from its
+  /// store until it marks the run finished, and a run it lost (to a restart,
+  /// say) is never marked finished: the stream would stay open on keepalives
+  /// forever. So the stream ends, without an error, once no event has arrived
+  /// for [defaultHttpTimeout], the timeout the HTTP clients are given for a
+  /// request; a run ended that way reads as one whose stream ended early.
+  ///
+  /// Otherwise as [runAgent], whose reconnect behaviour it shares.
+  Stream<DecodeOutcome> followRun(
+    String endpoint,
+    String runId, {
+    CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      _stream(
+        _urlBuilder.build(path: endpoint),
+        body: null,
+        // The backend reads the cursor as "after this index"; events are
+        // numbered from 0.
+        from: '$runId:-1',
+        idleBound: defaultHttpTimeout,
+        policy: _resumePolicy,
+        cancelToken: cancelToken,
+        onReconnectStatus: onReconnectStatus,
+      );
+
+  /// The loop behind [runAgent] and [followRun]: posts [body] to [uri],
+  /// starting after the event [from] names when it is set, and resumes after
+  /// a drop as [policy] allows. With [idleBound] set, the stream ends once no
+  /// event has arrived for that long.
+  Stream<DecodeOutcome> _stream(
+    Uri uri, {
+    required Object? body,
+    required ResumePolicy policy,
+    required CancelToken? cancelToken,
+    required void Function(ReconnectStatus)? onReconnectStatus,
+    String? from,
+    Duration? idleBound,
   }) async* {
-    final policy = resumePolicy ?? _resumePolicy;
-    final uri = _urlBuilder.build(path: endpoint);
-    final body = input.toJson();
-    String? lastEventId;
+    var lastEventId = from;
+    var isResumeRequest = false;
     var attempt = 0;
 
     while (true) {
-      final isResumeRequest = lastEventId != null;
       final resumedFrom = lastEventId;
       final StreamedHttpResponse response;
       try {
@@ -128,9 +180,14 @@ class AgUiStreamClient {
       Object? streamError;
       StackTrace? streamErrorStack;
 
+      final idle =
+          idleBound == null ? null : _IdleEndingBody(response.body, idleBound);
       try {
-        final messages = _sseParser.parseStream(response.body);
+        final messages = _sseParser.parseStream(idle?.stream ?? response.body);
         await for (final message in messages) {
+          // Keepalives are SSE comments, which the parser drops, so only
+          // events restart the bound.
+          idle?.restart();
           if (message.id != null && message.id!.isNotEmpty) {
             lastEventId = message.id;
           }
@@ -165,6 +222,20 @@ class AgUiStreamClient {
           name: _logName,
           level: 900,
         );
+      } finally {
+        idle?.dispose();
+      }
+
+      if (idle != null && idle.endedIdle && !sawTerminalEvent) {
+        _logger.warning(
+          'Followed run sent no event for ${idle.bound.inSeconds}s; no '
+          'longer following it',
+          attributes: {
+            'endpoint': uri.path,
+            if (lastEventId != null) 'lastEventId': lastEventId,
+          },
+        );
+        return;
       }
 
       if (sawTerminalEvent || streamError == null) {
@@ -172,8 +243,9 @@ class AgUiStreamClient {
       }
 
       if (lastEventId == null) {
-        // No id was ever emitted, so no resume is possible. Rethrow the
-        // underlying error directly — wrapping with `streamResumeFailedPrefix`
+        // No cursor (none given, none emitted), so no resume is possible.
+        // Rethrow the underlying error directly — wrapping with
+        // `streamResumeFailedPrefix`
         // would mislead consumers into treating this as a resume failure.
         Error.throwWithStackTrace(
           streamError,
@@ -206,6 +278,7 @@ class AgUiStreamClient {
       }
 
       attempt += 1;
+      isResumeRequest = true;
       onReconnectStatus?.call(
         Reconnecting(
           attempt: attempt,
@@ -226,7 +299,7 @@ class AgUiStreamClient {
 
   Future<StreamedHttpResponse> _attempt(
     Uri uri,
-    Object body,
+    Object? body,
     String? lastEventId,
     CancelToken? cancelToken,
   ) {
@@ -234,7 +307,7 @@ class AgUiStreamClient {
       'POST',
       uri,
       headers: {
-        'Content-Type': 'application/json',
+        if (body != null) 'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
         if (lastEventId != null) 'Last-Event-ID': lastEventId,
       },
@@ -335,5 +408,70 @@ class AgUiStreamClient {
       name: _logName,
       level: 800,
     );
+  }
+}
+
+/// A response body that ends itself once [bound] passes without a [restart],
+/// releasing the connection. The clock starts when it is created.
+///
+/// Ending the body, rather than cancelling the parser reading it, is what lets
+/// the parser finish: a parser cancelled mid-read stays suspended until another
+/// line arrives, which from a silent stream never happens.
+final class _IdleEndingBody {
+  _IdleEndingBody(Stream<List<int>> source, this.bound) {
+    _controller = StreamController<List<int>>(
+      onListen: () => _subscription = source.listen(
+        _controller.add,
+        onError: _controller.addError,
+        onDone: _controller.close,
+      ),
+      onPause: () => _subscription?.pause(),
+      onResume: () => _subscription?.resume(),
+      onCancel: () => _subscription?.cancel(),
+    );
+    restart();
+  }
+
+  /// How long the body may go without a [restart].
+  final Duration bound;
+
+  late final StreamController<List<int>> _controller;
+  StreamSubscription<List<int>>? _subscription;
+  Timer? _timer;
+
+  /// Whether the body ended because [bound] passed.
+  bool get endedIdle => _endedIdle;
+  bool _endedIdle = false;
+
+  /// The body, as the parser reads it.
+  Stream<List<int>> get stream => _controller.stream;
+
+  /// Starts [bound] over.
+  void restart() {
+    _timer?.cancel();
+    _timer = Timer(bound, _end);
+  }
+
+  /// Stops the clock, once the body is no longer read.
+  void dispose() => _timer?.cancel();
+
+  void _end() {
+    _endedIdle = true;
+    // The connection is dropped on purpose, so a failure to tear it down
+    // changes nothing for the run; it is logged rather than left to reach the
+    // zone unhandled.
+    final released = _subscription?.cancel();
+    if (released != null) {
+      unawaited(
+        released.catchError((Object error, StackTrace stackTrace) {
+          _logger.warning(
+            'Releasing an idle followed stream failed',
+            stackTrace: stackTrace,
+            attributes: {'failure': describeFailure(error)},
+          );
+        }),
+      );
+    }
+    unawaited(_controller.close());
   }
 }
