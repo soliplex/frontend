@@ -238,6 +238,7 @@ void main() {
           conv1,
           const AwaitingText(),
           const TextMessageStartEvent(messageId: 'm1'),
+          createdAt: null,
         ).conversation;
         expect(conv1, isNot(equals(conv2)));
       });

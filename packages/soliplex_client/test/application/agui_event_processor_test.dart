@@ -14,6 +14,10 @@ import 'package:test/test.dart';
 
 const _defaultUser = ChatUser.assistant;
 
+/// A valid time an event carries of its own, which [processEvent] must not
+/// date a message at: the caller resolves the time, as `createdAt`.
+const _ownTimestamp = 0;
+
 void main() {
   group('processEvent', () {
     late Conversation conversation;
@@ -28,7 +32,8 @@ void main() {
       test('RunStartedEvent sets status to Running', () {
         final event = RunStartedEvent(threadId: 'thread-1', runId: 'run-1');
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.status, isA<Running>());
         expect((result.conversation.status as Running).runId, equals('run-1'));
@@ -41,7 +46,12 @@ void main() {
         );
         const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
 
-        final result = processEvent(runningConversation, streaming, event);
+        final result = processEvent(
+          runningConversation,
+          streaming,
+          event,
+          createdAt: null,
+        );
 
         expect(result.conversation.status, isA<Completed>());
         expect(result.streaming, isA<app_streaming.AwaitingText>());
@@ -56,7 +66,12 @@ void main() {
           code: 'ERROR_CODE',
         );
 
-        final result = processEvent(runningConversation, streaming, event);
+        final result = processEvent(
+          runningConversation,
+          streaming,
+          event,
+          createdAt: null,
+        );
 
         expect(result.conversation.status, isA<Failed>());
         expect(
@@ -81,7 +96,12 @@ void main() {
         );
         const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
 
-        final result = processEvent(runningConversation, textStreaming, event);
+        final result = processEvent(
+          runningConversation,
+          textStreaming,
+          event,
+          createdAt: null,
+        );
 
         final committed = result.conversation.messages
             .whereType<TextMessage>()
@@ -98,7 +118,12 @@ void main() {
         );
         const event = RunErrorEvent(message: 'late error');
 
-        final result = processEvent(completedConversation, streaming, event);
+        final result = processEvent(
+          completedConversation,
+          streaming,
+          event,
+          createdAt: null,
+        );
 
         expect(result.conversation.status, isA<Completed>());
         expect(result.conversation.messages, isEmpty);
@@ -113,7 +138,8 @@ void main() {
         // list, so the user would otherwise see nothing.
         const event = RunErrorEvent(message: 'pre-run error');
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.status, isA<Failed>());
         expect(
@@ -139,7 +165,12 @@ void main() {
         );
         const event = RunErrorEvent(message: 'boom');
 
-        final result = processEvent(runningConversation, streaming, event);
+        final result = processEvent(
+          runningConversation,
+          streaming,
+          event,
+          createdAt: null,
+        );
 
         final parked = result.conversation.runOutcomes['run-1']!;
         expect(parked.errorDetail, equals('boom'));
@@ -160,7 +191,12 @@ void main() {
         );
         const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
 
-        final result = processEvent(completedConversation, streaming, event);
+        final result = processEvent(
+          completedConversation,
+          streaming,
+          event,
+          createdAt: null,
+        );
 
         expect(result.conversation.status, isA<Completed>());
         expect(result.conversation.messages, isEmpty);
@@ -185,6 +221,7 @@ void main() {
           completedConversation,
           streamingWithThinking,
           event,
+          createdAt: null,
         );
 
         expect(result.conversation.status, isA<Completed>());
@@ -209,6 +246,7 @@ void main() {
           failedConversation,
           streamingWithThinking,
           event,
+          createdAt: null,
         );
 
         expect(result.conversation.status, isA<Failed>());
@@ -233,12 +271,17 @@ void main() {
         const finished = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
         const errored = RunErrorEvent(message: 'late error');
 
-        final afterFinished =
-            processEvent(runningConversation, streaming, finished);
+        final afterFinished = processEvent(
+          runningConversation,
+          streaming,
+          finished,
+          createdAt: null,
+        );
         final afterErrored = processEvent(
           afterFinished.conversation,
           afterFinished.streaming,
           errored,
+          createdAt: null,
         );
 
         expect(afterErrored.conversation.status, isA<Completed>());
@@ -263,15 +306,14 @@ void main() {
           runningConversation,
           streamingWithThinking,
           event,
+          createdAt: null,
         );
 
         final parked = result.conversation.runOutcomes['run-1']!;
         expect(parked.errorDetail, equals('tool failure'));
       });
 
-      test(
-          'RunErrorEvent stamps the parked failure createdAt from '
-          'event.timestamp', () {
+      test('RunErrorEvent dates the parked failure at createdAt', () {
         final runningConversation =
             conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
                   const ToolCallInfo(id: 'tc1', name: 'search'),
@@ -280,21 +322,23 @@ void main() {
           bufferedThinkingText: 'planning the call',
         );
         final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
-        final event = RunErrorEvent(
+        const event = RunErrorEvent(
           message: 'tool failure',
-          timestamp: eventTime.millisecondsSinceEpoch,
+          timestamp: _ownTimestamp,
         );
 
-        final result =
-            processEvent(runningConversation, streamingWithThinking, event);
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+          createdAt: eventTime,
+        );
 
         final parked = result.conversation.runOutcomes['run-1']!;
         expect(parked.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
 
-      test(
-          'RunErrorEvent stamps committed partial text createdAt from '
-          'event.timestamp', () {
+      test('RunErrorEvent dates committed partial text at createdAt', () {
         final runningConversation =
             conversation.withStatus(const Running(runId: 'run-1'));
         const streamingText = app_streaming.TextStreaming(
@@ -303,12 +347,14 @@ void main() {
           text: 'partial reply',
         );
         final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
-        final event = RunErrorEvent(
-          message: 'boom',
-          timestamp: eventTime.millisecondsSinceEpoch,
-        );
+        const event = RunErrorEvent(message: 'boom', timestamp: _ownTimestamp);
 
-        final result = processEvent(runningConversation, streamingText, event);
+        final result = processEvent(
+          runningConversation,
+          streamingText,
+          event,
+          createdAt: eventTime,
+        );
 
         final committed = result.conversation.messages
             .whereType<TextMessage>()
@@ -316,23 +362,25 @@ void main() {
         expect(committed.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
 
-      test(
-          'RunFinishedEvent stamps the parked outcome createdAt from '
-          'event.timestamp', () {
+      test('RunFinishedEvent dates the parked outcome at createdAt', () {
         final runningConversation =
             conversation.withStatus(const Running(runId: 'run-1'));
         const streamingWithThinking = app_streaming.AwaitingText(
           bufferedThinkingText: 'thought process',
         );
         final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
-        final event = RunFinishedEvent(
+        const event = RunFinishedEvent(
           threadId: 'thread-1',
           runId: 'run-1',
-          timestamp: eventTime.millisecondsSinceEpoch,
+          timestamp: _ownTimestamp,
         );
 
-        final result =
-            processEvent(runningConversation, streamingWithThinking, event);
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+          createdAt: eventTime,
+        );
 
         final parked = result.conversation.runOutcomes['run-1']!;
         expect(parked.createdAt!.isAtSameMomentAs(eventTime), isTrue);
@@ -353,6 +401,7 @@ void main() {
           runningConversation,
           streamingWithThinking,
           event,
+          createdAt: null,
         );
 
         final parked = result.conversation.runOutcomes['run-1']!;
@@ -371,7 +420,12 @@ void main() {
         );
         const event = RunErrorEvent(message: 'boom');
 
-        final result = processEvent(runningConversation, streamingState, event);
+        final result = processEvent(
+          runningConversation,
+          streamingState,
+          event,
+          createdAt: null,
+        );
 
         final partial = result.conversation.messages
             .whereType<TextMessage>()
@@ -385,7 +439,12 @@ void main() {
         );
         const event = RunErrorEvent(message: 'boom');
 
-        final result = processEvent(runningConversation, streaming, event);
+        final result = processEvent(
+          runningConversation,
+          streaming,
+          event,
+          createdAt: null,
+        );
 
         final parked = result.conversation.runOutcomes['run-1']!;
         expect(parked.runId, equals('run-1'));
@@ -396,7 +455,8 @@ void main() {
         // run it could belong to.
         const event = RunErrorEvent(message: 'boom');
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final error =
             result.conversation.messages.whereType<ErrorMessage>().single;
@@ -408,7 +468,8 @@ void main() {
       test('TextMessageStartEvent begins streaming', () {
         const event = TextMessageStartEvent(messageId: 'msg-1');
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.TextStreaming>());
         final streamingState = result.streaming as app_streaming.TextStreaming;
@@ -422,7 +483,8 @@ void main() {
           delta: 'Hello',
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.AwaitingText>());
         expect(result.conversation.messages, isEmpty);
@@ -439,7 +501,8 @@ void main() {
           delta: ' world',
         );
 
-        final result = processEvent(conversation, streamingState, event);
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.TextStreaming>());
         final newStreaming = result.streaming as app_streaming.TextStreaming;
@@ -460,7 +523,12 @@ void main() {
             delta: ' world',
           );
 
-          final result = processEvent(conversation, streamingState, event);
+          final result = processEvent(
+            conversation,
+            streamingState,
+            event,
+            createdAt: null,
+          );
 
           expect(result.streaming, equals(streamingState));
         },
@@ -474,7 +542,8 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(conversation, streamingState, event);
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.AwaitingText>());
         expect(result.conversation.messages, hasLength(1));
@@ -482,45 +551,26 @@ void main() {
         expect(message.id, equals('msg-1'));
       });
 
-      test('TextMessageEndEvent stamps createdAt from event.timestamp', () {
+      test('TextMessageEndEvent dates the message at createdAt', () {
         const streamingState = app_streaming.TextStreaming(
           messageId: 'msg-1',
           user: _defaultUser,
           text: 'Hello world',
         );
         final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
-        final event = TextMessageEndEvent(
+        const event = TextMessageEndEvent(
           messageId: 'msg-1',
-          timestamp: eventTime.millisecondsSinceEpoch,
+          timestamp: _ownTimestamp,
         );
-
-        final result = processEvent(conversation, streamingState, event);
-
-        final message = result.conversation.messages.first;
-        expect(message.createdAt!.isAtSameMomentAs(eventTime), isTrue);
-        expect(message.createdAt!.isUtc, isTrue);
-      });
-
-      test(
-          'TextMessageEndEvent uses undatedEventTime when event has no '
-          'timestamp', () {
-        const streamingState = app_streaming.TextStreaming(
-          messageId: 'msg-1',
-          user: _defaultUser,
-          text: 'Hello world',
-        );
-        const event = TextMessageEndEvent(messageId: 'msg-1');
-        final undatedEventTime = DateTime.utc(2026, 3, 3, 9);
 
         final result = processEvent(
           conversation,
           streamingState,
           event,
-          undatedEventTime: undatedEventTime,
+          createdAt: eventTime,
         );
 
-        final message = result.conversation.messages.first;
-        expect(message.createdAt, undatedEventTime);
+        expect(result.conversation.messages.first.createdAt, eventTime);
       });
 
       test('TextMessageEndEvent stamps the run that produced the message', () {
@@ -534,7 +584,12 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(runningConversation, streamingState, event);
+        final result = processEvent(
+          runningConversation,
+          streamingState,
+          event,
+          createdAt: null,
+        );
 
         expect(result.conversation.messages.first.runId, equals('run-1'));
       });
@@ -551,7 +606,8 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(conversation, streamingState, event);
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
         expect(result.conversation.messages.first.runId, isNull);
       });
@@ -565,7 +621,8 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(conversation, streamingState, event);
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
         final message = result.conversation.messages.first;
         expect(message.user, equals(ChatUser.user));
@@ -581,7 +638,12 @@ void main() {
           );
           const event = TextMessageEndEvent(messageId: 'msg-other');
 
-          final result = processEvent(conversation, streamingState, event);
+          final result = processEvent(
+            conversation,
+            streamingState,
+            event,
+            createdAt: null,
+          );
 
           expect(result.streaming, equals(streamingState));
           expect(result.conversation.messages, isEmpty);
@@ -606,7 +668,12 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(conversationWithMsg, streamingState, event);
+        final result = processEvent(
+          conversationWithMsg,
+          streamingState,
+          event,
+          createdAt: null,
+        );
 
         // Should skip — conversation still has exactly 1 message
         expect(result.conversation.messages, hasLength(1));
@@ -624,7 +691,8 @@ void main() {
           role: TextMessageRole.user,
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final streamingState = result.streaming as app_streaming.TextStreaming;
         expect(streamingState.user, equals(ChatUser.user));
@@ -636,7 +704,8 @@ void main() {
           role: TextMessageRole.system,
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final streamingState = result.streaming as app_streaming.TextStreaming;
         expect(streamingState.user, equals(ChatUser.system));
@@ -648,7 +717,8 @@ void main() {
           role: TextMessageRole.developer,
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final streamingState = result.streaming as app_streaming.TextStreaming;
         expect(streamingState.user, equals(ChatUser.system));
@@ -663,7 +733,8 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(conversation, streaming, event);
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
           expect(result.conversation.toolCalls, hasLength(1));
           final tc = result.conversation.toolCalls.first;
@@ -677,7 +748,8 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'search',
           );
-          final result1 = processEvent(conversation, streaming, event1);
+          final result1 =
+              processEvent(conversation, streaming, event1, createdAt: null);
 
           const event2 = ToolCallStartEvent(
             toolCallId: 'tc-2',
@@ -687,6 +759,7 @@ void main() {
             result1.conversation,
             result1.streaming,
             event2,
+            createdAt: null,
           );
 
           final awaitingText = result2.streaming as app_streaming.AwaitingText;
@@ -702,7 +775,12 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'search',
           );
-          final afterStart = processEvent(conversation, streaming, startEvent);
+          final afterStart = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           const argsEvent = ToolCallArgsEvent(
             toolCallId: 'tc-1',
@@ -712,6 +790,7 @@ void main() {
             afterStart.conversation,
             afterStart.streaming,
             argsEvent,
+            createdAt: null,
           );
 
           expect(
@@ -725,13 +804,19 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'search',
           );
-          final afterStart = processEvent(conversation, streaming, startEvent);
+          final afterStart = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           const args1 = ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"q":');
           final afterArgs1 = processEvent(
             afterStart.conversation,
             afterStart.streaming,
             args1,
+            createdAt: null,
           );
 
           const args2 = ToolCallArgsEvent(
@@ -742,6 +827,7 @@ void main() {
             afterArgs1.conversation,
             afterArgs1.streaming,
             args2,
+            createdAt: null,
           );
 
           expect(
@@ -755,7 +841,12 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'get_time',
           );
-          final afterStart = processEvent(conversation, streaming, startEvent);
+          final afterStart = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           // No ToolCallArgsEvent — go straight to end
           const endEvent = ToolCallEndEvent(toolCallId: 'tc-1');
@@ -763,6 +854,7 @@ void main() {
             afterStart.conversation,
             afterStart.streaming,
             endEvent,
+            createdAt: null,
           );
 
           expect(result.conversation.toolCalls.first.arguments, isEmpty);
@@ -773,7 +865,12 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'search',
           );
-          final afterStart = processEvent(conversation, streaming, startEvent);
+          final afterStart = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           const argsEvent = ToolCallArgsEvent(
             toolCallId: 'tc-nonexistent',
@@ -783,6 +880,7 @@ void main() {
             afterStart.conversation,
             afterStart.streaming,
             argsEvent,
+            createdAt: null,
           );
 
           // tc-1's arguments remain empty
@@ -794,7 +892,12 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'search',
           );
-          var result = processEvent(conversation, streaming, startEvent);
+          var result = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           const argsEvent = ToolCallArgsEvent(
             toolCallId: 'tc-1',
@@ -804,6 +907,7 @@ void main() {
             result.conversation,
             result.streaming,
             argsEvent,
+            createdAt: null,
           );
 
           const endEvent = ToolCallEndEvent(toolCallId: 'tc-1');
@@ -811,6 +915,7 @@ void main() {
             result.conversation,
             result.streaming,
             endEvent,
+            createdAt: null,
           );
 
           // Late args after end — should be ignored
@@ -822,6 +927,7 @@ void main() {
             result.conversation,
             result.streaming,
             lateArgs,
+            createdAt: null,
           );
 
           // Arguments unchanged from before end
@@ -842,7 +948,12 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'search',
           );
-          final afterStart = processEvent(conversation, streaming, startEvent);
+          final afterStart = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           const argsEvent = ToolCallArgsEvent(
             toolCallId: 'tc-1',
@@ -852,6 +963,7 @@ void main() {
             afterStart.conversation,
             afterStart.streaming,
             argsEvent,
+            createdAt: null,
           );
 
           const endEvent = ToolCallEndEvent(toolCallId: 'tc-1');
@@ -859,6 +971,7 @@ void main() {
             afterArgs.conversation,
             afterArgs.streaming,
             endEvent,
+            createdAt: null,
           );
 
           expect(result.conversation.toolCalls, hasLength(1));
@@ -877,7 +990,12 @@ void main() {
           );
           const event = ToolCallEndEvent(toolCallId: 'tc-1');
 
-          final result = processEvent(conversationWithTool, streaming, event);
+          final result = processEvent(
+            conversationWithTool,
+            streaming,
+            event,
+            createdAt: null,
+          );
 
           expect(result.conversation.toolCalls, hasLength(1));
           expect(result.conversation.toolCalls.first.id, equals('tc-1'));
@@ -901,6 +1019,7 @@ void main() {
             conversationWithTool,
             awaitingWithTool,
             event,
+            createdAt: null,
           );
 
           expect(
@@ -924,6 +1043,7 @@ void main() {
             conversationWithPendingTool,
             streaming,
             duplicateEnd,
+            createdAt: null,
           );
 
           // Status should remain pending, not be re-set
@@ -947,6 +1067,7 @@ void main() {
             conversationWithExecutingTool,
             streaming,
             lateEnd,
+            createdAt: null,
           );
 
           // Status should remain executing
@@ -964,36 +1085,62 @@ void main() {
             toolCallId: 'tc-a',
             toolCallName: 'search',
           );
-          var result = processEvent(conversation, streaming, startA);
+          var result =
+              processEvent(conversation, streaming, startA, createdAt: null);
 
           // Args for tool A
           const argsA = ToolCallArgsEvent(
             toolCallId: 'tc-a',
             delta: '{"q":"alice"}',
           );
-          result = processEvent(result.conversation, result.streaming, argsA);
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            argsA,
+            createdAt: null,
+          );
 
           // End tool A
           const endA = ToolCallEndEvent(toolCallId: 'tc-a');
-          result = processEvent(result.conversation, result.streaming, endA);
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            endA,
+            createdAt: null,
+          );
 
           // Start tool B
           const startB = ToolCallStartEvent(
             toolCallId: 'tc-b',
             toolCallName: 'summarize',
           );
-          result = processEvent(result.conversation, result.streaming, startB);
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            startB,
+            createdAt: null,
+          );
 
           // Args for tool B
           const argsB = ToolCallArgsEvent(
             toolCallId: 'tc-b',
             delta: '{"text":"hello"}',
           );
-          result = processEvent(result.conversation, result.streaming, argsB);
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            argsB,
+            createdAt: null,
+          );
 
           // End tool B
           const endB = ToolCallEndEvent(toolCallId: 'tc-b');
-          result = processEvent(result.conversation, result.streaming, endB);
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            endB,
+            createdAt: null,
+          );
 
           // Both tools present, both pending, correct args
           expect(result.conversation.toolCalls, hasLength(2));
@@ -1019,13 +1166,19 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'ask',
           );
-          var result = processEvent(conversation, streaming, startEvent);
+          var result = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           const endEvent = ToolCallEndEvent(toolCallId: 'tc-1');
           result = processEvent(
             result.conversation,
             result.streaming,
             endEvent,
+            createdAt: null,
           );
 
           // Tool should be pending after END
@@ -1043,6 +1196,7 @@ void main() {
             result.conversation,
             result.streaming,
             resultEvent,
+            createdAt: null,
           );
 
           expect(result.conversation.toolCalls, hasLength(1));
@@ -1057,7 +1211,12 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'ask',
           );
-          var result = processEvent(conversation, streaming, startEvent);
+          var result = processEvent(
+            conversation,
+            streaming,
+            startEvent,
+            createdAt: null,
+          );
 
           // Tool should be streaming after START
           expect(
@@ -1074,6 +1233,7 @@ void main() {
             result.conversation,
             result.streaming,
             resultEvent,
+            createdAt: null,
           );
 
           expect(result.conversation.toolCalls, hasLength(1));
@@ -1101,6 +1261,7 @@ void main() {
             conversationWithCompletedTool,
             streaming,
             resultEvent,
+            createdAt: null,
           );
 
           final tc = result.conversation.toolCalls.first;
@@ -1117,7 +1278,8 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'ask',
           );
-          final result1 = processEvent(conversation, streaming, event1);
+          final result1 =
+              processEvent(conversation, streaming, event1, createdAt: null);
 
           const event2 = ToolCallStartEvent(
             toolCallId: 'tc-2',
@@ -1127,6 +1289,7 @@ void main() {
             result1.conversation,
             result1.streaming,
             event2,
+            createdAt: null,
           );
 
           final phase1 =
@@ -1142,7 +1305,8 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(conversation, streaming, event);
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
           final phase = (result.streaming as app_streaming.AwaitingText)
               .currentPhase as app_streaming.ToolCallPhase;
@@ -1156,7 +1320,8 @@ void main() {
             timestamp: 1000,
           );
 
-          final result = processEvent(conversation, streaming, event);
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
           final phase = (result.streaming as app_streaming.AwaitingText)
               .currentPhase as app_streaming.ToolCallPhase;
@@ -1172,7 +1337,8 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(conversation, streaming, event);
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
           final after = DateTime.now().millisecondsSinceEpoch;
 
           final phase = (result.streaming as app_streaming.AwaitingText)
@@ -1189,7 +1355,8 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(conversation, streaming, event);
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
           final awaitingText = result.streaming as app_streaming.AwaitingText;
           final phase =
@@ -1200,7 +1367,8 @@ void main() {
         test('ToolCallStartEvent during TextStreaming sets phase', () {
           // Start streaming text
           const textStart = TextMessageStartEvent(messageId: 'msg-1');
-          var result = processEvent(conversation, streaming, textStart);
+          var result =
+              processEvent(conversation, streaming, textStart, createdAt: null);
           expect(result.streaming, isA<app_streaming.TextStreaming>());
 
           // Tool call starts while text is streaming
@@ -1212,6 +1380,7 @@ void main() {
             result.conversation,
             result.streaming,
             toolStart,
+            createdAt: null,
           );
 
           final textStreaming = result.streaming as app_streaming.TextStreaming;
@@ -1224,7 +1393,8 @@ void main() {
         test('text and tool calls coexist', () {
           // Start text
           const textStart = TextMessageStartEvent(messageId: 'msg-1');
-          var result = processEvent(conversation, streaming, textStart);
+          var result =
+              processEvent(conversation, streaming, textStart, createdAt: null);
 
           // Stream text content
           const textContent = TextMessageContentEvent(
@@ -1235,11 +1405,17 @@ void main() {
             result.conversation,
             result.streaming,
             textContent,
+            createdAt: null,
           );
 
           // End text
           const textEnd = TextMessageEndEvent(messageId: 'msg-1');
-          result = processEvent(result.conversation, result.streaming, textEnd);
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            textEnd,
+            createdAt: null,
+          );
 
           // Then tool call
           const toolStart = ToolCallStartEvent(
@@ -1250,6 +1426,7 @@ void main() {
             result.conversation,
             result.streaming,
             toolStart,
+            createdAt: null,
           );
 
           const toolArgs = ToolCallArgsEvent(
@@ -1260,10 +1437,16 @@ void main() {
             result.conversation,
             result.streaming,
             toolArgs,
+            createdAt: null,
           );
 
           const toolEnd = ToolCallEndEvent(toolCallId: 'tc-1');
-          result = processEvent(result.conversation, result.streaming, toolEnd);
+          result = processEvent(
+            result.conversation,
+            result.streaming,
+            toolEnd,
+            createdAt: null,
+          );
 
           // Both text message and tool call present
           expect(result.conversation.messages, hasLength(1));
@@ -1288,7 +1471,8 @@ void main() {
           content: {'tool_name': 'search'},
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         expect(
@@ -1305,7 +1489,8 @@ void main() {
           timestamp: 1234,
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         final record = result.conversation.activities.first;
@@ -1327,7 +1512,8 @@ void main() {
           timestamp: 10,
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.activityType, 'plan');
@@ -1351,11 +1537,13 @@ void main() {
           timestamp: 2,
         );
 
-        final afterFirst = processEvent(conversation, streaming, first);
+        final afterFirst =
+            processEvent(conversation, streaming, first, createdAt: null);
         final afterSecond = processEvent(
           afterFirst.conversation,
           afterFirst.streaming,
           second,
+          createdAt: null,
         );
 
         expect(afterSecond.conversation.activities, hasLength(1));
@@ -1379,11 +1567,13 @@ void main() {
           timestamp: 2,
         );
 
-        final afterFirst = processEvent(conversation, streaming, first);
+        final afterFirst =
+            processEvent(conversation, streaming, first, createdAt: null);
         final afterSecond = processEvent(
           afterFirst.conversation,
           afterFirst.streaming,
           second,
+          createdAt: null,
         );
 
         expect(afterSecond.conversation.activities, hasLength(1));
@@ -1401,7 +1591,8 @@ void main() {
           timestamp: 5,
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.messageId, 'rag:call_2');
@@ -1421,8 +1612,8 @@ void main() {
           timestamp: 2,
         );
 
-        var r = processEvent(conversation, streaming, e1);
-        r = processEvent(r.conversation, r.streaming, e2);
+        var r = processEvent(conversation, streaming, e1, createdAt: null);
+        r = processEvent(r.conversation, r.streaming, e2, createdAt: null);
 
         expect(
           r.conversation.activities.map((a) => a.messageId).toList(),
@@ -1438,7 +1629,8 @@ void main() {
           timestamp: 9,
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.messageId, 'rag:call_x');
@@ -1459,7 +1651,7 @@ void main() {
         );
 
         expect(
-          () => processEvent(conversation, streaming, event),
+          () => processEvent(conversation, streaming, event, createdAt: null),
           throwsA(
             isA<MalformedResponseException>().having(
               (e) => e.message,
@@ -1492,7 +1684,7 @@ void main() {
         );
 
         expect(
-          () => processEvent(seeded, streaming, event),
+          () => processEvent(seeded, streaming, event, createdAt: null),
           throwsA(isA<MalformedResponseException>()),
         );
       });
@@ -1523,7 +1715,7 @@ void main() {
           timestamp: 200,
         );
 
-        final result = processEvent(seeded, streaming, event);
+        final result = processEvent(seeded, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         final patched = result.conversation.activities.single;
@@ -1541,7 +1733,8 @@ void main() {
           ],
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, isEmpty);
         expect(result.streaming, equals(streaming));
@@ -1567,7 +1760,7 @@ void main() {
           timestamp: 200,
         );
 
-        final result = processEvent(seeded, streaming, event);
+        final result = processEvent(seeded, streaming, event, createdAt: null);
 
         // Existing record is preserved unchanged; the mismatched delta
         // cannot be safely applied because patch ops are authored
@@ -1602,7 +1795,7 @@ void main() {
           ],
         );
 
-        final result = processEvent(seeded, streaming, event);
+        final result = processEvent(seeded, streaming, event, createdAt: null);
 
         expect(result.conversation.activities.single.timestamp, 500);
       });
@@ -1614,7 +1807,8 @@ void main() {
         () {
           const event = ReasoningMessageStartEvent(messageId: 'r1');
 
-          final result = processEvent(conversation, streaming, event);
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
           final awaitingText = result.streaming as app_streaming.AwaitingText;
           expect(awaitingText.isThinkingStreaming, isTrue);
@@ -1635,7 +1829,8 @@ void main() {
           delta: 'Part 2.',
         );
 
-        final result = processEvent(conversation, startedState, event);
+        final result =
+            processEvent(conversation, startedState, event, createdAt: null);
 
         expect(
           (result.streaming as app_streaming.AwaitingText).bufferedThinkingText,
@@ -1650,7 +1845,8 @@ void main() {
         );
         const event = ReasoningMessageEndEvent(messageId: 'r1');
 
-        final result = processEvent(conversation, startedState, event);
+        final result =
+            processEvent(conversation, startedState, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         expect(awaitingText.isThinkingStreaming, isFalse);
@@ -1669,6 +1865,7 @@ void main() {
             conversation,
             awaitingWithThinking,
             event,
+            createdAt: null,
           );
 
           final textStreaming = result.streaming as app_streaming.TextStreaming;
@@ -1692,7 +1889,12 @@ void main() {
             delta: ' more thinking',
           );
 
-          final result = processEvent(conversation, textStreamingState, event);
+          final result = processEvent(
+            conversation,
+            textStreamingState,
+            event,
+            createdAt: null,
+          );
 
           expect(
             (result.streaming as app_streaming.TextStreaming).thinkingText,
@@ -1712,7 +1914,12 @@ void main() {
           );
           const event = TextMessageEndEvent(messageId: 'msg-1');
 
-          final result = processEvent(conversation, streamingState, event);
+          final result = processEvent(
+            conversation,
+            streamingState,
+            event,
+            createdAt: null,
+          );
 
           final message = result.conversation.messages.first as TextMessage;
           expect(message.thinkingText, equals('My reasoning'));
@@ -1724,7 +1931,8 @@ void main() {
       test('ReasoningStartEvent sets isThinkingStreaming and phase', () {
         const event = ReasoningStartEvent(messageId: 'reas-1');
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         expect(awaitingText.isThinkingStreaming, isTrue);
@@ -1741,7 +1949,8 @@ void main() {
         );
         const event = ReasoningEndEvent(messageId: 'reas-1');
 
-        final result = processEvent(conversation, reasoningState, event);
+        final result =
+            processEvent(conversation, reasoningState, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         expect(awaitingText.isThinkingStreaming, isFalse);
@@ -1752,13 +1961,15 @@ void main() {
           messageId: 'reas-1',
           delta: 'Inner reasoning',
         );
-        final afterReasoning = processEvent(conversation, streaming, event);
+        final afterReasoning =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         const textStart = TextMessageStartEvent(messageId: 'msg-1');
         final afterStart = processEvent(
           afterReasoning.conversation,
           afterReasoning.streaming,
           textStart,
+          createdAt: null,
         );
 
         const textEnd = TextMessageEndEvent(messageId: 'msg-1');
@@ -1766,6 +1977,7 @@ void main() {
           afterStart.conversation,
           afterStart.streaming,
           textEnd,
+          createdAt: null,
         );
 
         final message = result.conversation.messages.first as TextMessage;
@@ -1777,7 +1989,8 @@ void main() {
       test('StateSnapshotEvent replaces aguiState', () {
         const event = StateSnapshotEvent(snapshot: {'key': 'value'});
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.aguiState, equals({'key': 'value'}));
         expect(result.streaming, equals(streaming));
@@ -1805,7 +2018,12 @@ void main() {
           ],
         );
 
-        final result = processEvent(conversationWithState, streaming, event);
+        final result = processEvent(
+          conversationWithState,
+          streaming,
+          event,
+          createdAt: null,
+        );
 
         expect(result.conversation.aguiState['count'], 1);
         expect(result.conversation.aguiState['name'], 'test');
@@ -1826,7 +2044,8 @@ void main() {
           ],
         );
 
-        final result = processEvent(conversation, streaming, event);
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.aguiState['count'], 1);
         expect(result.conversation.aguiState['nested'], {'key': 'value'});
@@ -1850,7 +2069,12 @@ void main() {
 
       for (final entry in passthroughEvents.entries) {
         test('${entry.key} passes through unchanged', () {
-          final result = processEvent(conversation, streaming, entry.value);
+          final result = processEvent(
+            conversation,
+            streaming,
+            entry.value,
+            createdAt: null,
+          );
 
           expect(result.conversation, equals(conversation));
           expect(result.streaming, equals(streaming));
@@ -1866,6 +2090,7 @@ void main() {
           running,
           const app_streaming.AwaitingText(bufferedThinkingText: 'weighing it'),
           const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'),
+          createdAt: null,
         );
 
         final parked = result.conversation.runOutcomes['run-1'];
@@ -1881,6 +2106,7 @@ void main() {
           running,
           streaming,
           const RunErrorEvent(message: 'upstream said no'),
+          createdAt: null,
         );
 
         final parked = result.conversation.runOutcomes['run-1'];
@@ -1907,6 +2133,7 @@ void main() {
           running,
           streaming,
           const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'),
+          createdAt: null,
         );
 
         expect(result.conversation.runOutcomes, hasLength(1));
@@ -1917,6 +2144,7 @@ void main() {
           conversation,
           streaming,
           const RunErrorEvent(message: 'boom'),
+          createdAt: null,
         );
 
         expect(result.conversation.runOutcomes, isEmpty);
@@ -1929,6 +2157,7 @@ void main() {
           done,
           streaming,
           const RunFinishedEvent(threadId: 'thread-1', runId: 'run-1'),
+          createdAt: null,
         );
 
         expect(result.conversation.runOutcomes, isEmpty);
@@ -1950,6 +2179,7 @@ void main() {
             toolCallName: 'search',
             parentMessageId: 'm1',
           ),
+          createdAt: null,
         );
 
         expect(
@@ -1971,6 +2201,7 @@ void main() {
             toolCallName: 'search',
             parentMessageId: 'u1',
           ),
+          createdAt: null,
         );
 
         expect(
@@ -1984,6 +2215,7 @@ void main() {
           withCommitted('m1', ''),
           streaming,
           const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+          createdAt: null,
         );
 
         expect(
@@ -2014,6 +2246,7 @@ void main() {
                 .withStatus(const Running(runId: 'run-1')),
             const app_streaming.AwaitingText(),
             const TextMessageStartEvent(messageId: 'm1'),
+            createdAt: null,
           );
           processEvent(
             opened.conversation,
@@ -2023,6 +2256,7 @@ void main() {
               toolCallName: 'search',
               parentMessageId: 'm1',
             ),
+            createdAt: null,
           );
 
           expect(lostClaims(), hasLength(1));
@@ -2041,6 +2275,7 @@ void main() {
               toolCallName: 'search',
               parentMessageId: 'absent',
             ),
+            createdAt: null,
           );
 
           expect(lostClaims(), isEmpty);
@@ -2056,6 +2291,7 @@ void main() {
             toolCallName: 'search',
             parentMessageId: 'absent',
           ),
+          createdAt: null,
         );
 
         expect(
@@ -2085,21 +2321,25 @@ void main() {
 
       test('a later delta that applies keeps the mark', () {
         final marked =
-            processEvent(start(), streaming, unappliable).conversation;
+            processEvent(start(), streaming, unappliable, createdAt: null)
+                .conversation;
 
-        final result = processEvent(marked, streaming, appliable);
+        final result =
+            processEvent(marked, streaming, appliable, createdAt: null);
 
         expect(result.conversation.aguiStateIncomplete, isTrue);
       });
 
       test('a later snapshot clears the mark', () {
         final marked =
-            processEvent(start(), streaming, unappliable).conversation;
+            processEvent(start(), streaming, unappliable, createdAt: null)
+                .conversation;
 
         final result = processEvent(
           marked,
           streaming,
           const StateSnapshotEvent(snapshot: {'a': 2}),
+          createdAt: null,
         );
 
         expect(result.conversation.aguiStateIncomplete, isFalse);
@@ -2114,6 +2354,7 @@ void main() {
           start().withStatus(const Running(runId: 'run-1')),
           streaming,
           unappliable,
+          createdAt: null,
         );
 
         final record = sink.records.singleWhere(
@@ -2131,6 +2372,7 @@ void main() {
           start().withStatus(const Running(runId: 'run-1')),
           streaming,
           appliable,
+          createdAt: null,
         );
 
         expect(
@@ -2140,7 +2382,8 @@ void main() {
       });
 
       test('a delta that applies keeps a complete state complete', () {
-        final result = processEvent(start(), streaming, appliable);
+        final result =
+            processEvent(start(), streaming, appliable, createdAt: null);
 
         expect(result.conversation.aguiStateIncomplete, isFalse);
       });

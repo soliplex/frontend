@@ -130,6 +130,36 @@ void main() {
         DateTime.fromMillisecondsSinceEpoch(_at(2), isUtc: true),
       );
     });
+
+    test(
+        'ends a run completed when its RUN_FINISHED carries a time no date '
+        'can hold, dated at the last event before it', () {
+      final sink = _RecordingSink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      // One past the largest epoch-millisecond value a DateTime can hold.
+      const outOfRange = 8640000000000001;
+
+      final fold = _applyAll(_start(), _partialReply(1)).apply(
+        decodeMapSafely({
+          'type': 'RUN_FINISHED',
+          'threadId': 't',
+          'runId': 'run-1',
+          'timestamp': outOfRange,
+        }),
+      );
+
+      expect(fold.fold.conversation.status, isA<Completed>());
+      final outcome = fold.fold.conversation.runOutcomes['run-1']!;
+      expect(
+        outcome.createdAt,
+        DateTime.fromMillisecondsSinceEpoch(_at(2), isUtc: true),
+      );
+      expect(
+        sink.records.single.message,
+        contains('Ignoring invalid event timestamp ($outOfRange)'),
+      );
+    });
   });
 
   group('RunFold.resolveTurn', () {
