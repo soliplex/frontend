@@ -912,34 +912,6 @@ void main() {
         [isNull, isNull],
       );
     });
-
-    test('does not repeat the per-call detail log live already wrote', () {
-      const loggerName = 'replayed-band-test';
-      final sink = _RecordingSink(loggerName);
-      LogManager.instance.addSink(sink);
-      addTearDown(() => LogManager.instance.removeSink(sink));
-
-      const call = [
-        ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
-        ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
-      ];
-      final live = ExecutionTracker(
-        activities: activities,
-        logger: testLogger(loggerName),
-      );
-      addTearDown(live.dispose);
-      call.forEach(live.observe);
-      expect(sink.records, hasLength(1), reason: 'live writes it once');
-      sink.records.clear();
-
-      final band = replayedBand(
-        logger: testLogger(loggerName),
-        events: untimed(call),
-      );
-      addTearDown(band.dispose);
-
-      expect(sink.records, isEmpty);
-    });
   });
 
   test('freeze mid-thinking clears spinner and completes active step', () {
@@ -981,8 +953,8 @@ class _RecordingSink implements LogSink {
   final String loggerName;
   final List<LogRecord> records = [];
 
-  /// The lost-detail reports, separated from the per-call confirmation the
-  /// tracker also logs at info level.
+  /// The lost-detail reports, separated from the error the tracker logs when
+  /// an event fails to apply.
   List<LogRecord> get warnings =>
       records.where((r) => r.level == LogLevel.warning).toList();
 
