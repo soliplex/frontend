@@ -80,15 +80,16 @@ void main() {
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
 
-      await _boot(tester, '//room:x/y');
+      await _boot(tester, '//unparsed-host:x/y');
 
       expect(find.text('route /lobby'), findsOneWidget);
       final record = sink.records
           .where((r) =>
               r.loggerName == 'soliplex.router' && r.level == LogLevel.warning)
           .single;
-      expect(record.toString(), isNot(contains('room')));
-      expect(record.toString(), isNot(contains('//room:x/y')));
+      // A host no checkout path holds, since the record's stack trace
+      // names the test file.
+      expect(record.toString(), isNot(contains('unparsed-host')));
     });
 
     testWidgets('starts at the initial route for an undecodable query',
