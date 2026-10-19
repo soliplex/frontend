@@ -1,5 +1,14 @@
 # Citation Data Flow
 
+> **Status: the April 2026 plan, not current code.** The client no longer
+> reads the `qa_history` schema below, and the extraction it describes
+> (`RunOrchestrator._extractCitations`, `CitationExtractor.extractNew`, the
+> per-run diff of `_preRunAguiState`) no longer exists. A run's citations are
+> resolved by `RunFold.resolveTurn` through `CitationExtractor.resolve`,
+> against the session-cumulative `citation_index`; read
+> `packages/soliplex_client/lib/src/application/citation_extractor.dart` and
+> `run_fold.dart` for how it works now.
+
 ## Overview
 
 ```text
