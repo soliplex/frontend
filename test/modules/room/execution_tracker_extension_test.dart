@@ -1,120 +1,202 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 
+import '../../helpers/live_session.dart';
 import '../../helpers/test_logger.dart';
 
 const _threadId = 'thread-1';
 const _key = (serverId: 'server-1', roomId: 'room-1', threadId: _threadId);
 const _runId = 'run-1';
 
+/// A session that hands its run fold to whoever observes it, step by step,
+/// as the test folds it.
 class _FakeSession implements AgentSession {
-  final Signal<RunState> _runState = Signal<RunState>(const IdleState());
-  final Signal<ExecutionEvent?> _events = Signal<ExecutionEvent?>(null);
-  final Signal<List<ActivityRecord>> _activities =
-      Signal<List<ActivityRecord>>(const []);
+  final List<RunFoldObserver> _observers = [];
+  RunFold? _fold;
 
   @override
-  ReadonlySignal<RunState> get runState => _runState.readonly();
+  void Function() observeRunFold(RunFoldObserver observer) {
+    _observers.add(observer);
+    return () => _observers.remove(observer);
+  }
 
-  @override
-  ReadonlySignal<ExecutionEvent?> get lastExecutionEvent => _events.readonly();
+  void startRun(String runId) {
+    final fold = _fold = RunFold.start(
+      Conversation.empty(threadId: _threadId),
+      runId: runId,
+      userMessageId: null,
+      turnCitations: const TurnCitations.empty(),
+      runCreated: null,
+    );
+    for (final observer in [..._observers]) {
+      observer.runStarted(fold, continuesTurn: false);
+    }
+  }
 
-  @override
-  ReadonlySignal<List<ActivityRecord>> get conversationActivities =>
-      _activities.readonly();
+  void fold(BaseEvent event) {
+    final applied = _fold!.apply(DecodedEvent(event, const {}));
+    _fold = applied.fold;
+    for (final observer in [..._observers]) {
+      observer.eventFolded(applied.fold, processed: applied.processed);
+    }
+  }
 
-  void emitRunState(RunState state) => _runState.value = state;
+  void endRun(RunEnding ending) {
+    for (final observer in [..._observers]) {
+      observer.runEnded(ending);
+    }
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('_FakeSession.${invocation.memberName}');
 }
 
-Conversation _conversationWith(List<ChatMessage> messages) =>
-    Conversation.empty(threadId: _threadId).copyWith(messages: messages);
-
-NoResponseTile _synthesized(String runId) => NoResponseTile.cancelled(
-      runId: runId,
-      thinkingText: 'reasoning',
-    );
+/// How [band]'s steps stand, and whether it is frozen.
+String _settled(ExecutionTracker band) => [
+      for (final step in band.steps.value) step.status.name,
+      if (band.isFrozen) 'frozen' else 'open',
+    ].join(', ');
 
 void main() {
-  late _FakeSession session;
-  late ExecutionTrackerExtension ext;
+  group("fed the session's run fold", () {
+    late _FakeSession session;
+    late ExecutionTrackerExtension ext;
 
-  setUp(() async {
-    session = _FakeSession();
-    ext = ExecutionTrackerExtension(logger: testLogger());
-    await ext.onAttach(session);
+    setUp(() async {
+      session = _FakeSession();
+      ext = ExecutionTrackerExtension(logger: testLogger());
+      await ext.onAttach(session);
+    });
+
+    tearDown(() => ext.onDispose());
+
+    /// Starts a run with a tool call still out, and returns its band.
+    ExecutionTracker runWithCallOut() {
+      session
+        ..startRun(_runId)
+        ..fold(RunStartedEvent(threadId: _threadId, runId: _runId))
+        ..fold(
+            const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'));
+      return ext.trackers[noResponseMessageId(_runId)]!;
+    }
+
+    test('a run that never speaks keeps its band under its own run', () {
+      // The key is the run's from the moment the band exists, so the tile that
+      // stands for a run with nothing else to show for it finds its work
+      // already there. Nothing is renamed on the way to an ending.
+      session.startRun(_runId);
+      expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
+
+      session.endRun(RunEnding.cancelled);
+
+      expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
+    });
+
+    group('the ending call settles the band', () {
+      test('a stopped run as failed: the call did not finish', () {
+        final band = runWithCallOut();
+
+        session.endRun(RunEnding.cancelled);
+
+        expect(_settled(band), 'failed, frozen');
+      });
+
+      test('a failed run as failed', () {
+        final band = runWithCallOut();
+
+        session.endRun(RunEnding.failed);
+
+        expect(_settled(band), 'failed, frozen');
+      });
+
+      test('a completed run as completed', () {
+        final band = runWithCallOut();
+
+        session
+          ..fold(RunFinishedEvent(threadId: _threadId, runId: _runId))
+          ..endRun(RunEnding.completed);
+
+        expect(_settled(band), 'completed, frozen');
+      });
+
+      test(
+          'a run waiting on a client tool leaves it open, its RUN_FINISHED '
+          'reaching it', () {
+        final band = runWithCallOut();
+
+        session
+          ..fold(RunFinishedEvent(threadId: _threadId, runId: _runId))
+          ..endRun(RunEnding.waitingOnClientTool);
+
+        expect(_settled(band), 'completed, open');
+      });
+    });
+
+    test('a step of the fold after dispose reaches no band', () {
+      final band = runWithCallOut();
+      ext.onDispose();
+
+      session.endRun(RunEnding.cancelled);
+
+      expect(_settled(band), 'active, open');
+    });
   });
 
-  tearDown(() => ext.onDispose());
+  group('a live session settles its band as it ends with no event', () {
+    setUpAll(registerLiveSessionFallbacks);
 
-  test("a run that never speaks keeps its band under its own run", () {
-    // The key is the run's from the moment the band exists, so the tile that
-    // stands for a run with nothing else to show for it finds its work
-    // already there. Nothing is renamed on the way to a terminal.
-    session.emitRunState(
-      const RunningState(
-        threadKey: _key,
-        runId: _runId,
-        conversation: Conversation(threadId: _threadId),
-        streaming: AwaitingText(),
-      ),
-    );
-    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
+    /// A live session with a tool call out, and the band holding it.
+    Future<(LiveSession, ExecutionTracker)> callOut() async {
+      final live = startLiveSession(key: _key, runId: _runId);
+      addTearDown(live.session.dispose);
+      await Future<void>.delayed(Duration.zero);
+      live.events
+        ..add(RunStartedEvent(threadId: _threadId, runId: _runId).toJson())
+        ..add(
+          const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search')
+              .toJson(),
+        );
+      await Future<void>.delayed(Duration.zero);
+      return (live, live.trackers.trackers[noResponseMessageId(_runId)]!);
+    }
 
-    session.emitRunState(
-      CancelledState.duringRun(
-        threadKey: _key,
-        runId: _runId,
-        conversation: _conversationWith([_synthesized(_runId)]),
-      ),
-    );
+    test('stopped', () async {
+      final (live, band) = await callOut();
 
-    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
-  });
+      live.session.cancel();
+      await live.session.result;
 
-  test('a terminal that names no run leaves the band where it is', () {
-    session.emitRunState(
-      const RunningState(
-        threadKey: _key,
-        runId: _runId,
-        conversation: Conversation(threadId: _threadId),
-        streaming: AwaitingText(),
-      ),
-    );
+      expect(_settled(band), 'failed, frozen');
+    });
 
-    // A pre-run failure carries no run of its own, and cannot disturb the
-    // band of the run that was already going.
-    session.emitRunState(
-      FailedState.preRun(
-        threadKey: _key,
-        reason: FailureReason.internalError,
-        error: 'pre-run',
-      ),
-    );
+    test('its stream broken', () async {
+      final (live, band) = await callOut();
 
-    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
-  });
+      live.events.addError(const NetworkException(message: 'reset'));
+      await live.session.result;
 
-  test('post-dispose runState arrival logs and returns; does not crash', () {
-    // The teardown order in `onDispose` cancels the subscription before
-    // clearing `_session`, but signals' dispatch ordering across upgrades
-    // isn't a guarantee we want to rely on. Drive the post-dispose path
-    // directly via `debugPushRunState` to confirm the null-check holds.
-    ext.onDispose();
+      expect(_settled(band), 'failed, frozen');
+    });
 
-    expect(
-      () => ext.debugPushRunState(
-        CancelledState.duringRun(
-          threadKey: _key,
-          runId: _runId,
-          conversation: _conversationWith(const []),
-        ),
-      ),
-      returnsNormally,
-    );
+    test('its stream ended early', () async {
+      final (live, band) = await callOut();
+
+      await live.events.close();
+      await live.session.result;
+
+      expect(_settled(band), 'failed, frozen');
+    });
+
+    test('disposed: the band is left as it was, the session gone', () async {
+      final (live, band) = await callOut();
+
+      live.session.dispose();
+      await live.session.result;
+
+      expect(_settled(band), 'active, open');
+    });
   });
 }

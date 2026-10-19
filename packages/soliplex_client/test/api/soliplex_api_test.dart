@@ -5503,6 +5503,7 @@ void main() {
           'TEXT_MESSAGE_CONTENT, TextStreaming "hello"',
           'TEXT_MESSAGE_END, AwaitingText',
           'RUN_FINISHED, AwaitingText',
+          'ends completed',
         ]);
       });
 
@@ -5662,6 +5663,7 @@ void main() {
           'nothing, AwaitingText',
           'TEXT_MESSAGE_START, TextStreaming ""',
           'TEXT_MESSAGE_END, AwaitingText',
+          'ends failed',
         ]);
       });
 
@@ -5689,6 +5691,174 @@ void main() {
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
         expect(history.runs, isEmpty);
+      });
+    });
+
+    group('getThreadHistory reports how each run ended', () {
+      Map<String, dynamic> sent(List<Map<String, dynamic>> messages) =>
+          {'messages': messages};
+      const asked = {'id': 'user-1', 'role': 'user', 'content': 'weather?'};
+      Map<String, dynamic> finished(String runId, String created) => {
+            'run_id': runId,
+            'created': created,
+            'finished': created,
+          };
+      Map<String, dynamic> started(String runId) =>
+          {'type': 'RUN_STARTED', 'threadId': 'thread-456', 'runId': runId};
+      Map<String, dynamic> runFinished(String runId) =>
+          {'type': 'RUN_FINISHED', 'threadId': 'thread-456', 'runId': runId};
+
+      Future<List<String>> replayed() async {
+        final observer = _RecordingObserver();
+        await api.getThreadHistory(
+          'room-123',
+          'thread-456',
+          observer: observer,
+        );
+        return observer.seen;
+      }
+
+      test('a run its RUN_ERROR ended failed', () async {
+        stubThread({'run-1': finished('run-1', '2026-01-07T01:00:00.000Z')});
+        stubRun(
+          'run-1',
+          events: [
+            started('run-1'),
+            {'type': 'RUN_ERROR', 'message': 'boom'},
+          ],
+        );
+
+        expect(await replayed(), [
+          'run-1 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'RUN_ERROR, AwaitingText',
+          'ends failed',
+        ]);
+      });
+
+      test(
+          'a finished run waited on a client tool when the run after it '
+          'continues its turn, said once that run starts', () async {
+        stubThread({
+          'run-1': {
+            ...finished('run-1', '2026-01-07T01:00:00.000Z'),
+            'run_input': sent([asked]),
+          },
+          'run-2': {
+            ...finished('run-2', '2026-01-07T02:00:00.000Z'),
+            'run_input': sent([
+              asked,
+              {
+                'id': 'tool-result-1',
+                'role': 'tool',
+                'toolCallId': 'call-1',
+                'content': 'sunny',
+              },
+            ]),
+          },
+        });
+        stubRun(
+          'run-1',
+          events: [started('run-1'), runFinished('run-1')],
+          runInput: sent([asked]),
+        );
+        stubRun(
+          'run-2',
+          events: [started('run-2'), runFinished('run-2')],
+          runInput: sent([
+            asked,
+            {
+              'id': 'tool-result-1',
+              'role': 'tool',
+              'toolCallId': 'call-1',
+              'content': 'sunny',
+            },
+          ]),
+        );
+
+        expect(await replayed(), [
+          'run-1 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
+          'ends waitingOnClientTool',
+          'run-2 starts, continuing its turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
+          'ends completed',
+        ]);
+      });
+
+      test(
+          'a run cut off before the run that continues its turn waited on a '
+          'client tool, as the messages replay builds say', () async {
+        stubThread({
+          'run-1': {
+            ...finished('run-1', '2026-01-07T01:00:00.000Z'),
+            'run_input': sent([asked]),
+          },
+          'run-2': {
+            ...finished('run-2', '2026-01-07T02:00:00.000Z'),
+            'run_input': sent([asked]),
+          },
+        });
+        stubRun('run-1', events: [started('run-1')], runInput: sent([asked]));
+        stubRun(
+          'run-2',
+          events: [started('run-2'), runFinished('run-2')],
+          runInput: sent([asked]),
+        );
+
+        expect(await replayed(), [
+          'run-1 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'ends waitingOnClientTool',
+          'run-2 starts, continuing its turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
+          'ends completed',
+        ]);
+      });
+
+      test(
+          'a finished run completed when the run after it starts a turn of '
+          'its own', () async {
+        stubThread({
+          'run-1': {
+            ...finished('run-1', '2026-01-07T01:00:00.000Z'),
+            'run_input': sent([asked]),
+          },
+          'run-2': {
+            ...finished('run-2', '2026-01-07T02:00:00.000Z'),
+            'run_input': sent([
+              asked,
+              {'id': 'user-2', 'role': 'user', 'content': 'and tomorrow?'},
+            ]),
+          },
+        });
+        stubRun(
+          'run-1',
+          events: [started('run-1'), runFinished('run-1')],
+          runInput: sent([asked]),
+        );
+        stubRun(
+          'run-2',
+          events: [started('run-2'), runFinished('run-2')],
+          runInput: sent([
+            asked,
+            {'id': 'user-2', 'role': 'user', 'content': 'and tomorrow?'},
+          ]),
+        );
+
+        expect(await replayed(), [
+          'run-1 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
+          'ends completed',
+          'run-2 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
+          'ends completed',
+        ]);
       });
     });
 
@@ -9073,8 +9243,9 @@ void main() {
 
 /// Writes down what replay tells it, one line per call: the run each fold
 /// starts and whether it continues a turn, then each event folded (or
-/// `nothing` when it folded into a drop tile) with the streaming state after.
-class _RecordingObserver implements ReplayObserver {
+/// `nothing` when it folded into a drop tile) with the streaming state after,
+/// then how the run ended.
+class _RecordingObserver implements RunFoldObserver {
   final List<String> seen = [];
 
   @override
@@ -9089,6 +9260,9 @@ class _RecordingObserver implements ReplayObserver {
         '${processed?.eventType.value ?? 'nothing'}, '
         '${_streaming(fold.streaming)}',
       );
+
+  @override
+  void runEnded(RunEnding ending) => seen.add('ends ${ending.name}');
 
   static String _streaming(StreamingState streaming) => switch (streaming) {
         AwaitingText() => 'AwaitingText',

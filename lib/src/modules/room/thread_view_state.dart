@@ -11,7 +11,7 @@ import 'context_usage_controller.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'human_approval_extension.dart';
-import 'replayed_bands.dart';
+import 'execution_bands.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
 import 'session_spawner.dart';
@@ -653,7 +653,7 @@ class ThreadViewState {
     }
 
     try {
-      final replay = ReplayedBands();
+      final replay = ExecutionBands.replayed();
       final history = await _connection.api.getThreadHistory(
         _roomId,
         threadId,

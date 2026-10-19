@@ -6,8 +6,8 @@ import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
 import 'package:soliplex_client/src/application/rag_snapshot.dart'
     show ragSourcesKey, ragStateKey;
-import 'package:soliplex_client/src/application/replay_observer.dart';
 import 'package:soliplex_client/src/application/run_fold.dart';
+import 'package:soliplex_client/src/application/run_fold_observer.dart';
 import 'package:soliplex_client/src/application/thread_state_warnings.dart';
 import 'package:soliplex_client/src/application/transcript_events.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -101,7 +101,7 @@ Future<ThreadHistory> assembleThreadHistory(
   Map<String, dynamic> thread,
   String threadId,
   Future<FetchedRun> Function(String runId) fetchRun, {
-  required ReplayObserver? observer,
+  required RunFoldObserver? observer,
 }) async {
   // Envelope-level shape drift (`runs` arrives as a list/scalar instead
   // of a map) is a backend bug — retry can't fix it. Throw so the UI
@@ -256,7 +256,7 @@ ThreadHistory replayThreadHistory(
   Set<ThreadStateWarning> scopeWarnings,
   RunUsage? latestUsage,
   RunInProgress? runInProgress, {
-  required ReplayObserver? observer,
+  required RunFoldObserver? observer,
 }) {
   var conversation = Conversation.empty(threadId: threadId);
   final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
@@ -282,6 +282,11 @@ ThreadHistory replayThreadHistory(
   ({String userMessageId, RunFold fold})? previousRun;
   // Where the measured run ended in the transcript, once replay reaches it.
   int? coveredByLatest;
+  // How the run replayed last ended, untold until the run after it starts:
+  // a run whose turn the next run continues waited on a client tool, however
+  // its events ended, as the turn's messages read it. The observer is told
+  // then, or when the history ends.
+  RunEnding? untoldEnding;
 
   for (final (:runId, :payload, :fetchError, :fetchStackTrace, :created)
       in runsToReplay) {
@@ -381,6 +386,12 @@ ThreadHistory replayThreadHistory(
             resumedFrom?.turnCitations ?? const TurnCitations.empty(),
         runCreated: created,
       );
+      if (untoldEnding != null) {
+        observer?.runEnded(
+          continuesTurn ? RunEnding.waitingOnClientTool : untoldEnding,
+        );
+        untoldEnding = null;
+      }
       observer?.runStarted(fold, continuesTurn: continuesTurn);
       for (final eventJson in events) {
         final outcome = eventJson is Map<String, dynamic>
@@ -396,6 +407,7 @@ ThreadHistory replayThreadHistory(
         fold = applied.fold;
         observer?.eventFolded(fold, processed: applied.processed);
       }
+      untoldEnding = _storedEnding(fold.conversation.status);
       // A stored run that ends without saying so. The backend's own unknown
       // and empty status branches describe exactly this, and the run record
       // already said the run finished — so the end of its events is the end
@@ -467,6 +479,8 @@ ThreadHistory replayThreadHistory(
       );
     }
   }
+  // Nothing continues the turn of the history's last run.
+  if (untoldEnding != null) observer?.runEnded(untoldEnding);
 
   // A run in progress whose message the thread already holds continues that
   // message's turn, as a run resumed after a client tool does. Following it
@@ -515,6 +529,17 @@ ThreadHistory replayThreadHistory(
     runInProgress: followable,
   );
 }
+
+/// How a run whose stored events left it in [status] ended, unless the run
+/// after it continues its turn.
+RunEnding _storedEnding(ConversationStatus status) => switch (status) {
+      Completed() => RunEnding.completed,
+      Failed() => RunEnding.failed,
+      Cancelled() => RunEnding.cancelled,
+      // Its events ran out before a terminal one: cut off, as live records a
+      // stream that ends without one.
+      Running() || Idle() => RunEnding.failed,
+    };
 
 /// [newest], the thread's newest run entry, as the run in progress: one the
 /// backend has not finished and that was sent a user message.

@@ -4,7 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
-import 'package:soliplex_frontend/src/modules/room/replayed_bands.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_bands.dart';
 import 'package:soliplex_frontend/src/modules/room/run_id_resolver.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
@@ -15,11 +15,10 @@ import '../../helpers/live_session.dart';
 ///
 /// `layOutTimeline` is shared, so anything it decides is decided once, and so
 /// are the fold of a run's events and the tracker registry keying its bands.
-/// What is not shared is what feeds them: live, a session publishing each
-/// state and event as the stream delivers it; reloaded, `ReplayedBands`
-/// handing the registry the same, in the same order, as history replay folds
-/// the stored events. The seam between those feeds is where a thread renders
-/// one way live and another way after a refresh.
+/// What is not shared is where a run's fold steps come from: live, the
+/// orchestrator folding the stream; reloaded, history replay folding the stored
+/// events. Both tell `ExecutionBands` the same calls in the same order, so the
+/// seam is each path's source of steps, and the clock.
 ///
 /// Narrow on purpose: the message list, the band map and the parked outcomes.
 /// There is nothing else left that can diverge.
@@ -148,7 +147,7 @@ Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
 }
 
 Future<_Inputs> _reloaded(List<BaseEvent> sequence) async {
-  final replay = ReplayedBands();
+  final replay = ExecutionBands.replayed();
   final history = await storedHistory(observer: replay, [
     (
       runId: _runId,
@@ -342,7 +341,7 @@ Future<({_Inputs live, _Inputs reloaded})> _clientToolTurn(
   };
   session.orchestrator.dispose();
 
-  final replay = ReplayedBands();
+  final replay = ExecutionBands.replayed();
   final history = await storedHistoryFromJson(observer: replay, [
     for (final (index, (runId, events)) in [
       ('run-waits', waits),

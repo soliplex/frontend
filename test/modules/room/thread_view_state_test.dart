@@ -45,14 +45,14 @@ Map<String, dynamic> _legacyRagState() => {
 class _PendingHistoryApi extends FakeSoliplexApi {
   Completer<ThreadHistory>? _pending;
   CancelToken? capturedToken;
-  ReplayObserver? _observer;
+  RunFoldObserver? _observer;
 
   @override
   Future<ThreadHistory> getThreadHistory(
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
-    ReplayObserver? observer,
+    RunFoldObserver? observer,
   }) {
     capturedToken = cancelToken;
     _observer = observer;
@@ -107,13 +107,13 @@ class _AuthExceptionThrowingRuntime extends AgentRuntime {
 class _FakeAgentSession implements AgentSession {
   _FakeAgentSession({List<SessionExtension> extensions = const []})
       : _runState = Signal<RunState>(const IdleState()),
-        _lastExecutionEvent = Signal<ExecutionEvent?>(null),
         _reconnectStatus = Signal<ReconnectStatus?>(null),
         _activities = Signal<List<ActivityRecord>>(const []),
         _extensions = extensions;
 
   final Signal<RunState> _runState;
-  final Signal<ExecutionEvent?> _lastExecutionEvent;
+  final List<RunFoldObserver> _foldObservers = [];
+  RunFold? _fold;
   final Signal<ReconnectStatus?> _reconnectStatus;
   final Signal<List<ActivityRecord>> _activities;
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
@@ -127,7 +127,10 @@ class _FakeAgentSession implements AgentSession {
   ReadonlySignal<RunState> get runState => _runState;
 
   @override
-  ReadonlySignal<ExecutionEvent?> get lastExecutionEvent => _lastExecutionEvent;
+  void Function() observeRunFold(RunFoldObserver observer) {
+    _foldObservers.add(observer);
+    return () => _foldObservers.remove(observer);
+  }
 
   @override
   ReadonlySignal<List<ActivityRecord>> get conversationActivities =>
@@ -152,7 +155,39 @@ class _FakeAgentSession implements AgentSession {
 
   void emit(RunState state) => _runState.value = state;
 
-  void emitExecution(ExecutionEvent event) => _lastExecutionEvent.value = event;
+  /// Tells the fold's observers [runId] started, as a run's orchestrator
+  /// does.
+  void foldStart(String runId, {bool continuesTurn = false}) {
+    final fold = _fold = RunFold.start(
+      Conversation(threadId: 'thread-1'),
+      runId: runId,
+      userMessageId: null,
+      turnCitations: const TurnCitations.empty(),
+      runCreated: null,
+    );
+    for (final observer in [..._foldObservers]) {
+      observer.runStarted(fold, continuesTurn: continuesTurn);
+    }
+  }
+
+  /// Folds each of [events] into the run started last, telling the fold's
+  /// observers each step.
+  void foldEvents(List<BaseEvent> events) {
+    for (final event in events) {
+      final applied = _fold!.apply(DecodedEvent(event, const {}));
+      _fold = applied.fold;
+      for (final observer in [..._foldObservers]) {
+        observer.eventFolded(applied.fold, processed: applied.processed);
+      }
+    }
+  }
+
+  /// Tells the fold's observers the run started last ended as [ending].
+  void foldEnd(RunEnding ending) {
+    for (final observer in [..._foldObservers]) {
+      observer.runEnded(ending);
+    }
+  }
 
   void emitReconnect(ReconnectStatus? status) =>
       _reconnectStatus.value = status;
@@ -750,24 +785,12 @@ void main() {
           ),
         ));
       }
-      session
-        ..emit(RunningState(
-          threadKey: threadKey,
-          runId: 'run-waits',
-          conversation: waiting,
-          streaming: const AwaitingText(),
-        ))
-        ..emitExecution(
-          const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search'),
-        )
-        ..emit(ToolYieldingState(
-          threadKey: threadKey,
-          runId: 'run-waits',
-          conversation: waiting,
-          streaming: const AwaitingText(),
-          pendingToolCalls: const [call],
-          toolDepth: 0,
-        ));
+      session.emit(RunningState(
+        threadKey: threadKey,
+        runId: 'run-waits',
+        conversation: waiting,
+        streaming: const AwaitingText(),
+      ));
       history = ThreadHistory(
         messages: [
           ...beforeTool,
@@ -811,6 +834,19 @@ void main() {
           ],
         ),
       ];
+      // The band is fed the run as it streamed, which is what was stored.
+      session
+        ..foldStart('run-waits')
+        ..foldEvents(stored.single.events)
+        ..foldEnd(RunEnding.waitingOnClientTool)
+        ..emit(ToolYieldingState(
+          threadKey: threadKey,
+          runId: 'run-waits',
+          conversation: waiting,
+          streaming: const AwaitingText(),
+          pendingToolCalls: const [call],
+          toolDepth: 0,
+        ));
     }
 
     void openView() {
@@ -840,18 +876,25 @@ void main() {
           messageStates: {user.id: stateOfTurn('run-continues')},
         );
 
-    void resume() => session.emit(RunningState(
-          threadKey: threadKey,
-          runId: 'run-continues',
-          conversation: resumed(withReply: false),
-          streaming: const AwaitingText(),
-        ));
+    void resume() => session
+      ..foldStart('run-continues', continuesTurn: true)
+      ..emit(RunningState(
+        threadKey: threadKey,
+        runId: 'run-continues',
+        conversation: resumed(withReply: false),
+        streaming: const AwaitingText(),
+      ));
 
-    void complete() => session.emit(CompletedState(
-          threadKey: threadKey,
-          runId: 'run-continues',
-          conversation: resumed(withReply: true),
-        ));
+    void complete() => session
+      ..foldEvents(
+        [const RunFinishedEvent(threadId: 'thread-1', runId: 'run-continues')],
+      )
+      ..foldEnd(RunEnding.completed)
+      ..emit(CompletedState(
+        threadKey: threadKey,
+        runId: 'run-continues',
+        conversation: resumed(withReply: true),
+      ));
 
     MessagesLoaded loaded() => state.messages.value as MessagesLoaded;
 
@@ -938,11 +981,14 @@ void main() {
       // whole turn and says how it ended, as it does after a reload.
       await waitOnTool();
       openView();
-      session.emit(CancelledState.duringRun(
-        threadKey: threadKey,
-        runId: 'run-waits',
-        conversation: Conversation(threadId: 'thread-1', messages: beforeTool),
-      ));
+      session
+        ..foldEnd(RunEnding.cancelled)
+        ..emit(CancelledState.duringRun(
+          threadKey: threadKey,
+          runId: 'run-waits',
+          conversation:
+              Conversation(threadId: 'thread-1', messages: beforeTool),
+        ));
       await historyLands();
 
       expect(
@@ -1550,16 +1596,22 @@ void main() {
       state.attachSession(fakeSession);
 
       final conversation = Conversation(threadId: 'thread-1');
-      fakeSession.emit(RunningState(
-        threadKey: threadKey,
-        runId: 'run-live',
-        conversation: conversation,
-        streaming: const TextStreaming(
-          messageId: 'asst-1',
-          user: ChatUser.assistant,
-          text: 'live',
-        ),
-      ));
+      fakeSession
+        ..foldStart('run-live')
+        ..foldEvents(const [
+          TextMessageStartEvent(messageId: 'asst-1'),
+          TextMessageContentEvent(messageId: 'asst-1', delta: 'live'),
+        ])
+        ..emit(RunningState(
+          threadKey: threadKey,
+          runId: 'run-live',
+          conversation: conversation,
+          streaming: const TextStreaming(
+            messageId: 'asst-1',
+            user: ChatUser.assistant,
+            text: 'live',
+          ),
+        ));
 
       // The band is keyed by `asst-1` as soon as it speaks, so the two
       // collide from here on.
@@ -1568,11 +1620,17 @@ void main() {
       expect(identical(liveTracker, historicalTracker), isFalse);
 
       // Terminal state drives _detachSession → absorb.
-      fakeSession.emit(CompletedState(
-        threadKey: threadKey,
-        runId: 'run-live',
-        conversation: conversation,
-      ));
+      fakeSession
+        ..foldEvents(const [
+          TextMessageEndEvent(messageId: 'asst-1'),
+          RunFinishedEvent(threadId: 'thread-1', runId: 'run-live'),
+        ])
+        ..foldEnd(RunEnding.completed)
+        ..emit(CompletedState(
+          threadKey: threadKey,
+          runId: 'run-live',
+          conversation: conversation,
+        ));
 
       expect(identical(state.executionTrackers['asst-1'], liveTracker), isTrue,
           reason: 'live tracker must overwrite historical on key collision');
@@ -3006,17 +3064,21 @@ void main() {
       await ext.onAttach(session);
       registry.register(key, session);
       state.attachSession(session);
-      session.emit(
-        RunningState(
-          threadKey: key,
-          runId: 'run-0',
-          conversation: Conversation(threadId: 'thread-1'),
-          streaming: const AwaitingText(),
-        ),
-      );
-      session.emitExecution(
-        const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search'),
-      );
+      session
+        ..foldStart('run-0')
+        ..emit(
+          RunningState(
+            threadKey: key,
+            runId: 'run-0',
+            conversation: Conversation(threadId: 'thread-1'),
+            streaming: const AwaitingText(),
+          ),
+        )
+        ..foldEvents([
+          RunStartedEvent(threadId: 'thread-1', runId: 'run-0'),
+          const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search'),
+        ])
+        ..foldEnd(RunEnding.cancelled);
       session.emit(
         CancelledState.duringRun(
           threadKey: key,

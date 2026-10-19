@@ -129,6 +129,43 @@ class _TestExtensionWithTool extends SessionExtension {
   void onDispose() => disposeCount++;
 }
 
+/// Writes down each step of the fold it is told, one line per call.
+class _RecordingObserver implements RunFoldObserver {
+  final List<String> seen = [];
+
+  @override
+  void runStarted(RunFold fold, {required bool continuesTurn}) =>
+      seen.add('${fold.runId} starts');
+
+  @override
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) =>
+      seen.add(processed?.eventType.value ?? 'nothing');
+
+  @override
+  void runEnded(RunEnding ending) => seen.add('ends ${ending.name}');
+}
+
+/// Observes the session's run fold from [onAttach], as the app's band
+/// registry does; [stopsAtOnce] unsubscribes as soon as it has subscribed.
+class _FoldObservingExtension extends SessionExtension {
+  _FoldObservingExtension({this.stopsAtOnce = false});
+
+  final bool stopsAtOnce;
+  final _RecordingObserver observer = _RecordingObserver();
+
+  @override
+  Future<void> onAttach(AgentSession session) async {
+    final stop = session.observeRunFold(observer);
+    if (stopsAtOnce) stop();
+  }
+
+  @override
+  List<ClientTool> get tools => const [];
+
+  @override
+  void onDispose() {}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -654,6 +691,76 @@ void main() {
   });
 
   group('extensions', () {
+    test(
+        'every extension observing the run fold from onAttach is told each '
+        'step of the run, until it stops', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+      final observing = _FoldObservingExtension();
+      final stopped = _FoldObservingExtension(stopsAtOnce: true);
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+        extensions: [observing, stopped],
+      );
+      addTearDown(session.dispose);
+
+      await session.start(userMessage: [const TextPart('Hi')]);
+      await session.result;
+
+      expect(observing.observer.seen, [
+        '$_runId starts',
+        'RUN_STARTED',
+        'TEXT_MESSAGE_START',
+        'TEXT_MESSAGE_CONTENT',
+        'TEXT_MESSAGE_END',
+        'RUN_FINISHED',
+        'ends completed',
+      ]);
+      expect(stopped.observer.seen, isEmpty);
+    });
+
+    test('a followed run tells the fold observers as a started one does',
+        () async {
+      when(
+        () => agUiStreamClient.followRun(
+          any(),
+          _runId,
+          cancelToken: any(named: 'cancelToken'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer(
+        (_) => Stream.fromIterable(_happyPathEvents())
+            .map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+      );
+      final observing = _FoldObservingExtension();
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+        extensions: [observing],
+      );
+      addTearDown(session.dispose);
+
+      await session.follow(
+        run: RunInProgress(
+          runId: _runId,
+          userMessage: TextMessage.create(
+            id: 'user-1',
+            user: ChatUser.user,
+            text: 'Hi',
+            runId: _runId,
+          ),
+        ),
+        cachedHistory: null,
+      );
+      await session.result;
+
+      expect(observing.observer.seen.first, '$_runId starts');
+      expect(observing.observer.seen.last, 'ends completed');
+    });
+
     test('onAttach called before run starts', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));

@@ -113,6 +113,9 @@ class RunOrchestrator {
   /// through every `startRun` call (initial + post-tool-yield resumes).
   void Function(ReconnectStatus)? _activeOnReconnectStatus;
 
+  /// Told each step of the active `runToCompletion` or `followToCompletion`.
+  RunFoldObserver? _observer;
+
   /// The current state of the orchestrator.
   RunState get currentState => _currentState;
 
@@ -137,6 +140,10 @@ class RunOrchestrator {
   /// [IdleState] when a reset ended the run while it waited on a client tool.
   ///
   /// While active, [startRun] and [submitToolOutputs] throw [StateError].
+  ///
+  /// [observer] is told each run of the turn as it starts, each event once
+  /// folded, and how each run ended, as history replay tells it of a stored
+  /// run.
   Future<RunState> runToCompletion({
     required ThreadKey key,
     required List<MessagePart> userMessage,
@@ -145,11 +152,13 @@ class RunOrchestrator {
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
     void Function(ReconnectStatus)? onReconnectStatus,
+    RunFoldObserver? observer,
   }) =>
       _toCompletion(
         key,
         toolExecutor,
         onReconnectStatus,
+        observer: observer,
         open: () => _initializeStream(
           key,
           userMessage,
@@ -166,18 +175,21 @@ class RunOrchestrator {
   /// Sends nothing to start [run]; only a resume after a client tool creates
   /// a run, the next one, as live does. The conversation is [cachedHistory]
   /// with the message [run] was sent, under the id it was sent with, and the
-  /// run's events, from its first, are folded onto it.
+  /// run's events, from its first, are folded onto it. [observer] is told
+  /// what [runToCompletion] tells it.
   Future<RunState> followToCompletion({
     required ThreadKey key,
     required RunInProgress run,
     required ToolExecutorCallback toolExecutor,
     required ThreadHistory? cachedHistory,
     void Function(ReconnectStatus)? onReconnectStatus,
+    RunFoldObserver? observer,
   }) =>
       _toCompletion(
         key,
         toolExecutor,
         onReconnectStatus,
+        observer: observer,
         open: () async => _followStream(key, run, cachedHistory),
       );
 
@@ -187,6 +199,7 @@ class RunOrchestrator {
     ThreadKey key,
     ToolExecutorCallback toolExecutor,
     void Function(ReconnectStatus)? onReconnectStatus, {
+    required RunFoldObserver? observer,
     required Future<void> Function() open,
   }) async {
     _guardRunToCompletion();
@@ -195,6 +208,7 @@ class RunOrchestrator {
       _logReconnectStatus(status);
       onReconnectStatus?.call(status);
     };
+    _observer = observer;
     _toolDepth = 0;
     try {
       try {
@@ -208,6 +222,7 @@ class RunOrchestrator {
     } finally {
       _runToCompletionActive = false;
       _activeOnReconnectStatus = null;
+      _observer = null;
     }
   }
 
@@ -747,6 +762,9 @@ class RunOrchestrator {
           conversation: _recordRunEndedAsCancelled(terminalEvent: 'dispose'),
         ),
       );
+      // The run ends here with no state published, so this is the one ending
+      // `_setState` does not report.
+      _tellObserver((o) => o.runEnded(RunEnding.cancelled));
       return;
     }
     throw StateError(
@@ -989,6 +1007,9 @@ class RunOrchestrator {
     _terminalCompleter = Completer<RunState>();
     _subscriptionEpoch++;
     final epoch = _subscriptionEpoch;
+    // Every caller that resumes a turn does so from the wait on its client
+    // tools, and every other caller opens a turn from outside one.
+    final continuesTurn = _currentState is ToolYieldingState;
     // The provider returned this run's id before the stream opened, so the run
     // is known before any of its events is read. Leaving the conversation to
     // learn that from a `RUN_STARTED` leaves a stream carrying none with every
@@ -1004,6 +1025,8 @@ class RunOrchestrator {
       turnCitations: _fold?.turnCitations ?? const TurnCitations.empty(),
       runCreated: null,
     );
+    final started = _fold!;
+    _tellObserver((o) => o.runStarted(started, continuesTurn: continuesTurn));
     _setState(_runningFrom(initialState));
     _subscription = events.listen(
       _onEvent,
@@ -1025,6 +1048,7 @@ class RunOrchestrator {
     final applied = fold.apply(outcome);
     _fold = applied.fold;
     final event = applied.processed;
+    _tellObserver((o) => o.eventFolded(applied.fold, processed: event));
     if (event == null) {
       _setState(_runningFrom(running));
       return;
@@ -1200,11 +1224,44 @@ class RunOrchestrator {
 
   void _setState(RunState newState) {
     _currentState = newState;
+    _reportEnding(newState);
     if (!_controller.isClosed) {
       _controller.add(newState);
     }
     if (_isTerminal(newState) && !(_terminalCompleter?.isCompleted ?? true)) {
       _terminalCompleter!.complete(newState);
+    }
+  }
+
+  /// Tells the observer how a run ended when [state] ends one. A failure or a
+  /// stop before any run started ends none.
+  void _reportEnding(RunState state) {
+    final ending = switch (state) {
+      CompletedState() => RunEnding.completed,
+      ToolYieldingState() => RunEnding.waitingOnClientTool,
+      FailedState(runId: null) || CancelledState(runId: null) => null,
+      FailedState() => RunEnding.failed,
+      CancelledState() => RunEnding.cancelled,
+      RunningState() || IdleState() => null,
+    };
+    if (ending != null) _tellObserver((o) => o.runEnded(ending));
+  }
+
+  /// Tells the observer one step of the fold. An observer that throws has a
+  /// bug of its own, and must not stop the run it watches: the run carries on
+  /// and the failure is logged through `describeFailure`, since the observer's
+  /// exception may carry what it was handling.
+  void _tellObserver(void Function(RunFoldObserver observer) step) {
+    final observer = _observer;
+    if (observer == null) return;
+    try {
+      step(observer);
+    } on Object catch (error, stackTrace) {
+      _logger.error(
+        'Run fold observer threw',
+        stackTrace: stackTrace,
+        attributes: {'failure': describeFailure(error)},
+      );
     }
   }
 

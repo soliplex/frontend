@@ -9,7 +9,7 @@ import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
-import 'package:soliplex_frontend/src/modules/room/replayed_bands.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_bands.dart';
 
 import '../../helpers/band_content.dart';
 import '../../helpers/live_session.dart';
@@ -304,7 +304,7 @@ void main() {
     ToolRegistry toolRegistry = const ToolRegistry(),
   }) async {
     final live = await runLive(runs, toolRegistry: toolRegistry);
-    final replay = ReplayedBands();
+    final replay = ExecutionBands.replayed();
     final reload = await storedHistoryFromJson(observer: replay, [
       for (final (index, MapEntry(key: runId, value: events))
           in runs.entries.indexed)

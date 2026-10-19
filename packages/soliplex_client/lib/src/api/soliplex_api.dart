@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:soliplex_client/src/api/mappers.dart';
-import 'package:soliplex_client/src/application/replay_observer.dart';
+import 'package:soliplex_client/src/application/run_fold_observer.dart';
 import 'package:soliplex_client/src/application/thread_history_replay.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chunk_visualization.dart';
@@ -808,13 +808,15 @@ class SoliplexApi {
   ///   payload has an unexpected shape
   /// - [CancelledException] if cancelled via [cancelToken]
   ///
-  /// [observer] is told each run whose events were read, and each of its
-  /// events, as the replay folds them.
+  /// [observer] is told each run whose events were read, each of its events,
+  /// and how it ended, as the replay folds them. How a run ended is told once
+  /// the run after it starts, or the history ends: only then is it known
+  /// whether it waited on a client tool.
   Future<ThreadHistory> getThreadHistory(
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
-    ReplayObserver? observer,
+    RunFoldObserver? observer,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(threadId, 'threadId');
