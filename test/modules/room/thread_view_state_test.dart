@@ -234,6 +234,19 @@ List<({String runId, String result})> Function() _endedFollows() {
       ];
 }
 
+/// What [body] printed: a signal read after it was disposed prints a warning
+/// rather than throwing.
+Future<List<String>> _printsOf(Future<void> Function() body) async {
+  final printed = <String>[];
+  await runZoned(
+    body,
+    zoneSpecification: ZoneSpecification(
+      print: (_, __, ___, line) => printed.add(line),
+    ),
+  );
+  return printed;
+}
+
 void main() {
   setUpAll(registerLiveSessionFallbacks);
 
@@ -1041,10 +1054,20 @@ void main() {
       state.dispose();
     });
 
-    test('a send from a disposed view does not throw', () async {
+    test(
+        'a send from a disposed view runs on its thread, as typed, without '
+        'a warning', () async {
+      // A screen's send callback can outlive the view by a frame; the message
+      // was typed into this thread, and the composer has already cleared it.
       final legacy =
           ThreadHistory(messages: const [], aguiState: _legacyRagState());
-      api.nextThreadHistory = legacy;
+      api
+        ..nextThreadHistory = legacy
+        ..nextCreateRun = RunInfo(
+          id: 'run-1',
+          threadId: 'thread-1',
+          createdAt: DateTime.utc(2026),
+        );
       final state = ThreadViewState(
         connection: connection,
         auth: auth,
@@ -1058,10 +1081,52 @@ void main() {
       runtime.seedThreadHistory(state.threadKey, legacy);
       state.dispose();
 
-      await expectLater(
-        state.sendMessage([TextPart('Hello')], runtime),
-        completes,
+      final printed = await _printsOf(() async {
+        await state.sendMessage([TextPart('Hello')], runtime);
+        await pumpEventQueue();
+      });
+
+      expect(
+        registry.activeSession(state.threadKey) ??
+            registry.completedOutcome(state.threadKey),
+        isNotNull,
       );
+      expect(printed, isEmpty);
+    });
+
+    test(
+        'a disposed view takes what its screen can still call, a second '
+        'dispose included, without a warning', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        followRun: neverFollowed,
+        contextWindow: Signal<int?>(null),
+      );
+      await Future<void>.delayed(Duration.zero);
+      state.dispose();
+
+      final printed = await _printsOf(() async {
+        state
+          ..dismissReconnectStatus()
+          ..clearSendError()
+          ..respondToApproval(
+            ApprovalRequest(
+              toolCallId: 'tc-1',
+              toolName: 'send_email',
+              arguments: const {},
+              rationale: 'send a message',
+            ),
+            true,
+          );
+        state.dispose();
+      });
+
+      expect(printed, isEmpty);
     });
 
     test('a send that lands before the first load keeps its warning', () async {
@@ -1419,14 +1484,18 @@ void main() {
       state.dispose();
     });
 
-    test('cancelRun after dispose does not throw', () async {
-      // Every other method on this class opens with the disposed guard —
-      // `_onAuthChanged` three lines away from `cancelRun` does. Without it
-      // the spawn-cancel arm writes `_sessionState`, which `dispose` has
-      // already disposed, and signals raise on a write after disposal rather
-      // than ignoring it. The throw lands in the Stop button's `onPressed`.
-      api.nextThreadHistory = ThreadHistory(messages: const []);
-
+    test('a Stop on a disposed view does not cancel the run its send started',
+        () async {
+      // Disposing leaves a spawn going, so the run reaches the registry and
+      // the thread shows it when reopened. A screen that outlived the view can
+      // still press Stop on it.
+      api
+        ..nextThreadHistory = ThreadHistory(messages: const [])
+        ..nextCreateRun = RunInfo(
+          id: 'run-1',
+          threadId: 'thread-1',
+          createdAt: DateTime.utc(2026),
+        );
       final state = ThreadViewState(
         connection: connection,
         auth: auth,
@@ -1436,19 +1505,19 @@ void main() {
         followRun: neverFollowed,
         contextWindow: Signal<int?>(null),
       );
-
       await Future<void>.delayed(Duration.zero);
-
-      // Left pending, so the spawn-cancel arm is the one that runs.
       final future = state.sendMessage([TextPart('Hello')], runtime);
       state.dispose();
 
       state.cancelRun();
-
       await future;
-      for (var i = 0; i < 10; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
+      await pumpEventQueue();
+
+      expect(
+        registry.activeSession(state.threadKey) ??
+            registry.completedOutcome(state.threadKey),
+        isNotNull,
+      );
     });
 
     test('cancelRun during spawn prevents session from attaching', () async {

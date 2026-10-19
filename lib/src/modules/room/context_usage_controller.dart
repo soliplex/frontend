@@ -298,17 +298,12 @@ class ContextUsageController {
     );
   }
 
+  /// Stops the draft count's timer, and the reading taking anything more. Its
+  /// signals are left as they are: disposing one frees nothing, and would only
+  /// make a screen that still watches the reading print a warning.
   void dispose() {
     if (_disposed) return;
     _disposed = true;
     _draftDebounce.cancel();
-    warning.dispose();
-    usage.dispose();
-    _unmeasuredTokens.dispose();
-    _transcript.dispose();
-    _measured.dispose();
-    _sendingTokens.dispose();
-    _draftTokens.dispose();
-    _acknowledged.dispose();
   }
 }

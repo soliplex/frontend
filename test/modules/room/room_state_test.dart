@@ -320,13 +320,22 @@ void main() {
     state.dispose();
   });
 
-  test('cancelSpawn after dispose does not throw', () async {
-    // The same shape as `ThreadViewState.cancelRun`, one file away: every
-    // other method here opens with the disposed guard, this one writes
-    // `_sessionState` without it, and signals raise on a write after disposal.
+  test('a Stop on a disposed room does not cancel the run its send started',
+      () async {
+    // Disposing leaves a spawn going, so the run reaches the registry and the
+    // thread shows it when reopened. A screen that outlived the room can
+    // still press Stop on it.
     api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextCreateThread = (
+      ThreadInfo(
+        id: 'spawned-thread',
+        roomId: 'room-1',
+        createdAt: DateTime(2026, 3, 25),
+      ),
+      <String, dynamic>{},
+    );
     api.nextThreads = [];
-
+    api.nextThreadHistory = ThreadHistory(messages: const []);
     final state = RoomState(
       serverEntry: serverEntry,
       roomId: 'room-1',
@@ -334,20 +343,23 @@ void main() {
       registry: registry,
       uploadRegistry: uploadRegistry,
     );
-
     await Future<void>.delayed(Duration.zero);
-
-    // Left pending, so `_spawner.cancel()` reports a spawn to cancel and
-    // `cancelSpawn` reaches the write.
     final future = state.sendToNewThread([const TextPart('Hello')]);
     state.dispose();
 
     state.cancelSpawn();
-
     await future;
-    for (var i = 0; i < 10; i++) {
-      await Future<void>.delayed(Duration.zero);
-    }
+    await pumpEventQueue();
+
+    const key = (
+      serverId: 'test-server',
+      roomId: 'room-1',
+      threadId: 'spawned-thread',
+    );
+    expect(
+      registry.activeSession(key) ?? registry.completedOutcome(key),
+      isNotNull,
+    );
   });
 
   test('sendToNewThread adds thread to list locally', () async {
@@ -409,7 +421,46 @@ void main() {
     state.dispose();
   });
 
-  test('dispose during sendToNewThread does not cancel the spawn', () async {
+  test(
+      'a room left while a new thread spawns still registers its run, so the '
+      'thread shows it running when reopened', () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextCreateThread = (
+      ThreadInfo(
+        id: 'spawned-thread',
+        roomId: 'room-1',
+        createdAt: DateTime(2026, 3, 25),
+      ),
+      <String, dynamic>{},
+    );
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+    final state = RoomState(
+      serverEntry: serverEntry,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final sendFuture = state.sendToNewThread([TextPart('Hello')]);
+    state.dispose();
+    await sendFuture;
+    await pumpEventQueue();
+
+    const key = (
+      serverId: 'test-server',
+      roomId: 'room-1',
+      threadId: 'spawned-thread',
+    );
+    expect(
+      registry.activeSession(key) ?? registry.completedOutcome(key),
+      isNotNull,
+    );
+  });
+
+  test('a spawn that fails after the room is left surfaces no error', () async {
     api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];
     api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -424,17 +475,15 @@ void main() {
 
     await Future<void>.delayed(Duration.zero);
 
-    // Start sendToNewThread but dispose before spawn completes.
+    // No thread can be created, so the spawn fails, after the room is left.
     final sendFuture = state.sendToNewThread([TextPart('Hello')]);
     state.dispose();
 
-    // Should complete without error — spawn runs to completion.
     await sendFuture;
     for (var i = 0; i < 10; i++) {
       await Future<void>.delayed(Duration.zero);
     }
 
-    // No error should be surfaced (disposed state swallows errors).
     expect(state.lastError.value, isNull);
   });
 

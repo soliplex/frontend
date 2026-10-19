@@ -253,6 +253,25 @@ void main() {
     });
   });
 
+  test(
+      'a screen still watching a disposed reading sees the room change it '
+      'without a warning', () async {
+    final controller = build();
+    final stopWatching = controller.warning.subscribe((_) {});
+    addTearDown(stopWatching);
+    controller.dispose();
+    final printed = <String>[];
+
+    await runZoned(
+      () async => window.value = 4096,
+      zoneSpecification: ZoneSpecification(
+        print: (_, __, ___, line) => printed.add(line),
+      ),
+    );
+
+    expect(printed, isEmpty);
+  });
+
   group('a measured run with no reply count', () {
     const message =
         'Measured run has no reply count; the reading omits the last reply';

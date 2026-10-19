@@ -349,6 +349,9 @@ class RoomState {
         },
       );
 
+  /// Releases what the room holds. Its signals are left as they are, as
+  /// [ThreadViewState.dispose] leaves its own: disposing one frees nothing, and
+  /// a spawn that returns after the room is left still writes one.
   void dispose() {
     _isDisposed = true;
     _roomFetchToken?.cancel('disposed');
@@ -356,8 +359,5 @@ class RoomState {
     _threadRefresh.cancel();
     threadList.dispose();
     _activeThreadView?.dispose();
-    _contextWindow.dispose();
-    _sessionState.dispose();
-    runningThreadIds.dispose();
   }
 }
