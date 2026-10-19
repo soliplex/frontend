@@ -94,7 +94,12 @@ class ThreadViewState {
         _roomId = roomId,
         _registry = registry,
         _followRun = followRun,
-        _contextWindow = contextWindow {
+        contextUsage = ContextUsageController(
+          api: connection.api,
+          roomId: roomId,
+          threadId: threadId,
+          contextWindow: contextWindow,
+        ) {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
     // What the registry holds shows at once. It is only what this app saw of
     // the thread's last run, so the fetch still runs, and replaces every run
@@ -112,17 +117,11 @@ class ThreadViewState {
 
   /// Starts a session following a run still going on the backend.
   final Future<AgentSession> Function(RunInProgress run) _followRun;
-  final ReadonlySignal<int?> _contextWindow;
 
-  /// This thread's context reading. Built on first use and disposed with
-  /// the view, so it can never outlive, or be shared across, the view
-  /// whose history, runs and sends feed it.
-  late final ContextUsageController contextUsage = ContextUsageController(
-    api: _connection.api,
-    roomId: _roomId,
-    threadId: threadId,
-    contextWindow: _contextWindow,
-  );
+  /// This thread's context reading. Built and disposed with the view, so it
+  /// can never outlive, or be shared across, the view whose history, runs
+  /// and sends feed it.
+  final ContextUsageController contextUsage;
 
   ThreadKey get threadKey => (
         serverId: _connection.serverId,
@@ -900,6 +899,10 @@ class ThreadViewState {
     );
   }
 
+  /// Releases what the view holds: its subscriptions, the load in flight, and
+  /// the context reading's timer. Its signals are left as they are: disposing
+  /// one frees nothing, and would only make a read from a callback that
+  /// outlived the view print a warning, and a write throw.
   void dispose() {
     _isDisposed = true;
     _authUnsub?.call();
@@ -907,11 +910,6 @@ class ThreadViewState {
     _cancelToken?.cancel('disposed');
     _detachSession();
     contextUsage.dispose();
-    _sessionState.dispose();
-    _reconnectStatus.dispose();
-    _stateWarnings.dispose();
-    isCancellable.dispose();
-    pendingApproval.dispose();
   }
 
   /// Cancels the active run and pending history fetch when the auth
