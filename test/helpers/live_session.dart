@@ -41,8 +41,9 @@ void registerLiveSessionFallbacks() {
 }
 
 /// A session running [runId], fed by [events], with its band registry
-/// attached as the room attaches one. `sent` collects the input each of its
-/// runs was sent, in order.
+/// attached as the room attaches one, unless `startLiveSession` was given a
+/// `foldObserver`, which observes in its place. `sent` collects the input each
+/// of its runs was sent, in order.
 typedef LiveSession = ({
   AgentSession session,
   RunOrchestrator orchestrator,

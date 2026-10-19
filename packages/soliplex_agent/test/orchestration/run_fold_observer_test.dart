@@ -42,20 +42,24 @@ class _RecordingObserver implements RunFoldObserver {
   void runEnded(RunEnding ending) => seen.add('ends ${ending.name}');
 }
 
-/// An observer with a bug: it records each call, and the first event it is
-/// told of throws [error].
+/// An observer with a bug: it records each call, and every event it is told
+/// of throws [onEvent], every ending [onEnding].
 class _ThrowingObserver extends _RecordingObserver {
-  _ThrowingObserver(this.error);
+  _ThrowingObserver({this.onEvent, this.onEnding});
 
-  final Error error;
-  var _threw = false;
+  final Error? onEvent;
+  final Error? onEnding;
 
   @override
   void eventFolded(RunFold fold, {required BaseEvent? processed}) {
     super.eventFolded(fold, processed: processed);
-    if (_threw) return;
-    _threw = true;
-    throw error;
+    if (onEvent case final error?) throw error;
+  }
+
+  @override
+  void runEnded(RunEnding ending) {
+    super.runEnded(ending);
+    if (onEnding case final error?) throw error;
   }
 }
 
@@ -359,9 +363,8 @@ void main() {
   });
 
   test(
-      'an observer that throws is told nothing more of the turn, which '
-      'carries on, and the failure is logged once with where it happened',
-      () async {
+      'an observer that throws is still told the rest of the run, which '
+      'carries on, and only its first failure of the turn is logged', () async {
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
@@ -373,7 +376,7 @@ void main() {
         ),
       ),
     ]);
-    final failing = _ThrowingObserver(StateError('observer bug'));
+    final failing = _ThrowingObserver(onEvent: StateError('observer bug'));
 
     final state = await orchestratorWith(
       logger: LogManager.instance.getLogger('test.run_fold_observer'),
@@ -385,7 +388,12 @@ void main() {
     );
 
     expect(state, isA<CompletedState>());
-    expect(failing.seen, ['run-1 starts', 'RUN_STARTED']);
+    expect(failing.seen, [
+      'run-1 starts',
+      'RUN_STARTED',
+      'RUN_FINISHED',
+      'ends completed',
+    ]);
     final logged = sink.records
         .where((r) => r.message.contains('Run fold observer threw'))
         .toList();
@@ -398,7 +406,9 @@ void main() {
     });
   });
 
-  test("an observer's failed assert is not swallowed", () async {
+  test(
+      "an observer's failed assert reaches the zone, and the run it watches "
+      'still ends', () async {
     serve([
       (
         runId: 'run-1',
@@ -408,23 +418,21 @@ void main() {
       ),
     ]);
     final escaped = <Object>[];
+    RunState? state;
 
     await runZonedGuarded(
       () async {
-        unawaited(
-          orchestratorWith().runToCompletion(
-            key: _key,
-            userMessage: [const TextPart('Weather?')],
-            toolExecutor: _answered,
-            observer: _ThrowingObserver(AssertionError('band bug')),
-          ),
+        state = await orchestratorWith().runToCompletion(
+          key: _key,
+          userMessage: [const TextPart('Weather?')],
+          toolExecutor: _answered,
+          observer: _ThrowingObserver(onEnding: AssertionError('band bug')),
         );
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
       },
       (error, _) => escaped.add(error),
     );
 
+    expect(state, isA<CompletedState>());
     expect(escaped, [isA<AssertionError>()]);
   });
 
