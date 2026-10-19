@@ -41,9 +41,8 @@ flowchart LR
   stored["Reload: stored run events"] --> dec
   dec --> fold["RunFold<br/>one reducer per run"]
   fold --> conv["Conversation<br/>messages, runOutcomes, citations"]
-  ev["Live: session states + ExecutionEvents"] --> trk["TrackerRegistry<br/>bands"]
-  fold --> rep["Reload: ReplayedBands<br/>replay's fold, step by step"]
-  rep --> trk
+  fold --> rep["ExecutionBands<br/>each fold step, live or replayed"]
+  rep --> trk["TrackerRegistry<br/>bands"]
   conv --> tvs["ThreadViewState<br/>MessagesLoaded"]
   trk --> tvs
   tvs --> lay["layOutTimeline<br/>pure, total"]
@@ -69,15 +68,20 @@ flowchart LR
    - Before any message speaks for it, it is keyed by
      `noResponseMessageId(runId)`, the same id as the run's parked outcome.
    - Once a reply speaks, the band is handed to it (#578).
-   - Bands are built only by `TrackerRegistry`, on both paths. Live, the
-     session feeds it each run state and then the event bridged from it.
-     On reload, `ReplayedBands` (`lib/src/modules/room/replayed_bands.dart`)
-     watches history replay's fold through a `ReplayObserver` and feeds a
-     registry per turn the same, in the same order.
-   - What a band is fed is the same. A live band times its steps by a
-     running clock, a reloaded one by the stored events' times. Replay holds
-     a run's terminal event until it knows whether the run waited on a client
-     tool, which live knows at once.
+   - Bands are built only by `TrackerRegistry`, fed on both paths by
+     `ExecutionBands` (`lib/src/modules/room/execution_bands.dart`) through a
+     `RunFoldObserver`: each run starting, each event folded, and how each
+     run ended. Live, `RunOrchestrator` reports them as it folds the stream
+     (`AgentSession.observeRunFold`); on reload, history replay as it folds
+     the stored events. Both report the same calls in the same order, so the
+     order a registry is fed in, how a run's end settles its band, and
+     ignoring what a run folds after its terminal event are each written
+     once, in `ExecutionBands`.
+   - Only the source of the steps and the clock differ. A live band times its
+     steps by a running clock, a reloaded one by the stored events' times.
+     Live knows at once that a run waits on a client tool; replay holds each
+     run's ending until the next run starts and says whether it continues
+     the turn.
    - A client tool's call has one step, from the model's `TOOL_CALL_START`.
      Running the tool adds none; its card shows how it went.
 4. **Where things render is decided once, by a pure function.**

@@ -154,7 +154,7 @@ class StaticSoliplexApi extends SoliplexApi {
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
-    ReplayObserver? observer,
+    RunFoldObserver? observer,
   }) async =>
       histories[threadId] ?? ThreadHistory(messages: const []);
 

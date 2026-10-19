@@ -22,8 +22,8 @@ typedef _OpenTurn = ({String unclaimed, ResponseSegmenter segmenter});
 /// handing a band to the message that speaks in its response as soon as it
 /// speaks, and freezing when its response ends or its run terminates.
 class TrackerRegistry {
-  /// Routes [events], the session's execution events, to the open band.
-  /// [activities] is the live `Conversation.activities` signal each band
+  /// Routes [events], the run's execution events, to the open band.
+  /// [activities] is the run's `Conversation.activities` signal each band
   /// mirrors into a local copy, so that freezing it pins the records it had at
   /// that moment.
   TrackerRegistry({
@@ -36,8 +36,8 @@ class TrackerRegistry {
     _sessionUnsub = _routeEvents(events);
   }
 
-  /// A registry rebuilding one turn's bands from its stored events, fed as a
-  /// live session feeds one, whose bands are timed by [clock].
+  /// A registry rebuilding one turn's bands from its stored events, whose
+  /// bands are timed by [clock].
   TrackerRegistry.replaying({
     required ReadonlySignal<ExecutionEvent?> events,
     required ReadonlySignal<List<ActivityRecord>> activities,
@@ -59,9 +59,9 @@ class TrackerRegistry {
   /// The turn being collected, or null between turns.
   _OpenTurn? _open;
 
-  /// The registry reads the session's events and hands each to the open band
+  /// The registry reads the run's events and hands each to the open band
   /// itself, so recording an event and acting on it happen in one place, in a
-  /// stated order. Subscribing each band to the session signal instead would
+  /// stated order. Subscribing each band to the events signal instead would
   /// make that order depend on which subscribed first, and a band opened at a
   /// response boundary always subscribes last.
   void Function()? _sessionUnsub;

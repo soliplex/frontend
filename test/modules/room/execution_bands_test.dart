@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
-import 'package:soliplex_frontend/src/modules/room/replayed_bands.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_bands.dart';
 
 import '../../helpers/live_session.dart';
 
@@ -11,7 +11,7 @@ import '../../helpers/live_session.dart';
 Future<Map<String, ExecutionTracker>> _reloadedBands(
   List<({String runId, List<BaseEvent> events})> runs,
 ) async {
-  final replay = ReplayedBands();
+  final replay = ExecutionBands.replayed();
   await storedHistory(observer: replay, [
     for (final (:runId, :events) in runs)
       (
@@ -158,7 +158,7 @@ void main() {
     // the history's messages show it: the waiting run's outcome is taken back.
     // Its work must move to the run that continues it, or it is left keyed to
     // a run with no tile to show it.
-    final replay = ReplayedBands();
+    final replay = ExecutionBands.replayed();
     Map<String, dynamic> input() => {
           'messages': [
             {'role': 'user', 'id': 'u1', 'content': 'Where am I?'},

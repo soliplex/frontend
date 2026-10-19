@@ -150,7 +150,7 @@ typedef StoredRun = ({
 /// decoded by the real client, which tells [observer] each step of its replay.
 Future<ThreadHistory> storedHistory(
   List<StoredRun> runs, {
-  ReplayObserver? observer,
+  RunFoldObserver? observer,
 }) =>
     storedHistoryFromJson(observer: observer, [
       for (final run in runs)
@@ -178,7 +178,7 @@ typedef StoredRunJson = ({
 /// which tells [observer] each step of its replay.
 Future<ThreadHistory> storedHistoryFromJson(
   List<StoredRunJson> runs, {
-  ReplayObserver? observer,
+  RunFoldObserver? observer,
 }) async {
   final transport = _MockHttpTransport();
   final api = SoliplexApi(
@@ -240,7 +240,7 @@ class StoredHistoryApi extends FakeSoliplexApi {
     String roomId,
     String threadId, {
     CancelToken? cancelToken,
-    ReplayObserver? observer,
+    RunFoldObserver? observer,
   }) async {
     final runs = stored;
     if (nextThreadHistoryError != null || runs == null) {

@@ -18,14 +18,21 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   on `AgentSession.follow`, `RunOrchestrator.followToCompletion` and
   `AgUiStreamClient.followRun`. `AgentLlmProvider` gains `followRun`; an
   implementation that runs in-process throws `UnsupportedError` from it.
-- **Library consumers:** `SoliplexApi.getThreadHistory` takes an optional
-  `ReplayObserver`, told each run and each event as the history's replay folds
-  them, with the `RunFold` after each.
+- **Library consumers:** a `RunFoldObserver` is told each step of folding a
+  run: each run starting, each event folded with the `RunFold` after it, and
+  how each run ended, as a `RunEnding` (completed, waiting on a client tool,
+  failed or cancelled). A live run and a replayed one report the same calls in
+  the same order. `SoliplexApi.getThreadHistory` takes one for the runs its
+  replay folds, and tells it how each run ended once the run after it starts,
+  or the history ends. `RunOrchestrator.runToCompletion` and
+  `followToCompletion` take one for the runs they fold, and
+  `AgentSession.observeRunFold` attaches one to a session's runs, for a
+  `SessionExtension` to call from `onAttach`.
 
 ### Removed
 
 - **Library consumers:** `RunEventBundle.events`. A reader that needs a run's
-  events as replay folded them passes a `ReplayObserver` to
+  events as replay folded them passes a `RunFoldObserver` to
   `getThreadHistory`.
 
 ### Fixed

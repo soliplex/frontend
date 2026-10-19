@@ -112,6 +112,7 @@ class AgentSession implements ToolExecutionContext {
   final Signal<ExecutionEvent?> _executionEventSignal = signal(null);
   final Signal<ReconnectStatus?> _reconnectStatusSignal =
       signal<ReconnectStatus?>(null);
+  final _RunFoldObservers _foldObservers = _RunFoldObservers();
 
   /// Child sessions spawned by this session.
   List<AgentSession> get children => List.unmodifiable(_children);
@@ -153,8 +154,7 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal exposing `Conversation.activities` for whichever
   /// run-state variant currently carries a [Conversation]. Empty list
   /// while idle or in a terminal state that didn't capture a
-  /// conversation. Used by `ExecutionTracker`, which mirrors it into a
-  /// signal of its own so that freezing pins the records a run ended with.
+  /// conversation.
   late final ReadonlySignal<List<ActivityRecord>> conversationActivities =
       computed(() => conversationActivitiesOf(runState.value));
 
@@ -194,6 +194,17 @@ class AgentSession implements ToolExecutionContext {
   /// budget is exhausted. Hosts can mirror this into a banner.
   ReadonlySignal<ReconnectStatus?> get reconnectStatus =>
       _reconnectStatusSignal.readonly();
+
+  /// Tells [observer] each step of the session's runs as they are folded: each
+  /// run starting, each event folded, and how each run ended. Returns what
+  /// stops it.
+  ///
+  /// For a [SessionExtension] to call from `onAttach`, which runs before the
+  /// session's first run starts.
+  void Function() observeRunFold(RunFoldObserver observer) {
+    _foldObservers.observers.add(observer);
+    return () => _foldObservers.observers.remove(observer);
+  }
 
   /// Waits for the session result with an optional timeout.
   Future<AgentResult> awaitResult({Duration? timeout}) {
@@ -417,6 +428,7 @@ class AgentSession implements ToolExecutionContext {
           cachedHistory: cachedHistory,
           stateOverlay: stateOverlay,
           onReconnectStatus: _onReconnectStatus,
+          observer: _foldObservers,
         ),
       );
 
@@ -435,6 +447,7 @@ class AgentSession implements ToolExecutionContext {
           toolExecutor: _executeAll,
           cachedHistory: cachedHistory,
           onReconnectStatus: _onReconnectStatus,
+          observer: _foldObservers,
         ),
       );
 
@@ -738,6 +751,33 @@ class AgentSession implements ToolExecutionContext {
       _state == AgentSessionState.cancelled;
 }
 
+/// Tells every observer of a session's run fold each step, in the order they
+/// began observing.
+class _RunFoldObservers implements RunFoldObserver {
+  final List<RunFoldObserver> observers = [];
+
+  @override
+  void runStarted(RunFold fold, {required bool continuesTurn}) {
+    for (final observer in [...observers]) {
+      observer.runStarted(fold, continuesTurn: continuesTurn);
+    }
+  }
+
+  @override
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) {
+    for (final observer in [...observers]) {
+      observer.eventFolded(fold, processed: processed);
+    }
+  }
+
+  @override
+  void runEnded(RunEnding ending) {
+    for (final observer in [...observers]) {
+      observer.runEnded(ending);
+    }
+  }
+}
+
 /// Extracts the activity list carried by [runState], or `const []` for
 /// variants that don't carry a [Conversation]. Backs
 /// [AgentSession.conversationActivities] — exposed as a top-level
@@ -765,8 +805,8 @@ List<ActivityRecord> conversationActivitiesOf(RunState runState) =>
 /// consumers of [AgentSession.lastExecutionEvent] should observe, or
 /// `null` when the event does not map to an execution-event emission.
 ///
-/// Used on the live path by [AgentSession], and on reload by the app for each
-/// event history replay processes.
+/// Used by [AgentSession] for [AgentSession.lastExecutionEvent], and by the app
+/// for each event a run's fold processes, live or on reload.
 ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
   return switch (event) {
     TextMessageContentEvent(:final delta) => TextDelta(delta: delta),
