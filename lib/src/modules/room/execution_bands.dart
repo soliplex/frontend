@@ -38,6 +38,9 @@ class ExecutionBands implements RunFoldObserver {
   final bool _replayed;
   final Logger _logger;
   final Map<String, ExecutionTracker> _bands = {};
+
+  /// The steps reported as told before any run started.
+  final Set<String> _reportedUnstarted = {};
   _Turn? _turn;
 
   /// Every band so far, keyed as layout places them: the turns ended, and the
@@ -56,11 +59,39 @@ class ExecutionBands implements RunFoldObserver {
   }
 
   @override
-  void eventFolded(RunFold fold, {required BaseEvent? processed}) =>
-      _turn?.eventFolded(fold, processed);
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) {
+    final turn = _turn;
+    if (turn == null) {
+      _reportUnstarted('eventFolded', runId: fold.runId);
+      return;
+    }
+    turn.eventFolded(fold, processed);
+  }
 
   @override
-  void runEnded(RunEnding ending) => _turn?.runEnded(ending);
+  void runEnded(RunEnding ending) {
+    final turn = _turn;
+    if (turn == null) {
+      _reportUnstarted('runEnded');
+      return;
+    }
+    turn.runEnded(ending);
+  }
+
+  /// Both producers tell a run starting before any of its steps, so a step
+  /// with no turn to reach is a producer's bug, or follows a run start this
+  /// threw at; dropped, it would leave no trace. Each step is reported once,
+  /// as the run fold guard reports a failure: after a run start that threw,
+  /// every event of the run would repeat it.
+  void _reportUnstarted(String step, {String? runId}) {
+    if (_reportedUnstarted.add(step)) {
+      _logger.warning(
+        'Fold step before any run started; dropped',
+        attributes: {'step': step, if (runId != null) 'runId': runId},
+      );
+    }
+    assert(false, '$step told before any run started');
+  }
 
   /// Ends the turn being collected and hands over every band, keyed as
   /// [trackers] keys them.

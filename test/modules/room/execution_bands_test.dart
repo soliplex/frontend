@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_bands.dart';
@@ -31,6 +32,50 @@ Future<Map<String, ExecutionTracker>> _reloadedBands(
 // thread of several turns are pinned here.
 void main() {
   setUpAll(registerLiveSessionFallbacks);
+
+  test(
+      'a step told before any run started is reported, not dropped, once '
+      'however often it repeats', () {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    final bands = ExecutionBands.live(
+      logger: LogManager.instance.getLogger('test.execution_bands'),
+    );
+    final fold = RunFold.start(
+      Conversation(threadId: 't-1'),
+      runId: 'run-1',
+      userMessageId: null,
+      turnCitations: const TurnCitations.empty(),
+      runCreated: null,
+    );
+
+    // A run's every event repeats the step, as after a run start that threw.
+    for (var i = 0; i < 3; i++) {
+      expect(
+        () => bands.eventFolded(fold, processed: null),
+        throwsA(isA<AssertionError>()),
+      );
+    }
+    expect(
+      () => bands.runEnded(RunEnding.completed),
+      throwsA(isA<AssertionError>()),
+    );
+    final reported = [
+      for (final r in sink.records)
+        if (r.loggerName == 'test.execution_bands') r,
+    ];
+    expect(
+      [for (final r in reported) r.level],
+      everyElement(LogLevel.warning),
+    );
+    expect([
+      for (final r in reported) r.attributes
+    ], [
+      {'step': 'eventFolded', 'runId': 'run-1'},
+      {'step': 'runEnded'},
+    ]);
+  });
 
   test('measures a step from the run start, not its first bridged event',
       () async {
