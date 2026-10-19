@@ -413,6 +413,7 @@ void main() {
     expect(logged.single.error, isNull);
     expect(logged.single.attributes, {
       'step': 'eventFolded',
+      'threadId': 'thread',
       'runId': 'run-1',
       'failure': describeFailure(StateError('observer bug')),
     });

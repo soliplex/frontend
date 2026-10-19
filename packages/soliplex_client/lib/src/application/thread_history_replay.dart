@@ -260,6 +260,9 @@ ThreadHistory replayThreadHistory(
   RunInProgress? runInProgress, {
   required RunFoldObserver? observer,
 }) {
+  final told = observer == null
+      ? null
+      : GuardedRunFoldObserver(observer, threadId: threadId, logger: _logger);
   var conversation = Conversation.empty(threadId: threadId);
   final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
   final runs = <RunEventBundle>[];
@@ -389,12 +392,12 @@ ThreadHistory replayThreadHistory(
         runCreated: created,
       );
       if (untoldEnding != null) {
-        observer?.runEnded(
+        told?.runEnded(
           continuesTurn ? RunEnding.waitingOnClientTool : untoldEnding,
         );
         untoldEnding = null;
       }
-      observer?.runStarted(fold, continuesTurn: continuesTurn);
+      told?.runStarted(fold, continuesTurn: continuesTurn);
       for (final eventJson in events) {
         final outcome = eventJson is Map<String, dynamic>
             ? decodeMapSafely(eventJson)
@@ -407,7 +410,7 @@ ThreadHistory replayThreadHistory(
               );
         final applied = fold.apply(outcome);
         fold = applied.fold;
-        observer?.eventFolded(fold, processed: applied.processed);
+        told?.eventFolded(fold, processed: applied.processed);
       }
       untoldEnding = _storedEnding(fold.conversation.status);
       // A stored run that ends without saying so. The backend's own unknown
@@ -482,7 +485,7 @@ ThreadHistory replayThreadHistory(
     }
   }
   // Nothing continues the turn of the history's last run.
-  if (untoldEnding != null) observer?.runEnded(untoldEnding);
+  if (untoldEnding != null) told?.runEnded(untoldEnding);
 
   // A run in progress whose message the thread already holds continues that
   // message's turn, as a run resumed after a client tool does. Following it

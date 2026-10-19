@@ -649,6 +649,7 @@ class ThreadViewState {
         cancelToken: token,
         observer: replay,
       );
+      // Outside the run fold guard; why that holds is on `finish`.
       final replayedBands = replay.finish();
       if (token.isCancelled) return;
       _cancelToken = null;
