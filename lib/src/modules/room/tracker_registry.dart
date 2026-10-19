@@ -22,35 +22,25 @@ typedef _OpenTurn = ({String unclaimed, ResponseSegmenter segmenter});
 /// handing a band to the message that speaks in its response as soon as it
 /// speaks, and freezing when its response ends or its run terminates.
 class TrackerRegistry {
-  /// Routes [events], the run's execution events, to the open band.
-  /// [activities] is the run's `Conversation.activities` signal each band
-  /// mirrors into a local copy, so that freezing it pins the records it had at
-  /// that moment.
-  TrackerRegistry({
-    required ReadonlySignal<ExecutionEvent?> events,
-    required ReadonlySignal<List<ActivityRecord>> activities,
-    required Logger logger,
-  })  : _activities = activities,
-        _clock = null,
-        _logger = logger {
-    _sessionUnsub = _routeEvents(events);
-  }
+  /// A registry collecting a live turn's bands, timed as they run.
+  TrackerRegistry({required Logger logger})
+      : _clock = null,
+        _logger = logger;
 
   /// A registry rebuilding one turn's bands from its stored events, whose
   /// bands are timed by [clock].
   TrackerRegistry.replaying({
-    required ReadonlySignal<ExecutionEvent?> events,
-    required ReadonlySignal<List<ActivityRecord>> activities,
     required ReplayClock clock,
     required Logger logger,
-  })  : _activities = activities,
-        _clock = clock,
-        _logger = logger {
-    _sessionUnsub = _routeEvents(events);
-  }
+  })  : _clock = clock,
+        _logger = logger;
 
   final Map<String, ExecutionTracker> _trackers = {};
-  final ReadonlySignal<List<ActivityRecord>> _activities;
+
+  /// The run's `Conversation.activities`, which each open band mirrors into a
+  /// local copy, so that freezing it pins the records it had at that moment.
+  final Signal<List<ActivityRecord>> _activities =
+      Signal<List<ActivityRecord>>(const []);
 
   /// What times a replayed turn's bands; null for a live one.
   final ReplayClock? _clock;
@@ -58,13 +48,6 @@ class TrackerRegistry {
 
   /// The turn being collected, or null between turns.
   _OpenTurn? _open;
-
-  /// The registry reads the run's events and hands each to the open band
-  /// itself, so recording an event and acting on it happen in one place, in a
-  /// stated order. Subscribing each band to the events signal instead would
-  /// make that order depend on which subscribed first, and a band opened at a
-  /// response boundary always subscribes last.
-  void Function()? _sessionUnsub;
 
   final Set<String> _runs = {};
 
@@ -167,24 +150,30 @@ class TrackerRegistry {
 
   String _openKey(_OpenTurn open) => open.segmenter.owner ?? open.unclaimed;
 
-  /// Routes each execution event to the open band, then ends the response if
-  /// that event ended it.
+  /// Routes [event] to the open band, after ending the response if [event]
+  /// opens the next one.
+  ///
+  /// The registry hands each event to the open band itself, so recording an
+  /// event and acting on it happen in one place, in a stated order.
   ///
   /// A tool result ends the response that made the call: the producer is
   /// invoked again to decide what to do with the result, and what it emits
   /// next belongs to a new response. Nothing in the streaming state says so —
-  /// a result leaves it untouched — so this is the only place live can see it.
-  void Function() _routeEvents(ReadonlySignal<ExecutionEvent?> events) {
-    return events.subscribe((event) {
-      final open = _open;
-      if (open == null || event == null) return;
-      // Closed only once the next response starts, so calls a response made in
-      // parallel stay in it, and what arrives between a result and the next
-      // response — state the tool wrote, the run ending — stays with it too.
-      _handOver(open, open.segmenter.arrives(event));
-      _trackers[_openKey(open)]?.observe(event);
-    });
+  /// a result leaves it untouched — so this is the only place the registry can
+  /// see it.
+  void onEvent(ExecutionEvent event) {
+    final open = _open;
+    if (open == null) return;
+    // Closed only once the next response starts, so calls a response made in
+    // parallel stay in it, and what arrives between a result and the next
+    // response — state the tool wrote, the run ending — stays with it too.
+    _handOver(open, open.segmenter.arrives(event));
+    _trackers[_openKey(open)]?.observe(event);
   }
+
+  /// The run's `Conversation.activities` is now [activities].
+  void onActivities(List<ActivityRecord> activities) =>
+      _activities.value = activities;
 
   /// Freeze the open band when a run reaches a terminal state, [completed]
   /// when the run finished rather than failing or being stopped.
@@ -206,11 +195,10 @@ class TrackerRegistry {
   }
 
   void dispose() {
-    _sessionUnsub?.call();
-    _sessionUnsub = null;
     for (final tracker in _trackers.values) {
       tracker.dispose();
     }
     _trackers.clear();
+    _activities.dispose();
   }
 }

@@ -86,26 +86,13 @@ typedef _Terminal = ({
 class _Turn {
   /// [clock] times a replayed turn's bands; null for a live one.
   _Turn({required ReplayClock? clock, required Logger logger})
-      : _clock = clock {
-    _registry = clock == null
-        ? TrackerRegistry(
-            events: _events,
-            activities: _activities,
-            logger: logger,
-          )
-        : TrackerRegistry.replaying(
-            events: _events,
-            activities: _activities,
-            clock: clock,
-            logger: logger,
-          );
-  }
+      : _clock = clock,
+        _registry = clock == null
+            ? TrackerRegistry(logger: logger)
+            : TrackerRegistry.replaying(clock: clock, logger: logger);
 
-  final Signal<ExecutionEvent?> _events = Signal<ExecutionEvent?>(null);
-  final Signal<List<ActivityRecord>> _activities =
-      Signal<List<ActivityRecord>>(const []);
   final ReplayClock? _clock;
-  late final TrackerRegistry _registry;
+  final TrackerRegistry _registry;
 
   /// The terminal event of the run being folded, held until the run is told
   /// how it ended.
@@ -118,7 +105,7 @@ class _Turn {
   void runStarted(RunFold fold) {
     _clock?.eventTime = null;
     _registry.onStreaming(fold.streaming, fold.runId);
-    _activities.value = fold.conversation.activities;
+    _registry.onActivities(fold.conversation.activities);
   }
 
   void eventFolded(RunFold fold, BaseEvent? processed) {
@@ -130,8 +117,8 @@ class _Turn {
       return;
     }
     _registry.onStreaming(fold.streaming, fold.runId);
-    _activities.value = fold.conversation.activities;
-    if (event != null) _events.value = event;
+    _registry.onActivities(fold.conversation.activities);
+    if (event != null) _registry.onEvent(event);
   }
 
   void runEnded(RunEnding ending) {
@@ -146,16 +133,14 @@ class _Turn {
     final terminal = _terminal;
     if (terminal == null) return;
     _terminal = null;
-    _activities.value = terminal.activities;
-    if (terminal.event case final event?) _events.value = event;
+    _registry.onActivities(terminal.activities);
+    if (terminal.event case final event?) _registry.onEvent(event);
   }
 
-  /// Hands over the turn's bands and releases what feeds them.
+  /// Hands over the turn's bands and releases its registry.
   Map<String, ExecutionTracker> end() {
     final bands = _registry.trackers;
     _registry.dispose();
-    _events.dispose();
-    _activities.dispose();
     return bands;
   }
 }

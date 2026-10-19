@@ -8,18 +8,10 @@ import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 import '../../helpers/test_logger.dart';
 
 void main() {
-  late Signal<ExecutionEvent?> events;
-  late Signal<List<ActivityRecord>> activities;
   late TrackerRegistry registry;
 
   setUp(() {
-    events = Signal<ExecutionEvent?>(null);
-    activities = Signal<List<ActivityRecord>>(const []);
-    registry = TrackerRegistry(
-      events: events,
-      activities: activities,
-      logger: testLogger(),
-    );
+    registry = TrackerRegistry(logger: testLogger());
   });
 
   tearDown(() => registry.dispose());
@@ -28,7 +20,7 @@ void main() {
     // Layout hosts a band only on an assistant reply; a system message taking
     // the band here would leave it on a tile that renders none.
     registry.onStreaming(const AwaitingText(), 'run-0');
-    events.value = const ThinkingStarted();
+    registry.onEvent(const ThinkingStarted());
     registry.onStreaming(
       const TextStreaming(
         messageId: 'sys-1',
@@ -52,10 +44,10 @@ void main() {
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
     registry.onStreaming(const AwaitingText(), 'run-0');
-    events.value =
-        const ServerToolCallStarted(toolName: 'search', toolCallId: 'c1');
+    registry.onEvent(
+        const ServerToolCallStarted(toolName: 'search', toolCallId: 'c1'));
     registry.onRunEnded(completed: true);
-    events.value = const RunCompleted();
+    registry.onEvent(const RunCompleted());
 
     expect(
       sink.records.where(
@@ -78,7 +70,7 @@ void main() {
       ),
       'run-0',
     );
-    events.value = const ThinkingStarted();
+    registry.onEvent(const ThinkingStarted());
     registry.onRunEnded(completed: true);
 
     expect(
@@ -100,7 +92,7 @@ void main() {
 
     test('a terminated run does not hand its band to the next run', () {
       awaiting();
-      events.value = const ThinkingStarted();
+      registry.onEvent(const ThinkingStarted());
       registry.onRunEnded(completed: true);
 
       awaiting();
@@ -118,13 +110,13 @@ void main() {
         'a second band in one run does not inherit the first one\'s last '
         'event', () {
       speaking('m1');
-      events.value = const ThinkingStarted();
+      registry.onEvent(const ThinkingStarted());
       // The result ends m1's response, so the band that opens next starts on
       // nothing rather than on what m1 was doing.
-      events.value = const ServerToolCallCompleted(
+      registry.onEvent(const ServerToolCallCompleted(
         toolCallId: 'c-1',
         result: 'ok',
-      );
+      ));
       speaking('m2');
       registry.onRunEnded(completed: true);
 
@@ -142,15 +134,15 @@ void main() {
 
     test('a band still keeps the work done after it opened', () {
       awaiting();
-      events.value = const ThinkingStarted();
+      registry.onEvent(const ThinkingStarted());
       registry.onRunEnded(completed: true);
 
       awaiting();
       speaking('m1');
-      events.value = const ServerToolCallStarted(
+      registry.onEvent(const ServerToolCallStarted(
         toolCallId: 'c-1',
         toolName: 'search',
-      );
+      ));
       registry.onRunEnded(completed: true);
 
       expect(registry.trackers['m1']!.timeline.value, hasLength(1));
@@ -173,12 +165,12 @@ void main() {
     // its key from. Its response then ends on a tool result, which is what
     // opens the band that would carry the wrong run's key.
     speakIn('run-1', 'm2');
-    events.value = const ThinkingStarted();
-    events.value = const ServerToolCallCompleted(
+    registry.onEvent(const ThinkingStarted());
+    registry.onEvent(const ServerToolCallCompleted(
       toolCallId: 'c-1',
       result: 'ok',
-    );
-    events.value = const ThinkingStarted();
+    ));
+    registry.onEvent(const ThinkingStarted());
     registry.onRunEnded(completed: true);
 
     expect(registry.trackers['m2']!.timeline.value, hasLength(1));
@@ -258,11 +250,11 @@ void main() {
     // another result — so calls made in parallel stay in the response that
     // made them. That next event is what freezes msg-1's band and opens the
     // one after it.
-    events.value = const ServerToolCallCompleted(
+    registry.onEvent(const ServerToolCallCompleted(
       toolCallId: 'c-1',
       result: 'ok',
-    );
-    events.value = const ThinkingStarted();
+    ));
+    registry.onEvent(const ThinkingStarted());
 
     expect(registry.trackers, hasLength(2));
     expect(registry.trackers['msg-1']!.isFrozen, isTrue);
@@ -379,7 +371,7 @@ void main() {
 
     registry.onStreaming(
         const AwaitingText(currentPhase: ThinkingPhase()), run);
-    events.value = const ThinkingStarted();
+    registry.onEvent(const ThinkingStarted());
     registry.onStreaming(
         const TextStreaming(
           messageId: 'm1',
@@ -387,14 +379,14 @@ void main() {
           text: 'Let me look.',
         ),
         run);
-    events.value =
-        const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search');
-    events.value =
-        const ServerToolCallCompleted(toolCallId: 'c1', result: 'ok');
-    events.value = const ThinkingEnded();
+    registry.onEvent(
+        const ServerToolCallStarted(toolCallId: 'c1', toolName: 'search'));
+    registry
+        .onEvent(const ServerToolCallCompleted(toolCallId: 'c1', result: 'ok'));
+    registry.onEvent(const ThinkingEnded());
     // The next response opens with its reasoning, then speaks.
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'enough to answer');
+    registry.onEvent(const ThinkingStarted());
+    registry.onEvent(const ThinkingContent(delta: 'enough to answer'));
     registry.onStreaming(answering, run);
 
     final tiles = layOutTimeline(
