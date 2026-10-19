@@ -44,6 +44,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Removed
 
+- **Library consumers (breaking):** `AgentSession.conversationActivities` and
+  the top-level `conversationActivitiesOf`. A reader of a session's
+  activities switches on `session.runState` and reads the `conversation`
+  the state carries, or attaches a `RunFoldObserver` with
+  `AgentSession.observeRunFold` and reads `fold.conversation.activities`.
 - **Library consumers:** `RunEventBundle.events`. A reader that needs a run's
   events as replay folded them passes a `RunFoldObserver` to
   `getThreadHistory`.
