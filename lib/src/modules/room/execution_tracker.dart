@@ -132,11 +132,9 @@ class ExecutionTracker {
 
   /// Records [event] against this band.
   ///
-  /// Called by whoever routes the session's events, rather than the band
-  /// subscribing itself: a write to a signal made inside another signal's
-  /// callback does not reach subscribers until that callback returns, so a
-  /// router that closes a band in the same breath would freeze it before the
-  /// event landed.
+  /// Called by the registry that routes the run's events, rather than the band
+  /// reading them itself, so that the registry decides in one place whether
+  /// an event lands before or after it closes the band.
   void observe(ExecutionEvent? event) {
     if (_isFrozen) return;
     _onEvent(event);

@@ -7,17 +7,13 @@ import 'execution_bands.dart';
 /// runs' fold, with the [ExecutionBands] a reload builds them with.
 ///
 /// Observes the session's run fold from [onAttach] until [onDispose]. The
-/// resulting [Map<String, ExecutionTracker>] is exposed via the [stateSignal]
-/// and the convenience [trackers] getter.
+/// bands it builds are exposed via [trackers].
 ///
 /// [ThreadViewState] absorbs the live trackers into its own historical
 /// registry on detach, so execution data persists after the session ends.
 class ExecutionTrackerExtension extends SessionExtension
-    with StatefulSessionExtension<Map<String, ExecutionTracker>>
     implements RunFoldObserver {
-  ExecutionTrackerExtension({required Logger logger}) : _logger = logger {
-    setInitialState(const <String, ExecutionTracker>{});
-  }
+  ExecutionTrackerExtension({required Logger logger}) : _logger = logger;
 
   final Logger _logger;
 
@@ -53,26 +49,16 @@ class ExecutionTrackerExtension extends SessionExtension
     _stopObserving = null;
     _bands?.finish();
     _bands = null;
-    super.onDispose();
   }
 
   @override
-  void runStarted(RunFold fold, {required bool continuesTurn}) {
-    _bands!.runStarted(fold, continuesTurn: continuesTurn);
-    _sync();
-  }
+  void runStarted(RunFold fold, {required bool continuesTurn}) =>
+      _bands!.runStarted(fold, continuesTurn: continuesTurn);
 
   @override
-  void eventFolded(RunFold fold, {required BaseEvent? processed}) {
-    _bands!.eventFolded(fold, processed: processed);
-    _sync();
-  }
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) =>
+      _bands!.eventFolded(fold, processed: processed);
 
   @override
-  void runEnded(RunEnding ending) {
-    _bands!.runEnded(ending);
-    _sync();
-  }
-
-  void _sync() => state = trackers;
+  void runEnded(RunEnding ending) => _bands!.runEnded(ending);
 }
