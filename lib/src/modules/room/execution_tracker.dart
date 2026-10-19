@@ -12,7 +12,6 @@ class ExecutionTracker {
   }) : this._(
           activities: activities,
           elapsed: _startedNow(),
-          replayed: false,
           logger: logger,
         );
 
@@ -28,19 +27,16 @@ class ExecutionTracker {
   }) : this._(
           activities: activities,
           elapsed: elapsed,
-          replayed: true,
           logger: logger,
         );
 
   ExecutionTracker._({
     required ReadonlySignal<List<ActivityRecord>> activities,
     required Duration? Function() elapsed,
-    required bool replayed,
     required Logger logger,
   })  : _logger = logger,
         _elapsed = elapsed,
-        _activities = Signal<List<ActivityRecord>>(activities.value),
-        _replayed = replayed {
+        _activities = Signal<List<ActivityRecord>>(activities.value) {
     // Mirror the turn's activities into our local signal so the tracker
     // stays self-contained when ThreadViewState absorbs it on detach:
     // freeze() drops the subscription, and the captured list outlives the
@@ -57,11 +53,6 @@ class ExecutionTracker {
 
   final Logger _logger;
   final Signal<List<ActivityRecord>> _activities;
-
-  /// True when this tracker is replaying stored events on the reload
-  /// path. Live-only side-effects (the log confirming a call's detail reached
-  /// its row) are gated so they don't fire again on every thread reload.
-  final bool _replayed;
 
   /// How far into this band the step changing now is, or null when unknown.
   final Duration? Function() _elapsed;
@@ -314,15 +305,6 @@ class ExecutionTracker {
           identical(candidate, step) ? completed : candidate,
       ];
     }
-
-    if (_replayed) return;
-    // Confirms the detail reached the row, which is the question to ask when a
-    // source block comes up empty. Lengths only: the args carry the user's
-    // query and the result carries retrieved document text.
-    _logger.info(
-      'Timeline detail: ${entry.step.label} captured '
-      '${entry.args.length} args chars, ${result.length} result chars.',
-    );
   }
 
   /// A run that finished successfully having opened a call whose result never
