@@ -2471,21 +2471,26 @@ void main() {
       expect(_render(record), isNot(contains(_canary)));
     });
 
-    test('a malformed timestamp is reported without its source window', () {
+    test('a malformed timestamp is reported with the parse failure', () {
+      // A timestamp is no secret, and the string that failed to parse is
+      // what makes the record actionable.
       final sink = attach();
 
       ragDocumentFromJson(<String, dynamic>{
         'id': 'doc-1',
         'uri': 'file:///doc',
-        'created_at': 'not-a-date-$_canary',
+        'created_at': 'not-a-date',
       });
 
-      expect(sink.records, hasLength(1));
       final record = sink.records.single;
       expect(record.message, 'Malformed timestamp ignored');
       expect(record.attributes['subsystem'], 'soliplex_client.document');
-      expect(record.attributes['failure'], isNotNull);
-      expect(_render(record), isNot(contains(_canary)));
+      expect(
+        record.error,
+        isA<FormatException>()
+            .having((e) => e.source, 'source', contains('not-a-date')),
+      );
+      expect(record.stackTrace, isNotNull);
     });
   });
 }

@@ -244,7 +244,8 @@ Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
 
 /// Parses a timestamp string, returning null on failure.
 ///
-/// [subsystem] attributes a malformed-timestamp log to the calling subsystem.
+/// [raw] must be a timestamp field the backend stamps: a malformed one is
+/// logged whole. [subsystem] attributes that log to the calling subsystem.
 DateTime? _tryParseTimestamp(
   String? raw, {
   String subsystem = 'soliplex_client.document',
@@ -253,13 +254,14 @@ DateTime? _tryParseTimestamp(
   try {
     return parseTimestamp(raw);
   } on FormatException catch (e, stackTrace) {
-    // `describeFailure` rather than `error: e`: a date parse puts the string
-    // it failed on into `FormatException.source`, and `toString()` renders a
-    // window of it.
+    // The error carries only the timestamp string, with a `Z` appended when
+    // it names no zone. The backend stamps it, it is no secret, and it is
+    // what makes the record actionable.
     _logger.warning(
       'Malformed timestamp ignored',
+      error: e,
       stackTrace: stackTrace,
-      attributes: {'subsystem': subsystem, 'failure': describeFailure(e)},
+      attributes: {'subsystem': subsystem},
     );
     return null;
   }

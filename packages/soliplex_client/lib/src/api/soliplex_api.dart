@@ -927,10 +927,14 @@ class SoliplexApi {
     }
     try {
       return parseTimestamp(created);
-    } on FormatException catch (error) {
+    } on FormatException catch (error, stackTrace) {
+      // The message and the error carry only the `created` string, the
+      // error's with a `Z` appended when it names no zone. The backend stamps
+      // it, it is no secret, and it is what makes the record actionable.
       _logger.warning(
         'create: malformed `created` ($created); using the client clock.',
         error: error,
+        stackTrace: stackTrace,
       );
       return DateTime.timestamp();
     } on Object catch (error, stackTrace) {
