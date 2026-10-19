@@ -438,6 +438,8 @@ void main() {
       onEnding: StateError('ending bug'),
     );
 
+    // Outside the zone, so a run that never ends fails here, not as an
+    // uncaught error the zone would keep.
     final escaped = await uncaughtIn(() async {
       for (var turn = 0; turn < 2; turn++) {
         await orchestrator.runToCompletion(
@@ -447,7 +449,7 @@ void main() {
           observer: failing,
         );
       }
-    });
+    }).timeout(const Duration(seconds: 5));
 
     expect(escaped, hasLength(4));
 
@@ -464,34 +466,6 @@ void main() {
         'run-2 runEnded',
       ],
     );
-  });
-
-  test(
-      "an observer's failure reaches the zone where asserts are checked, and "
-      'the run it watches still ends', () async {
-    serve([
-      (
-        runId: 'run-1',
-        events: decoded(
-          Stream.fromIterable([_started('run-1'), _finished('run-1')]),
-        ),
-      ),
-    ]);
-    RunState? state;
-
-    // Outside the zone, so a run that never ends fails here, not as an
-    // uncaught error the zone would keep.
-    final escaped = await uncaughtIn(() async {
-      state = await orchestratorWith().runToCompletion(
-        key: _key,
-        userMessage: [const TextPart('Weather?')],
-        toolExecutor: _answered,
-        observer: _ThrowingObserver(onEnding: StateError('band bug')),
-      );
-    }).timeout(const Duration(seconds: 5));
-
-    expect(state, isA<CompletedState>());
-    expect(escaped, [isA<StateError>()]);
   });
 
   test('a run that could not be started reports nothing', () async {
