@@ -49,17 +49,17 @@ class EventProcessingResult {
 /// Processes a single AG-UI event, returning updated domain and streaming
 /// state.
 ///
-/// A minted message's `createdAt` resolves to
-/// `event.timestamp ?? undatedEventTime`, where [undatedEventTime] is the
-/// caller's time for an event that carries none. Both may be null — the
-/// message then carries no timestamp rather than a client-generated one.
+/// A message [event] mints is dated at [createdAt], which the caller resolves
+/// from the event's own time, or its fallback when the event carries no usable
+/// one. Null leaves the message without a timestamp rather than a
+/// client-generated one.
 ///
 /// Updates the display state and [Conversation.transcript] from the same
 /// event; if either step throws, neither change is kept.
 ///
 /// Example usage:
 /// ```dart
-/// final result = processEvent(conversation, streaming, event);
+/// final result = processEvent(conversation, streaming, event, createdAt: at);
 /// // result.conversation - updated domain state
 /// // result.streaming - updated streaming state
 /// ```
@@ -67,13 +67,13 @@ EventProcessingResult processEvent(
   Conversation conversation,
   StreamingState streaming,
   BaseEvent event, {
-  DateTime? undatedEventTime,
+  required DateTime? createdAt,
 }) {
   final result = _processForDisplay(
     conversation,
     streaming,
     event,
-    undatedEventTime: undatedEventTime,
+    createdAt: createdAt,
   );
   return EventProcessingResult(
     conversation: result.conversation.copyWith(
@@ -87,7 +87,7 @@ EventProcessingResult _processForDisplay(
   Conversation conversation,
   StreamingState streaming,
   BaseEvent event, {
-  DateTime? undatedEventTime,
+  required DateTime? createdAt,
 }) {
   return switch (event) {
     // Run lifecycle events
@@ -95,17 +95,17 @@ EventProcessingResult _processForDisplay(
         conversation: conversation.withStatus(Running(runId: runId)),
         streaming: streaming,
       ),
-    RunFinishedEvent(:final runId, :final timestamp) => _processRunFinished(
+    RunFinishedEvent(:final runId) => _processRunFinished(
         conversation,
         streaming,
         runId,
-        createdAt: _eventTime(timestamp) ?? undatedEventTime,
+        createdAt: createdAt,
       ),
-    RunErrorEvent(:final message, :final timestamp) => _processRunError(
+    RunErrorEvent(:final message) => _processRunError(
         conversation,
         streaming,
         message,
-        createdAt: _eventTime(timestamp) ?? undatedEventTime,
+        createdAt: createdAt,
       ),
 
     // Reasoning lifecycle — the outer (ReasoningStart/End) and message
@@ -133,11 +133,11 @@ EventProcessingResult _processForDisplay(
       ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
-    TextMessageEndEvent(:final messageId, :final timestamp) => _processTextEnd(
+    TextMessageEndEvent(:final messageId) => _processTextEnd(
         conversation,
         streaming,
         messageId,
-        createdAt: _eventTime(timestamp) ?? undatedEventTime,
+        createdAt: createdAt,
       ),
 
     // Tool call events — accumulate tool names on start, args via deltas,
@@ -373,12 +373,6 @@ String? _runInFlight(Conversation conversation) =>
       Running(:final runId) => runId,
       Idle() || Completed() || Failed() || Cancelled() => null,
     };
-
-/// Converts an AG-UI event's epoch-millisecond [timestamp] to a UTC [DateTime],
-/// or null when the event carries no timestamp.
-DateTime? _eventTime(int? timestamp) => timestamp == null
-    ? null
-    : DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
 
 EventProcessingResult _processTextEnd(
   Conversation conversation,

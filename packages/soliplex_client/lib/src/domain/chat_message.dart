@@ -198,9 +198,10 @@ sealed class ChatMessage {
 
   /// When this message was created. Backend-driven messages carry the backend's
   /// time: replayed or terminal text, run finished/errored and drop tiles use
-  /// `event.timestamp`, falling back to the time of the run's last event that
-  /// carried one (on replay, to the run's `created` before any did), and a
-  /// reply cut off by a cancel keeps its last received backend event time.
+  /// `event.timestamp`, falling back, when it carries none or one no date can
+  /// hold, to the time of the run's last event that carried a usable one (on
+  /// replay, to the run's `created` before any did), and a reply cut off by a
+  /// cancel keeps its last received backend event time.
   /// Locally executed tool results take the same fallback time of the run that
   /// waited on them. Client-only artifacts carry the client clock at creation,
   /// since they have no backend counterpart — the user-cancelled tile (the

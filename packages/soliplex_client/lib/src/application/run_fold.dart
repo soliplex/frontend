@@ -172,7 +172,7 @@ class RunFold {
             conversation,
             streaming,
             event,
-            undatedEventTime: timed.undatedRowTime,
+            createdAt: timed.undatedRowTime,
           );
         } on Object catch (error, stackTrace) {
           return (

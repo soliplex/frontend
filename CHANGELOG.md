@@ -35,6 +35,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   checked, and goes on telling it every step. It fails a replay:
   `getThreadHistory` throws.
 
+### Changed
+
+- **Library consumers (breaking):** `processEvent`'s `undatedEventTime:` is
+  renamed `createdAt:` and is required. It is the time a message the event
+  mints is dated at; `processEvent` no longer dates a message from the event's
+  own `timestamp`, so a caller resolves it.
+
 ### Removed
 
 - **Library consumers:** `RunEventBundle.events`. A reader that needs a run's
@@ -43,6 +50,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- A reply with an event whose timestamp no date can hold no longer shows as
+  failed with "Some of this run's events could not be read"; the event is read
+  without its time.
 - A client tool's step shows once in the work above a reply, instead of a
   second time when the client runs the tool.
 
