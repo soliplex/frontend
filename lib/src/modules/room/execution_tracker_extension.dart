@@ -11,8 +11,7 @@ import 'execution_tracker.dart';
 ///
 /// [ThreadViewState] absorbs the live trackers into its historical trackers
 /// on detach, so execution data persists after the session ends.
-class ExecutionTrackerExtension extends SessionExtension
-    implements RunFoldObserver {
+class ExecutionTrackerExtension extends SessionExtension {
   ExecutionTrackerExtension({required Logger logger}) : _logger = logger;
 
   final Logger _logger;
@@ -39,8 +38,8 @@ class ExecutionTrackerExtension extends SessionExtension
 
   @override
   Future<void> onAttach(AgentSession session) async {
-    _bands = ExecutionBands.live(logger: _logger);
-    _stopObserving = session.observeRunFold(this);
+    final bands = _bands = ExecutionBands.live(logger: _logger);
+    _stopObserving = session.observeRunFold(bands);
   }
 
   @override
@@ -50,15 +49,4 @@ class ExecutionTrackerExtension extends SessionExtension
     _bands?.finish();
     _bands = null;
   }
-
-  @override
-  void runStarted(RunFold fold, {required bool continuesTurn}) =>
-      _bands!.runStarted(fold, continuesTurn: continuesTurn);
-
-  @override
-  void eventFolded(RunFold fold, {required BaseEvent? processed}) =>
-      _bands!.eventFolded(fold, processed: processed);
-
-  @override
-  void runEnded(RunEnding ending) => _bands!.runEnded(ending);
 }

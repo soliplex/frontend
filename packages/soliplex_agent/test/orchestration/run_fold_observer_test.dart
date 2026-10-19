@@ -156,6 +156,14 @@ void main() {
         observer: observer,
       );
 
+  /// Runs [body] in a zone of its own, and returns what reached that zone as
+  /// uncaught. What [body] asserts must be asserted after it, outside.
+  Future<List<Object>> uncaughtIn(Future<void> Function() body) async {
+    final escaped = <Object>[];
+    await runZonedGuarded(body, (error, _) => escaped.add(error));
+    return escaped;
+  }
+
   /// Starts a run on [events] and lets its first events through.
   Future<Future<RunState>> started(
     RunOrchestrator orchestrator,
@@ -377,17 +385,21 @@ void main() {
       ),
     ]);
     final failing = _ThrowingObserver(onEvent: StateError('observer bug'));
+    RunState? state;
 
-    final state = await orchestratorWith(
-      logger: LogManager.instance.getLogger('test.run_fold_observer'),
-    ).runToCompletion(
-      key: _key,
-      userMessage: [const TextPart('Weather?')],
-      toolExecutor: _answered,
-      observer: failing,
-    );
+    final escaped = await uncaughtIn(() async {
+      state = await orchestratorWith(
+        logger: LogManager.instance.getLogger('test.run_fold_observer'),
+      ).runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: _answered,
+        observer: failing,
+      );
+    });
 
     expect(state, isA<CompletedState>());
+    expect(escaped, [isA<StateError>()]);
     expect(failing.seen, [
       'run-1 starts',
       'RUN_STARTED',
@@ -406,7 +418,7 @@ void main() {
     });
   });
 
-  test('each different failure of an observer is logged, once a turn',
+  test("an observer's first failure at each step is logged, once a turn",
       () async {
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
@@ -423,17 +435,21 @@ void main() {
     );
     final failing = _ThrowingObserver(
       onEvent: StateError('event bug'),
-      onEnding: ArgumentError('ending bug'),
+      onEnding: StateError('ending bug'),
     );
 
-    for (var turn = 0; turn < 2; turn++) {
-      await orchestrator.runToCompletion(
-        key: _key,
-        userMessage: [const TextPart('Weather?')],
-        toolExecutor: _answered,
-        observer: failing,
-      );
-    }
+    final escaped = await uncaughtIn(() async {
+      for (var turn = 0; turn < 2; turn++) {
+        await orchestrator.runToCompletion(
+          key: _key,
+          userMessage: [const TextPart('Weather?')],
+          toolExecutor: _answered,
+          observer: failing,
+        );
+      }
+    });
+
+    expect(escaped, hasLength(4));
 
     expect(
       [
@@ -451,8 +467,8 @@ void main() {
   });
 
   test(
-      "an observer's failed assert reaches the zone, and the run it watches "
-      'still ends', () async {
+      "an observer's failure reaches the zone where asserts are checked, and "
+      'the run it watches still ends', () async {
     serve([
       (
         runId: 'run-1',
@@ -461,25 +477,21 @@ void main() {
         ),
       ),
     ]);
-    final escaped = <Object>[];
     RunState? state;
 
-    await runZonedGuarded(
-      () async {
-        state = await orchestratorWith()
-            .runToCompletion(
-              key: _key,
-              userMessage: [const TextPart('Weather?')],
-              toolExecutor: _answered,
-              observer: _ThrowingObserver(onEnding: AssertionError('band bug')),
-            )
-            .timeout(const Duration(seconds: 5));
-      },
-      (error, _) => escaped.add(error),
-    );
+    // Outside the zone, so a run that never ends fails here, not as an
+    // uncaught error the zone would keep.
+    final escaped = await uncaughtIn(() async {
+      state = await orchestratorWith().runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: _answered,
+        observer: _ThrowingObserver(onEnding: StateError('band bug')),
+      );
+    }).timeout(const Duration(seconds: 5));
 
     expect(state, isA<CompletedState>());
-    expect(escaped, [isA<AssertionError>()]);
+    expect(escaped, [isA<StateError>()]);
   });
 
   test('a run that could not be started reports nothing', () async {

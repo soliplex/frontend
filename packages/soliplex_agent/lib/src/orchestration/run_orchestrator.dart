@@ -116,9 +116,9 @@ class RunOrchestrator {
   /// Told each step of the active `runToCompletion` or `followToCompletion`.
   RunFoldObserver? _observer;
 
-  /// The failures [_observer] has had during the active turn, by the step it
-  /// failed at and what it threw: each is reported only the first time.
-  final Set<(String, Type)> _observerFailures = {};
+  /// The steps [_observer] has failed at during the active turn: each step's
+  /// first failure alone is reported.
+  final Set<String> _observerFailedSteps = {};
 
   /// The current state of the orchestrator.
   RunState get currentState => _currentState;
@@ -213,7 +213,7 @@ class RunOrchestrator {
       onReconnectStatus?.call(status);
     };
     _observer = observer;
-    _observerFailures.clear();
+    _observerFailedSteps.clear();
     _toolDepth = 0;
     try {
       try {
@@ -1263,12 +1263,11 @@ class RunOrchestrator {
   /// An observer that throws has a bug of its own, and must not stop the run
   /// it watches: nothing it throws unwinds the orchestrator, which tells it
   /// every step it would have, so a later ending still settles what it shows.
-  /// Each different failure is reported once a turn, by the step it failed at
-  /// and what it threw; a failure that repeats would repeat once per step. It
-  /// is logged through `describeFailure`, since the observer's exception may
-  /// carry what it was handling, and where asserts are checked a failed assert
-  /// is also handed to the zone, so a test fails at it. A program with no zone
-  /// handler of its own stops there, as on any uncaught error.
+  /// Its first failure at each step is reported once a turn; a failure that
+  /// repeats would repeat once per step. It is logged through
+  /// `describeFailure`, since the observer's exception may carry what it was
+  /// handling, and where asserts are checked it is also handed to the zone, so
+  /// a bug in an observer fails a test as it would anywhere else.
   void _tellObserver(
     String step,
     void Function(RunFoldObserver observer) tell,
@@ -1278,19 +1277,17 @@ class RunOrchestrator {
     try {
       tell(observer);
     } on Object catch (error, stackTrace) {
-      if (!_observerFailures.add((step, error.runtimeType))) return;
-      if (error is AssertionError) {
-        assert(
-          () {
-            Zone.current.handleUncaughtError(error, stackTrace);
-            return true;
-          }(),
-          'runs only where asserts are checked',
-        );
-      }
+      if (!_observerFailedSteps.add(step)) return;
+      assert(
+        () {
+          Zone.current.handleUncaughtError(error, stackTrace);
+          return true;
+        }(),
+        'runs only where asserts are checked',
+      );
       final runId = _fold?.runId;
       _logger.error(
-        'Run fold observer threw; the same failure again this turn is not '
+        'Run fold observer threw; this step failing again this turn is not '
         'logged',
         stackTrace: stackTrace,
         attributes: {
