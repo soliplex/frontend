@@ -63,7 +63,8 @@ DecodeOutcome overTheWire(Map<String, dynamic> event) =>
 /// [cachedHistory] is the thread as the runtime last loaded it, which a real
 /// send builds its conversation on. [toolRegistry] holds the client tools the
 /// session runs itself; each run that resumes after them is answered by the
-/// next of [laterRuns].
+/// next of [laterRuns]. [foldObserver], when given, observes the session's run
+/// fold in place of its band registry, which then builds no band.
 LiveSession startLiveSession({
   required ThreadKey key,
   required String runId,
@@ -72,6 +73,7 @@ LiveSession startLiveSession({
   ToolRegistry toolRegistry = const ToolRegistry(),
   List<({String runId, List<Map<String, dynamic>> events})> laterRuns =
       const [],
+  RunFoldObserver? foldObserver,
 }) {
   final api = _MockApi();
   final streamClient = _MockStreamClient();
@@ -121,7 +123,10 @@ LiveSession startLiveSession({
     runtime: runtime,
     orchestrator: orchestrator,
     toolRegistry: toolRegistry,
-    coordinator: SessionCoordinator([trackers], logger: testLogger('coord')),
+    coordinator: SessionCoordinator(
+      [if (foldObserver == null) trackers else _FoldObserving(foldObserver)],
+      logger: testLogger('coord'),
+    ),
     logger: testLogger('session'),
   );
   unawaited(
@@ -135,6 +140,24 @@ LiveSession startLiveSession({
     events: events,
     sent: sent,
   );
+}
+
+/// Observes a session's run fold with [observer] from attach to dispose.
+class _FoldObserving extends SessionExtension {
+  _FoldObserving(this.observer);
+
+  final RunFoldObserver observer;
+  void Function()? _stop;
+
+  @override
+  Future<void> onAttach(AgentSession session) async =>
+      _stop = session.observeRunFold(observer);
+
+  @override
+  List<ClientTool> get tools => const [];
+
+  @override
+  void onDispose() => _stop?.call();
 }
 
 /// A run as the backend stores it: its id, the turn's user message — stored

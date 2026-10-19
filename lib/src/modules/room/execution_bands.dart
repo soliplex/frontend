@@ -9,17 +9,18 @@ final Logger _replayLogger =
     LogManager.instance.getLogger('soliplex_frontend.execution_bands');
 
 /// The execution bands of runs as they are folded: a live session's, from its
-/// stream, or a thread's history, from its stored events. Both are fed the
-/// same calls in the same order, so both build the same bands; only the clock
-/// differs, a live band timing its steps by a running stopwatch and a replayed
-/// one by the stored events' times.
+/// stream, or a thread's history, from its stored events. For the same events
+/// both are fed the same calls in the same order (`RunFoldObserver` names the
+/// one exception), so both build the same bands; only the clock differs, a
+/// live band timing its steps by a running stopwatch and a replayed one by the
+/// stored events' times.
 ///
-/// One registry per turn, as live has one per session. For each run, the
+/// One registry per turn; a live session holds one turn. For each run, the
 /// streaming state it opens in; then for each event, the streaming state after
 /// it, the conversation's activities, and the event bridged, when it reached
 /// the conversation. A run's `RUN_FINISHED` or `RUN_ERROR` is held until the
 /// run is told how it ended, and nothing folded after it reaches a band: live
-/// stops reading a run's stream there. A run that ended is ended in its
+/// folds nothing after it. A run that ended is ended in its
 /// registry before the event is bridged, so the event reaches no band; a run
 /// waiting on a client tool keeps the turn's band open across the wait, and
 /// the event reaches it.
@@ -61,8 +62,8 @@ class ExecutionBands implements RunFoldObserver {
   @override
   void runEnded(RunEnding ending) => _turn?.runEnded(ending);
 
-  /// Ends the turn being collected and hands over every band, keyed as the
-  /// live registry keys them.
+  /// Ends the turn being collected and hands over every band, keyed as
+  /// [trackers] keys them.
   Map<String, ExecutionTracker> finish() {
     _endTurn();
     return Map.unmodifiable(_bands);

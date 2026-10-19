@@ -112,7 +112,7 @@ class AgentSession implements ToolExecutionContext {
   final Signal<ExecutionEvent?> _executionEventSignal = signal(null);
   final Signal<ReconnectStatus?> _reconnectStatusSignal =
       signal<ReconnectStatus?>(null);
-  final _RunFoldObservers _foldObservers = _RunFoldObservers();
+  final _SessionRunFold _runFold = _SessionRunFold();
 
   /// Child sessions spawned by this session.
   List<AgentSession> get children => List.unmodifiable(_children);
@@ -200,10 +200,16 @@ class AgentSession implements ToolExecutionContext {
   /// stops it.
   ///
   /// For a [SessionExtension] to call from `onAttach`, which runs before the
-  /// session's first run starts.
+  /// session's first run starts. One observer at a time: throws [StateError]
+  /// while another is observing.
   void Function() observeRunFold(RunFoldObserver observer) {
-    _foldObservers.observers.add(observer);
-    return () => _foldObservers.observers.remove(observer);
+    if (_runFold.observer != null) {
+      throw StateError("Session $id's run fold is already observed");
+    }
+    _runFold.observer = observer;
+    return () {
+      if (identical(_runFold.observer, observer)) _runFold.observer = null;
+    };
   }
 
   /// Waits for the session result with an optional timeout.
@@ -428,7 +434,7 @@ class AgentSession implements ToolExecutionContext {
           cachedHistory: cachedHistory,
           stateOverlay: stateOverlay,
           onReconnectStatus: _onReconnectStatus,
-          observer: _foldObservers,
+          observer: _runFold,
         ),
       );
 
@@ -447,7 +453,7 @@ class AgentSession implements ToolExecutionContext {
           toolExecutor: _executeAll,
           cachedHistory: cachedHistory,
           onReconnectStatus: _onReconnectStatus,
-          observer: _foldObservers,
+          observer: _runFold,
         ),
       );
 
@@ -751,31 +757,21 @@ class AgentSession implements ToolExecutionContext {
       _state == AgentSessionState.cancelled;
 }
 
-/// Tells every observer of a session's run fold each step, in the order they
-/// began observing.
-class _RunFoldObservers implements RunFoldObserver {
-  final List<RunFoldObserver> observers = [];
+/// What a session hands its orchestrator to report the fold to: whichever
+/// observer is observing the session when each step happens, if any.
+class _SessionRunFold implements RunFoldObserver {
+  RunFoldObserver? observer;
 
   @override
-  void runStarted(RunFold fold, {required bool continuesTurn}) {
-    for (final observer in [...observers]) {
-      observer.runStarted(fold, continuesTurn: continuesTurn);
-    }
-  }
+  void runStarted(RunFold fold, {required bool continuesTurn}) =>
+      observer?.runStarted(fold, continuesTurn: continuesTurn);
 
   @override
-  void eventFolded(RunFold fold, {required BaseEvent? processed}) {
-    for (final observer in [...observers]) {
-      observer.eventFolded(fold, processed: processed);
-    }
-  }
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) =>
+      observer?.eventFolded(fold, processed: processed);
 
   @override
-  void runEnded(RunEnding ending) {
-    for (final observer in [...observers]) {
-      observer.runEnded(ending);
-    }
-  }
+  void runEnded(RunEnding ending) => observer?.runEnded(ending);
 }
 
 /// Extracts the activity list carried by [runState], or `const []` for

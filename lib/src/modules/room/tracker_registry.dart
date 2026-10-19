@@ -53,7 +53,7 @@ class TrackerRegistry {
 
   Map<String, ExecutionTracker> get trackers => Map.unmodifiable(_trackers);
 
-  /// Every run that has started in this session's turn.
+  /// Every run that has started in this registry's turn.
   Set<String> get runs => Set.unmodifiable(_runs);
 
   /// Update tracker state based on the current streaming state.
@@ -152,9 +152,6 @@ class TrackerRegistry {
 
   /// Routes [event] to the open band, after ending the response if [event]
   /// opens the next one.
-  ///
-  /// The registry hands each event to the open band itself, so recording an
-  /// event and acting on it happen in one place, in a stated order.
   ///
   /// A tool result ends the response that made the call: the producer is
   /// invoked again to decide what to do with the result, and what it emits

@@ -764,7 +764,7 @@ class RunOrchestrator {
       );
       // The run ends here with no state published, so this is the one ending
       // `_setState` does not report.
-      _tellObserver((o) => o.runEnded(RunEnding.cancelled));
+      _tellObserver('runEnded', (o) => o.runEnded(RunEnding.cancelled));
       return;
     }
     throw StateError(
@@ -1026,7 +1026,10 @@ class RunOrchestrator {
       runCreated: null,
     );
     final started = _fold!;
-    _tellObserver((o) => o.runStarted(started, continuesTurn: continuesTurn));
+    _tellObserver(
+      'runStarted',
+      (o) => o.runStarted(started, continuesTurn: continuesTurn),
+    );
     _setState(_runningFrom(initialState));
     _subscription = events.listen(
       _onEvent,
@@ -1048,7 +1051,10 @@ class RunOrchestrator {
     final applied = fold.apply(outcome);
     _fold = applied.fold;
     final event = applied.processed;
-    _tellObserver((o) => o.eventFolded(applied.fold, processed: event));
+    _tellObserver(
+      'eventFolded',
+      (o) => o.eventFolded(applied.fold, processed: event),
+    );
     if (event == null) {
       _setState(_runningFrom(running));
       return;
@@ -1244,23 +1250,36 @@ class RunOrchestrator {
       CancelledState() => RunEnding.cancelled,
       RunningState() || IdleState() => null,
     };
-    if (ending != null) _tellObserver((o) => o.runEnded(ending));
+    if (ending != null) _tellObserver('runEnded', (o) => o.runEnded(ending));
   }
 
-  /// Tells the observer one step of the fold. An observer that throws has a
-  /// bug of its own, and must not stop the run it watches: the run carries on
-  /// and the failure is logged through `describeFailure`, since the observer's
-  /// exception may carry what it was handling.
-  void _tellObserver(void Function(RunFoldObserver observer) step) {
+  /// Tells the observer [step], the call [tell] makes.
+  ///
+  /// An observer that throws has a bug of its own, and must not stop the run
+  /// it watches: the run carries on, the observer is told nothing more of the
+  /// turn, and the failure is logged once, through `describeFailure`, since
+  /// the observer's exception may carry what it was handling. A failed assert
+  /// is let through, so that an observer's own debug check still fails loud.
+  void _tellObserver(
+    String step,
+    void Function(RunFoldObserver observer) tell,
+  ) {
     final observer = _observer;
     if (observer == null) return;
     try {
-      step(observer);
+      tell(observer);
     } on Object catch (error, stackTrace) {
+      if (error is AssertionError) rethrow;
+      _observer = null;
+      final runId = _fold?.runId;
       _logger.error(
-        'Run fold observer threw',
+        'Run fold observer threw; it is told nothing more of the turn',
         stackTrace: stackTrace,
-        attributes: {'failure': describeFailure(error)},
+        attributes: {
+          'step': step,
+          if (runId != null) 'runId': runId,
+          'failure': describeFailure(error),
+        },
       );
     }
   }

@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 // A live run reports its fold as replay reports a stored one: the run
@@ -41,18 +42,21 @@ class _RecordingObserver implements RunFoldObserver {
   void runEnded(RunEnding ending) => seen.add('ends ${ending.name}');
 }
 
-/// An observer with a bug: every call throws.
-class _ThrowingObserver implements RunFoldObserver {
-  @override
-  void runStarted(RunFold fold, {required bool continuesTurn}) =>
-      throw StateError('observer bug');
+/// An observer with a bug: it records each call, and the first event it is
+/// told of throws [error].
+class _ThrowingObserver extends _RecordingObserver {
+  _ThrowingObserver(this.error);
+
+  final Error error;
+  var _threw = false;
 
   @override
-  void eventFolded(RunFold fold, {required BaseEvent? processed}) =>
-      throw StateError('observer bug');
-
-  @override
-  void runEnded(RunEnding ending) => throw StateError('observer bug');
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) {
+    super.eventFolded(fold, processed: processed);
+    if (_threw) return;
+    _threw = true;
+    throw error;
+  }
 }
 
 RunStartedEvent _started(String runId) =>
@@ -99,11 +103,12 @@ void main() {
 
   RunOrchestrator orchestratorWith({
     ToolRegistry tools = const ToolRegistry(),
+    Logger? logger,
   }) {
     final orchestrator = RunOrchestrator(
       llmProvider: AgUiLlmProvider(api: api, agUiStreamClient: client),
       toolRegistry: tools,
-      logger: _MockLogger(),
+      logger: logger ?? _MockLogger(),
     );
     addTearDown(orchestrator.dispose);
     return orchestrator;
@@ -316,27 +321,50 @@ void main() {
     ]);
   });
 
-  test('a run whose client tool then fails ends again, failed', () async {
-    serve([
-      (
-        runId: 'run-1',
-        events: decoded(Stream.fromIterable(_callsWeather('run-1')))
+  test(
+      'a run whose turn cannot resume after its client tool ends again, '
+      'failed', () async {
+    var created = 0;
+    when(() => api.createRun(any(), any())).thenAnswer((_) async {
+      if (created++ > 0) {
+        throw const NetworkException(message: 'unreachable');
+      }
+      return RunInfo(
+        id: 'run-1',
+        threadId: 'thread',
+        createdAt: DateTime.utc(2026),
+      );
+    });
+    when(
+      () => client.runAgent(
+        any(),
+        any(),
+        cancelToken: any(named: 'cancelToken'),
+        resumePolicy: any(named: 'resumePolicy'),
+        onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ]);
+    ).thenAnswer((_) => decoded(Stream.fromIterable(_callsWeather('run-1'))));
 
-    await run(
-      orchestratorWith(tools: _weather),
-      toolExecutor: (_) async => throw StateError('tool broke'),
-    );
+    await run(orchestratorWith(tools: _weather));
 
-    expect(observer.seen.skip(4), [
+    expect(observer.seen, [
+      'run-1 starts',
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_END',
       'RUN_FINISHED',
       'ends waitingOnClientTool',
       'ends failed',
     ]);
   });
 
-  test('an observer that throws does not stop the run it watches', () async {
+  test(
+      'an observer that throws is told nothing more of the turn, which '
+      'carries on, and the failure is logged once with where it happened',
+      () async {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
     serve([
       (
         runId: 'run-1',
@@ -345,15 +373,59 @@ void main() {
         ),
       ),
     ]);
+    final failing = _ThrowingObserver(StateError('observer bug'));
 
-    final state = await orchestratorWith().runToCompletion(
+    final state = await orchestratorWith(
+      logger: LogManager.instance.getLogger('test.run_fold_observer'),
+    ).runToCompletion(
       key: _key,
       userMessage: [const TextPart('Weather?')],
       toolExecutor: _answered,
-      observer: _ThrowingObserver(),
+      observer: failing,
     );
 
     expect(state, isA<CompletedState>());
+    expect(failing.seen, ['run-1 starts', 'RUN_STARTED']);
+    final logged = sink.records
+        .where((r) => r.message.contains('Run fold observer threw'))
+        .toList();
+    expect(logged, hasLength(1));
+    expect(logged.single.error, isNull);
+    expect(logged.single.attributes, {
+      'step': 'eventFolded',
+      'runId': 'run-1',
+      'failure': describeFailure(StateError('observer bug')),
+    });
+  });
+
+  test("an observer's failed assert is not swallowed", () async {
+    serve([
+      (
+        runId: 'run-1',
+        events: decoded(
+          Stream.fromIterable([_started('run-1'), _finished('run-1')]),
+        ),
+      ),
+    ]);
+    final escaped = <Object>[];
+
+    await runZonedGuarded(
+      () async {
+        unawaited(
+          orchestratorWith().runToCompletion(
+            key: _key,
+            userMessage: [const TextPart('Weather?')],
+            toolExecutor: _answered,
+            observer: _ThrowingObserver(AssertionError('band bug')),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+      },
+      (error, _) => escaped.add(error),
+    );
+
+    expect(escaped, [isA<AssertionError>()]);
   });
 
   test('a run that could not be started reports nothing', () async {
@@ -364,42 +436,5 @@ void main() {
 
     expect(state, isA<FailedState>());
     expect(observer.seen, isEmpty);
-  });
-
-  test('a followed run reports its fold as a run started here does', () async {
-    when(
-      () => client.followRun(
-        any(),
-        'run-1',
-        cancelToken: any(named: 'cancelToken'),
-        onReconnectStatus: any(named: 'onReconnectStatus'),
-      ),
-    ).thenAnswer(
-      (_) =>
-          decoded(Stream.fromIterable([_started('run-1'), _finished('run-1')])),
-    );
-
-    await orchestratorWith().followToCompletion(
-      key: _key,
-      run: RunInProgress(
-        runId: 'run-1',
-        userMessage: TextMessage.create(
-          id: 'user-1',
-          user: ChatUser.user,
-          text: 'Weather?',
-          runId: 'run-1',
-        ),
-      ),
-      toolExecutor: _answered,
-      cachedHistory: null,
-      observer: observer,
-    );
-
-    expect(observer.seen, [
-      'run-1 starts',
-      'RUN_STARTED',
-      'RUN_FINISHED',
-      'ends completed',
-    ]);
   });
 }

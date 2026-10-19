@@ -73,10 +73,11 @@ flowchart LR
      `RunFoldObserver`: each run starting, each event folded, and how each
      run ended. Live, `RunOrchestrator` reports them as it folds the stream
      (`AgentSession.observeRunFold`); on reload, history replay as it folds
-     the stored events. Both report the same calls in the same order, so the
-     order a registry is fed in, how a run's end settles its band, and
-     ignoring what a run folds after its terminal event are each written
-     once, in `ExecutionBands`.
+     the stored events. For the same events both report the same calls in
+     the same order (except a client-tool wait that ended without resuming
+     the turn, which only live sees), so the order a registry is fed in, how
+     a run's end settles its band, and ignoring what a run folds after its
+     terminal event are each written once, in `ExecutionBands`.
    - Only the source of the steps and the clock differ. A live band times its
      steps by a running clock, a reloaded one by the stored events' times.
      Live knows at once that a run waits on a client tool; replay holds each

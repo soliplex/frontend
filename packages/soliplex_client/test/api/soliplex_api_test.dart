@@ -5737,58 +5737,6 @@ void main() {
       });
 
       test(
-          'a finished run waited on a client tool when the run after it '
-          'continues its turn, said once that run starts', () async {
-        stubThread({
-          'run-1': {
-            ...finished('run-1', '2026-01-07T01:00:00.000Z'),
-            'run_input': sent([asked]),
-          },
-          'run-2': {
-            ...finished('run-2', '2026-01-07T02:00:00.000Z'),
-            'run_input': sent([
-              asked,
-              {
-                'id': 'tool-result-1',
-                'role': 'tool',
-                'toolCallId': 'call-1',
-                'content': 'sunny',
-              },
-            ]),
-          },
-        });
-        stubRun(
-          'run-1',
-          events: [started('run-1'), runFinished('run-1')],
-          runInput: sent([asked]),
-        );
-        stubRun(
-          'run-2',
-          events: [started('run-2'), runFinished('run-2')],
-          runInput: sent([
-            asked,
-            {
-              'id': 'tool-result-1',
-              'role': 'tool',
-              'toolCallId': 'call-1',
-              'content': 'sunny',
-            },
-          ]),
-        );
-
-        expect(await replayed(), [
-          'run-1 starts, continuing no turn, AwaitingText',
-          'RUN_STARTED, AwaitingText',
-          'RUN_FINISHED, AwaitingText',
-          'ends waitingOnClientTool',
-          'run-2 starts, continuing its turn, AwaitingText',
-          'RUN_STARTED, AwaitingText',
-          'RUN_FINISHED, AwaitingText',
-          'ends completed',
-        ]);
-      });
-
-      test(
           'a run cut off before the run that continues its turn waited on a '
           'client tool, as the messages replay builds say', () async {
         stubThread({

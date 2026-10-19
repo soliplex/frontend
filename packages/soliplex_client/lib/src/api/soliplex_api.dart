@@ -810,8 +810,8 @@ class SoliplexApi {
   ///
   /// [observer] is told each run whose events were read, each of its events,
   /// and how it ended, as the replay folds them. How a run ended is told once
-  /// the run after it starts, or the history ends: only then is it known
-  /// whether it waited on a client tool.
+  /// the next run whose events were read starts, or the history ends: only
+  /// then is it known whether it waited on a client tool.
   Future<ThreadHistory> getThreadHistory(
     String roomId,
     String threadId, {

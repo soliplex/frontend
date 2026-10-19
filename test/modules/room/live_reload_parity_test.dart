@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_bands.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart';
-import 'package:soliplex_frontend/src/modules/room/execution_bands.dart';
 import 'package:soliplex_frontend/src/modules/room/run_id_resolver.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
@@ -17,8 +17,8 @@ import '../../helpers/live_session.dart';
 /// are the fold of a run's events and the tracker registry keying its bands.
 /// What is not shared is where a run's fold steps come from: live, the
 /// orchestrator folding the stream; reloaded, history replay folding the stored
-/// events. Both tell `ExecutionBands` the same calls in the same order, so the
-/// seam is each path's source of steps, and the clock.
+/// events. For the same events both tell `ExecutionBands` the same calls in the
+/// same order, so the seam is each path's source of steps, and the clock.
 ///
 /// Narrow on purpose: the message list, the band map and the parked outcomes.
 /// There is nothing else left that can diverge.
