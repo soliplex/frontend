@@ -111,16 +111,14 @@ class ExecutionTracker {
       _thinkingBlocks.value.any((block) => block.trim().isNotEmpty);
 
   /// Marks the tracker terminal: clears the spinner, settles any step still
-  /// active as [unfinishedAs], and stops mirroring the session's activities.
+  /// active as [unfinishedAs], and stops mirroring the turn's activities.
   /// Idempotent.
   ///
-  /// Live, the registry freezes a band when its response ends — as completed,
+  /// The registry freezes a band when its response ends — as completed,
   /// because the run moved on — and when the run ends. At the run's end the
-  /// terminal state is published before the event that bridges to
-  /// `RunCompleted` / `RunFailed`, so by the time that event arrives the band
-  /// is closed and it reaches no band at all. [unfinishedAs] is the run's own
-  /// account of how it ended, carried by the caller that can still see the
-  /// terminal state.
+  /// band is frozen before the run's terminal event is routed, so that event
+  /// reaches no band at all. [unfinishedAs] is the run's own account of how it
+  /// ended, from whoever was told the run's ending.
   void freeze(StepStatus unfinishedAs) {
     if (_isFrozen) return;
     _isThinkingStreaming.value = false;

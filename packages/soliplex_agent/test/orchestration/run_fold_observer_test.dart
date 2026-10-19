@@ -364,7 +364,7 @@ void main() {
 
   test(
       'an observer that throws is still told the rest of the run, which '
-      'carries on, and only its first failure of the turn is logged', () async {
+      'carries on, and a failure that repeats is logged once', () async {
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
@@ -406,6 +406,50 @@ void main() {
     });
   });
 
+  test('each different failure of an observer is logged, once a turn',
+      () async {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    serve([
+      for (final runId in ['run-1', 'run-2'])
+        (
+          runId: runId,
+          events: decoded(Stream.fromIterable([_finished(runId)])),
+        ),
+    ]);
+    final orchestrator = orchestratorWith(
+      logger: LogManager.instance.getLogger('test.run_fold_observer'),
+    );
+    final failing = _ThrowingObserver(
+      onEvent: StateError('event bug'),
+      onEnding: ArgumentError('ending bug'),
+    );
+
+    for (var turn = 0; turn < 2; turn++) {
+      await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: _answered,
+        observer: failing,
+      );
+    }
+
+    expect(
+      [
+        for (final r in sink.records)
+          if (r.message.contains('Run fold observer threw'))
+            '${r.attributes['runId']} ${r.attributes['step']}',
+      ],
+      [
+        'run-1 eventFolded',
+        'run-1 runEnded',
+        'run-2 eventFolded',
+        'run-2 runEnded',
+      ],
+    );
+  });
+
   test(
       "an observer's failed assert reaches the zone, and the run it watches "
       'still ends', () async {
@@ -422,12 +466,14 @@ void main() {
 
     await runZonedGuarded(
       () async {
-        state = await orchestratorWith().runToCompletion(
-          key: _key,
-          userMessage: [const TextPart('Weather?')],
-          toolExecutor: _answered,
-          observer: _ThrowingObserver(onEnding: AssertionError('band bug')),
-        );
+        state = await orchestratorWith()
+            .runToCompletion(
+              key: _key,
+              userMessage: [const TextPart('Weather?')],
+              toolExecutor: _answered,
+              observer: _ThrowingObserver(onEnding: AssertionError('band bug')),
+            )
+            .timeout(const Duration(seconds: 5));
       },
       (error, _) => escaped.add(error),
     );

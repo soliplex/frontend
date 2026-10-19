@@ -11,6 +11,10 @@ import 'package:soliplex_client/src/application/run_fold.dart';
 ///
 /// What either shows is only its end state; a reader that needs every step in
 /// between watches here instead of folding the events a second time.
+///
+/// An observer that throws does not stop a live run, whose orchestrator logs
+/// the failure and goes on telling it every step; it fails a replay, whose
+/// `getThreadHistory` throws.
 abstract interface class RunFoldObserver {
   /// [fold]'s run starts, before any of its events. [continuesTurn] says the
   /// run resumes the turn of the run before it, as a run resumed after a

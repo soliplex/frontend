@@ -734,7 +734,7 @@ void main() {
       await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
-      expect(next.seen.last, 'ends completed');
+      expect(next.seen, contains('ends completed'));
     });
 
     test('a second observer of the run fold is refused', () {

@@ -123,6 +123,10 @@ class _Turn {
   }
 
   void runEnded(RunEnding ending) {
+    // Taken first, so a registry that throws below cannot leave the run's
+    // events ignored for the rest of the turn.
+    final terminal = _terminal;
+    _terminal = null;
     switch (ending) {
       case RunEnding.completed:
         _registry.onRunEnded(completed: true);
@@ -131,9 +135,7 @@ class _Turn {
       case RunEnding.waitingOnClientTool:
         break;
     }
-    final terminal = _terminal;
     if (terminal == null) return;
-    _terminal = null;
     _registry.onActivities(terminal.activities);
     if (terminal.event case final event?) _registry.onEvent(event);
   }
