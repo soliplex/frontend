@@ -32,7 +32,6 @@ import '../modules/room/execution_tracker_extension.dart';
 import '../modules/room/human_approval_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
-import '../modules/room/tool_calls_extension.dart';
 import '../modules/versions/versions_module.dart';
 
 /// The module graph and derived boot inputs (`initialRoute`,
@@ -137,7 +136,6 @@ Future<StandardKit> buildStandardKit({
         logger: LogManager.instance
             .getLogger('soliplex_frontend.execution_tracker'),
       ),
-      ToolCallsExtension(),
       HumanApprovalExtension(),
     ],
     servers: serverManager.servers,
