@@ -12,7 +12,6 @@ import '../../modules/room/agent_runtime_manager.dart';
 import '../../modules/room/execution_tracker_extension.dart';
 import '../../modules/room/human_approval_extension.dart';
 import '../../modules/room/run_registry.dart';
-import '../../modules/room/tool_calls_extension.dart';
 import '../../modules/room/upload_tracker_registry.dart';
 
 /// Everything the chat screen talks to, answered from memory.
@@ -57,7 +56,6 @@ class StaticBackend {
         ExecutionTrackerExtension(
           logger: LogManager.instance.getLogger('mockup.chat.execution'),
         ),
-        ToolCallsExtension(),
         HumanApprovalExtension(),
       ],
       servers: servers,
