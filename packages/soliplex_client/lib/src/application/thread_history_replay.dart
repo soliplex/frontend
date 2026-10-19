@@ -981,13 +981,16 @@ DateTime? _runCreated(dynamic runData, String runId, String threadId) {
   }
   try {
     return parseTimestamp(created);
-  } on FormatException catch (error) {
+  } on FormatException catch (error, stackTrace) {
     // Expected shape drift: a malformed `created` string. Routine — warn
-    // and resolve to no timestamp.
+    // and resolve to no timestamp. The error carries only the `created`
+    // string, with a `Z` appended when it names no zone. The backend stamps
+    // it, it is no secret, and it is what makes the record actionable.
     _logger.warning(
       'replay: run $runId in thread $threadId has a malformed `created` '
       'timestamp; resolving to no timestamp.',
       error: error,
+      stackTrace: stackTrace,
     );
     return null;
   } on Object catch (error, stackTrace) {
