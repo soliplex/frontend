@@ -487,11 +487,11 @@ void main() {
 
     test('freeze decouples the tracker from the source activities signal', () {
       // ThreadViewState._detachSession absorbs the live tracker into its
-      // historical map and then lets the session — owner of the source
-      // `conversationActivities` — auto-dispose. The absorbed tracker
-      // must capture the activity list at freeze time and stop tracking
-      // the source: later session-side mutations cannot reach the
-      // historical view, and later session disposal cannot pollute reads
+      // historical map, and the turn's TrackerRegistry, owner of the source
+      // activities signal, is disposed when the turn ends. The absorbed
+      // tracker must capture the activity list at freeze time and stop
+      // tracking the source: later turn-side mutations cannot reach the
+      // historical view, and the registry's disposal cannot pollute reads
       // with "signal read after disposed" warnings.
       activities.value = const [
         ActivityRecord(
@@ -505,8 +505,8 @@ void main() {
 
       tracker.freeze(StepStatus.completed);
 
-      // Post-absorption, the session is free to mutate or dispose its
-      // signals; the absorbed tracker must stay pinned to what it had at
+      // Post-absorption, the turn's registry is free to change or dispose its
+      // activities; the absorbed tracker must stay pinned to what it had at
       // freeze time.
       activities.value = const [
         ActivityRecord(

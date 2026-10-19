@@ -151,13 +151,6 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the latest [RunState] from the orchestrator.
   ReadonlySignal<RunState> get runState => _runStateSignal.readonly();
 
-  /// Reactive signal exposing `Conversation.activities` for whichever
-  /// run-state variant currently carries a [Conversation]. Empty list
-  /// while idle or in a terminal state that didn't capture a
-  /// conversation.
-  late final ReadonlySignal<List<ActivityRecord>> conversationActivities =
-      computed(() => conversationActivitiesOf(runState.value));
-
   /// Reactive signal tracking the agent's `aguiState` map across the
   /// session lifetime.
   ///
@@ -773,29 +766,6 @@ class _SessionRunFold implements RunFoldObserver {
   @override
   void runEnded(RunEnding ending) => observer?.runEnded(ending);
 }
-
-/// Extracts the activity list carried by [runState], or `const []` for
-/// variants that don't carry a [Conversation]. Backs
-/// [AgentSession.conversationActivities] — exposed as a top-level
-/// function so the switch can be exercised directly without
-/// orchestrator scaffolding.
-List<ActivityRecord> conversationActivitiesOf(RunState runState) =>
-    switch (runState) {
-      RunningState(:final conversation) ||
-      ToolYieldingState(:final conversation) ||
-      CompletedState(:final conversation) =>
-        conversation.activities,
-      FailedState(:final conversation?) ||
-      CancelledState(:final conversation?) =>
-        conversation.activities,
-      // Exhaustive over the remaining sealed variants so adding a new
-      // RunState forces an explicit decision here rather than silently
-      // falling back to an empty list.
-      IdleState() ||
-      FailedState(conversation: null) ||
-      CancelledState(conversation: null) =>
-        const <ActivityRecord>[],
-    };
 
 /// Translates a raw AG-UI [BaseEvent] into the [ExecutionEvent] that
 /// consumers of [AgentSession.lastExecutionEvent] should observe, or
