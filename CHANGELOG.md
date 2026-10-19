@@ -30,10 +30,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `followToCompletion` take one for the runs they fold, and
   `AgentSession.observeRunFold` attaches one to a session's runs, one at a
   time, for a `SessionExtension` to call from `onAttach`. An observer that
-  throws does not stop a live run: the orchestrator logs its first failure
-  at each step once a turn, hands it to the zone too where asserts are
-  checked, and goes on telling it every step. It fails a replay:
-  `getThreadHistory` throws.
+  throws stops neither a live run nor a replay: both tell it through a
+  `GuardedRunFoldObserver`, which logs its first failure at each step once
+  (once a turn live, once a load on reload), hands it to the zone too where
+  asserts are checked, and goes on telling it every step.
 
 ### Changed
 

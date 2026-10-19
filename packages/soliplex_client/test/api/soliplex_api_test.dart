@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -5690,6 +5691,59 @@ void main() {
           'ends completed',
         ]);
       });
+
+      test('an observer that throws does not fail the history load', () async {
+        stubThread({
+          'run-1': {
+            ...finished('run-1', '2026-01-07T01:00:00.000Z'),
+            'run_input': sent([asked]),
+          },
+        });
+        stubRun(
+          'run-1',
+          runInput: sent([asked]),
+          events: [
+            started('run-1'),
+            {
+              'type': 'TEXT_MESSAGE_START',
+              'messageId': 'reply-1',
+              'role': 'assistant',
+            },
+            {
+              'type': 'TEXT_MESSAGE_CONTENT',
+              'messageId': 'reply-1',
+              'delta': 'sunny',
+            },
+            {'type': 'TEXT_MESSAGE_END', 'messageId': 'reply-1'},
+            runFinished('run-1'),
+          ],
+        );
+        final unobserved = await api.getThreadHistory('room-123', 'thread-456');
+        ThreadHistory? history;
+        Object? loadFailure;
+
+        // The guard hands each failure to the zone where asserts are checked.
+        await runZonedGuarded(
+          () async {
+            try {
+              history = await api.getThreadHistory(
+                'room-123',
+                'thread-456',
+                observer: _ThrowingObserver(),
+              );
+            } on Object catch (error) {
+              loadFailure = error;
+            }
+          },
+          (_, __) {},
+        );
+
+        expect(loadFailure, isNull);
+        expect(
+          [for (final m in history!.messages) m.id],
+          [for (final m in unobserved.messages) m.id],
+        );
+      });
     });
 
     group('getThreadHistory run in progress', () {
@@ -9124,4 +9178,18 @@ class _RecordingObserver implements RunFoldObserver {
         AwaitingText() => 'AwaitingText',
         TextStreaming(:final text) => 'TextStreaming "$text"',
       };
+}
+
+/// An observer with a bug: every step it is told of throws.
+class _ThrowingObserver implements RunFoldObserver {
+  @override
+  void runStarted(RunFold fold, {required bool continuesTurn}) =>
+      throw StateError('observer bug');
+
+  @override
+  void eventFolded(RunFold fold, {required BaseEvent? processed}) =>
+      throw StateError('observer bug');
+
+  @override
+  void runEnded(RunEnding ending) => throw StateError('observer bug');
 }

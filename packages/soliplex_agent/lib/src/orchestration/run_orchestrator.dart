@@ -116,10 +116,6 @@ class RunOrchestrator {
   /// Told each step of the active `runToCompletion` or `followToCompletion`.
   RunFoldObserver? _observer;
 
-  /// The steps [_observer] has failed at during the active turn: each step's
-  /// first failure alone is reported.
-  final Set<String> _observerFailedSteps = {};
-
   /// The current state of the orchestrator.
   RunState get currentState => _currentState;
 
@@ -212,8 +208,13 @@ class RunOrchestrator {
       _logReconnectStatus(status);
       onReconnectStatus?.call(status);
     };
-    _observer = observer;
-    _observerFailedSteps.clear();
+    _observer = observer == null
+        ? null
+        : GuardedRunFoldObserver(
+            observer,
+            threadId: key.threadId,
+            logger: _logger,
+          );
     _toolDepth = 0;
     try {
       try {
@@ -769,7 +770,7 @@ class RunOrchestrator {
       );
       // The run ends here with no state published, so this is the one ending
       // `_setState` does not report.
-      _tellObserver('runEnded', (o) => o.runEnded(RunEnding.cancelled));
+      _observer?.runEnded(RunEnding.cancelled);
       return;
     }
     throw StateError(
@@ -1031,10 +1032,7 @@ class RunOrchestrator {
       runCreated: null,
     );
     final started = _fold!;
-    _tellObserver(
-      'runStarted',
-      (o) => o.runStarted(started, continuesTurn: continuesTurn),
-    );
+    _observer?.runStarted(started, continuesTurn: continuesTurn);
     _setState(_runningFrom(initialState));
     _subscription = events.listen(
       _onEvent,
@@ -1056,10 +1054,7 @@ class RunOrchestrator {
     final applied = fold.apply(outcome);
     _fold = applied.fold;
     final event = applied.processed;
-    _tellObserver(
-      'eventFolded',
-      (o) => o.eventFolded(applied.fold, processed: event),
-    );
+    _observer?.eventFolded(applied.fold, processed: event);
     if (event == null) {
       _setState(_runningFrom(running));
       return;
@@ -1255,48 +1250,7 @@ class RunOrchestrator {
       CancelledState() => RunEnding.cancelled,
       RunningState() || IdleState() => null,
     };
-    if (ending != null) _tellObserver('runEnded', (o) => o.runEnded(ending));
-  }
-
-  /// Tells the observer [step], the call [tell] makes.
-  ///
-  /// An observer that throws has a bug of its own, and must not stop the run
-  /// it watches: nothing it throws unwinds the orchestrator, which tells it
-  /// every step it would have, so a later ending still settles what it shows.
-  /// Its first failure at each step is reported once a turn; a failure that
-  /// repeats would repeat once per step. It is logged through
-  /// `describeFailure`, since the observer's exception may carry what it was
-  /// handling, and where asserts are checked it is also handed to the zone, so
-  /// a bug in an observer fails a test as it would anywhere else.
-  void _tellObserver(
-    String step,
-    void Function(RunFoldObserver observer) tell,
-  ) {
-    final observer = _observer;
-    if (observer == null) return;
-    try {
-      tell(observer);
-    } on Object catch (error, stackTrace) {
-      if (!_observerFailedSteps.add(step)) return;
-      assert(
-        () {
-          Zone.current.handleUncaughtError(error, stackTrace);
-          return true;
-        }(),
-        'runs only where asserts are checked',
-      );
-      final runId = _fold?.runId;
-      _logger.error(
-        'Run fold observer threw; this step failing again this turn is not '
-        'logged',
-        stackTrace: stackTrace,
-        attributes: {
-          'step': step,
-          if (runId != null) 'runId': runId,
-          'failure': describeFailure(error),
-        },
-      );
-    }
+    if (ending != null) _observer?.runEnded(ending);
   }
 
   /// Absorbs whatever the teardown of an SSE subscription surfaces, where

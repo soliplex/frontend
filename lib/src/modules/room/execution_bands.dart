@@ -64,6 +64,12 @@ class ExecutionBands implements RunFoldObserver {
 
   /// Ends the turn being collected and hands over every band, keyed as
   /// [trackers] keys them.
+  ///
+  /// Called directly, not through the run fold guard: whatever it throws fails
+  /// the caller, and on reload that is the whole history load. Nothing on its
+  /// path can throw today: it copies maps and releases the turn's registry
+  /// (`_Turn.end`, `TrackerRegistry.dispose`, `ExecutionTracker.dispose`),
+  /// which unsubscribes from a signal and runs no app code.
   Map<String, ExecutionTracker> finish() {
     _endTurn();
     return Map.unmodifiable(_bands);
