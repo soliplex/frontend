@@ -29,7 +29,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   starts, or the history ends. `RunOrchestrator.runToCompletion` and
   `followToCompletion` take one for the runs they fold, and
   `AgentSession.observeRunFold` attaches one to a session's runs, one at a
-  time, for a `SessionExtension` to call from `onAttach`.
+  time, for a `SessionExtension` to call from `onAttach`. An observer that
+  throws does not stop a live run: the orchestrator logs each different
+  failure once a turn and goes on telling it every step. It fails a replay:
+  `getThreadHistory` throws.
 
 ### Removed
 
