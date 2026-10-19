@@ -132,9 +132,9 @@ class ExecutionTracker {
 
   /// Records [event] against this band.
   ///
-  /// Called by the registry that routes the run's events, rather than the band
-  /// reading them itself, so that the registry decides in one place whether
-  /// an event lands before or after it closes the band.
+  /// Called by whoever routes the run's events, rather than the band reading
+  /// them itself, so that the router states whether an event lands before or
+  /// after the band closes.
   void observe(ExecutionEvent? event) {
     if (_isFrozen) return;
     _onEvent(event);

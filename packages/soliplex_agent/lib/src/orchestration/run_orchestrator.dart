@@ -116,6 +116,10 @@ class RunOrchestrator {
   /// Told each step of the active `runToCompletion` or `followToCompletion`.
   RunFoldObserver? _observer;
 
+  /// Whether [_observer] has thrown during the active turn, which is logged
+  /// only the first time.
+  bool _observerFailed = false;
+
   /// The current state of the orchestrator.
   RunState get currentState => _currentState;
 
@@ -129,8 +133,8 @@ class RunOrchestrator {
   /// `ExecutionEvent` signal without duplicating event processing logic.
   /// Decode failures and `processEvent` throws surface as
   /// [DroppedEventMessage] tiles in the conversation and never reach
-  /// this stream, so a tracker observing it stays consistent with the
-  /// conversation state.
+  /// this stream, so an observer of `AgentSession.lastExecutionEvent` stays
+  /// consistent with the conversation state.
   Stream<BaseEvent> get baseEvents => _baseEventController.stream;
 
   /// Runs a complete agent interaction including all tool yield/resume cycles.
@@ -143,7 +147,7 @@ class RunOrchestrator {
   ///
   /// [observer] is told each run of the turn as it starts, each event once
   /// folded, and how each run ended, as history replay tells it of a stored
-  /// run.
+  /// run (`RunFoldObserver` names the one difference).
   Future<RunState> runToCompletion({
     required ThreadKey key,
     required List<MessagePart> userMessage,
@@ -209,6 +213,7 @@ class RunOrchestrator {
       onReconnectStatus?.call(status);
     };
     _observer = observer;
+    _observerFailed = false;
     _toolDepth = 0;
     try {
       try {
@@ -1256,10 +1261,12 @@ class RunOrchestrator {
   /// Tells the observer [step], the call [tell] makes.
   ///
   /// An observer that throws has a bug of its own, and must not stop the run
-  /// it watches: the run carries on, the observer is told nothing more of the
-  /// turn, and the failure is logged once, through `describeFailure`, since
-  /// the observer's exception may carry what it was handling. A failed assert
-  /// is let through, so that an observer's own debug check still fails loud.
+  /// it watches: nothing it throws unwinds the orchestrator, which tells it
+  /// every step it would have, so a later ending still settles what it shows.
+  /// Its first failure of the turn is logged, through `describeFailure`, since
+  /// the observer's exception may carry what it was handling; the rest would
+  /// repeat it once per event. Where asserts are checked, a failed assert is
+  /// also handed to the zone, so a test fails at it.
   void _tellObserver(
     String step,
     void Function(RunFoldObserver observer) tell,
@@ -1269,11 +1276,20 @@ class RunOrchestrator {
     try {
       tell(observer);
     } on Object catch (error, stackTrace) {
-      if (error is AssertionError) rethrow;
-      _observer = null;
+      if (error is AssertionError) {
+        assert(
+          () {
+            Zone.current.handleUncaughtError(error, stackTrace);
+            return true;
+          }(),
+          'runs only where asserts are checked',
+        );
+      }
+      if (_observerFailed) return;
+      _observerFailed = true;
       final runId = _fold?.runId;
       _logger.error(
-        'Run fold observer threw; it is told nothing more of the turn',
+        'Run fold observer threw; later failures this turn are not logged',
         stackTrace: stackTrace,
         attributes: {
           'step': step,

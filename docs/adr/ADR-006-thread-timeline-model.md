@@ -78,11 +78,12 @@ flowchart LR
      the turn, which only live sees), so the order a registry is fed in, how
      a run's end settles its band, and ignoring what a run folds after its
      terminal event are each written once, in `ExecutionBands`.
-   - Only the source of the steps and the clock differ. A live band times its
-     steps by a running clock, a reloaded one by the stored events' times.
-     Live knows at once that a run waits on a client tool; replay holds each
-     run's ending until the next run starts and says whether it continues
-     the turn.
+   - What differs is the source of the steps, the clock, and when an ending
+     is told. A live band times its steps by a running clock, a reloaded one
+     by the stored events' times. Live knows at once that a run waits on a
+     client tool; replay holds each run's ending until the next run whose
+     events were read starts and says whether it continues the turn, or the
+     history ends.
    - A client tool's call has one step, from the model's `TOOL_CALL_START`.
      Running the tool adds none; its card shows how it went.
 4. **Where things render is decided once, by a pure function.**

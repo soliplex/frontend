@@ -10,20 +10,20 @@ final Logger _replayLogger =
 
 /// The execution bands of runs as they are folded: a live session's, from its
 /// stream, or a thread's history, from its stored events. For the same events
-/// both are fed the same calls in the same order (`RunFoldObserver` names the
-/// one exception), so both build the same bands; only the clock differs, a
-/// live band timing its steps by a running stopwatch and a replayed one by the
-/// stored events' times.
+/// both are fed the same calls in the same order, so, but for the one
+/// exception `RunFoldObserver` names, both build the same bands. The clock
+/// differs too: a live band times its steps by a running stopwatch, a
+/// replayed one by the stored events' times.
 ///
 /// One registry per turn; a live session holds one turn. For each run, the
 /// streaming state it opens in; then for each event, the streaming state after
 /// it, the conversation's activities, and the event bridged, when it reached
-/// the conversation. A run's `RUN_FINISHED` or `RUN_ERROR` is held until the
-/// run is told how it ended, and nothing folded after it reaches a band: live
-/// folds nothing after it. A run that ended is ended in its
-/// registry before the event is bridged, so the event reaches no band; a run
-/// waiting on a client tool keeps the turn's band open across the wait, and
-/// the event reaches it.
+/// the conversation. A run's `RUN_FINISHED` or `RUN_ERROR` is held until this
+/// is told how the run ended, and nothing folded after it reaches a band: live
+/// folds nothing after it. A run that ended is ended in its registry before
+/// its terminal event is handed to the registry, so the event reaches no band;
+/// a run waiting on a client tool keeps the turn's band open across the wait,
+/// and the event reaches it.
 class ExecutionBands implements RunFoldObserver {
   /// Bands rebuilt from a thread's stored events.
   ExecutionBands.replayed()
@@ -138,7 +138,8 @@ class _Turn {
     if (terminal.event case final event?) _registry.onEvent(event);
   }
 
-  /// Hands over the turn's bands and releases its registry.
+  /// Hands over the turn's bands and releases its registry, which stops each
+  /// band mirroring the turn's activities.
   Map<String, ExecutionTracker> end() {
     final bands = _registry.trackers;
     _registry.dispose();

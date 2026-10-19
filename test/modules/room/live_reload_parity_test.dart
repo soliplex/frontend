@@ -18,7 +18,8 @@ import '../../helpers/live_session.dart';
 /// What is not shared is where a run's fold steps come from: live, the
 /// orchestrator folding the stream; reloaded, history replay folding the stored
 /// events. For the same events both tell `ExecutionBands` the same calls in the
-/// same order, so the seam is each path's source of steps, and the clock.
+/// same order, except a client-tool wait that ended without resuming, which
+/// only live sees; so the seam is each path's source of steps, and the clock.
 ///
 /// Narrow on purpose: the message list, the band map and the parked outcomes.
 /// There is nothing else left that can diverge.

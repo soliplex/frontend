@@ -715,6 +715,28 @@ void main() {
       expect(stopped.observer.seen, isEmpty);
     });
 
+    test("an observer's stop, called again later, leaves the next observer",
+        () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+      final stopFirst = session.observeRunFold(_RecordingObserver());
+      stopFirst();
+      final next = _RecordingObserver();
+      session.observeRunFold(next);
+
+      stopFirst();
+      await session.start(userMessage: [const TextPart('Hi')]);
+      await session.result;
+
+      expect(next.seen.last, 'ends completed');
+    });
+
     test('a second observer of the run fold is refused', () {
       final session = createSession(
         api: api,
