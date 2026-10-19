@@ -282,10 +282,10 @@ ThreadHistory replayThreadHistory(
   ({String userMessageId, RunFold fold})? previousRun;
   // Where the measured run ended in the transcript, once replay reaches it.
   int? coveredByLatest;
-  // How the run replayed last ended, untold until the run after it starts:
-  // a run whose turn the next run continues waited on a client tool, however
-  // its events ended, as the turn's messages read it. The observer is told
-  // then, or when the history ends.
+  // How the run replayed last ended, untold until the next run whose events
+  // were read starts: a run the next one continues waited on a client tool,
+  // whatever its own events say, as `_resumed` takes its outcome back. The
+  // observer is told then, or when the history ends.
   RunEnding? untoldEnding;
 
   for (final (:runId, :payload, :fetchError, :fetchStackTrace, :created)

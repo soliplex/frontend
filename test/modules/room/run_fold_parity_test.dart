@@ -63,18 +63,18 @@ void main() {
   }) async {
     final [MapEntry(key: runId, value: events), ...later] =
         runs.entries.toList();
+    final liveSteps = _RecordingObserver();
     final live = startLiveSession(
       key: _key,
       runId: runId,
       toolRegistry: toolRegistry,
+      foldObserver: liveSteps,
       laterRuns: [
         for (final MapEntry(key: runId, value: events) in later)
           (runId: runId, events: events),
       ],
     );
     addTearDown(live.session.dispose);
-    final liveSteps = _RecordingObserver();
-    live.session.observeRunFold(liveSteps);
     await Future<void>.delayed(Duration.zero);
     events.forEach(live.events.add);
     await live.events.close();

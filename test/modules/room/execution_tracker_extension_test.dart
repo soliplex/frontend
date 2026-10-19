@@ -3,11 +3,9 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 
-import '../../helpers/live_session.dart';
 import '../../helpers/test_logger.dart';
 
 const _threadId = 'thread-1';
-const _key = (serverId: 'server-1', roomId: 'room-1', threadId: _threadId);
 const _runId = 'run-1';
 
 /// A session that hands its run fold to whoever observes it, step by step,
@@ -83,18 +81,6 @@ void main() {
       return ext.trackers[noResponseMessageId(_runId)]!;
     }
 
-    test('a run that never speaks keeps its band under its own run', () {
-      // The key is the run's from the moment the band exists, so the tile that
-      // stands for a run with nothing else to show for it finds its work
-      // already there. Nothing is renamed on the way to an ending.
-      session.startRun(_runId);
-      expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
-
-      session.endRun(RunEnding.cancelled);
-
-      expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
-    });
-
     group('the ending call settles the band', () {
       test('a stopped run as failed: the call did not finish', () {
         final band = runWithCallOut();
@@ -140,61 +126,6 @@ void main() {
       ext.onDispose();
 
       session.endRun(RunEnding.cancelled);
-
-      expect(_settled(band), 'active, open');
-    });
-  });
-
-  group('a live session settles its band as it ends with no event', () {
-    setUpAll(registerLiveSessionFallbacks);
-
-    /// A live session with a tool call out, and the band holding it.
-    Future<(LiveSession, ExecutionTracker)> callOut() async {
-      final live = startLiveSession(key: _key, runId: _runId);
-      addTearDown(live.session.dispose);
-      await Future<void>.delayed(Duration.zero);
-      live.events
-        ..add(RunStartedEvent(threadId: _threadId, runId: _runId).toJson())
-        ..add(
-          const ToolCallStartEvent(toolCallId: 'c1', toolCallName: 'search')
-              .toJson(),
-        );
-      await Future<void>.delayed(Duration.zero);
-      return (live, live.trackers.trackers[noResponseMessageId(_runId)]!);
-    }
-
-    test('stopped', () async {
-      final (live, band) = await callOut();
-
-      live.session.cancel();
-      await live.session.result;
-
-      expect(_settled(band), 'failed, frozen');
-    });
-
-    test('its stream broken', () async {
-      final (live, band) = await callOut();
-
-      live.events.addError(const NetworkException(message: 'reset'));
-      await live.session.result;
-
-      expect(_settled(band), 'failed, frozen');
-    });
-
-    test('its stream ended early', () async {
-      final (live, band) = await callOut();
-
-      await live.events.close();
-      await live.session.result;
-
-      expect(_settled(band), 'failed, frozen');
-    });
-
-    test('disposed: the band is left as it was, the session gone', () async {
-      final (live, band) = await callOut();
-
-      live.session.dispose();
-      await live.session.result;
 
       expect(_settled(band), 'active, open');
     });

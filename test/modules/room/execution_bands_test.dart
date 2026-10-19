@@ -25,8 +25,8 @@ Future<Map<String, ExecutionTracker>> _reloadedBands(
 }
 
 // What a reload alone decides. Whatever live decides too is compared, live
-// against reload, in `live_reload_parity_test.dart` and
-// `replay_parity_test.dart`; live times a band by its own clock and a session
+// against reload, in `live_reload_parity_test.dart`,
+// `replay_parity_test.dart` and `run_fold_parity_test.dart`; live times a band by its own clock and a session
 // holds one turn, so the step times and a thread of several turns are pinned
 // here.
 void main() {

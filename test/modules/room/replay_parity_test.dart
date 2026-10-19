@@ -8,8 +8,8 @@ import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
 
-import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_bands.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 
 import '../../helpers/band_content.dart';
 import '../../helpers/live_session.dart';

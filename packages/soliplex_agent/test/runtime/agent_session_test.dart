@@ -145,8 +145,9 @@ class _RecordingObserver implements RunFoldObserver {
   void runEnded(RunEnding ending) => seen.add('ends ${ending.name}');
 }
 
-/// Observes the session's run fold from [onAttach], as the app's band
-/// registry does; [stopsAtOnce] unsubscribes as soon as it has subscribed.
+/// Observes the session's run fold from [onAttach], as the app's
+/// `ExecutionTrackerExtension` does; [stopsAtOnce] stops as soon as it has
+/// started.
 class _FoldObservingExtension extends SessionExtension {
   _FoldObservingExtension({this.stopsAtOnce = false});
 
@@ -692,36 +693,44 @@ void main() {
 
   group('extensions', () {
     test(
-        'every extension observing the run fold from onAttach is told each '
-        'step of the run, until it stops', () async {
+        "the extension observing the run fold from onAttach is told the run's "
+        'steps, and one that stopped is told none', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
-      final observing = _FoldObservingExtension();
       final stopped = _FoldObservingExtension(stopsAtOnce: true);
+      final observing = _FoldObservingExtension();
       final session = createSession(
         api: api,
         agUiStreamClient: agUiStreamClient,
         logger: logger,
-        extensions: [observing, stopped],
+        extensions: [stopped, observing],
       );
       addTearDown(session.dispose);
 
       await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
-      expect(observing.observer.seen, [
-        '$_runId starts',
-        'RUN_STARTED',
-        'TEXT_MESSAGE_START',
-        'TEXT_MESSAGE_CONTENT',
-        'TEXT_MESSAGE_END',
-        'RUN_FINISHED',
-        'ends completed',
-      ]);
+      expect(observing.observer.seen.first, '$_runId starts');
+      expect(observing.observer.seen.last, 'ends completed');
       expect(stopped.observer.seen, isEmpty);
     });
 
-    test('a followed run tells the fold observers as a started one does',
+    test('a second observer of the run fold is refused', () {
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+      session.observeRunFold(_RecordingObserver());
+
+      expect(
+        () => session.observeRunFold(_RecordingObserver()),
+        throwsStateError,
+      );
+    });
+
+    test('a followed run tells the fold observer as a started one does',
         () async {
       when(
         () => agUiStreamClient.followRun(

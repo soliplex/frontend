@@ -21,13 +21,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Library consumers:** a `RunFoldObserver` is told each step of folding a
   run: each run starting, each event folded with the `RunFold` after it, and
   how each run ended, as a `RunEnding` (completed, waiting on a client tool,
-  failed or cancelled). A live run and a replayed one report the same calls in
-  the same order. `SoliplexApi.getThreadHistory` takes one for the runs its
-  replay folds, and tells it how each run ended once the run after it starts,
-  or the history ends. `RunOrchestrator.runToCompletion` and
+  failed or cancelled). For the same events, a live run and a replayed one
+  report the same calls in the same order, except a client-tool wait that
+  ended without resuming the turn, which only live sees.
+  `SoliplexApi.getThreadHistory` takes one for the runs its replay folds, and
+  tells it how each run ended once the next run whose events were read
+  starts, or the history ends. `RunOrchestrator.runToCompletion` and
   `followToCompletion` take one for the runs they fold, and
-  `AgentSession.observeRunFold` attaches one to a session's runs, for a
-  `SessionExtension` to call from `onAttach`.
+  `AgentSession.observeRunFold` attaches one to a session's runs, one at a
+  time, for a `SessionExtension` to call from `onAttach`.
 
 ### Removed
 
