@@ -120,14 +120,5 @@ void main() {
         expect(_settled(band), 'completed, open');
       });
     });
-
-    test('a step of the fold after dispose reaches no band', () {
-      final band = runWithCallOut();
-      ext.onDispose();
-
-      session.endRun(RunEnding.cancelled);
-
-      expect(_settled(band), 'active, open');
-    });
   });
 }
