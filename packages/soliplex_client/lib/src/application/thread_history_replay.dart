@@ -125,20 +125,22 @@ Future<ThreadHistory> assembleThreadHistory(
   };
   final latestUsage = _extractLatestUsage(runs);
 
-  // 1. Walk runs once, in creation order. Each becomes a slot: a completed
-  //    run to fetch, or a malformed entry, kept as a drop-tile placeholder
-  //    so the run is visibly absent rather than silently filtered out (its
-  //    `runId` is then the entry's key). Unfinished runs are not replayed:
-  //    their stored events are only what they have sent so far. The newest
-  //    one, if it was sent a message, is the candidate run in progress.
+  // 1. Walk runs once, in the order [runs] lists them, which is creation
+  //    order: the backend lists a thread's runs ordered by `created`. Each
+  //    becomes a slot: a completed run to fetch, or a malformed entry, kept
+  //    as a drop-tile placeholder so the run is visibly absent rather than
+  //    silently filtered out (its `runId` is then the entry's key).
+  //    Unfinished runs are not replayed: their stored events are only what
+  //    they have sent so far. The newest one, if it was sent a message, is
+  //    the candidate run in progress.
   final slots = <({
     String runId,
     MalformedResponseException? malformed,
     DateTime? created,
   })>[];
-  final sorted = _sortRunsByCreationTime(runs);
-  final runInProgress = _runInProgress(sorted.last, threadId);
-  for (final MapEntry(:key, :value) in sorted) {
+  final newest = runs.entries.last;
+  final runInProgress = _runInProgress(newest, threadId);
+  for (final MapEntry(:key, :value) in runs.entries) {
     final created = _runCreated(value, key, threadId);
     if (value is! Map<String, dynamic>) {
       slots.add(
@@ -154,7 +156,7 @@ Future<ThreadHistory> assembleThreadHistory(
       continue;
     }
     if (value['finished'] == null) {
-      if (key != sorted.last.key && value['run_input'] != null) {
+      if (key != newest.key && value['run_input'] != null) {
         _logger.warning(
           'replay: an unfinished run is older than a later run in the '
           'thread; it is not shown or followed.',
@@ -919,11 +921,10 @@ Object? _latestStateValue(
 /// no usage, or one without a count — is skipped in favour of the one
 /// before it.
 ///
-/// A run with no `created` is passed over rather than read. The sort
-/// puts it at the end, so this walk would otherwise meet it first —
-/// and without a time there is nothing to call it the newest by. An
-/// unfinished run is read: its usage is written once, when the stream
-/// completes, so a row that exists is a whole measurement.
+/// Newest is by the order [runs] lists them, which is creation order, as for
+/// the document filter. An unfinished run is read: its usage is written
+/// once, when the stream completes, so a row that exists is a whole
+/// measurement.
 ///
 /// A record that is not an object, whose count is not an integer, or whose
 /// run has no `run_id` ends the walk instead of continuing it. The
@@ -932,10 +933,9 @@ Object? _latestStateValue(
 /// from a run that measured nothing. So the walk stops rather than present
 /// an older count as the one that stands.
 RunUsage? _extractLatestUsage(Map<String, dynamic> runs) {
-  for (final entry in _sortRunsByCreationTime(runs).reversed) {
+  for (final entry in runs.entries.toList().reversed) {
     final value = entry.value;
     if (value is! Map<String, dynamic>) continue;
-    if (value['created'] is! String) continue;
     final usage = value['usage'];
     // A run the model never answered recorded no usage, or one without a
     // count; the run before it still stands.
@@ -1002,34 +1002,4 @@ DateTime? _runCreated(dynamic runData, String runId, String threadId) {
     );
     return null;
   }
-}
-
-/// Sorts runs by creation time (oldest first). Non-Map run values
-/// sort to the end; the caller filters them out before fetching.
-List<MapEntry<String, dynamic>> _sortRunsByCreationTime(
-  Map<String, dynamic> runs,
-) {
-  return runs.entries.toList()
-    ..sort((a, b) {
-      final aData = a.value is Map<String, dynamic>
-          ? a.value as Map<String, dynamic>
-          : const <String, dynamic>{};
-      final bData = b.value is Map<String, dynamic>
-          ? b.value as Map<String, dynamic>
-          : const <String, dynamic>{};
-      final aCreated =
-          aData['created'] is String ? aData['created'] as String : null;
-      final bCreated =
-          bData['created'] is String ? bData['created'] as String : null;
-
-      if (aCreated == null && bCreated == null) return 0;
-      if (aCreated == null) return 1;
-      if (bCreated == null) return -1;
-
-      // Use tryParse to handle malformed timestamps gracefully
-      final epoch = DateTime.fromMillisecondsSinceEpoch(0);
-      final aTime = DateTime.tryParse(aCreated) ?? epoch;
-      final bTime = DateTime.tryParse(bCreated) ?? epoch;
-      return aTime.compareTo(bTime);
-    });
 }

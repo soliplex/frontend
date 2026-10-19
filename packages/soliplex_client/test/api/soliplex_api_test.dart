@@ -2059,8 +2059,7 @@ void main() {
         );
       });
 
-      test('fetches multiple runs in parallel and orders by creation time',
-          () async {
+      test('replays runs in the order the thread lists them', () async {
         // Thread endpoint returns two completed runs
         when(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -2079,7 +2078,8 @@ void main() {
             'room_id': 'room-123',
             'thread_id': 'thread-456',
             'runs': {
-              // Note: Map order is not guaranteed, so we rely on timestamps
+              // The backend lists runs in creation order; `created`
+              // disagrees here only to tell the two orders apart.
               'run-2': {
                 'run_id': 'run-2',
                 'created': '2026-01-07T02:00:00.000Z',
@@ -2161,37 +2161,8 @@ void main() {
         final messages = await api.getThreadHistory('room-123', 'thread-456');
 
         expect(messages.messages.length, equals(2));
-        // First message should be from run-1 (earlier timestamp)
-        expect((messages.messages[0] as TextMessage).text, equals('First'));
-        expect((messages.messages[1] as TextMessage).text, equals('Second'));
-
-        // Verify both run endpoints were called
-        verify(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).called(1);
-        verify(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-2',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).called(1);
+        expect((messages.messages[0] as TextMessage).text, equals('Second'));
+        expect((messages.messages[1] as TextMessage).text, equals('First'));
       });
 
       test('caches run events for subsequent calls', () async {
@@ -5507,95 +5478,6 @@ void main() {
         ]);
       });
 
-      test('runs preserves run order across multiple runs', () async {
-        when(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer(
-          (_) async => {
-            'room_id': 'room-123',
-            'thread_id': 'thread-456',
-            'runs': {
-              'run-2': {
-                'run_id': 'run-2',
-                'created': '2026-01-07T02:00:00.000Z',
-                'finished': '2026-01-07T02:01:00.000Z',
-              },
-              'run-1': {
-                'run_id': 'run-1',
-                'created': '2026-01-07T01:00:00.000Z',
-                'finished': '2026-01-07T01:01:00.000Z',
-              },
-            },
-          },
-        );
-
-        when(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer(
-          (_) async => {
-            'run_id': 'run-1',
-            'events': [
-              {
-                'type': 'TEXT_MESSAGE_START',
-                'messageId': 'msg-1',
-                'role': 'assistant',
-              },
-              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-1'},
-            ],
-          },
-        );
-
-        when(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse(
-              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-2',
-            ),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer(
-          (_) async => {
-            'run_id': 'run-2',
-            'events': [
-              {
-                'type': 'TEXT_MESSAGE_START',
-                'messageId': 'msg-2',
-                'role': 'assistant',
-              },
-              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-2'},
-            ],
-          },
-        );
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(history.runs.map((r) => r.runId), ['run-1', 'run-2']);
-      });
-
       test('tells an observer an event it could not decode folded to nothing',
           () async {
         when(
@@ -5954,6 +5836,30 @@ void main() {
         expect(history.runInProgress, isNull);
         expect(notFollowed(), hasLength(1));
         expect(notFollowed().single.attributes['runId'], 'run-2');
+      });
+
+      test(
+          'reports the run the thread lists last, which the backend lists in '
+          'creation order, whatever its created says', () async {
+        final notFollowed = captureRecords('is older than');
+        stubThread({
+          'run-1': {
+            ...finishedRunOne,
+            'created': '2026-01-07T03:00:00.000Z',
+            'run_input': sentHello('user-1'),
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'run_input': sentHello('user-2'),
+          },
+        });
+        stubRun('run-1', events: runOneEvents, runInput: sentHello('user-1'));
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.runInProgress?.runId, 'run-2');
+        expect(notFollowed(), isEmpty);
       });
 
       test(
@@ -6536,7 +6442,11 @@ void main() {
         expect(history.latestMeasurement?.usage.runId, 'run-1');
       });
 
-      test('orders by creation, not by map position', () async {
+      test(
+          'takes the newest from the order the thread lists runs in, which '
+          'the backend orders by creation', () async {
+        // `created` disagrees with the listing only to tell the two orders
+        // apart.
         stubThread({
           'run-2': run(
             'run-2',
@@ -6554,13 +6464,11 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestMeasurement?.usage.runId, 'run-2');
-        expect(history.latestMeasurement?.usage.finalInputTokens, 2400);
+        expect(history.latestMeasurement?.usage.runId, 'run-1');
       });
 
-      test('ignores a run that cannot be placed in time', () async {
-        // Without a creation time there is no way to call it the newest,
-        // and guessing puts an arbitrary run's count on screen.
+      test('reads a run with no created, placed by where the thread lists it',
+          () async {
         stubThread({
           'run-1': run(
             'run-1',
@@ -6578,7 +6486,7 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.latestMeasurement?.usage.runId, 'run-1');
+        expect(history.latestMeasurement?.usage.runId, 'run-2');
       });
 
       test('reads the newest record when a field beside its count is malformed',
