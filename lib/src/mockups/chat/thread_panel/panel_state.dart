@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../context_usage.dart';
+import 'panel_section.dart';
 
 /// Where a RAG database stands with this thread.
 enum DbStatus { available, connecting, connected, indexing, unavailable }
@@ -116,6 +117,23 @@ class ThreadPanelState extends ChangeNotifier {
     _open = !_open;
     notifyListeners();
   }
+
+  /// Reopens the panel on the Context tab with [segment] expanded.
+  void reveal(String segment) {
+    _open = true;
+    _tab = 0;
+    openSegments.add(segment);
+    notifyListeners();
+  }
+
+  /// Replaces the Databases segment when set — another mockup's take on what
+  /// the thread searches. Assigned by the screen as it builds, without a
+  /// notification: the panel is built below it in the same pass.
+  PanelSection Function(BuildContext context)? databasesSection;
+
+  /// Rebuilds the panel for a change in state held elsewhere — what
+  /// [databasesSection] reads.
+  void refresh() => notifyListeners();
 
   int _tab = 0;
   int get tab => _tab;

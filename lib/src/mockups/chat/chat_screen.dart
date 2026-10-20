@@ -59,6 +59,7 @@ import '../../modules/room/ui/chat_ai_disclaimer.dart';
 import '../../modules/room/ui/chat_classification.dart';
 import 'chat_input.dart';
 import 'thread_panel/panel_sample_data.dart';
+import 'thread_panel/panel_section.dart';
 import 'thread_panel/thread_panel.dart';
 import '../../modules/room/ui/chunk_visualization_page.dart';
 import '../../modules/room/ui/copy_button.dart';
@@ -184,6 +185,7 @@ class RoomScreen extends StatefulWidget {
     required this.documentSelections,
     this.roomReadMarkers,
     this.serverReadMarkers,
+    this.datasets,
   });
 
   final ServerEntry serverEntry;
@@ -209,6 +211,10 @@ class RoomScreen extends StatefulWidget {
   /// Null in tests, where each screen gets its own isolated store.
   final ServerReadMarkers? serverReadMarkers;
 
+  /// MOCKUP: another mockup's datasets in place of the panel's stubbed
+  /// databases. Null keeps the chat mockup as it was.
+  final ThreadDatasetsSeam? datasets;
+
   @override
   State<RoomScreen> createState() => _RoomScreenState();
 }
@@ -227,6 +233,10 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onPanelChanged() {
     if (mounted) setState(() {});
   }
+
+  // MOCKUP: datasets held outside the panel still have to reach it — and the
+  // sheet, which listens to the panel alone.
+  void _onDatasetsChanged() => _panel.refresh();
 
   /// The current server's rooms for the rail; `null` while loading.
   List<Room>? _serverRooms;
@@ -857,6 +867,7 @@ class _RoomScreenState extends State<RoomScreen> {
     // MOCKUP: the composer's ring reads the panel's usage, so a change
     // there (a database connected, a skill loaded) has to reach it.
     _panel.addListener(_onPanelChanged);
+    widget.datasets?.listenable.addListener(_onDatasetsChanged);
     HardwareKeyboard.instance.addHandler(_handleKey);
     _roomReadMarkers = widget.roomReadMarkers ?? RoomReadMarkers();
     _serverReadMarkers = widget.serverReadMarkers ?? ServerReadMarkers();
@@ -1173,6 +1184,7 @@ class _RoomScreenState extends State<RoomScreen> {
     unawaited(_threadReadTracker.dispose());
     _chatController.dispose();
     _panel.removeListener(_onPanelChanged);
+    widget.datasets?.listenable.removeListener(_onDatasetsChanged);
     _panel.dispose();
     _chatFocusNode.dispose();
     super.dispose();
@@ -1764,6 +1776,21 @@ class _RoomScreenState extends State<RoomScreen> {
     final roomScopeRenders = _roomScopeRenders(room);
     final messagesStatus = threadView?.messages.watch(context);
 
+    // MOCKUP: with datasets plugged in, the panel is also there before a
+    // thread exists — what a new thread will search is chosen before its
+    // first message, which then fixes it.
+    final seam = widget.datasets;
+    final scope = (
+      roomId: widget.roomId,
+      threadId: threadView?.threadId,
+      hasMessages: messagesStatus is MessagesLoaded &&
+          messagesStatus.messages.isNotEmpty,
+      newThread: () => unawaited(_state.createThread()),
+    );
+    _panel.databasesSection =
+        seam == null ? null : (context) => seam.section(context, scope);
+    final showPanel = threadView != null || seam != null;
+
     final UploadsStatus roomStatus = roomScopeRenders
         ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
@@ -1801,7 +1828,7 @@ class _RoomScreenState extends State<RoomScreen> {
           // floats over the column. The composer follows the column so the
           // two stay aligned.
           final reserve = panelFloats &&
-                  threadView != null &&
+                  showPanel &&
                   _panel.isOpen &&
                   constraints.maxWidth >=
                       SoliplexBreakpoints.tablet +
@@ -1833,7 +1860,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     // MOCKUP: the thread panel floats over the chat area, top
                     // right, so it reads as the thread's — the rail, sidebar
                     // and header are the room's. Only a thread has one.
-                    if (panelFloats && threadView != null)
+                    if (panelFloats && showPanel)
                       Positioned.fill(
                         child: Padding(
                           padding: const EdgeInsets.all(SoliplexSpacing.s3),
@@ -1846,12 +1873,24 @@ class _RoomScreenState extends State<RoomScreen> {
                   ],
                 ),
               ),
+              if (seam?.composerAccessory?.call(
+                context,
+                scope,
+                () => panelFloats
+                    ? _panel.reveal('databases')
+                    : showThreadPanelSheet(
+                        context,
+                        state: _panel..reveal('databases'),
+                      ),
+              )
+                  case final accessory?)
+                beside(accessory),
               beside(
                 _buildChatInput(
                   threadView,
                   room,
                   messagesStatus,
-                  openThreadPanel: !panelFloats && threadView != null
+                  openThreadPanel: !panelFloats && showPanel
                       ? () => showThreadPanelSheet(context, state: _panel)
                       : null,
                 ),
