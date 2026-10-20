@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// One prototype screen the mockup harness can open.
 ///
@@ -11,7 +12,12 @@ import 'package:flutter/widgets.dart';
 /// constructor call, so a hot reload after editing the screen lands on the
 /// route that is already open.
 class Mockup {
-  const Mockup({required this.name, required this.build, this.description});
+  const Mockup({
+    required this.name,
+    required this.build,
+    this.description,
+    this.classifications,
+  });
 
   /// Shown in the index and the harness toolbar.
   final String name;
@@ -20,4 +26,9 @@ class Mockup {
   final String? description;
 
   final WidgetBuilder build;
+
+  /// The confidentiality markings this mockup renders under, as a deployment
+  /// flavor would configure them. Null leaves the harness theme without any,
+  /// so markings stay hidden — the standard flavor ships none either.
+  final ClassificationTheme? classifications;
 }

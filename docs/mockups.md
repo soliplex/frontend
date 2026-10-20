@@ -97,3 +97,59 @@ also holds what is open, scrolled and typed, so it is there again on reopen.
 The composer's leading controls are one `+` menu: attach (files, images, a
 folder) and *Filter documents*, which is stubbed to a notice until its purpose
 (RAG scope, embeds, or both) is settled.
+
+## The datasets mockup
+
+`lib/src/mockups/datasets/` prototypes rooms as presets rather than walled
+gardens: a user picks from every dataset they can access, creates their own,
+uploads to them, and shares them once tagged. Nothing here is on the wire —
+the backend has no dataset entity yet — and every rule the screens apply is a
+working assumption to confirm, not a decision.
+
+```sh
+flutter run -t lib/main_mockups.dart -d linux --dart-define=MOCKUP=Datasets
+```
+
+Add `--dart-define=DATASETS_ROUTE=/datasets/ops/pump-service-manuals` (any of
+the routes below) to open straight on a screen.
+
+| Route                              | Screen                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------- |
+| `/lobby`, `/lobby?view=datasets`   | Room presets, or the dataset catalog with search and facets.           |
+| `/datasets/new`                    | Create a dataset: namespace, name, level, optional tags.               |
+| `/datasets/<namespace>/<name>`     | A dataset's files and ingestion. Anyone with access uploads and marks files outdated; the owner shares and deprecates. |
+| `/datasets/<namespace>/<name>/upload` | Choose files, scan, review and commit.                              |
+| `/room/mock/<room>[/thread/<id>]`  | The chat mockup's room screen, its panel showing the thread's datasets. |
+
+The rules it assumes:
+
+- **Levels.** A room's level is a ceiling the deployer sets. A thread may use
+  datasets at or below it; the picker shows the rest locked.
+- **Access.** A dataset is listed only when the user is cleared for its level
+  *and* is in its audience. Clearance alone is not need-to-know.
+- **No enforcement.** Nothing checks classification, so uploads and shares end
+  with an attestation and the scan's results are worded as advisory.
+- **Fixed after the first message.** A new thread starts from the room's
+  defaults and can change them until its first message; after that they are
+  fixed, and *New thread with these datasets* is the way out.
+- **No deletion.** Uploads can't be undone. A wrong or outdated file is
+  marked outdated instead: it stays indexed and searchable, and the mark shows
+  in the files table and the thread panel, and to the agent. A whole dataset
+  can be deprecated, which hides it from the catalog.
+- **One upload per place.** The dataset page's *Upload to dataset* is the only
+  way files join a dataset, and its copy sets it apart from attaching a file
+  to a thread.
+
+| File                         | What it is                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `classification_levels.dart` | The marking vocabulary: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED. The only file allowed hex colors. |
+| `model.dart`                 | Datasets, files and their ingestion states, tags, principals, room presets.               |
+| `store.dart`                 | `DatasetsStore`: the catalog query, access rule, thread trays, simulated ingestion.       |
+| `upload_session.dart`        | One upload: staged files, the simulated scan, what committing adds.                       |
+| `sample_data.dart`           | The user, about 115 datasets, three room presets and their conversations.                 |
+| `ui/`                        | The screens, and the panel section plugged into the chat mockup.                          |
+
+The chat screen takes the datasets through `ThreadDatasetsSeam`
+(`chat/thread_panel/panel_section.dart`): it replaces the panel's Databases
+segment and adds a summary row above the composer. Without one, the chat
+mockup is unchanged.

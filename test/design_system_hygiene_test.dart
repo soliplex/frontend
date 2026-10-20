@@ -16,6 +16,12 @@ void main() {
       .where((f) => f.path.endsWith('.dart'))
       .toList();
 
+  // Classification markings are deployment configuration, fixed per
+  // deployment and never derived from the brand — the one place a flavor
+  // writes colors. The datasets mockup configures its levels here, in this
+  // one file, as an approved exception.
+  const hexExempt = {'lib/src/mockups/datasets/classification_levels.dart'};
+
   List<String> scan(RegExp pattern) {
     final offenders = <String>[];
     for (final file in dartFiles) {
@@ -28,8 +34,9 @@ void main() {
   }
 
   test('no raw hex color literals in app code', () {
-    final offenders =
-        scan(RegExp(r'Color\(0x|Color\.fromARGB|Color\.fromRGBO'));
+    final offenders = scan(RegExp(r'Color\(0x|Color\.fromARGB|Color\.fromRGBO'))
+        .where((o) => !hexExempt.contains(o.split(':').first))
+        .toList();
     expect(
       offenders,
       isEmpty,
