@@ -169,11 +169,39 @@ class _MockupScreen extends StatelessWidget {
         children: [
           _Toolbar(title: mockup.name, showViewport: true, showBack: true),
           Expanded(
-              child: _ViewportFrame(child: Builder(builder: mockup.build))),
+            child: _ViewportFrame(
+              child: _withClassifications(
+                context,
+                mockup.classifications,
+                Builder(builder: mockup.build),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+/// Adds [classifications] to the theme [child] renders under, replacing any
+/// the harness theme carries. Under the `MaterialApp`, so the brightness knob
+/// still re-lowers the brand around it.
+Widget _withClassifications(
+  BuildContext context,
+  ClassificationTheme? classifications,
+  Widget child,
+) {
+  if (classifications == null) return child;
+  final theme = Theme.of(context);
+  return Theme(
+    data: theme.copyWith(
+      extensions: [
+        ...theme.extensions.values.where((e) => e is! ClassificationTheme),
+        classifications,
+      ],
+    ),
+    child: child,
+  );
 }
 
 /// Pins the child to the selected viewport width, overriding `MediaQuery`
