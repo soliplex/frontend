@@ -36,6 +36,7 @@ class ContextTab extends StatelessWidget {
     final databasesOpen = state.isSegmentOpen('databases');
     final skillsOpen = state.isSegmentOpen('skills');
     final usageOpen = state.isSegmentOpen('usage');
+    final custom = state.databasesSection?.call(context);
 
     // In visual order. The delegate reads the claim off each slot's kind.
     final slots = <_Slot>[
@@ -43,10 +44,11 @@ class ContextTab extends StatelessWidget {
         'databases.header',
         _Claim.fixed,
         _SegmentHeader(
-          icon: Icons.storage,
-          title: 'Databases',
-          summary: '${state.connectedDatabaseCount} of '
-              '${databases.length} connected',
+          icon: custom?.icon ?? Icons.storage,
+          title: custom?.title ?? 'Databases',
+          summary: custom?.summary ??
+              '${state.connectedDatabaseCount} of '
+                  '${databases.length} connected',
           open: databasesOpen,
           onTap: () => state.toggleSegment('databases'),
         ),
@@ -55,19 +57,21 @@ class ContextTab extends StatelessWidget {
         _Slot(
           'databases.list',
           _Claim.remainder,
-          ListView.builder(
-            controller: state.scrollFor('databases'),
-            itemCount: databases.length,
-            itemBuilder: (context, i) {
-              final db = databases[i];
-              return _DatabaseRow(
-                db: db,
-                expanded: state.isRowExpanded(db.id),
-                onExpand: () => state.toggleRow(db.id),
-                onToggle: () => state.toggleDatabase(db.id),
-              );
-            },
-          ),
+          custom != null
+              ? Builder(builder: custom.body)
+              : ListView.builder(
+                  controller: state.scrollFor('databases'),
+                  itemCount: databases.length,
+                  itemBuilder: (context, i) {
+                    final db = databases[i];
+                    return _DatabaseRow(
+                      db: db,
+                      expanded: state.isRowExpanded(db.id),
+                      onExpand: () => state.toggleRow(db.id),
+                      onToggle: () => state.toggleDatabase(db.id),
+                    );
+                  },
+                ),
         ),
         const _Slot('databases.end', _Claim.fixed, Divider(height: 1)),
       ],

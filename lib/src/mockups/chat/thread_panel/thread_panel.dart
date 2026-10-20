@@ -300,7 +300,8 @@ class _PanelHandle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final connected = state.connectedDatabaseCount;
+    final connected = state.databasesSection?.call(context).handleCount ??
+        state.connectedDatabaseCount;
     return _FloatingSurface(
       shape: StadiumBorder(side: BorderSide(color: scheme.outlineVariant)),
       child: Tooltip(
