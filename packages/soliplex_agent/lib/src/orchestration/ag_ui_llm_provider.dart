@@ -32,6 +32,7 @@ class AgUiLlmProvider implements AgentLlmProvider {
       messages: input.messages,
       tools: input.tools,
       state: input.state,
+      forwardedProps: input.forwardedProps,
     );
     final events = _agUiStreamClient.runAgent(
       _endpoint(key, runId),
