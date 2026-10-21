@@ -751,4 +751,82 @@ void main() {
       expect(await run, isA<CancelledState>());
     });
   });
+
+  group('runToCompletion forwardedProps', () {
+    const bounded = {
+      'agui_sse_delivery': {'strategy': 'bounded'},
+    };
+    const message = {
+      'agui_sse_delivery': {'strategy': 'message'},
+    };
+
+    late Map<String, dynamic> resolved;
+    late List<Object?> sent;
+
+    setUp(() {
+      resolved = bounded;
+      sent = [];
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+        forwardedProps: () => resolved,
+      );
+      stubCreateRun();
+    });
+
+    /// Answers the runs in order with [streams], recording what each sent.
+    void stubRuns(List<List<BaseEvent>> streams) {
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((invocation) {
+        final input = invocation.positionalArguments[1] as SimpleRunAgentInput;
+        sent.add(input.toJson()['forwardedProps']);
+        return _wrap(Stream.fromIterable(streams[sent.length - 1]));
+      });
+    }
+
+    test("a resumed run carries the turn's forwardedProps", () async {
+      stubRuns([_toolCallEvents(), _resumeTextEvents()]);
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: (pending) {
+          resolved = message;
+          return _defaultToolExecutor(pending);
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      expect(sent, [bounded, bounded]);
+    });
+
+    test('the next turn reads the resolver again', () async {
+      stubRuns([_happyPathEvents(), _happyPathEvents()]);
+
+      await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+        toolExecutor: _defaultToolExecutor,
+      );
+      resolved = message;
+      await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Again')],
+        toolExecutor: _defaultToolExecutor,
+      );
+
+      expect(sent, [bounded, message]);
+    });
+  });
 }

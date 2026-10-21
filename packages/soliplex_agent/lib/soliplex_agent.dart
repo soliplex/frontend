@@ -58,6 +58,7 @@ export 'src/orchestration/ag_ui_llm_provider.dart';
 export 'src/orchestration/agent_llm_provider.dart';
 export 'src/orchestration/chat_fn_llm_provider.dart';
 export 'src/orchestration/execution_event.dart';
+export 'src/orchestration/forwarded_props_resolver.dart';
 export 'src/orchestration/run_state.dart';
 export 'src/orchestration/streaming_llm_provider.dart';
 // ── Runtime ──

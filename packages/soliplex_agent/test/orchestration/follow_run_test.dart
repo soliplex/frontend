@@ -275,7 +275,11 @@ void main() {
         executor: (_, __) async => 'sunny',
       ),
     );
-    final follower = _orchestrator(api, client, registry);
+    const bounded = {
+      'agui_sse_delivery': {'strategy': 'bounded'},
+    };
+    final follower =
+        _orchestrator(api, client, registry, forwardedProps: () => bounded);
     addTearDown(follower.dispose);
     stubFollow(
       Stream.fromIterable(
@@ -289,6 +293,7 @@ void main() {
         ].map(_overTheWire),
       ),
     );
+    Object? resumeSent;
     when(() => api.createRun('room', 'thread')).thenAnswer(
       (_) async => RunInfo(
         id: 'run-2',
@@ -304,14 +309,16 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer(
-      (_) => Stream.fromIterable(
+    ).thenAnswer((invocation) {
+      final input = invocation.positionalArguments[1] as SimpleRunAgentInput;
+      resumeSent = input.toJson()['forwardedProps'];
+      return Stream.fromIterable(
         [
           RunStartedEvent(threadId: 'thread', runId: 'run-2').toJson(),
           const RunFinishedEvent(threadId: 'thread', runId: 'run-2').toJson(),
         ].map(_overTheWire),
-      ),
-    );
+      );
+    });
 
     final state = await follower.followToCompletion(
       key: _key,
@@ -327,16 +334,19 @@ void main() {
       state,
       isA<CompletedState>().having((s) => s.runId, 'runId', 'run-2'),
     );
+    expect(resumeSent, bounded);
   });
 }
 
 RunOrchestrator _orchestrator(
   SoliplexApi api,
   AgUiStreamClient client,
-  ToolRegistry registry,
-) =>
+  ToolRegistry registry, {
+  ForwardedPropsResolver? forwardedProps,
+}) =>
     RunOrchestrator(
       llmProvider: AgUiLlmProvider(api: api, agUiStreamClient: client),
       toolRegistry: registry,
       logger: _MockLogger(),
+      forwardedProps: forwardedProps,
     );
