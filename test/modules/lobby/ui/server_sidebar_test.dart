@@ -37,6 +37,7 @@ Widget _buildSidebar({
   VoidCallback? onAddServer,
   VoidCallback? onDiagnostics,
   VoidCallback? onVersions,
+  VoidCallback? onPreferences,
   List<Override> overrides = const [],
   ThemeData? theme,
 }) {
@@ -58,6 +59,7 @@ Widget _buildSidebar({
           onAddServer: onAddServer ?? () {},
           onDiagnostics: onDiagnostics ?? () {},
           onVersions: onVersions ?? () {},
+          onPreferences: onPreferences ?? () {},
         ),
       ),
     ),
@@ -153,6 +155,21 @@ void main() {
       await tester.tap(find.text('Versions'));
       await tester.pumpAndSettle();
       expect(versions, 1);
+    });
+
+    testWidgets('Preferences calls onPreferences', (tester) async {
+      var preferences = false;
+      await tester.pumpWidget(_buildSidebar(
+        servers: const {},
+        onPreferences: () => preferences = true,
+      ));
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Preferences'));
+      await tester.pumpAndSettle();
+
+      expect(preferences, isTrue);
     });
 
     testWidgets('tapping a server tile fires onSelectServer with its id',

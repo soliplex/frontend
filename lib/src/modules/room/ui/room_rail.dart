@@ -15,10 +15,10 @@ import '../../lobby/ui/unread_dot.dart';
 ///
 /// Discord-style: each room is a small initial avatar tinted by a hash of its
 /// name (see [roomAvatarColor]); the selected room is marked with a leading
-/// bar. The footer is a single ⋮ menu folding the account identity and the
-/// developer utilities (Diagnostics, Versions) — there's no room beside it
-/// for an account block at this width, so the identity lives inside the
-/// menu. Creating a room is deferred; this only lists.
+/// bar. The footer is a single ⋮ menu folding the account identity,
+/// Preferences, and the developer utilities (Diagnostics, Versions) — there's
+/// no room beside it for an account block at this width, so the identity
+/// lives inside the menu. Creating a room is deferred; this only lists.
 class RoomRail extends StatelessWidget {
   const RoomRail({
     super.key,
@@ -29,6 +29,7 @@ class RoomRail extends StatelessWidget {
     required this.entry,
     required this.onDiagnostics,
     required this.onVersions,
+    required this.onPreferences,
     this.roomsError,
     this.onRetryRooms,
     this.unreadRoomIds = const {},
@@ -68,6 +69,7 @@ class RoomRail extends StatelessWidget {
 
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
+  final VoidCallback onPreferences;
 
   /// Marks a room read from its avatar's context menu (long-press /
   /// secondary-tap). Offered only for unread rooms; null disables the menu.
@@ -100,6 +102,7 @@ class RoomRail extends StatelessWidget {
             entry: entry,
             onDiagnostics: onDiagnostics,
             onVersions: onVersions,
+            onPreferences: onPreferences,
           ),
         ),
       ],
@@ -303,11 +306,13 @@ class _RailAccountMenu extends StatelessWidget {
     required this.entry,
     required this.onDiagnostics,
     required this.onVersions,
+    required this.onPreferences,
   });
 
   final ServerEntry entry;
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
+  final VoidCallback onPreferences;
 
   @override
   Widget build(BuildContext context) {
@@ -325,6 +330,10 @@ class _RailAccountMenu extends StatelessWidget {
             child: _AccountHeader(name: identity.name, email: identity.email),
           ),
           const PopupMenuDivider(),
+          PopupMenuItem(
+            onTap: onPreferences,
+            child: const MenuRow(icon: Icons.tune, label: 'Preferences'),
+          ),
           PopupMenuItem(
             onTap: onDiagnostics,
             child:

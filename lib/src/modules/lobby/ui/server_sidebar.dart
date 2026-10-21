@@ -29,6 +29,7 @@ class ServerSidebar extends StatelessWidget {
     required this.onAddServer,
     required this.onDiagnostics,
     required this.onVersions,
+    required this.onPreferences,
   });
 
   final Map<String, ServerEntry> servers;
@@ -53,6 +54,7 @@ class ServerSidebar extends StatelessWidget {
   final VoidCallback onAddServer;
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
+  final VoidCallback onPreferences;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +85,7 @@ class ServerSidebar extends StatelessWidget {
             entry: selectedEntry,
             onDiagnostics: onDiagnostics,
             onVersions: onVersions,
+            onPreferences: onPreferences,
           ),
         ],
       ),
@@ -441,7 +444,7 @@ class _ServerTileMenu extends StatelessWidget {
 /// developer/utility destinations, deliberately de-emphasised vs. the account
 /// block they sit beside. ("Home" is intentionally absent — the Add Server
 /// button already routes to the home screen.)
-enum _SidebarAction { diagnostics, versions }
+enum _SidebarAction { preferences, diagnostics, versions }
 
 /// Sidebar footer: the signed-in account on the left, a ⋮ menu of utility
 /// actions on the right.
@@ -450,14 +453,18 @@ class _AccountBar extends StatelessWidget {
     required this.entry,
     required this.onDiagnostics,
     required this.onVersions,
+    required this.onPreferences,
   });
 
   final ServerEntry? entry;
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
+  final VoidCallback onPreferences;
 
   void _onSelected(_SidebarAction action) {
     switch (action) {
+      case _SidebarAction.preferences:
+        onPreferences();
       case _SidebarAction.diagnostics:
         onDiagnostics();
       case _SidebarAction.versions:
@@ -479,6 +486,10 @@ class _AccountBar extends StatelessWidget {
             tooltip: 'More',
             onSelected: _onSelected,
             itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _SidebarAction.preferences,
+                child: MenuRow(icon: Icons.tune, label: 'Preferences'),
+              ),
               PopupMenuItem(
                 value: _SidebarAction.diagnostics,
                 child: MenuRow(icon: Icons.troubleshoot, label: 'Diagnostics'),

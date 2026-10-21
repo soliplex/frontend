@@ -68,6 +68,10 @@ void main() {
             path: AppRoutes.versions,
             builder: (_, __) => const Text('versions screen'),
           ),
+          GoRoute(
+            path: AppRoutes.preferences,
+            builder: (_, __) => const Text('preferences screen'),
+          ),
         ],
       );
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -82,7 +86,7 @@ void main() {
       // in — which is when it is worth reading.
       await pumpHeader(tester);
 
-      await tester.tap(find.byTooltip('Diagnostics & versions'));
+      await tester.tap(find.byTooltip('More'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Diagnostics'));
       await tester.pumpAndSettle();
@@ -90,10 +94,21 @@ void main() {
       expect(find.text('diagnostics screen'), findsOneWidget);
     });
 
+    testWidgets('Preferences opens the preferences screen', (tester) async {
+      await pumpHeader(tester);
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Preferences'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('preferences screen'), findsOneWidget);
+    });
+
     testWidgets('reaches versions from the same menu', (tester) async {
       await pumpHeader(tester);
 
-      await tester.tap(find.byTooltip('Diagnostics & versions'));
+      await tester.tap(find.byTooltip('More'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Versions'));
       await tester.pumpAndSettle();
@@ -111,7 +126,7 @@ void main() {
         ),
       );
 
-      expect(find.byTooltip('Diagnostics & versions'), findsNothing);
+      expect(find.byTooltip('More'), findsNothing);
     });
   });
 }

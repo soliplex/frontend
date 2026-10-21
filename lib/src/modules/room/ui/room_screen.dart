@@ -1528,6 +1528,8 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _onVersions() => context.push(AppRoutes.versions);
 
+  void _onPreferences() => context.push(AppRoutes.preferences);
+
   void _onRoomInfo() {
     context.push(
       AppRoutes.roomInfo(widget.serverEntry.alias, widget.roomId),
@@ -1843,6 +1845,10 @@ class _RoomScreenState extends State<RoomScreen> {
       onVersions: () {
         onNavigate?.call();
         _onVersions();
+      },
+      onPreferences: () {
+        onNavigate?.call();
+        _onPreferences();
       },
     );
   }

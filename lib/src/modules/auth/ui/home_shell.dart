@@ -57,9 +57,10 @@ class HomeShell extends StatelessWidget {
 }
 
 /// The branded top bar shared across the onboarding surfaces (home / connect
-/// flow, the OAuth callback, and the server list) and the versions screens:
-/// logo, app name, library version, and trailing [actions] — followed by the
-/// ⋮ menu of utility destinations so the bar reads the same everywhere.
+/// flow, the OAuth callback, and the server list) and the versions and
+/// preferences screens: logo, app name, library version, and trailing
+/// [actions] — followed by the ⋮ menu of utility destinations so the bar
+/// reads the same everywhere.
 class HomeShellHeader extends StatelessWidget {
   const HomeShellHeader({
     super.key,
@@ -153,11 +154,11 @@ class HomeShellHeader extends StatelessWidget {
 
 /// Utility destinations reachable before a server is connected.
 ///
-/// The same pair the room rail and lobby sidebar offer in their ⋮ menus, put
-/// where a user who cannot sign in can reach them: the rail and the sidebar
-/// both need a connected server, and a failed sign-in is exactly when the
-/// diagnostics are worth reading.
-enum _UtilityAction { diagnostics, versions }
+/// The same entries the room rail and lobby sidebar offer in their ⋮ menus,
+/// put where a user who cannot sign in can reach them: the rail and the
+/// sidebar both need a connected server, and a failed sign-in is exactly when
+/// the diagnostics are worth reading.
+enum _UtilityAction { preferences, diagnostics, versions }
 
 class _UtilityMenu extends StatelessWidget {
   const _UtilityMenu();
@@ -166,9 +167,11 @@ class _UtilityMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<_UtilityAction>(
       icon: const Icon(Icons.more_vert),
-      tooltip: 'Diagnostics & versions',
+      tooltip: 'More',
       onSelected: (action) {
         switch (action) {
+          case _UtilityAction.preferences:
+            context.push(AppRoutes.preferences);
           case _UtilityAction.diagnostics:
             context.push(AppRoutes.diagnostics);
           case _UtilityAction.versions:
@@ -176,6 +179,10 @@ class _UtilityMenu extends StatelessWidget {
         }
       },
       itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: _UtilityAction.preferences,
+          child: MenuRow(icon: Icons.tune, label: 'Preferences'),
+        ),
         PopupMenuItem(
           value: _UtilityAction.diagnostics,
           child: MenuRow(icon: Icons.troubleshoot, label: 'Diagnostics'),
