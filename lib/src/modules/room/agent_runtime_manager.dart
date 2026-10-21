@@ -18,11 +18,13 @@ class AgentRuntimeManager {
     required Future<ToolRegistry> Function(String roomId) toolRegistryResolver,
     required Logger logger,
     required ReadonlySignal<Map<String, ServerEntry>> servers,
+    required ForwardedPropsResolver forwardedProps,
     SessionExtensionFactory? extensionFactory,
   })  : _platform = platform,
         _toolRegistryResolver = toolRegistryResolver,
         _extensionFactory = extensionFactory,
-        _logger = logger {
+        _logger = logger,
+        _forwardedProps = forwardedProps {
     _unsubscribe = servers.subscribe(_evictRemoved);
   }
 
@@ -30,6 +32,7 @@ class AgentRuntimeManager {
   final Future<ToolRegistry> Function(String roomId) _toolRegistryResolver;
   final SessionExtensionFactory? _extensionFactory;
   final Logger _logger;
+  final ForwardedPropsResolver _forwardedProps;
   final Map<String, ({ServerConnection connection, AgentRuntime runtime})>
       _cache = {};
   late final void Function() _unsubscribe;
@@ -66,6 +69,7 @@ class AgentRuntimeManager {
       platform: _platform,
       extensionFactory: _extensionFactory,
       logger: _logger,
+      forwardedProps: _forwardedProps,
     );
   }
 

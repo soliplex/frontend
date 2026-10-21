@@ -92,6 +92,7 @@ void main() {
       AppRoutes.authCallback,
       AppRoutes.versions,
       AppRoutes.diagnostics,
+      AppRoutes.preferences,
     });
   });
 
@@ -111,6 +112,7 @@ void main() {
       AppRoutes.authCallback,
       AppRoutes.versions,
       AppRoutes.diagnostics,
+      AppRoutes.preferences,
     };
 
     final flavor = await standardFlavor();

@@ -2,12 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 
+import '../helpers/fakes.dart';
 import 'platform_mocks.dart';
 
 void main() {
@@ -20,7 +22,15 @@ void main() {
     final namespaces = kit.modules.map((m) => m.namespace).toList();
     expect(
       namespaces,
-      ['diagnostics', 'auth', 'lobby', 'room', 'quiz', 'versions'],
+      [
+        'diagnostics',
+        'auth',
+        'lobby',
+        'room',
+        'quiz',
+        'versions',
+        'preferences',
+      ],
       reason: 'the standard composition, in registration order',
     );
     expect(kit.initialRoute, AppRoutes.home);
@@ -101,5 +111,36 @@ void main() {
       on.modules.whereType<RoomAppModule>().single.enableDocumentFilter,
       isTrue,
     );
+  });
+
+  test("runs ask for the stored low bandwidth mode's strategy", () async {
+    SharedPreferences.setMockInitialValues({
+      'soliplex_low_bandwidth_mode': true,
+    });
+    final kit = await buildStandardKit(identity: AppIdentity.soliplex);
+    final api = FakeSoliplexApi()
+      ..nextCreateThread = (
+        ThreadInfo(id: 'thread-1', roomId: 'room-1', createdAt: DateTime(2026)),
+        <String, dynamic>{},
+      )
+      ..nextCreateRun =
+          RunInfo(id: 'run-1', threadId: 'thread-1', createdAt: DateTime(2026));
+    final stream = RecordingAgUiStreamClient();
+    final runtime =
+        kit.modules.whereType<RoomAppModule>().single.runtimeManager.getRuntime(
+              ServerConnection(
+                serverId: 'server-1',
+                api: api,
+                agUiStreamClient: stream,
+              ),
+            );
+
+    final session =
+        await runtime.spawn(roomId: 'room-1', prompt: [const TextPart('Hi')]);
+    await session.result;
+
+    expect(stream.inputs.single.toJson()['forwardedProps'], {
+      'agui_sse_delivery': {'strategy': 'message'},
+    });
   });
 }

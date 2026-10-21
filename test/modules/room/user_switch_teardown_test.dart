@@ -66,6 +66,7 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      forwardedProps: () => const {},
       servers: manager.servers,
     );
     final registry = RunRegistry(servers: manager.servers);
@@ -420,7 +421,7 @@ class _ThrowingRuntimeManager extends AgentRuntimeManager {
     required super.toolRegistryResolver,
     required super.logger,
     required super.servers,
-  });
+  }) : super(forwardedProps: () => const {});
 
   @override
   void evictServer(String serverId) => throw StateError('evict boom');
