@@ -26,6 +26,8 @@ import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
 import '../modules/lobby/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
+import '../modules/preferences/bandwidth_preference.dart';
+import '../modules/preferences/preferences_module.dart';
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/execution_tracker_extension.dart';
@@ -125,6 +127,9 @@ Future<StandardKit> buildStandardKit({
 
   final authFlow = createAuthFlow(redirectScheme: redirectScheme);
 
+  final bandwidthPreference = BandwidthPreference();
+  await bandwidthPreference.load();
+
   final runtimeManager = AgentRuntimeManager(
     platform: kIsWeb
         ? const WebPlatformConstraints()
@@ -139,6 +144,7 @@ Future<StandardKit> buildStandardKit({
       HumanApprovalExtension(),
     ],
     servers: serverManager.servers,
+    forwardedProps: bandwidthPreference.forwardedProps,
   );
 
   final registry = RunRegistry(servers: serverManager.servers);
@@ -201,6 +207,11 @@ Future<StandardKit> buildStandardKit({
         appName: identity.appName,
         logo: brandLogo,
         serverManager: serverManager,
+      ),
+      PreferencesAppModule(
+        appName: identity.appName,
+        logo: brandLogo,
+        preference: bandwidthPreference,
       ),
     ]),
     refreshListenable: authMod.refreshListenable,

@@ -35,6 +35,7 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      forwardedProps: () => const {},
       servers: emptyServers(),
     );
   });
@@ -96,6 +97,7 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      forwardedProps: () => const {},
       servers: servers,
     );
     addTearDown(() async {
@@ -129,6 +131,7 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      forwardedProps: () => const {},
       servers: servers,
     );
     addTearDown(() async {

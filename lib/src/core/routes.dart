@@ -9,6 +9,7 @@ class AppRoutes {
   static const lobby = '/lobby';
   static const versions = '/versions';
   static const diagnostics = '/diagnostics';
+  static const preferences = '/preferences';
   static const authCallback = '/auth/callback';
 
   /// The diagnostics screen pre-scoped to a single agent run — used by the
