@@ -4,6 +4,7 @@ import 'package:soliplex_agent/src/models/failure_reason.dart';
 import 'package:soliplex_agent/src/models/thread_key.dart';
 import 'package:soliplex_agent/src/orchestration/agent_llm_provider.dart';
 import 'package:soliplex_agent/src/orchestration/error_classifier.dart';
+import 'package:soliplex_agent/src/orchestration/forwarded_props_resolver.dart';
 import 'package:soliplex_agent/src/orchestration/run_state.dart';
 import 'package:soliplex_agent/src/tools/tool_registry.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -70,10 +71,12 @@ class RunOrchestrator {
     required ToolRegistry toolRegistry,
     required Logger logger,
     int maxToolDepth = defaultMaxToolDepth,
+    ForwardedPropsResolver? forwardedProps,
   })  : _llmProvider = llmProvider,
         _toolRegistry = toolRegistry,
         _logger = logger,
-        _maxToolDepth = maxToolDepth;
+        _maxToolDepth = maxToolDepth,
+        _forwardedProps = forwardedProps;
 
   /// Default maximum tool-call depth before the orchestrator aborts.
   static const defaultMaxToolDepth = 10;
@@ -82,6 +85,11 @@ class RunOrchestrator {
   final ToolRegistry _toolRegistry;
   final Logger _logger;
   final int _maxToolDepth;
+  final ForwardedPropsResolver? _forwardedProps;
+
+  /// What [_forwardedProps] gave when the current turn opened, sent by every
+  /// run of the turn so a resume asks for what its first run did.
+  Map<String, dynamic>? _turnForwardedProps;
 
   /// The run being folded, kept past its end until the next turn is built: a
   /// continuation run carries the turn's citations forward from it, and an
@@ -216,6 +224,7 @@ class RunOrchestrator {
             logger: _logger,
           );
     _toolDepth = 0;
+    _turnForwardedProps = _forwardedProps?.call();
     try {
       try {
         await open();
@@ -247,6 +256,7 @@ class RunOrchestrator {
   }) async {
     _guardNotRunning();
     _toolDepth = 0;
+    _turnForwardedProps = _forwardedProps?.call();
     try {
       final conversation =
           _buildConversation(key, userMessage, cachedHistory, null);
@@ -994,6 +1004,7 @@ class RunOrchestrator {
       messages: conversation.transcript.messages,
       tools: _toolRegistry.toolDefinitions,
       state: conversation.aguiState,
+      forwardedProps: _turnForwardedProps,
     );
   }
 

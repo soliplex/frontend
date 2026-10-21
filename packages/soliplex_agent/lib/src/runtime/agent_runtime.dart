@@ -6,6 +6,7 @@ import 'package:soliplex_agent/src/models/agent_result.dart';
 import 'package:soliplex_agent/src/models/thread_key.dart';
 import 'package:soliplex_agent/src/orchestration/ag_ui_llm_provider.dart';
 import 'package:soliplex_agent/src/orchestration/agent_llm_provider.dart';
+import 'package:soliplex_agent/src/orchestration/forwarded_props_resolver.dart';
 import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_agent/src/orchestration/run_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
@@ -57,6 +58,7 @@ class AgentRuntime {
     SessionExtensionFactory? extensionFactory,
     this.maxSpawnDepth = 10,
     this.rootTimeout,
+    ForwardedPropsResolver? forwardedProps,
   })  : serverId = connection.serverId,
         _connection = connection,
         _llmProvider = llmProvider ??
@@ -67,7 +69,8 @@ class AgentRuntime {
         _toolRegistryResolver = toolRegistryResolver,
         _extensionFactory = extensionFactory,
         _platform = platform,
-        _logger = logger;
+        _logger = logger,
+        _forwardedProps = forwardedProps;
 
   final ServerConnection _connection;
   final AgentLlmProvider _llmProvider;
@@ -75,6 +78,7 @@ class AgentRuntime {
   final SessionExtensionFactory? _extensionFactory;
   final PlatformConstraints _platform;
   final Logger _logger;
+  final ForwardedPropsResolver? _forwardedProps;
 
   /// Identifies which backend server this runtime targets.
   final String serverId;
@@ -416,6 +420,7 @@ class AgentRuntime {
       llmProvider: _llmProvider,
       toolRegistry: toolRegistry,
       logger: _logger,
+      forwardedProps: _forwardedProps,
     );
     return AgentSession(
       threadKey: key,
