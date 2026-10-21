@@ -66,7 +66,7 @@ void main() {
       // Branded app name shows in the bar; the about/versions button is
       // dropped because we are already on the versions destination.
       expect(find.text('Acme'), findsOneWidget);
-      expect(find.byTooltip('Diagnostics & versions'), findsNothing);
+      expect(find.byTooltip('More'), findsNothing);
       expect(find.byTooltip('Back'), findsOneWidget);
     });
 

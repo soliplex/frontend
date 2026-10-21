@@ -29,6 +29,7 @@ RoomRail _rail({
   ServerEntry? entry,
   VoidCallback? onDiagnostics,
   VoidCallback? onVersions,
+  VoidCallback? onPreferences,
 }) =>
     RoomRail(
       rooms: rooms,
@@ -43,6 +44,7 @@ RoomRail _rail({
       entry: entry ?? createTestServerEntry(),
       onDiagnostics: onDiagnostics ?? () {},
       onVersions: onVersions ?? () {},
+      onPreferences: onPreferences ?? () {},
     );
 
 void main() {
@@ -182,6 +184,20 @@ void main() {
       final button = tester.widget<IconButton>(
           find.widgetWithIcon(IconButton, Icons.lock_outline));
       expect(button.onPressed, isNull);
+    });
+
+    testWidgets('Preferences calls onPreferences', (tester) async {
+      var preferences = false;
+      await tester.pumpWidget(_wrap(_rail(
+        onPreferences: () => preferences = true,
+      )));
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Preferences'));
+      await tester.pumpAndSettle();
+
+      expect(preferences, isTrue);
     });
 
     testWidgets('footer menu exposes the account, inspector, and versions',

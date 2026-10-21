@@ -92,7 +92,7 @@ void main() {
 
       // Branded app name in the bar; the about/versions button is dropped.
       expect(find.text('Acme'), findsOneWidget);
-      expect(find.byTooltip('Diagnostics & versions'), findsNothing);
+      expect(find.byTooltip('More'), findsNothing);
       expect(find.byTooltip('Back'), findsOneWidget);
       // The request-count heading stays hidden while the list is empty so it
       // doesn't compete with the empty state.

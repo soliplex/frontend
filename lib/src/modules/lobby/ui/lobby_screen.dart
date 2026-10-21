@@ -102,6 +102,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _onVersions() => context.push(AppRoutes.versions);
 
+  void _onPreferences() => context.push(AppRoutes.preferences);
+
   void _onRoomTap(String serverId, String roomId) {
     final entry = widget.serverManager.servers.value[serverId];
     assert(entry != null, 'Room tap for unknown serverId: $serverId');
@@ -170,6 +172,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onAddServer: _onAddServer,
                 onDiagnostics: _onDiagnostics,
                 onVersions: _onVersions,
+                onPreferences: _onPreferences,
                 onRoomTap: _onRoomTap,
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
@@ -196,6 +199,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onAddServer: _onAddServer,
                 onDiagnostics: _onDiagnostics,
                 onVersions: _onVersions,
+                onPreferences: _onPreferences,
                 onRoomTap: _onRoomTap,
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
@@ -228,6 +232,7 @@ class _WideLayout extends StatelessWidget {
     required this.onAddServer,
     required this.onDiagnostics,
     required this.onVersions,
+    required this.onPreferences,
     required this.onRoomTap,
     required this.onMarkRoomRead,
     required this.onInfoTap,
@@ -254,6 +259,7 @@ class _WideLayout extends StatelessWidget {
   final VoidCallback onAddServer;
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
+  final VoidCallback onPreferences;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
@@ -280,6 +286,7 @@ class _WideLayout extends StatelessWidget {
                 onAddServer: onAddServer,
                 onDiagnostics: onDiagnostics,
                 onVersions: onVersions,
+                onPreferences: onPreferences,
               ),
             ),
             const VerticalDivider(width: 1),
@@ -334,6 +341,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.onAddServer,
     required this.onDiagnostics,
     required this.onVersions,
+    required this.onPreferences,
     required this.onRoomTap,
     required this.onMarkRoomRead,
     required this.onInfoTap,
@@ -360,6 +368,7 @@ class _NarrowLayout extends StatelessWidget {
   final VoidCallback onAddServer;
   final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
+  final VoidCallback onPreferences;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
@@ -413,6 +422,7 @@ class _NarrowLayout extends StatelessWidget {
               onAddServer: onAddServer,
               onDiagnostics: onDiagnostics,
               onVersions: onVersions,
+              onPreferences: onPreferences,
             ),
           ),
         ),

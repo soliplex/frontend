@@ -32,7 +32,7 @@ void main() {
       // Branded app name in the bar; the about/versions button is dropped
       // because this screen is itself part of the about destination.
       expect(find.text('Acme'), findsOneWidget);
-      expect(find.byTooltip('Diagnostics & versions'), findsNothing);
+      expect(find.byTooltip('More'), findsNothing);
       // Back affordance and the server URL surfaced in the body.
       expect(find.byTooltip('Back to versions'), findsOneWidget);
       expect(find.text('http://test-server:8000'), findsOneWidget);
