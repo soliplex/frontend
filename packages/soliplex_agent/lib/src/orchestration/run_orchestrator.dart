@@ -224,9 +224,9 @@ class RunOrchestrator {
             logger: _logger,
           );
     _toolDepth = 0;
-    _turnForwardedProps = _forwardedProps?.call();
     try {
       try {
+        _turnForwardedProps = _forwardedProps?.call();
         await open();
       } on Object catch (error, stackTrace) {
         _handleStartError(key, error, stackTrace);
@@ -256,8 +256,8 @@ class RunOrchestrator {
   }) async {
     _guardNotRunning();
     _toolDepth = 0;
-    _turnForwardedProps = _forwardedProps?.call();
     try {
+      _turnForwardedProps = _forwardedProps?.call();
       final conversation =
           _buildConversation(key, userMessage, cachedHistory, null);
       final input = _buildInput(key, conversation);

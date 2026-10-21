@@ -811,6 +811,28 @@ void main() {
       expect(sent, [bounded, bounded]);
     });
 
+    test('a throwing resolver fails the turn', () async {
+      orchestrator.dispose();
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+        forwardedProps: () => throw StateError('resolver failed'),
+      );
+
+      final failed = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+        toolExecutor: _defaultToolExecutor,
+      );
+
+      expect(failed, isA<FailedState>());
+      expect(sent, isEmpty);
+    });
+
     test('the next turn reads the resolver again', () async {
       stubRuns([_happyPathEvents(), _happyPathEvents()]);
 
