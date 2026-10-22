@@ -255,6 +255,18 @@ class _LabelRow extends StatelessWidget {
 }
 
 /// Create or rename-and-recolour a label.
+/// Shown above a label's name while it is created or renamed.
+///
+/// Label names are the one part of the labels feature every user on the
+/// server can read — threads stay private to their owner — and the
+/// assistant may attach them to threads by itself. Nothing restricts
+/// which names a user is shown (ADR-007), so the name itself must not
+/// give anything away.
+const labelNameNotice =
+    'Everyone on this server can see label names, and the assistant may '
+    "apply labels automatically. Don't use names that reveal sensitive "
+    'information.';
+
 class LabelEditorDialog extends StatefulWidget {
   const LabelEditorDialog({super.key, required this.state, this.existing});
 
@@ -340,6 +352,8 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const _LabelNameNotice(),
+            const SizedBox(height: SoliplexSpacing.s4),
             SoliplexInput(
               label: 'Name',
               controller: _name,
@@ -400,6 +414,38 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
 }
 
 /// One tappable colour in the editor's palette.
+class _LabelNameNotice extends StatelessWidget {
+  const _LabelNameNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SoliplexTheme.of(context).colors;
+    return Container(
+      padding: const EdgeInsets.all(SoliplexSpacing.s3),
+      decoration: BoxDecoration(
+        color: colors.infoContainer,
+        borderRadius: BorderRadius.circular(context.radii.md),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 16, color: colors.onInfoContainer),
+          const SizedBox(width: SoliplexSpacing.s2),
+          Expanded(
+            child: Text(
+              labelNameNotice,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: colors.onInfoContainer),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Swatch extends StatelessWidget {
   const _Swatch({
     required this.color,
