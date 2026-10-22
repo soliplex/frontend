@@ -1014,7 +1014,7 @@ void main() {
         platform: TestPlatformConstraints(),
         toolRegistryResolver: (_) async => const ToolRegistry(),
         logger: testLogger(),
-        forwardedProps: () => const {},
+        forwardedPropsFor: (_) => () async => const {},
         servers: emptyServers(),
       );
       runtime = runtimeManager.getRuntime(connection);
@@ -3436,7 +3436,7 @@ void main() {
         platform: TestPlatformConstraints(),
         toolRegistryResolver: (_) async => const ToolRegistry(),
         logger: testLogger(),
-        forwardedProps: () => const {},
+        forwardedPropsFor: (_) => () async => const {},
         servers: emptyServers(),
       );
       runtime = runtimeManager.getRuntime(connection);
@@ -3639,7 +3639,7 @@ void main() {
         platform: TestPlatformConstraints(),
         toolRegistryResolver: (_) async => const ToolRegistry(),
         logger: testLogger(),
-        forwardedProps: () => const {},
+        forwardedPropsFor: (_) => () async => const {},
         servers: emptyServers(),
       );
       runtime = runtimeManager.getRuntime(connection);

@@ -65,7 +65,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                       subtitle: const Text(
                         "Show each reply once it's complete instead of "
                         "streaming it as it's written. Uses less data on "
-                        'slow connections.',
+                        'slow connections, on servers that support it.',
                       ),
                       value: widget.preference.lowBandwidth.value,
                       onChanged: _setLowBandwidth,

@@ -144,7 +144,10 @@ Future<StandardKit> buildStandardKit({
       HumanApprovalExtension(),
     ],
     servers: serverManager.servers,
-    forwardedProps: bandwidthPreference.forwardedProps,
+    forwardedPropsFor: (connection) => bandwidthPreference.forwardedPropsFor(
+      connection.api,
+      serverId: connection.serverId,
+    ),
   );
 
   final registry = RunRegistry(servers: serverManager.servers);

@@ -113,7 +113,8 @@ void main() {
     );
   });
 
-  test("runs ask for the stored low bandwidth mode's strategy", () async {
+  test("runs ask for the server's message profile when the stored mode is on",
+      () async {
     SharedPreferences.setMockInitialValues({
       'soliplex_low_bandwidth_mode': true,
     });
@@ -124,7 +125,11 @@ void main() {
         <String, dynamic>{},
       )
       ..nextCreateRun =
-          RunInfo(id: 'run-1', threadId: 'thread-1', createdAt: DateTime(2026));
+          RunInfo(id: 'run-1', threadId: 'thread-1', createdAt: DateTime(2026))
+      ..sseDeliveryProfiles = const [
+        SseDeliveryProfile(name: 'low_latency', strategy: 'bounded'),
+        SseDeliveryProfile(name: 'low_bandwidth', strategy: 'message'),
+      ];
     final stream = RecordingAgUiStreamClient();
     final runtime =
         kit.modules.whereType<RoomAppModule>().single.runtimeManager.getRuntime(
@@ -140,7 +145,7 @@ void main() {
     await session.result;
 
     expect(stream.inputs.single.toJson()['forwardedProps'], {
-      'agui_sse_delivery': {'strategy': 'message'},
+      'agui_sse_delivery': 'low_bandwidth',
     });
   });
 }

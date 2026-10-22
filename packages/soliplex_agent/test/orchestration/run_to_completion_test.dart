@@ -753,18 +753,14 @@ void main() {
   });
 
   group('runToCompletion forwardedProps', () {
-    const bounded = {
-      'agui_sse_delivery': {'strategy': 'bounded'},
-    };
-    const message = {
-      'agui_sse_delivery': {'strategy': 'message'},
-    };
+    const lowBandwidth = {'agui_sse_delivery': 'low_bandwidth'};
+    const serverDefault = <String, dynamic>{};
 
     late Map<String, dynamic> resolved;
     late List<Object?> sent;
 
     setUp(() {
-      resolved = bounded;
+      resolved = lowBandwidth;
       sent = [];
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
@@ -773,7 +769,7 @@ void main() {
         ),
         toolRegistry: _registryWith(),
         logger: logger,
-        forwardedProps: () => resolved,
+        forwardedProps: () async => resolved,
       );
       stubCreateRun();
     });
@@ -802,13 +798,13 @@ void main() {
         key: _key,
         userMessage: [const TextPart('Weather?')],
         toolExecutor: (pending) {
-          resolved = message;
+          resolved = serverDefault;
           return _defaultToolExecutor(pending);
         },
       );
 
       expect(result, isA<CompletedState>());
-      expect(sent, [bounded, bounded]);
+      expect(sent, [lowBandwidth, lowBandwidth]);
     });
 
     test('a throwing resolver fails the turn', () async {
@@ -820,7 +816,7 @@ void main() {
         ),
         toolRegistry: _registryWith(),
         logger: logger,
-        forwardedProps: () => throw StateError('resolver failed'),
+        forwardedProps: () async => throw StateError('resolver failed'),
       );
 
       final failed = await orchestrator.runToCompletion(
@@ -833,6 +829,86 @@ void main() {
       expect(sent, isEmpty);
     });
 
+    test('disposing while the resolver is pending starts no run', () async {
+      final pending = Completer<Map<String, dynamic>>();
+      orchestrator.dispose();
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+        forwardedProps: () => pending.future,
+      );
+      stubRuns([_happyPathEvents()]);
+
+      final result = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+        toolExecutor: _defaultToolExecutor,
+      );
+      orchestrator.dispose();
+      pending.complete(lowBandwidth);
+
+      expect(await result, isA<CancelledState>());
+      expect(sent, isEmpty);
+    });
+
+    test('Stop while the resolver is pending cancels the turn unsent',
+        () async {
+      final pending = Completer<Map<String, dynamic>>();
+      orchestrator.dispose();
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+        forwardedProps: () => pending.future,
+      );
+      stubRuns([_happyPathEvents()]);
+
+      final result = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+        toolExecutor: _defaultToolExecutor,
+      );
+      await Future<void>.delayed(Duration.zero);
+      orchestrator.cancelRun();
+      pending.complete(lowBandwidth);
+
+      expect(await result, isA<CancelledState>());
+      expect(sent, isEmpty);
+    });
+
+    test('startRun disposed while the resolver is pending sends no run',
+        () async {
+      final pending = Completer<Map<String, dynamic>>();
+      orchestrator.dispose();
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+        forwardedProps: () => pending.future,
+      );
+      stubRuns([_happyPathEvents()]);
+
+      final started = orchestrator.startRun(
+        key: _key,
+        userMessage: [const TextPart('Hi')],
+      );
+      orchestrator.dispose();
+      pending.complete(lowBandwidth);
+      await started;
+
+      expect(sent, isEmpty);
+    });
+
     test('the next turn reads the resolver again', () async {
       stubRuns([_happyPathEvents(), _happyPathEvents()]);
 
@@ -841,14 +917,14 @@ void main() {
         userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
-      resolved = message;
+      resolved = serverDefault;
       await orchestrator.runToCompletion(
         key: _key,
         userMessage: [const TextPart('Again')],
         toolExecutor: _defaultToolExecutor,
       );
 
-      expect(sent, [bounded, message]);
+      expect(sent, [lowBandwidth, serverDefault]);
     });
   });
 }
