@@ -22,6 +22,7 @@ import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
 import 'package:soliplex_client/src/http/multipart_encoder.dart';
+import 'package:soliplex_client/src/http/request_timeouts.dart';
 import 'package:soliplex_client/src/http/web_multipart_file_body.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
@@ -683,14 +684,6 @@ class SoliplexApi {
   // Feedback
   // ============================================================
 
-  /// How long [getRunFeedback] waits before reporting the note unreadable.
-  ///
-  /// It bounds the request only once it holds a concurrency slot, and applies
-  /// per phase — connect, then body — and again on the retry after a token
-  /// refresh. So it shortens the common slow answer; it is not a ceiling on
-  /// the caller's total wait.
-  static const Duration _feedbackReadTimeout = Duration(seconds: 15);
-
   /// Fetches the feedback record on file for a run.
   ///
   /// Parameters:
@@ -711,7 +704,7 @@ class SoliplexApi {
   /// - [PermissionDeniedException] if authenticated but not permitted (403)
   /// - [NotFoundException] if the room, thread or run is unknown (404)
   /// - [NetworkException] if connection fails, including on
-  ///   [_feedbackReadTimeout]
+  ///   [shortReadTimeout]
   /// - [MalformedResponseException] if the body is not a feedback record
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
@@ -736,7 +729,7 @@ class SoliplexApi {
       // the caller reports the note as unread — so a shorter wait is the safer
       // trade here. The write keeps the default, since a POST that timed out
       // may still have landed.
-      timeout: _feedbackReadTimeout,
+      timeout: shortReadTimeout,
       fromJson: runFeedbackFromJson,
     );
   }
@@ -1114,11 +1107,14 @@ class SoliplexApi {
   /// Returns an empty list when the installation declares none.
   ///
   /// Throws:
-  /// - [NetworkException] if connection fails
+  /// - [NetworkException] if connection fails, including on [shortReadTimeout]
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if access is denied (403)
   /// - [NotFoundException] if the server has no such endpoint (404)
   /// - [ApiException] for other server errors
-  /// - [MalformedResponseException] if a profile has no string `name` or
-  ///   `strategy`
+  /// - [MalformedResponseException] if the body is not a JSON object,
+  ///   `sse_delivery_profiles` holds no `profiles` list, or a profile has no
+  ///   string `name` or `strategy`
   /// - [CancelledException] if cancelled via [cancelToken]
   Future<List<SseDeliveryProfile>> getSseDeliveryProfiles({
     CancelToken? cancelToken,
@@ -1127,6 +1123,7 @@ class SoliplexApi {
       'GET',
       _urlBuilder.build(pathSegments: ['installation', 'info']),
       cancelToken: cancelToken,
+      timeout: shortReadTimeout,
     );
 
     final declared = response['sse_delivery_profiles'];
@@ -1151,22 +1148,13 @@ class SoliplexApi {
     ];
   }
 
-  /// How long to wait for the installation's answer about the caller.
-  ///
-  /// Deliberately far below the 600-second transport default, which is sized
-  /// for the streamed upload bodies that rely on it: this is a small question
-  /// whose answer gates an affordance. It bounds the request only once it
-  /// holds a concurrency slot, so a caller that must render before the answer
-  /// arrives still needs its own in-flight state.
-  static const Duration _authzTimeout = Duration(seconds: 15);
-
   /// Whether the signed-in user is an administrator of this installation.
   ///
   /// Installation-wide, not per room. Each call is audited server-side, so
   /// this is worth keeping for a session rather than asking per screen.
   ///
   /// Throws:
-  /// - [NetworkException] if connection fails, including on [_authzTimeout]
+  /// - [NetworkException] if connection fails, including on [shortReadTimeout]
   /// - [AuthException] if not authenticated (401)
   /// - [NotFoundException] if the server has no such endpoint (404)
   /// - [PermissionDeniedException] if the caller may not ask (403)
@@ -1180,7 +1168,7 @@ class SoliplexApi {
       'GET',
       _urlBuilder.build(pathSegments: ['user', 'authz']),
       cancelToken: cancelToken,
-      timeout: _authzTimeout,
+      timeout: shortReadTimeout,
     );
 
     final isAdmin = response['is_admin_user'];

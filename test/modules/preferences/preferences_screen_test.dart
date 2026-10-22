@@ -212,7 +212,7 @@ void main() {
     expect(find.text('Checking servers…'), findsNothing);
   });
 
-  testWidgets('nothing is listed or checked while the mode is off',
+  testWidgets('opening the page while the mode is off checks nothing',
       (tester) async {
     final preference = BandwidthPreference();
     await tester.runAsync(preference.load);
@@ -220,15 +220,12 @@ void main() {
 
     await _pump(tester, preference, servers: [_server('Beta', api)]);
 
-    expect(find.textContaining('Not available on'), findsNothing);
     expect(api.sseDeliveryProfilesCallCount, 0);
   });
 
-  testWidgets('turning the mode on checks the servers', (tester) async {
+  testWidgets('turning the mode off hides the list', (tester) async {
     final warnings = _captureWarnings();
-    final preference = BandwidthPreference();
-    await tester.runAsync(preference.load);
-
+    final preference = await _on(tester);
     await _pump(
       tester,
       preference,
@@ -237,9 +234,11 @@ void main() {
             'Beta', FakeSoliplexApi()..sseDeliveryProfiles = [_boundedProfile]),
       ],
     );
+    expect(find.text('Not available on: Beta'), findsOneWidget);
+
     await _toggle(tester);
 
-    expect(find.text('Not available on: Beta'), findsOneWidget);
+    expect(find.textContaining('Not available on'), findsNothing);
     expect(warnings(), hasLength(1));
   });
 }

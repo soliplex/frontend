@@ -10,7 +10,7 @@ class SseDeliveryProfile {
   /// The name a run sends to ask for this profile.
   final String name;
 
-  /// How the profile groups streamed deltas: `message` holds each message
-  /// until it ends, `bounded` sends merged deltas as they accumulate.
+  /// How the profile groups streamed deltas, as the installation names it;
+  /// `message` holds each message until it ends.
   final String strategy;
 }

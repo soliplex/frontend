@@ -769,7 +769,7 @@ void main() {
         ),
         toolRegistry: _registryWith(),
         logger: logger,
-        forwardedProps: () async => resolved,
+        forwardedProps: () => resolved,
       );
       stubCreateRun();
     });
@@ -816,7 +816,7 @@ void main() {
         ),
         toolRegistry: _registryWith(),
         logger: logger,
-        forwardedProps: () async => throw StateError('resolver failed'),
+        forwardedProps: () => throw StateError('resolver failed'),
       );
 
       final failed = await orchestrator.runToCompletion(
@@ -826,86 +826,6 @@ void main() {
       );
 
       expect(failed, isA<FailedState>());
-      expect(sent, isEmpty);
-    });
-
-    test('disposing while the resolver is pending starts no run', () async {
-      final pending = Completer<Map<String, dynamic>>();
-      orchestrator.dispose();
-      orchestrator = RunOrchestrator(
-        llmProvider: AgUiLlmProvider(
-          api: api,
-          agUiStreamClient: agUiStreamClient,
-        ),
-        toolRegistry: _registryWith(),
-        logger: logger,
-        forwardedProps: () => pending.future,
-      );
-      stubRuns([_happyPathEvents()]);
-
-      final result = orchestrator.runToCompletion(
-        key: _key,
-        userMessage: [const TextPart('Hi')],
-        toolExecutor: _defaultToolExecutor,
-      );
-      orchestrator.dispose();
-      pending.complete(lowBandwidth);
-
-      expect(await result, isA<CancelledState>());
-      expect(sent, isEmpty);
-    });
-
-    test('Stop while the resolver is pending cancels the turn unsent',
-        () async {
-      final pending = Completer<Map<String, dynamic>>();
-      orchestrator.dispose();
-      orchestrator = RunOrchestrator(
-        llmProvider: AgUiLlmProvider(
-          api: api,
-          agUiStreamClient: agUiStreamClient,
-        ),
-        toolRegistry: _registryWith(),
-        logger: logger,
-        forwardedProps: () => pending.future,
-      );
-      stubRuns([_happyPathEvents()]);
-
-      final result = orchestrator.runToCompletion(
-        key: _key,
-        userMessage: [const TextPart('Hi')],
-        toolExecutor: _defaultToolExecutor,
-      );
-      await Future<void>.delayed(Duration.zero);
-      orchestrator.cancelRun();
-      pending.complete(lowBandwidth);
-
-      expect(await result, isA<CancelledState>());
-      expect(sent, isEmpty);
-    });
-
-    test('startRun disposed while the resolver is pending sends no run',
-        () async {
-      final pending = Completer<Map<String, dynamic>>();
-      orchestrator.dispose();
-      orchestrator = RunOrchestrator(
-        llmProvider: AgUiLlmProvider(
-          api: api,
-          agUiStreamClient: agUiStreamClient,
-        ),
-        toolRegistry: _registryWith(),
-        logger: logger,
-        forwardedProps: () => pending.future,
-      );
-      stubRuns([_happyPathEvents()]);
-
-      final started = orchestrator.startRun(
-        key: _key,
-        userMessage: [const TextPart('Hi')],
-      );
-      orchestrator.dispose();
-      pending.complete(lowBandwidth);
-      await started;
-
       expect(sent, isEmpty);
     });
 

@@ -473,7 +473,7 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
-      forwardedPropsFor: (_) => () async => const {},
+      forwardedPropsFor: (_) => () => const {},
       servers: emptyServers(),
     );
     registry = RunRegistry(servers: emptyServers());

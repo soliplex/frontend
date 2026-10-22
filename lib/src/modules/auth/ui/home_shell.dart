@@ -59,8 +59,8 @@ class HomeShell extends StatelessWidget {
 /// The branded top bar shared across the onboarding surfaces (home / connect
 /// flow, the OAuth callback, and the server list) and the versions and
 /// preferences screens: logo, app name, library version, and trailing
-/// [actions] — followed by the ⋮ menu of utility destinations so the bar
-/// reads the same everywhere.
+/// [actions] — followed by the ⋮ menu of utility destinations unless the
+/// screen turns it off (see [showUtilityMenu]).
 class HomeShellHeader extends StatelessWidget {
   const HomeShellHeader({
     super.key,
@@ -154,10 +154,11 @@ class HomeShellHeader extends StatelessWidget {
 
 /// Utility destinations reachable before a server is connected.
 ///
-/// The same entries the room rail and lobby sidebar offer in their ⋮ menus,
+/// The utility entries the room rail and lobby sidebar offer in their ⋮ menus,
 /// put where a user who cannot sign in can reach them: the rail and the
-/// sidebar both need a connected server, and a failed sign-in is exactly when
-/// the diagnostics are worth reading.
+/// sidebar both need a connected server, a failed sign-in is exactly when the
+/// diagnostics are worth reading, and the preferences belong to the device,
+/// not a session.
 enum _UtilityAction { preferences, diagnostics, versions }
 
 class _UtilityMenu extends StatelessWidget {
