@@ -11,7 +11,7 @@ dependencies:
   ag_ui: ^0.3.0
   collection: ^1.19.1
   http: ^1.2.0
-  meta: ^1.9.0
+  meta: ^1.19.0
   signals_core: ^6.3.1
   soliplex_logging:
     path: ../soliplex_logging
