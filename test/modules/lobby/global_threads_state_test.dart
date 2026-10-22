@@ -66,7 +66,7 @@ void main() {
       expect(loaded.hasMore, isFalse);
       expect(
         h.api.allThreadsCalls,
-        equals([(limit: 2, offset: 0), (limit: 2, offset: 2)]),
+        equals([(limit: 2, cursor: null), (limit: 2, cursor: '2')]),
       );
 
       h.state.dispose();
@@ -94,7 +94,7 @@ void main() {
       await pumpEventQueue();
 
       // Hold the second page open, then ask twice more. Without the
-      // in-flight guard both would fire at the same offset and the page
+      // in-flight guard both would fire with the same cursor and the page
       // would be appended twice.
       final gate = Completer<void>();
       h.api.allThreadsGate = gate;
@@ -146,7 +146,7 @@ void main() {
 
       final loaded = h.state.threads.value as GlobalThreadsLoaded;
       expect(loaded.threads.map((t) => t.id), equals(['z']));
-      expect(h.api.allThreadsCalls.last, equals((limit: 2, offset: 0)));
+      expect(h.api.allThreadsCalls.last, equals((limit: 2, cursor: null)));
 
       h.state.dispose();
     });

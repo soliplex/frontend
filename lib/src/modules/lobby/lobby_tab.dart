@@ -9,7 +9,7 @@ enum LobbyTab {
   /// The server's rooms, as a list or grid.
   rooms,
 
-  /// Every thread the user has in the server, grouped by room.
+  /// Every thread the user has in the server, most recently active first.
   threads,
 }
 

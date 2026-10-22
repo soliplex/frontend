@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
 import 'package:soliplex_client/soliplex_client.dart' show NotFoundException;
-import 'package:soliplex_design/soliplex_design.dart' show SoliplexSpacing;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
@@ -124,7 +123,7 @@ void main() {
       expect(find.text('Filter rooms'), findsOneWidget);
     });
 
-    testWidgets('groups threads under a heading per room', (tester) async {
+    testWidgets('names each thread\'s room on its row', (tester) async {
       await _pumpLobby(
         tester,
         rooms: const [
@@ -133,56 +132,28 @@ void main() {
         ],
         threads: [
           _thread('t1', 'r1', name: 'Alpha'),
-          _thread('t2', 'r1', name: 'Beta'),
           _thread('t3', 'r2', name: 'Gamma'),
+          _thread('t2', 'r1', name: 'Beta'),
         ],
       );
       await _openThreadsTab(tester);
 
-      expect(find.text('Alpha'), findsOneWidget);
-      expect(find.text('Beta'), findsOneWidget);
-      expect(find.text('Gamma'), findsOneWidget);
-
-      // Room names come from the already-loaded room list, and each room
-      // heads its block exactly once even though it holds two threads.
-      expect(find.text('General'), findsOneWidget);
-      expect(find.text('Manuals'), findsOneWidget);
-    });
-
-    testWidgets('every room rule spans the full pane width', (tester) async {
-      await _pumpLobby(
-        tester,
-        rooms: const [
-          Room(id: 'r1', name: 'Ops'),
-          Room(id: 'r2', name: 'A considerably longer room name'),
-        ],
-        threads: [
-          _thread('t1', 'r1', name: 'Alpha'),
-          _thread('t2', 'r2', name: 'Beta'),
-        ],
-      );
-      await _openThreadsTab(tester);
-
-      // Measure what was laid out, not what was declared. The rule used to
-      // share a row with the room name, which handed it exactly half the
-      // pane however short the name was — so it read as a stunted version
-      // of the full-width rule under the server heading.
-      final paneWidth = tester.getSize(find.byType(GlobalThreadsView)).width;
-      final expected = paneWidth - SoliplexSpacing.s4 * 2;
-
-      final rules = find
-          .descendant(
-            of: find.byType(GlobalThreadsView),
-            matching: find.byType(Divider),
+      // In the order the server sent, which interleaves rooms: the list
+      // is by activity, so nothing regroups it.
+      final titles = tester
+          .widgetList<ListTile>(
+            find.descendant(
+              of: find.byType(GlobalThreadsView),
+              matching: find.byType(ListTile),
+            ),
           )
-          .evaluate()
-          .map((element) => element.size!.width)
+          .map((tile) => (tile.title! as Text).data)
           .toList();
+      expect(titles, equals(['Alpha', 'Gamma', 'Beta']));
 
-      expect(rules.length, equals(2));
-      for (final width in rules) {
-        expect(width, closeTo(expected, 0.01));
-      }
+      // Room names come from the already-loaded room list, one per row.
+      expect(find.textContaining('General · '), findsNWidgets(2));
+      expect(find.textContaining('Manuals · '), findsOneWidget);
     });
 
     testWidgets('falls back to the room id when the name is unknown',
@@ -194,7 +165,7 @@ void main() {
       );
       await _openThreadsTab(tester);
 
-      expect(find.text('ghost-room'), findsOneWidget);
+      expect(find.textContaining('ghost-room · '), findsOneWidget);
     });
 
     testWidgets('hides the rooms filter on the threads tab', (tester) async {
@@ -297,7 +268,8 @@ void main() {
 
       // Reaching the end pulled the second page rather than stopping at 50.
       expect(api.getAllThreadsCallCount, greaterThan(1));
-      expect(api.allThreadsCalls.last.offset, equals(50));
+      // The second request resumes from the first page's cursor.
+      expect(api.allThreadsCalls.last.cursor, equals('50'));
     });
   });
 }

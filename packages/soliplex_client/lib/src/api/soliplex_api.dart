@@ -343,17 +343,15 @@ class SoliplexApi {
   ///
   /// Unlike [getThreads], which is scoped to a single room, this spans the
   /// whole server so a client can show one aggregated list. Threads come
-  /// back with each room's threads contiguous — rooms ordered by their
-  /// latest activity, threads alphabetically within a room — so a caller
-  /// can start a new section whenever [ThreadInfo.roomId] changes instead
-  /// of regrouping the page itself.
+  /// back most recently active first.
   ///
   /// Parameters:
   /// - [limit]: page size (must be positive)
-  /// - [offset]: how many threads to skip (must not be negative)
+  /// - [cursor]: the previous page's [ThreadPage.nextCursor], or `null`
+  ///   for the first page
   ///
   /// Throws:
-  /// - [ArgumentError] if [limit] is not positive or [offset] is negative
+  /// - [ArgumentError] if [limit] is not positive
   /// - [AuthException] if not authenticated (401/403)
   /// - [NotFoundException] if the endpoint is absent (pre-paging backend,
   ///   404) — callers should treat this as "this server cannot aggregate
@@ -363,21 +361,21 @@ class SoliplexApi {
   /// - [CancelledException] if cancelled via [cancelToken]
   Future<ThreadPage> getAllThreads({
     int limit = 50,
-    int offset = 0,
+    String? cursor,
     CancelToken? cancelToken,
   }) async {
     if (limit <= 0) {
       throw ArgumentError.value(limit, 'limit', 'must be positive');
-    }
-    if (offset < 0) {
-      throw ArgumentError.value(offset, 'offset', 'must not be negative');
     }
 
     final response = await _transport.request<Map<String, dynamic>>(
       'GET',
       _urlBuilder.build(
         pathSegments: ['agui', 'threads'],
-        queryParameters: {'limit': '$limit', 'offset': '$offset'},
+        queryParameters: {
+          'limit': '$limit',
+          if (cursor != null) 'cursor': cursor,
+        },
       ),
       cancelToken: cancelToken,
     );
@@ -388,7 +386,8 @@ class SoliplexApi {
       rethrow;
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
-        message: 'getAllThreads: malformed thread page: $error',
+        message: 'getAllThreads: malformed thread page: '
+            '${describeFailure(error)}',
         originalError: error,
         stackTrace: stackTrace,
       );
