@@ -144,10 +144,7 @@ Future<StandardKit> buildStandardKit({
       HumanApprovalExtension(),
     ],
     servers: serverManager.servers,
-    forwardedPropsFor: (connection) => bandwidthPreference.forwardedPropsFor(
-      connection.api,
-      serverId: connection.serverId,
-    ),
+    forwardedPropsFor: bandwidthPreference.forwardedPropsFor,
   );
 
   final registry = RunRegistry(servers: serverManager.servers);
@@ -215,6 +212,7 @@ Future<StandardKit> buildStandardKit({
         appName: identity.appName,
         logo: brandLogo,
         preference: bandwidthPreference,
+        serverManager: serverManager,
       ),
     ]),
     refreshListenable: authMod.refreshListenable,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -94,14 +96,20 @@ void main() {
 
   group('forwardedPropsFor', () {
     late FakeSoliplexApi api;
+    late ServerConnection connection;
     late BandwidthPreference preference;
     late ForwardedPropsResolver resolve;
 
     setUp(() {
       api = FakeSoliplexApi()
         ..sseDeliveryProfiles = [_lowLatency, _lowBandwidth];
+      connection = ServerConnection(
+        serverId: 'srv',
+        api: api,
+        agUiStreamClient: FakeAgUiStreamClient(),
+      );
       preference = BandwidthPreference();
-      resolve = preference.forwardedPropsFor(api, serverId: 'srv');
+      resolve = preference.forwardedPropsFor(connection);
     });
 
     test('off sends nothing and asks the server nothing', () async {
@@ -127,11 +135,13 @@ void main() {
       expect(warnings(), hasLength(1));
     });
 
-    test('asks a server once', () async {
+    test('asks a server once, across the runtimes built for it', () async {
+      // Profiles belong to the installation, not the signed-in user, so a
+      // runtime rebuilt for the same server reuses the answer.
       await preference.setLowBandwidth(true);
 
       await resolve();
-      await resolve();
+      await preference.forwardedPropsFor(connection)();
 
       expect(api.sseDeliveryProfilesCallCount, 1);
     });
@@ -173,6 +183,66 @@ void main() {
 
       expect(await resolve(), {'agui_sse_delivery': 'low_bandwidth'});
       expect(warnings(), hasLength(1));
+    });
+
+    test('checking servers replaces a stale profile', () async {
+      await preference.setLowBandwidth(true);
+      await resolve();
+      api.sseDeliveryProfiles = [
+        const SseDeliveryProfile(name: 'saver', strategy: 'message'),
+      ];
+
+      await preference.checkServers([connection]);
+
+      expect(await resolve(), {'agui_sse_delivery': 'saver'});
+    });
+
+    test('checking servers reports what each one offers', () async {
+      final noProfile = ServerConnection(
+        serverId: 'no-profile',
+        api: FakeSoliplexApi()..sseDeliveryProfiles = [_lowLatency],
+        agUiStreamClient: FakeAgUiStreamClient(),
+      );
+      final unreachable = ServerConnection(
+        serverId: 'unreachable',
+        api: FakeSoliplexApi()
+          ..nextSseDeliveryProfilesError =
+              const NetworkException(message: 'Connection refused'),
+        agUiStreamClient: FakeAgUiStreamClient(),
+      );
+      final warnings = _capture(LogLevel.warning);
+
+      await preference.checkServers([connection, noProfile, unreachable]);
+
+      final lookups = preference.profileLookups.value;
+      expect(lookups['srv'], isA<ProfileOffered>());
+      expect((lookups['srv']! as ProfileOffered).name, 'low_bandwidth');
+      expect(lookups['no-profile'], isA<ProfileNotOffered>());
+      expect(lookups['unreachable'], isA<ProfileCouldNotCheck>());
+      expect(warnings(), hasLength(2));
+    });
+
+    test("an older lookup's late answer does not overwrite a newer one",
+        () async {
+      await preference.setLowBandwidth(true);
+      final held = Completer<void>();
+      api.sseDeliveryProfilesGate = held;
+      final first = resolve();
+      api
+        ..sseDeliveryProfilesGate = null
+        ..sseDeliveryProfiles = [
+          const SseDeliveryProfile(name: 'saver', strategy: 'message'),
+        ];
+      await preference.checkServers([connection]);
+
+      held.complete();
+      await first;
+
+      expect(
+        (preference.profileLookups.value['srv']! as ProfileOffered).name,
+        'saver',
+      );
+      expect(await resolve(), {'agui_sse_delivery': 'saver'});
     });
   });
 }

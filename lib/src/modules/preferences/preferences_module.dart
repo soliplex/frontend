@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_module.dart';
 import '../../core/routes.dart';
+import '../auth/server_manager.dart';
 import 'bandwidth_preference.dart';
 import 'preferences_screen.dart';
 
@@ -10,12 +11,14 @@ class PreferencesAppModule extends AppModule {
   PreferencesAppModule({
     required this.appName,
     required this.preference,
+    required this.serverManager,
     this.logo,
   });
 
   final String appName;
   final Widget? logo;
   final BandwidthPreference preference;
+  final ServerManager serverManager;
 
   @override
   String get namespace => 'preferences';
@@ -33,6 +36,7 @@ class PreferencesAppModule extends AppModule {
                 appName: appName,
                 logo: logo,
                 preference: preference,
+                servers: serverManager.servers,
               ),
             ),
           ),
