@@ -408,17 +408,24 @@ class FakeSoliplexApi extends SoliplexApi {
 
   int sseDeliveryProfilesCallCount = 0;
 
+  /// When set, [getSseDeliveryProfiles] awaits this before answering with the
+  /// profiles set when it was called, so a test can hold a lookup in flight.
+  Completer<void>? sseDeliveryProfilesGate;
+
   @override
   Future<List<SseDeliveryProfile>> getSseDeliveryProfiles({
     CancelToken? cancelToken,
   }) async {
     sseDeliveryProfilesCallCount++;
+    final answer = sseDeliveryProfiles;
+    final gate = sseDeliveryProfilesGate;
+    if (gate != null) await gate.future;
     final error = nextSseDeliveryProfilesError;
     if (error != null) {
       nextSseDeliveryProfilesError = null;
       throw error;
     }
-    return sseDeliveryProfiles;
+    return answer;
   }
 
   RunInfo? nextCreateRun;

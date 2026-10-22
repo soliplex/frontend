@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../core/routes.dart';
+import '../auth/server_entry.dart';
 import '../auth/ui/home_shell.dart';
 import 'bandwidth_preference.dart';
 
@@ -12,12 +15,16 @@ class PreferencesScreen extends StatefulWidget {
     super.key,
     required this.appName,
     required this.preference,
+    required this.servers,
     this.logo,
   });
 
   final String appName;
   final Widget? logo;
   final BandwidthPreference preference;
+
+  /// The servers whose support for low bandwidth mode the page lists.
+  final ReadonlySignal<Map<String, ServerEntry>> servers;
 
   @override
   State<PreferencesScreen> createState() => _PreferencesScreenState();
@@ -28,7 +35,22 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
   /// clears it, so the banner never speaks for a value already stored.
   bool _unsaved = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Opening the page refreshes what each server offers, which also replaces
+    // a profile name the server has since changed.
+    if (widget.preference.lowBandwidth.value) _checkServers();
+  }
+
+  void _checkServers() => unawaited(
+        widget.preference.checkServers([
+          for (final entry in widget.servers.value.values) entry.connection,
+        ]),
+      );
+
   Future<void> _setLowBandwidth(bool value) async {
+    if (value) _checkServers();
     final saved = await widget.preference.setLowBandwidth(value);
     if (!mounted) return;
     setState(() => _unsaved = !saved);
@@ -71,6 +93,10 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                       onChanged: _setLowBandwidth,
                     ),
                   ),
+                  _ServerSupport(
+                    preference: widget.preference,
+                    servers: widget.servers,
+                  ),
                 ],
               ),
             ),
@@ -78,6 +104,62 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
         ),
       ),
     );
+  }
+}
+
+/// While low bandwidth mode is on, names the servers that cannot honour it,
+/// apart from those whose support could not be checked.
+class _ServerSupport extends StatelessWidget {
+  const _ServerSupport({required this.preference, required this.servers});
+
+  final BandwidthPreference preference;
+  final ReadonlySignal<Map<String, ServerEntry>> servers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall
+        ?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    return Watch((context) {
+      if (!preference.lowBandwidth.value) return const SizedBox.shrink();
+      final lookups = preference.profileLookups.value;
+      final entries = servers.value.values;
+      List<String> namesWhere(bool Function(ProfileLookup?) test) => [
+            for (final entry in entries)
+              if (test(lookups[entry.serverId])) entry.displayName,
+          ];
+      final checking = namesWhere((l) => l is ProfileChecking).isNotEmpty;
+      final notOffered = namesWhere((l) => l is ProfileNotOffered);
+      final unchecked = namesWhere((l) => l is ProfileCouldNotCheck);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SoliplexSpacing.s4,
+          0,
+          SoliplexSpacing.s4,
+          SoliplexSpacing.s2,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (checking)
+              Row(
+                children: [
+                  const SizedBox.square(
+                    dimension: SoliplexSpacing.s3,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: SoliplexSpacing.s2),
+                  Text('Checking servers…', style: style),
+                ],
+              ),
+            if (notOffered.isNotEmpty)
+              Text('Not available on: ${notOffered.join(', ')}', style: style),
+            if (unchecked.isNotEmpty)
+              Text("Couldn't check: ${unchecked.join(', ')}", style: style),
+          ],
+        ),
+      );
+    });
   }
 }
 

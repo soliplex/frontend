@@ -1,6 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _logger =
@@ -61,52 +60,84 @@ class BandwidthPreference {
     }
   }
 
-  /// The `forwardedProps` this setting asks of the server [api] reaches.
+  /// What each server offers this setting, by server id, as last looked up.
+  ReadonlySignal<Map<String, ProfileLookup>> get profileLookups =>
+      _profileLookups;
+  final Signal<Map<String, ProfileLookup>> _profileLookups = Signal(const {});
+
+  /// The lookup each server's runs reuse; one that could not check is
+  /// dropped, so the next turn asks again.
+  final Map<String, Future<ProfileLookup>> _lookups = {};
+
+  /// The `forwardedProps` this setting asks of [connection]'s server.
   ///
-  /// The server's profiles are looked up on the first turn that needs them
-  /// and kept for the life of the returned resolver; a failed lookup sends
-  /// nothing and is asked again on the next turn.
-  ForwardedPropsResolver forwardedPropsFor(
-    SoliplexApi api, {
-    required String serverId,
-  }) {
-    Future<String?>? profile;
+  /// Off asks nothing. On names the server's `message` profile, looked up on
+  /// the first turn that needs it and shared by every runtime built for that
+  /// server; with no such profile, or no answer, it sends nothing.
+  ForwardedPropsResolver forwardedPropsFor(ServerConnection connection) =>
+      () async {
+        if (!_lowBandwidth.value) return const {};
+        final lookup =
+            await (_lookups[connection.serverId] ?? _lookUp(connection));
+        return lookup is ProfileOffered
+            ? {'agui_sse_delivery': lookup.name}
+            : const {};
+      };
 
-    Future<String?> lookUp() async {
-      try {
-        final name =
-            _messageProfile(await api.getSseDeliveryProfiles(), serverId);
-        if (name == null) _logUnsupported(serverId);
-        return name;
-      } on NotFoundException {
-        // An installation older than delivery profiles has none to offer, and
-        // asking again would cost a request on every message.
+  /// Looks up each of [connections] again, replacing what is known of it.
+  Future<void> checkServers(Iterable<ServerConnection> connections) =>
+      Future.wait([for (final connection in connections) _lookUp(connection)]);
+
+  Future<ProfileLookup> _lookUp(ServerConnection connection) {
+    final serverId = connection.serverId;
+    final lookup = _fetch(connection);
+    _lookups[serverId] = lookup;
+    _publish(serverId, const ProfileChecking());
+    return lookup.then((result) {
+      // A lookup started since supersedes this one, answered or not.
+      if (!identical(_lookups[serverId], lookup)) return result;
+      if (result is ProfileCouldNotCheck) _lookups.remove(serverId);
+      _publish(serverId, result);
+      return result;
+    });
+  }
+
+  void _publish(String serverId, ProfileLookup lookup) =>
+      _profileLookups.value = {..._profileLookups.value, serverId: lookup};
+
+  Future<ProfileLookup> _fetch(ServerConnection connection) async {
+    final serverId = connection.serverId;
+    try {
+      final name = _messageProfile(
+        await connection.api.getSseDeliveryProfiles(),
+        serverId,
+      );
+      if (name == null) {
         _logUnsupported(serverId);
-        return null;
-      } catch (e, st) {
-        profile = null;
-        // The request carries no user input — a fixed path, no body — so a
-        // [NetworkException]'s host and OS error are forwarded whole; anything
-        // else can carry the response it failed on, so only its shape is kept.
-        _logger.warning(
-          'Could not look up SSE delivery profiles; sending none',
-          error: e is NetworkException ? e : null,
-          attributes: {
-            'serverId': serverId,
-            if (e is ApiException) 'statusCode': e.statusCode,
-            if (e is! NetworkException) 'failure': describeFailure(e),
-          },
-          stackTrace: st,
-        );
-        return null;
+        return const ProfileNotOffered();
       }
+      return ProfileOffered(name);
+    } on NotFoundException {
+      // An installation older than delivery profiles has none to offer, and
+      // asking again would cost a request on every message.
+      _logUnsupported(serverId);
+      return const ProfileNotOffered();
+    } catch (e, st) {
+      // The request carries no user input — a fixed path, no body — so a
+      // [NetworkException]'s host and OS error are forwarded whole; anything
+      // else can carry the response it failed on, so only its shape is kept.
+      _logger.warning(
+        'Could not look up SSE delivery profiles; sending none',
+        error: e is NetworkException ? e : null,
+        attributes: {
+          'serverId': serverId,
+          if (e is ApiException) 'statusCode': e.statusCode,
+          if (e is! NetworkException) 'failure': describeFailure(e),
+        },
+        stackTrace: st,
+      );
+      return const ProfileCouldNotCheck();
     }
-
-    return () async {
-      if (!_lowBandwidth.value) return const {};
-      final name = await (profile ??= lookUp());
-      return name == null ? const {} : {'agui_sse_delivery': name};
-    };
   }
 
   /// Records that a server cannot honour the mode, once per lookup. At
@@ -132,4 +163,31 @@ class BandwidthPreference {
     }
     return names.firstOrNull;
   }
+}
+
+/// What a server offers low bandwidth mode, as last looked up.
+sealed class ProfileLookup {
+  const ProfileLookup();
+}
+
+/// A lookup is in flight.
+final class ProfileChecking extends ProfileLookup {
+  const ProfileChecking();
+}
+
+/// The server's profile whose strategy is `message`, by [name].
+final class ProfileOffered extends ProfileLookup {
+  const ProfileOffered(this.name);
+
+  final String name;
+}
+
+/// The server declares no `message` profile, or no profiles at all.
+final class ProfileNotOffered extends ProfileLookup {
+  const ProfileNotOffered();
+}
+
+/// The lookup failed, so what the server offers is unknown.
+final class ProfileCouldNotCheck extends ProfileLookup {
+  const ProfileCouldNotCheck();
 }
