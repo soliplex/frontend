@@ -8201,6 +8201,75 @@ void main() {
       });
     });
 
+    group('getSseDeliveryProfiles', () {
+      void stubInfo(Map<String, dynamic> body) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse('https://api.example.com/api/v1/installation/info'),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => body);
+      }
+
+      test('returns each declared profile with its strategy', () async {
+        stubInfo({
+          'id': 'inst',
+          'sse_delivery_profiles': {
+            'default': 'low_latency',
+            'profiles': [
+              {
+                'name': 'low_latency',
+                'strategy': 'bounded',
+                'description': 'Sooner',
+              },
+              {
+                'name': 'low_bandwidth',
+                'strategy': 'message',
+                'description': null,
+              },
+            ],
+          },
+        });
+
+        final profiles = await api.getSseDeliveryProfiles();
+
+        expect(
+          [for (final p in profiles) (p.name, p.strategy)],
+          [('low_latency', 'bounded'), ('low_bandwidth', 'message')],
+        );
+      });
+
+      test('returns none when the installation declares no profiles', () async {
+        stubInfo({'id': 'inst', 'sse_delivery_profiles': null});
+
+        expect(await api.getSseDeliveryProfiles(), isEmpty);
+      });
+
+      test('rejects a profile with no strategy', () async {
+        // Without the strategy the caller cannot tell which profile is which,
+        // so the response is unusable rather than empty.
+        stubInfo({
+          'id': 'inst',
+          'sse_delivery_profiles': {
+            'default': 'x',
+            'profiles': [
+              {'name': 'x'},
+            ],
+          },
+        });
+
+        expect(
+          () => api.getSseDeliveryProfiles(),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+    });
+
     group('getBackendVersionInfo', () {
       test('returns version info', () async {
         when(

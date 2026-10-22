@@ -23,6 +23,7 @@ export 'run_info.dart';
 export 'run_usage.dart';
 export 'server_info.dart';
 export 'source_reference.dart';
+export 'sse_delivery_profile.dart';
 export 'surface.dart';
 export 'thread_history.dart';
 export 'thread_info.dart';

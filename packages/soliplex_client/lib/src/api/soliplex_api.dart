@@ -15,6 +15,7 @@ import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/run_usage.dart';
+import 'package:soliplex_client/src/domain/sse_delivery_profile.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
@@ -1106,6 +1107,48 @@ class SoliplexApi {
     );
 
     return backendVersionInfoFromJson(response);
+  }
+
+  /// Gets the SSE delivery profiles the installation declares.
+  ///
+  /// Returns an empty list when the installation declares none.
+  ///
+  /// Throws:
+  /// - [NetworkException] if connection fails
+  /// - [NotFoundException] if the server has no such endpoint (404)
+  /// - [ApiException] for other server errors
+  /// - [MalformedResponseException] if a profile has no string `name` or
+  ///   `strategy`
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<List<SseDeliveryProfile>> getSseDeliveryProfiles({
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(pathSegments: ['installation', 'info']),
+      cancelToken: cancelToken,
+    );
+
+    final declared = response['sse_delivery_profiles'];
+    if (declared == null) return const [];
+    final profiles =
+        declared is Map<String, dynamic> ? declared['profiles'] : null;
+    if (profiles is! List) {
+      throw const MalformedResponseException(
+        message: 'installation info has no "sse_delivery_profiles" list',
+      );
+    }
+    return [
+      for (final profile in profiles)
+        switch (profile) {
+          {'name': final String name, 'strategy': final String strategy} =>
+            SseDeliveryProfile(name: name, strategy: strategy),
+          _ => throw const MalformedResponseException(
+              message: 'SSE delivery profile has no string "name" and '
+                  '"strategy"',
+            ),
+        },
+    ];
   }
 
   /// How long to wait for the installation's answer about the caller.
