@@ -82,9 +82,13 @@ class GlobalThreadsState {
 
   String? _serverId;
 
+  /// The token for the page after the last one held; `null` before the
+  /// first page arrives and after the last.
+  String? _nextCursor;
+
   /// Cancels the in-flight request, if any. Also the guard against
   /// overlapping pages: a non-null token means a fetch is already running,
-  /// and [loadMore] declines rather than requesting the same offset twice.
+  /// and [loadMore] declines rather than requesting the same page twice.
   CancelToken? _token;
 
   bool _disposed = false;
@@ -111,7 +115,7 @@ class GlobalThreadsState {
     }
 
     _threads.value = const GlobalThreadsLoading();
-    unawaited(_fetch(offset: 0));
+    unawaited(_fetch(cursor: null));
   }
 
   /// Reloads from the first page, discarding what is already held.
@@ -119,7 +123,7 @@ class GlobalThreadsState {
     if (_serverId == null) return Future<void>.value();
     _cancelInFlight();
     _threads.value = const GlobalThreadsLoading();
-    return _fetch(offset: 0);
+    return _fetch(cursor: null);
   }
 
   /// Appends the next page, if there is one and none is already in flight.
@@ -133,10 +137,11 @@ class GlobalThreadsState {
       hasMore: current.hasMore,
       loadingMore: true,
     );
-    return _fetch(offset: current.threads.length);
+    return _fetch(cursor: _nextCursor);
   }
 
-  Future<void> _fetch({required int offset}) async {
+  /// Fetches the page after [cursor], or the first page when it is `null`.
+  Future<void> _fetch({required String? cursor}) async {
     final serverId = _serverId;
     if (serverId == null) return;
 
@@ -158,7 +163,7 @@ class GlobalThreadsState {
     try {
       final page = await _apiResolver(entry).getAllThreads(
         limit: pageSize,
-        offset: offset,
+        cursor: cursor,
         cancelToken: token,
       );
 
@@ -168,7 +173,8 @@ class GlobalThreadsState {
       if (token.isCancelled || _disposed || serverId != _serverId) return;
       _token = null;
 
-      final existing = offset == 0 ? const <ThreadInfo>[] : _heldThreads();
+      _nextCursor = page.nextCursor;
+      final existing = cursor == null ? const <ThreadInfo>[] : _heldThreads();
       _threads.value = GlobalThreadsLoaded(
         threads: [...existing, ...page.threads],
         hasMore: page.hasMore,
