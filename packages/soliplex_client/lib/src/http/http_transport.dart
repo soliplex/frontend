@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
+import 'package:soliplex_client/src/http/request_timeouts.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';

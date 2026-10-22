@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 // SoliplexApi uses our local CancelToken, not ag_ui's.
 // Hide ag_ui's CancelToken to avoid ambiguity.
 import 'package:soliplex_client/soliplex_client.dart' hide CancelToken;
+import 'package:soliplex_client/src/http/request_timeouts.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
@@ -8244,11 +8245,51 @@ void main() {
         );
       });
 
+      test('bounds the wait like the other small reads', () async {
+        // The lookup gates what the Preferences page shows; the transport's
+        // ten-minute default would leave it checking for that long.
+        final captured = <Object?>[];
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          captured.add(invocation.namedArguments[#timeout]);
+          return {'id': 'inst', 'sse_delivery_profiles': null};
+        });
+
+        await api.getSseDeliveryProfiles();
+
+        expect(captured.single, shortReadTimeout);
+      });
+
       test('returns none when the installation declares no profiles', () async {
         stubInfo({'id': 'inst', 'sse_delivery_profiles': null});
 
         expect(await api.getSseDeliveryProfiles(), isEmpty);
       });
+
+      for (final (shape, declared) in [
+        ('not an object', <Object?>[]),
+        ('an object with no profiles list', <String, dynamic>{'x': 1}),
+      ]) {
+        test('rejects profiles declared as $shape', () async {
+          // Unusable, not empty: a caller can keep an empty answer as the
+          // server's word, while a rejected one is worth asking again.
+          stubInfo({'id': 'inst', 'sse_delivery_profiles': declared});
+
+          expect(
+            () => api.getSseDeliveryProfiles(),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        });
+      }
 
       test('rejects a profile with no strategy', () async {
         // Without the strategy the caller cannot tell which profile is which,

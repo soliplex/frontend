@@ -7,6 +7,7 @@ import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
+import 'package:soliplex_frontend/src/modules/preferences/preferences_module.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 
 import '../helpers/fakes.dart';
@@ -64,6 +65,34 @@ void main() {
     final kit = await buildStandardKit(identity: AppIdentity.soliplex);
 
     expect(kit.initialRoute, AppRoutes.lobby);
+  });
+
+  test('with the mode stored on, restored servers are looked up at startup',
+      () async {
+    // Before any room opens, so a first message seldom goes out before its
+    // server's profile is known.
+    SharedPreferences.setMockInitialValues({
+      'soliplex_has_launched': true,
+      'soliplex_low_bandwidth_mode': true,
+    });
+    seedSecureStorage({
+      'soliplex_server_local': jsonEncode(
+        KnownServer(
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        ).toJson(),
+      ),
+    });
+
+    final kit = await buildStandardKit(identity: AppIdentity.soliplex);
+
+    final preference =
+        kit.modules.whereType<PreferencesAppModule>().single.preference;
+    expect(kit.serverManager.servers.value, isNotEmpty);
+    expect(
+      preference.checkingServers.value,
+      kit.serverManager.servers.value.keys.toSet(),
+    );
   });
 
   test('signedOutLandingPath never displaces the auth callback', () async {
@@ -131,14 +160,21 @@ void main() {
         SseDeliveryProfile(name: 'low_bandwidth', strategy: 'message'),
       ];
     final stream = RecordingAgUiStreamClient();
-    final runtime =
-        kit.modules.whereType<RoomAppModule>().single.runtimeManager.getRuntime(
-              ServerConnection(
-                serverId: 'server-1',
-                api: api,
-                agUiStreamClient: stream,
-              ),
-            );
+    final connection = ServerConnection(
+      serverId: 'server-1',
+      api: api,
+      agUiStreamClient: stream,
+    );
+    await kit.modules
+        .whereType<PreferencesAppModule>()
+        .single
+        .preference
+        .checkServers([connection]);
+    final runtime = kit.modules
+        .whereType<RoomAppModule>()
+        .single
+        .runtimeManager
+        .getRuntime(connection);
 
     final session =
         await runtime.spawn(roomId: 'room-1', prompt: [const TextPart('Hi')]);

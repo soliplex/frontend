@@ -13,12 +13,16 @@ class PreferencesAppModule extends AppModule {
     required this.preference,
     required this.serverManager,
     this.logo,
-  });
+  }) : _stopTracking = preference.trackServers(serverManager.servers);
 
   final String appName;
   final Widget? logo;
   final BandwidthPreference preference;
   final ServerManager serverManager;
+  final void Function() _stopTracking;
+
+  @override
+  Future<void> onDispose() async => _stopTracking();
 
   @override
   String get namespace => 'preferences';

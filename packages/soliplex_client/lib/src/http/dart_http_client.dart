@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_diagnostic.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
+import 'package:soliplex_client/src/http/request_timeouts.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 

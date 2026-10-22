@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
+import 'package:soliplex_client/src/http/request_timeouts.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 
 /// Represents a validated OIDC discovery document.
@@ -80,7 +81,7 @@ class OidcDiscoveryDocument {
 Future<OidcDiscoveryDocument> fetchOidcDiscoveryDocument(
   Uri discoveryUrl,
   SoliplexHttpClient httpClient, {
-  Duration timeout = const Duration(seconds: 10),
+  Duration timeout = oidcDiscoveryTimeout,
 }) async {
   final HttpResponse response;
   try {

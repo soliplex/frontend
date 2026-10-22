@@ -61,6 +61,7 @@ class _ChatMockupState extends State<ChatMockup> {
           ('/room/:serverAlias/:roomId/info', 'Room info'),
           ('/room/:serverAlias/:roomId/quiz/:quizId', 'Quiz'),
           (AppRoutes.lobby, 'Lobby'),
+          (AppRoutes.preferences, 'Preferences'),
           (AppRoutes.diagnostics, 'Diagnostics'),
           (AppRoutes.versions, 'Versions'),
           (AppRoutes.home, 'Home'),

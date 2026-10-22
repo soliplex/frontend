@@ -409,7 +409,8 @@ class FakeSoliplexApi extends SoliplexApi {
   int sseDeliveryProfilesCallCount = 0;
 
   /// When set, [getSseDeliveryProfiles] awaits this before answering with the
-  /// profiles set when it was called, so a test can hold a lookup in flight.
+  /// profiles set when it was called, so a test can hold a lookup in flight;
+  /// an error set while it is held is thrown when it opens.
   Completer<void>? sseDeliveryProfilesGate;
 
   @override

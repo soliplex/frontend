@@ -33,6 +33,27 @@ void main() {
     expect(find.textContaining('Hello there'), findsWidgets);
   });
 
+  testWidgets('every entry in the rail menu reaches a page', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final chat = Mockup(name: 'Chat', build: (_) => const ChatMockup());
+    await tester.pumpWidget(MockupApp(mockups: [chat], initial: chat));
+    await tester.pumpAndSettle();
+
+    for (final entry in ['Preferences', 'Diagnostics', 'Versions']) {
+      await tester.tap(find.byTooltip('Account & more'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(entry).last);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull, reason: entry);
+      expect(find.textContaining(entry), findsWidgets, reason: entry);
+      Navigator.of(tester.element(find.textContaining(entry).first)).pop();
+      await tester.pumpAndSettle();
+    }
+  });
+
   testWidgets(
       'narrow: the panel opens as a sheet from the composer and keeps '
       'its state across dismissal', (tester) async {

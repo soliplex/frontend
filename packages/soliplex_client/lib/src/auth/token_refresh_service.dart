@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:soliplex_client/src/auth/oidc_discovery.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
+import 'package:soliplex_client/src/http/request_timeouts.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -198,7 +199,7 @@ class TokenRefreshService {
             'client_id': clientId,
           },
         ).query,
-        timeout: const Duration(seconds: 30),
+        timeout: tokenRefreshTimeout,
       );
     } on Exception catch (e) {
       throw NetworkException(

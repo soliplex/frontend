@@ -38,8 +38,9 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
   @override
   void initState() {
     super.initState();
-    // Opening the page refreshes what each server offers, which also replaces
-    // a profile name the server has since changed.
+    // While the mode is on, opening the page looks each server up again,
+    // which also picks up a profile name the server has since changed; while
+    // it is off, the page shows no result to refresh.
     if (widget.preference.lowBandwidth.value) _checkServers();
   }
 
@@ -50,7 +51,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
       );
 
   Future<void> _setLowBandwidth(bool value) async {
-    if (value) _checkServers();
     final saved = await widget.preference.setLowBandwidth(value);
     if (!mounted) return;
     setState(() => _unsaved = !saved);
@@ -107,8 +107,9 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
   }
 }
 
-/// While low bandwidth mode is on, names the servers that cannot honour it,
-/// apart from those whose support could not be checked.
+/// While low bandwidth mode is on, lists the servers that cannot honour it
+/// and, on a line of their own, those whose support could not be checked,
+/// with a progress row while any lookup is in flight.
 class _ServerSupport extends StatelessWidget {
   const _ServerSupport({required this.preference, required this.servers});
 
@@ -128,7 +129,9 @@ class _ServerSupport extends StatelessWidget {
             for (final entry in entries)
               if (test(lookups[entry.serverId])) entry.displayName,
           ];
-      final checking = namesWhere((l) => l is ProfileChecking).isNotEmpty;
+      final checkingServers = preference.checkingServers.value;
+      final checking =
+          entries.any((entry) => checkingServers.contains(entry.serverId));
       final notOffered = namesWhere((l) => l is ProfileNotOffered);
       final unchecked = namesWhere((l) => l is ProfileCouldNotCheck);
       return Padding(
