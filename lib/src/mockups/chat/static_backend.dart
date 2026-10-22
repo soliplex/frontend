@@ -52,7 +52,7 @@ class StaticBackend {
       platform: const NativePlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: LogManager.instance.getLogger('mockup.chat'),
-      forwardedProps: () => const {},
+      forwardedPropsFor: (_) => () async => const {},
       extensionFactory: () async => [
         ExecutionTrackerExtension(
           logger: LogManager.instance.getLogger('mockup.chat.execution'),

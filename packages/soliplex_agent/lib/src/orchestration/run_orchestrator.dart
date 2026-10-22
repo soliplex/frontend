@@ -87,9 +87,10 @@ class RunOrchestrator {
   final int _maxToolDepth;
   final ForwardedPropsResolver? _forwardedProps;
 
-  /// What [_forwardedProps] gave when the current turn opened, sent by every
-  /// run of the turn so a resume asks for what its first run did.
-  Map<String, dynamic>? _turnForwardedProps;
+  /// What [_forwardedProps] gives for the current turn, asked for when the
+  /// turn opens and awaited only where a run is created, so opening a turn
+  /// waits on nothing and every run of the turn sends the same value.
+  Future<Map<String, dynamic>>? _turnForwardedProps;
 
   /// The run being folded, kept past its end until the next turn is built: a
   /// continuation run carries the turn's citations forward from it, and an
@@ -226,7 +227,7 @@ class RunOrchestrator {
     _toolDepth = 0;
     try {
       try {
-        _turnForwardedProps = _forwardedProps?.call();
+        _turnForwardedProps = _askForwardedProps();
         await open();
       } on Object catch (error, stackTrace) {
         _handleStartError(key, error, stackTrace);
@@ -257,10 +258,12 @@ class RunOrchestrator {
     _guardNotRunning();
     _toolDepth = 0;
     try {
-      _turnForwardedProps = _forwardedProps?.call();
+      _turnForwardedProps = _askForwardedProps();
+      final forwardedProps = await _turnForwardedProps;
+      if (_disposedDuringAwait()) return;
       final conversation =
           _buildConversation(key, userMessage, cachedHistory, null);
-      final input = _buildInput(key, conversation);
+      final input = _buildInput(key, conversation, forwardedProps);
       final handle = await _llmProvider.startRun(
         key: key,
         input: input,
@@ -387,7 +390,10 @@ class RunOrchestrator {
     }
     final conversation = _buildResumeConversation(yielding, executedTools);
     try {
-      final input = _buildInput(yielding.threadKey, conversation);
+      final forwardedProps = await _turnForwardedProps;
+      if (_interruptedDuringResume()) return;
+      final input =
+          _buildInput(yielding.threadKey, conversation, forwardedProps);
       final handle = await _llmProvider.startRun(
         key: yielding.threadKey,
         input: input,
@@ -443,9 +449,15 @@ class RunOrchestrator {
     Map<String, dynamic>? stateOverlay,
   ) async {
     _cancelToken ??= CancelToken();
+    final forwardedProps = await _turnForwardedProps;
+    // A dispose during the await leaves nothing to start; `_toCompletion`
+    // reports it. A Stop during it cancelled the token, which ends the turn
+    // through `_handleStartError` before any run exists.
+    if (_disposed) return;
+    _cancelToken?.throwIfCancelled();
     final conversation =
         _buildConversation(key, userMessage, cachedHistory, stateOverlay);
-    final input = _buildInput(key, conversation);
+    final input = _buildInput(key, conversation, forwardedProps);
     final handle = await _llmProvider.startRun(
       key: key,
       input: input,
@@ -574,7 +586,14 @@ class RunOrchestrator {
     // mint a fresh one for the resume.
     _cancelToken ??= CancelToken();
     final conversation = _buildResumeConversation(yielding, executedTools);
-    final input = _buildInput(yielding.threadKey, conversation);
+    final forwardedProps = await _turnForwardedProps;
+    if (_interruptedDuringResume()) {
+      // As after the start below: `_setState` consumed the completer with
+      // the yield, so it is re-minted with the state that interrupted it.
+      _terminalCompleter = Completer<RunState>()..complete(_currentState);
+      return;
+    }
+    final input = _buildInput(yielding.threadKey, conversation, forwardedProps);
     final handle = await _llmProvider.startRun(
       key: yielding.threadKey,
       input: input,
@@ -997,14 +1016,24 @@ class RunOrchestrator {
     return result;
   }
 
-  SimpleRunAgentInput _buildInput(ThreadKey key, Conversation conversation) {
+  /// Asks [_forwardedProps] for the turn being opened. Its failure is
+  /// marked handled here, so a turn that never creates a run does not leave
+  /// it unhandled; every await of the value still sees it.
+  Future<Map<String, dynamic>>? _askForwardedProps() =>
+      _forwardedProps?.call()?..ignore();
+
+  SimpleRunAgentInput _buildInput(
+    ThreadKey key,
+    Conversation conversation,
+    Map<String, dynamic>? forwardedProps,
+  ) {
     return SimpleRunAgentInput(
       threadId: key.threadId,
       runId: '', // Assigned by the provider during startRun.
       messages: conversation.transcript.messages,
       tools: _toolRegistry.toolDefinitions,
       state: conversation.aguiState,
-      forwardedProps: _turnForwardedProps,
+      forwardedProps: forwardedProps,
     );
   }
 

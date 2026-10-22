@@ -217,6 +217,31 @@ void main() {
     );
   });
 
+  test(
+      'a followed run that needs no new run completes even when the '
+      'forwardedProps resolver fails', () async {
+    // The followed run was started elsewhere, so nothing here sends the
+    // resolver's value; its failure must neither fail the turn nor surface
+    // as an unhandled error.
+    final follower = _orchestrator(
+      api,
+      client,
+      const ToolRegistry(),
+      forwardedProps: () async => throw StateError('resolver failed'),
+    );
+    addTearDown(follower.dispose);
+    stubFollow(Stream.fromIterable(_answeredRun().map(_overTheWire)));
+
+    final state = await follower.followToCompletion(
+      key: _key,
+      run: _followed,
+      toolExecutor: _noTools,
+      cachedHistory: null,
+    );
+
+    expect(state, isA<CompletedState>());
+  });
+
   test('Stop while following records the run cancelled, keeping its reply',
       () async {
     final events = StreamController<DecodeOutcome>();
@@ -275,11 +300,13 @@ void main() {
         executor: (_, __) async => 'sunny',
       ),
     );
-    const bounded = {
-      'agui_sse_delivery': {'strategy': 'bounded'},
-    };
-    final follower =
-        _orchestrator(api, client, registry, forwardedProps: () => bounded);
+    const lowBandwidth = {'agui_sse_delivery': 'low_bandwidth'};
+    final follower = _orchestrator(
+      api,
+      client,
+      registry,
+      forwardedProps: () async => lowBandwidth,
+    );
     addTearDown(follower.dispose);
     stubFollow(
       Stream.fromIterable(
@@ -334,7 +361,7 @@ void main() {
       state,
       isA<CompletedState>().having((s) => s.runId, 'runId', 'run-2'),
     );
-    expect(resumeSent, bounded);
+    expect(resumeSent, lowBandwidth);
   });
 }
 

@@ -399,6 +399,28 @@ class FakeSoliplexApi extends SoliplexApi {
         'FakeSoliplexApi: set nextThreadHistory or nextThreadHistoryError');
   }
 
+  /// The profiles [getSseDeliveryProfiles] answers with.
+  List<SseDeliveryProfile> sseDeliveryProfiles = const [];
+
+  /// Thrown by [getSseDeliveryProfiles] when set; cleared by the throw, so
+  /// the next lookup answers with [sseDeliveryProfiles].
+  Object? nextSseDeliveryProfilesError;
+
+  int sseDeliveryProfilesCallCount = 0;
+
+  @override
+  Future<List<SseDeliveryProfile>> getSseDeliveryProfiles({
+    CancelToken? cancelToken,
+  }) async {
+    sseDeliveryProfilesCallCount++;
+    final error = nextSseDeliveryProfilesError;
+    if (error != null) {
+      nextSseDeliveryProfilesError = null;
+      throw error;
+    }
+    return sseDeliveryProfiles;
+  }
+
   RunInfo? nextCreateRun;
 
   /// When set, [createRun] waits for it, holding a send before its run starts.
