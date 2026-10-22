@@ -9,45 +9,6 @@ import '../../../shared/relative_time.dart';
 import '../global_threads_state.dart';
 import '../lobby_tab.dart';
 
-/// One row of the aggregated listing: either a room heading or a thread.
-///
-/// The backend returns each room's threads contiguously, so flattening is a
-/// single pass that emits a heading whenever the room changes — no grouping
-/// or sorting happens here, which is what keeps the list correct while it
-/// is still being paged in.
-sealed class _Row {
-  const _Row();
-}
-
-final class _RoomHeadingRow extends _Row {
-  const _RoomHeadingRow(this.roomId);
-  final String roomId;
-}
-
-final class _ThreadRow extends _Row {
-  const _ThreadRow(this.thread);
-  final ThreadInfo thread;
-}
-
-/// A trailing row shown while the next page is in flight.
-final class _LoadingRow extends _Row {
-  const _LoadingRow();
-}
-
-List<_Row> _flatten(List<ThreadInfo> threads, {required bool loadingMore}) {
-  final rows = <_Row>[];
-  String? currentRoom;
-  for (final thread in threads) {
-    if (thread.roomId != currentRoom) {
-      currentRoom = thread.roomId;
-      rows.add(_RoomHeadingRow(currentRoom));
-    }
-    rows.add(_ThreadRow(thread));
-  }
-  if (loadingMore) rows.add(const _LoadingRow());
-  return rows;
-}
-
 /// Everything the lobby needs to render and drive its tab strip.
 ///
 /// Bundled rather than passed as loose parameters because both the wide
@@ -140,8 +101,9 @@ class _LobbyTabBarState extends State<LobbyTabBar>
 /// The lobby's aggregated thread listing for the selected server.
 ///
 /// Threads from every room the user can see, in one lazily-paged list,
-/// divided by room. Deliberately carries no label chips — the room and
-/// thread lists stay uncluttered.
+/// most recently active first. Each row names its room, so a thread can be
+/// found without first recalling where it lives. Deliberately carries no
+/// label chips — the room and thread lists stay uncluttered.
 class GlobalThreadsView extends StatefulWidget {
   const GlobalThreadsView({
     super.key,
@@ -226,79 +188,43 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
       );
     }
 
-    final rows = _flatten(loaded.threads, loadingMore: loaded.loadingMore);
+    final threads = loaded.threads;
 
     return RefreshIndicator(
       onRefresh: widget.state.refresh,
       child: ListView.builder(
         controller: _controller,
         padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-        itemCount: rows.length,
-        itemBuilder: (context, index) => switch (rows[index]) {
-          _RoomHeadingRow(:final roomId) => _RoomHeading(
-              name: widget.roomNames[roomId] ?? roomId,
-            ),
-          _ThreadRow(:final thread) => _ThreadListTile(
-              thread: thread,
-              onTap: () => widget.onThreadTap(thread.roomId, thread.id),
-            ),
-          _LoadingRow() => const Padding(
+        // One trailing row for the spinner while the next page is in flight.
+        itemCount: threads.length + (loaded.loadingMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == threads.length) {
+            return const Padding(
               padding: EdgeInsets.all(SoliplexSpacing.s4),
               child: Center(child: CircularProgressIndicator()),
-            ),
+            );
+          }
+          final thread = threads[index];
+          return _ThreadListTile(
+            thread: thread,
+            roomName: widget.roomNames[thread.roomId] ?? thread.roomId,
+            onTap: () => widget.onThreadTap(thread.roomId, thread.id),
+          );
         },
       ),
     );
   }
 }
 
-/// A room's name, dividing its block of threads from the previous room's.
-class _RoomHeading extends StatelessWidget {
-  const _RoomHeading({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        SoliplexSpacing.s4,
-        SoliplexSpacing.s4,
-        SoliplexSpacing.s4,
-        SoliplexSpacing.s2,
-      ),
-      // The rule sits under the name rather than beside it, so every
-      // divider spans the same width. Running it inline would leave it
-      // whatever the room name did not use, making a long-named room look
-      // like a shorter section break than a short-named one.
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            name,
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: SoliplexSpacing.s2),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: theme.colorScheme.outlineVariant,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ThreadListTile extends StatelessWidget {
-  const _ThreadListTile({required this.thread, required this.onTap});
+  const _ThreadListTile({
+    required this.thread,
+    required this.roomName,
+    required this.onTap,
+  });
 
   final ThreadInfo thread;
+  final String roomName;
   final VoidCallback onTap;
 
   @override
@@ -310,7 +236,11 @@ class _ThreadListTile extends StatelessWidget {
     return ListTile(
       dense: true,
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(formatRelativeTime(stamp)),
+      subtitle: Text(
+        '$roomName · ${formatRelativeTime(stamp)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       onTap: onTap,
     );
   }
