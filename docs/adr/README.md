@@ -24,6 +24,7 @@ that the rule can be changed deliberately rather than eroded.
 | [ADR-004](ADR-004-module-composition-contract.md) | The `AppModule` composition contract | Accepted (retroactive) | 2026-10-13 |
 | [ADR-005](ADR-005-module-layering.md) | Module layering and cross-feature state | Proposed | 2026-10-13 |
 | [ADR-006](ADR-006-thread-timeline-model.md) | The thread timeline model: runs, `RunFold`, bands and one layout | Accepted (retroactive) | 2026-10-13 |
+| [ADR-007](ADR-007-thread-labels.md) | Thread labels: one curated catalogue, applied by owners and the assistant, with no visibility rules yet | Accepted | 2026-10-22 |
 
 The repo-wide rule "Riverpod is DI only; signals carry state" is argued in
 ADR-001 §5.3, among the rejected alternatives.
