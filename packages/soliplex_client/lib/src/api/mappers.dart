@@ -642,9 +642,9 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
 /// Creates a [ThreadPage] from JSON.
 ///
 /// Throws [FormatException] if `threads` is absent or not a list, or if
-/// any thread on the page is malformed — unlike a single thread's
-/// optional fields, a corrupt page cannot be partially rendered without
-/// silently losing rows the caller is counting against [ThreadPage.total].
+/// any thread on the page is malformed — a corrupt page cannot be partially
+/// rendered without silently losing rows, and the next page would then
+/// resume past threads the user never saw.
 ThreadPage threadPageFromJson(Map<String, dynamic> json) {
   final rawThreads = json['threads'];
   if (rawThreads is! List) {
@@ -655,11 +655,7 @@ ThreadPage threadPageFromJson(Map<String, dynamic> json) {
     threads: rawThreads
         .map((entry) => threadInfoFromJson(entry as Map<String, dynamic>))
         .toList(growable: false),
-    // A pre-paging backend would omit these; falling back keeps the page
-    // renderable as a single complete page rather than throwing.
-    total: (json['total'] as num?)?.toInt() ?? rawThreads.length,
-    limit: (json['limit'] as num?)?.toInt() ?? rawThreads.length,
-    offset: (json['offset'] as num?)?.toInt() ?? 0,
+    nextCursor: json['next_cursor'] as String?,
   );
 }
 

@@ -839,61 +839,46 @@ void main() {
             'created': '2025-01-15T10:30:00.000',
           };
 
-      test('parses threads and paging bounds', () {
+      test('parses threads and the next cursor', () {
         final page = threadPageFromJson(<String, dynamic>{
           'threads': [
             threadJson('thread-1', roomId: 'room-1'),
-            threadJson('thread-2', roomId: 'room-1'),
+            threadJson('thread-2', roomId: 'room-2'),
           ],
-          'total': 7,
-          'limit': 2,
-          'offset': 4,
+          'next_cursor': 'opaque',
         });
 
         expect(page.threads.map((t) => t.id), equals(['thread-1', 'thread-2']));
-        expect(page.total, equals(7));
-        expect(page.limit, equals(2));
-        expect(page.offset, equals(4));
+        expect(page.nextCursor, equals('opaque'));
         expect(page.hasMore, isTrue);
       });
 
       test('preserves the backend ordering rather than re-sorting', () {
-        // Rooms arrive contiguous and pre-ordered; re-sorting client-side
-        // would break the divider-on-room-change rendering.
+        // Most recently active first, across rooms; the client must not
+        // regroup or re-sort what the cursor pages over.
         final page = threadPageFromJson(<String, dynamic>{
           'threads': [
-            threadJson('z-thread', roomId: 'room-2'),
-            threadJson('a-thread', roomId: 'room-1'),
+            threadJson('z-thread', roomId: 'room-1'),
+            threadJson('a-thread', roomId: 'room-2'),
+            threadJson('m-thread', roomId: 'room-1'),
           ],
-          'total': 2,
-          'limit': 50,
-          'offset': 0,
         });
 
-        expect(page.threads.map((t) => t.id), equals(['z-thread', 'a-thread']));
+        expect(
+          page.threads.map((t) => t.id),
+          equals(['z-thread', 'a-thread', 'm-thread']),
+        );
       });
 
-      test('parses an empty page', () {
-        final page = threadPageFromJson(<String, dynamic>{
-          'threads': <dynamic>[],
-          'total': 0,
-          'limit': 50,
-          'offset': 0,
-        });
-
-        expect(page.threads, isEmpty);
-        expect(page.hasMore, isFalse);
-      });
-
-      test('falls back to a single complete page when bounds are absent', () {
-        final page = threadPageFromJson(<String, dynamic>{
-          'threads': [threadJson('thread-1', roomId: 'room-1')],
-        });
-
-        expect(page.total, equals(1));
-        expect(page.limit, equals(1));
-        expect(page.offset, equals(0));
-        expect(page.hasMore, isFalse);
+      test('reads an absent or null cursor as the last page', () {
+        for (final json in [
+          <String, dynamic>{'threads': <dynamic>[]},
+          <String, dynamic>{'threads': <dynamic>[], 'next_cursor': null},
+        ]) {
+          final page = threadPageFromJson(json);
+          expect(page.threads, isEmpty);
+          expect(page.hasMore, isFalse);
+        }
       });
 
       test('throws FormatException when "threads" is absent', () {
@@ -911,42 +896,42 @@ void main() {
       });
 
       test('parses a payload captured from a live backend', () {
-        // Verbatim from GET /api/v1/agui/threads. Pins the details that
-        // differ from the convenient shape: the id arrives as 'thread_id',
-        // the name is nested in metadata, 'runs' is null, and 'created'
-        // carries no zone while 'last_activity' does.
+        // Verbatim from GET /api/v1/agui/threads?limit=2, keeping the
+        // first of its two threads. Pins the details that differ from the
+        // convenient shape: the id arrives as 'thread_id', the name is
+        // nested in metadata, 'runs' is null, 'created' carries no zone
+        // while 'last_activity' does, and 'next_cursor' is padded base64.
         final page = threadPageFromJson(<String, dynamic>{
           'threads': [
             <String, dynamic>{
-              'room_id': 'analysis',
-              'thread_id': 'd05f6a30-414d-4851-a2b4-af02a50febbc',
+              'room_id': 'faux',
+              'thread_id': '8d192479-b547-41e4-90d1-c95454485260',
               'runs': null,
-              'created': '2026-08-14T12:01:01.189017',
+              'created': '2026-10-22T18:25:46.340749',
               'metadata': <String, dynamic>{
-                'name': 'Alpha-analysis',
+                'name': 'Thread in faux',
                 'description': null,
               },
-              'last_activity': '2026-08-14T12:01:01.202772Z',
+              'last_activity': '2026-10-22T18:25:46.352874Z',
             },
           ],
-          'total': 9,
-          'limit': 1,
-          'offset': 0,
+          'next_cursor':
+              'WyIyMDI2LTEwLTIyVDE4OjI1OjQ2LjMyMjI1NCswMDowMCIsICJlZG'
+                  'NhOTE4OS1lZjE2LTRjNDEtYjhmOC01ZWQwMDA5MDVhYTIiXQ==',
         });
 
         final thread = page.threads.single;
-        expect(thread.id, equals('d05f6a30-414d-4851-a2b4-af02a50febbc'));
-        expect(thread.roomId, equals('analysis'));
-        expect(thread.name, equals('Alpha-analysis'));
+        expect(thread.id, equals('8d192479-b547-41e4-90d1-c95454485260'));
+        expect(thread.roomId, equals('faux'));
+        expect(thread.name, equals('Thread in faux'));
         expect(thread.description, equals(''));
         expect(thread.lastActivity?.isUtc, isTrue);
-        expect(page.total, equals(9));
         expect(page.hasMore, isTrue);
       });
 
       test('propagates a malformed thread rather than dropping it', () {
-        // Silently skipping a bad row would desync the rendered count
-        // from 'total' and make paging land mid-list.
+        // Silently skipping a bad row would hide a thread the cursor has
+        // already paged past.
         expect(
           () => threadPageFromJson(<String, dynamic>{
             'threads': [

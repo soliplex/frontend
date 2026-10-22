@@ -828,9 +828,7 @@ void main() {
             threadJson('thread-1', 'room-a'),
             threadJson('thread-2', 'room-b'),
           ],
-          'total': 5,
-          'limit': 2,
-          'offset': 0,
+          'next_cursor': 'next',
         });
 
         final page = await api.getAllThreads(limit: 2);
@@ -838,11 +836,10 @@ void main() {
         expect(page.threads.length, equals(2));
         expect(page.threads[0].roomId, equals('room-a'));
         expect(page.threads[1].roomId, equals('room-b'));
-        expect(page.total, equals(5));
-        expect(page.hasMore, isTrue);
+        expect(page.nextCursor, equals('next'));
       });
 
-      test('sends limit and offset as query parameters', () async {
+      Future<Uri?> captureUri(Future<void> Function() call) async {
         Uri? capturedUri;
         when(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -856,31 +853,31 @@ void main() {
           ),
         ).thenAnswer((invocation) async {
           capturedUri = invocation.positionalArguments[1] as Uri;
-          return {
-            'threads': <dynamic>[],
-            'total': 0,
-            'limit': 10,
-            'offset': 20,
-          };
+          return {'threads': <dynamic>[]};
         });
+        await call();
+        return capturedUri;
+      }
 
-        await api.getAllThreads(limit: 10, offset: 20);
+      test('asks for the first page without a cursor', () async {
+        final uri = await captureUri(() => api.getAllThreads(limit: 10));
 
-        expect(capturedUri?.path, equals('/api/v1/agui/threads'));
-        expect(capturedUri?.queryParameters['limit'], equals('10'));
-        expect(capturedUri?.queryParameters['offset'], equals('20'));
+        expect(uri?.path, equals('/api/v1/agui/threads'));
+        expect(uri?.queryParameters['limit'], equals('10'));
+        expect(uri?.queryParameters.containsKey('cursor'), isFalse);
+      });
+
+      test('passes the cursor back unchanged', () async {
+        final uri = await captureUri(
+          () => api.getAllThreads(limit: 10, cursor: 'abc=='),
+        );
+
+        expect(uri?.queryParameters['cursor'], equals('abc=='));
       });
 
       test('rejects a non-positive limit', () {
         expect(
           () => api.getAllThreads(limit: 0),
-          throwsA(isA<ArgumentError>()),
-        );
-      });
-
-      test('rejects a negative offset', () {
-        expect(
-          () => api.getAllThreads(offset: -1),
           throwsA(isA<ArgumentError>()),
         );
       });
@@ -908,12 +905,7 @@ void main() {
             timeout: any(named: 'timeout'),
           ),
         ).thenAnswer(
-          (_) async => {
-            'threads': <dynamic>[],
-            'total': 0,
-            'limit': 50,
-            'offset': 0,
-          },
+          (_) async => {'threads': <dynamic>[]},
         );
 
         await api.getAllThreads(cancelToken: cancelToken);
