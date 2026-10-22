@@ -6,10 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.112.0+99] - 2026-10-22
 
 ### Added
 
+- A **Preferences** page, first in every ⋮ menu (the connect screen, the
+  lobby sidebar and the room rail), with one setting per device: **Low
+  bandwidth mode**, off by default. On, it asks each server for whole messages
+  instead of streamed text, by naming the server's `message` SSE delivery
+  profile; off, it asks for nothing and the server's own default applies. The
+  page lists the servers that offer no such profile and those that could not
+  be checked. It opens before sign-in. The connect screen's ⋮ tooltip now reads
+  "More".
+- **Library consumers:** `ForwardedPropsResolver`, taken by `AgentRuntime`
+  and `RunOrchestrator`, supplies a turn's `forwardedProps`. It is read once
+  when the turn opens, and every run of the turn sends that value, including
+  one resumed after a client tool. `SoliplexApi.getSseDeliveryProfiles()`
+  returns the installation's named delivery profiles.
 - **Library consumers:** following a run still going on the backend.
   `ThreadHistory.runInProgress` reports the thread's newest run, when the
   backend has not finished it and a client can follow it, with the user
@@ -41,6 +54,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   renamed `createdAt:` and is required. It is the time a message the event
   mints is dated at; `processEvent` no longer dates a message from the event's
   own `timestamp`, so a caller resolves it.
+- The Docker builder moves from Ubuntu 20.04 to 24.04 (noble), and the builder
+  and nginx base images are pinned by digest.
 
 ### Removed
 
@@ -55,6 +70,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- Leaving a room while a new thread's first reply is starting no longer loses
+  the reply.
+- **Library consumers:** `AgUiLlmProvider.startRun` sends the `forwardedProps`
+  the run input carries; it dropped them.
 - A reply with an event whose timestamp no date can hold no longer shows as
   failed with "Some of this run's events could not be read"; the event is read
   without its time.
