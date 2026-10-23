@@ -66,6 +66,7 @@ const _features = {
   'modules/quiz',
   'modules/diagnostics',
   'modules/versions',
+  'modules/preferences',
 };
 
 /// Each unit's layer; a unit may import units in a lower layer. Units in one

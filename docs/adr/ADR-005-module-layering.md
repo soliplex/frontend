@@ -72,7 +72,7 @@ flowchart BT
   core["core/ + status_message/<br/>shell, routing, inactivity, keyed storage"]
   auth["modules/auth<br/>platform: servers, sessions, guards"]
   stores["stores/<br/>cross-feature state and services"]
-  features["modules/lobby, room, quiz, diagnostics, versions<br/>features: never import each other"]
+  features["modules/lobby, room, quiz, diagnostics, versions, preferences<br/>features: never import each other"]
   flavors["flavors/<br/>composition root: may import anything"]
   shared --> core --> auth --> stores --> features --> flavors
 ```
