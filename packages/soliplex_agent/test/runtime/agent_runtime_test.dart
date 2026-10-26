@@ -7,6 +7,8 @@ import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
 import 'package:test/test.dart';
 
+import '../helpers/create_run_bodies.dart';
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -118,6 +120,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(_FakeSimpleRunAgentInput());
     registerFallbackValue(_FakeCancelToken());
+    registerFallbackValue(Uri());
   });
 
   late MockSoliplexApi api;
@@ -135,13 +138,15 @@ void main() {
   AgentRuntime createRuntime({
     PlatformConstraints? platform,
     ToolRegistryResolver? resolver,
+    AgentLlmProvider? llmProvider,
   }) {
     return AgentRuntime(
       connection: mockConnection(),
-      llmProvider: AgUiLlmProvider(
-        api: api,
-        agUiStreamClient: agUiStreamClient,
-      ),
+      llmProvider: llmProvider ??
+          AgUiLlmProvider(
+            api: api,
+            agUiStreamClient: agUiStreamClient,
+          ),
       toolRegistryResolver: resolver ?? (_) async => const ToolRegistry(),
       platform: platform ?? const NativePlatformConstraints(),
       logger: logger,
@@ -303,6 +308,91 @@ void main() {
         runtime.threadStateOf(second.threadKey)?.history?.aguiStateIncomplete,
         isTrue,
       );
+    });
+
+    group('a new turn names the run the history it sends ends with', () {
+      late List<Object?> createRunBodies;
+
+      setUp(() async {
+        await runtime.dispose();
+        final recording = providerRecordingCreateRunBodies(agUiStreamClient);
+        createRunBodies = recording.createRunBodies;
+        runtime = createRuntime(
+          llmProvider: recording.provider,
+          resolver: (_) async => _weatherRegistry(),
+        );
+      });
+
+      void stubStreams(List<Stream<DecodeOutcome>> streams) {
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
+          ),
+        ).thenAnswer((_) => streams.removeAt(0));
+      }
+
+      Future<void> send(String prompt) async {
+        final session = await runtime.spawn(
+          roomId: _roomId,
+          threadId: _threadId,
+          prompt: [TextPart(prompt)],
+        );
+        await session.result;
+        // The history is captured once the result's listeners have run.
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      test('after a turn a client tool continued, its last run', () async {
+        stubStreams([
+          _wrap(Stream.fromIterable(_toolCallEvents())),
+          _wrap(Stream.fromIterable(_resumeTextEvents())),
+          _wrap(Stream.fromIterable(_happyPathEvents())),
+        ]);
+
+        await send('Weather?');
+        await send('And tomorrow?');
+
+        expect(createRunBodies, [
+          <String, dynamic>{},
+          {'parent_run_id': 'run-1'},
+          {'parent_run_id': 'run-2'},
+        ]);
+      });
+
+      test('after a run cut off mid-reply, that run', () async {
+        // The history keeps only what the cut-off run was sent, and that
+        // carries its user message, so the next input still extends it.
+        stubStreams([
+          () async* {
+            yield DecodedEvent(
+              RunStartedEvent(threadId: _threadId, runId: _runId),
+              const {},
+            );
+            yield const DecodedEvent(
+              TextMessageStartEvent(messageId: 'msg-1'),
+              {},
+            );
+            yield const DecodedEvent(
+              TextMessageContentEvent(messageId: 'msg-1', delta: 'Hal'),
+              {},
+            );
+            throw const NetworkException(message: 'connection reset');
+          }(),
+          _wrap(Stream.fromIterable(_happyPathEvents())),
+        ]);
+
+        await send('Hi');
+        await send('And again');
+
+        expect(createRunBodies, [
+          <String, dynamic>{},
+          {'parent_run_id': 'run-1'},
+        ]);
+      });
     });
   });
 
