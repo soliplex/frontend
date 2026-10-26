@@ -86,7 +86,9 @@ void main() {
     when(
       () => api.createThread(any()),
     ).thenAnswer((_) async => (_threadInfo(), <String, dynamic>{}));
-    when(() => api.createRun(any(), any())).thenAnswer(
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer(
       (_) async =>
           RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026)),
     );
@@ -139,7 +141,13 @@ void main() {
       when(
         () => api.createThread(any()),
       ).thenAnswer((_) async => (_threadInfo(), <String, dynamic>{}));
-      when(() => api.createRun(any(), any())).thenAnswer(
+      when(
+        () => api.createRun(
+          any(),
+          any(),
+          parentRunId: any(named: 'parentRunId'),
+        ),
+      ).thenAnswer(
         (_) async =>
             RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026)),
       );
@@ -190,7 +198,13 @@ void main() {
       when(
         () => api.createThread(any()),
       ).thenAnswer((_) async => (_threadInfo(), <String, dynamic>{}));
-      when(() => api.createRun(any(), any())).thenAnswer(
+      when(
+        () => api.createRun(
+          any(),
+          any(),
+          parentRunId: any(named: 'parentRunId'),
+        ),
+      ).thenAnswer(
         (_) async =>
             RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026)),
       );

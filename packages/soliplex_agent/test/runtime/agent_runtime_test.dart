@@ -166,7 +166,9 @@ void main() {
   }
 
   void stubCreateRun() {
-    when(() => api.createRun(any(), any())).thenAnswer((_) async => _runInfo());
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer((_) async => _runInfo());
   }
 
   void stubDeleteThread() {
@@ -406,7 +408,10 @@ void main() {
 
       await session.result;
       // Should NOT call createRun because initialRunId was provided
-      verifyNever(() => api.createRun(any(), any()));
+      verifyNever(
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+      );
     });
 
     test('sends initial AG-UI state from createThread to backend', () async {

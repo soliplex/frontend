@@ -196,23 +196,23 @@ void main() {
     expect(bands['asst-1']!.steps.value, isEmpty);
   });
 
-  test(
-      'a run that continues the turn carries it on, though the run before it '
-      'stored no end', () async {
-    // Replay resumes the turn whenever the next run repeats its message, as
-    // the history's messages show it: the waiting run's outcome is taken back.
-    // Its work must move to the run that continues it, or it is left keyed to
-    // a run with no tile to show it.
+  test('a run answering a run that stored no end leaves that run its own work',
+      () async {
+    // Live never resumes a run whose stream was cut off, so replay does not
+    // join the run that names it as its parent to its turn: the cut-off run
+    // keeps its outcome, and its work stays on the tile that outcome shows.
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
     final replay = ExecutionBands.replayed();
-    Map<String, dynamic> input() => {
-          'messages': [
-            {'role': 'user', 'id': 'u1', 'content': 'Where am I?'},
-          ],
-        };
+    const question = {'role': 'user', 'id': 'u1', 'content': 'Where am I?'};
     await storedHistoryFromJson(observer: replay, [
       (
         runId: 'run-waits',
-        runInput: input(),
+        parentRunId: null,
+        runInput: {
+          'messages': [question],
+        },
         events: [
           RunStartedEvent(threadId: 't', runId: 'run-waits').toJson(),
           ...[
@@ -229,7 +229,18 @@ void main() {
       ),
       (
         runId: 'run-continues',
-        runInput: input(),
+        parentRunId: 'run-waits',
+        runInput: {
+          'messages': [
+            question,
+            {
+              'id': 'tool_result_c1',
+              'role': 'tool',
+              'toolCallId': 'c1',
+              'content': 'Paris',
+            },
+          ],
+        },
         events: [
           RunStartedEvent(threadId: 't', runId: 'run-continues').toJson(),
           ...[
@@ -246,10 +257,23 @@ void main() {
     ]);
     final bands = replay.finish();
 
-    expect(bands.keys, [noResponseMessageId('run-continues')]);
+    expect(bands.keys, [
+      noResponseMessageId('run-waits'),
+      noResponseMessageId('run-continues'),
+    ]);
+    expect(
+      bands[noResponseMessageId('run-waits')]!.thinkingBlocks.value,
+      ['need a location'],
+    );
     expect(
       bands[noResponseMessageId('run-continues')]!.thinkingBlocks.value,
-      ['need a location', 'still looking'],
+      ['still looking'],
+    );
+    expect(
+      sink.records.where(
+        (r) => r.message.contains('does not continue its parent'),
+      ),
+      hasLength(1),
     );
   });
 

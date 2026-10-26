@@ -74,7 +74,7 @@ void _stubHappyPath(
     () => api.createThread(any()),
   ).thenAnswer((_) async => (_threadInfo(threadId), <String, dynamic>{}));
   when(
-    () => api.createRun(any(), any()),
+    () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
   ).thenAnswer((_) async => _runInfo(threadId));
   when(() => api.deleteThread(any(), any())).thenAnswer((_) async {});
   when(

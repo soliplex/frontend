@@ -30,6 +30,7 @@ class _ParkedProvider implements AgentLlmProvider {
     required ThreadKey key,
     required SimpleRunAgentInput input,
     String? existingRunId,
+    String? parentRunId,
     CancelToken? cancelToken,
     void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
@@ -105,7 +106,13 @@ void main() {
         when(stub).thenReturn(null);
       }
 
-      when(() => api.createRun(any(), any())).thenAnswer(
+      when(
+        () => api.createRun(
+          any(),
+          any(),
+          parentRunId: any(named: 'parentRunId'),
+        ),
+      ).thenAnswer(
         (_) async => RunInfo(
           id: 'run-1',
           threadId: _key.threadId,

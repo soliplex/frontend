@@ -1639,6 +1639,50 @@ void main() {
           equals('/api/v1/rooms/room-123/agui/thread-456'),
         );
       });
+
+      group('body', () {
+        Future<Object?> bodySentBy(
+          Future<RunInfo> Function() createRun,
+        ) async {
+          Object? capturedBody;
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'POST',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((invocation) async {
+            capturedBody = invocation.namedArguments[#body];
+            return {'run_id': 'new'};
+          });
+          await createRun();
+          return capturedBody;
+        }
+
+        test('names the parent run', () async {
+          final body = await bodySentBy(
+            () => api.createRun(
+              'room-123',
+              'thread-456',
+              parentRunId: 'run-before',
+            ),
+          );
+
+          expect(body, {'parent_run_id': 'run-before'});
+        });
+
+        test('is empty for a run with no parent', () async {
+          final body = await bodySentBy(
+            () => api.createRun('room-123', 'thread-456'),
+          );
+
+          expect(body, <String, dynamic>{});
+        });
+      });
     });
 
     // ============================================================
@@ -5620,35 +5664,112 @@ void main() {
         ]);
       });
 
-      test(
-          'a run cut off before the run that continues its turn waited on a '
-          'client tool, as the messages replay builds say', () async {
-        stubThread({
-          'run-1': {
-            ...finished('run-1', '2026-01-07T01:00:00.000Z'),
-            'run_input': sent([asked]),
+      const toolCall = {
+        'id': 'p1',
+        'role': 'assistant',
+        'toolCalls': [
+          {
+            'id': 'tc1',
+            'type': 'function',
+            'function': {'name': 'weather', 'arguments': '{}'},
           },
+        ],
+      };
+      const toolResult = {
+        'id': 'tool_result_tc1',
+        'role': 'tool',
+        'toolCallId': 'tc1',
+        'content': 'Sunny',
+      };
+
+      test(
+          'a run waiting on a client tool ended waiting, as the run that '
+          'answers it says', () async {
+        stubThread({
+          'run-1': finished('run-1', '2026-01-07T01:00:00.000Z'),
           'run-2': {
             ...finished('run-2', '2026-01-07T02:00:00.000Z'),
-            'run_input': sent([asked]),
+            'parent_run_id': 'run-1',
           },
         });
-        stubRun('run-1', events: [started('run-1')], runInput: sent([asked]));
+        stubRun(
+          'run-1',
+          events: [
+            started('run-1'),
+            {
+              'type': 'TOOL_CALL_START',
+              'toolCallId': 'tc1',
+              'toolCallName': 'weather',
+            },
+            {'type': 'TOOL_CALL_END', 'toolCallId': 'tc1'},
+            runFinished('run-1'),
+          ],
+          runInput: sent([asked]),
+        );
         stubRun(
           'run-2',
           events: [started('run-2'), runFinished('run-2')],
-          runInput: sent([asked]),
+          runInput: sent([asked, toolCall, toolResult]),
         );
 
         expect(await replayed(), [
           'run-1 starts, continuing no turn, AwaitingText',
           'RUN_STARTED, AwaitingText',
+          'TOOL_CALL_START, AwaitingText',
+          'TOOL_CALL_END, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
           'ends waitingOnClientTool',
           'run-2 starts, continuing its turn, AwaitingText',
           'RUN_STARTED, AwaitingText',
           'RUN_FINISHED, AwaitingText',
           'ends completed',
         ]);
+      });
+
+      // Live never resumes a run whose stream was cut off, so a run naming
+      // one as its parent cannot have continued it.
+      test(
+          'a run cut off before the run that answers it ended failed, as the '
+          'messages replay builds say', () async {
+        final logs = captureRecords('does not continue its parent');
+        stubThread({
+          'run-1': finished('run-1', '2026-01-07T01:00:00.000Z'),
+          'run-2': {
+            ...finished('run-2', '2026-01-07T02:00:00.000Z'),
+            'parent_run_id': 'run-1',
+          },
+        });
+        stubRun(
+          'run-1',
+          events: [
+            started('run-1'),
+            {
+              'type': 'TOOL_CALL_START',
+              'toolCallId': 'tc1',
+              'toolCallName': 'weather',
+            },
+            {'type': 'TOOL_CALL_END', 'toolCallId': 'tc1'},
+          ],
+          runInput: sent([asked]),
+        );
+        stubRun(
+          'run-2',
+          events: [started('run-2'), runFinished('run-2')],
+          runInput: sent([asked, toolCall, toolResult]),
+        );
+
+        expect(await replayed(), [
+          'run-1 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'TOOL_CALL_START, AwaitingText',
+          'TOOL_CALL_END, AwaitingText',
+          'ends failed',
+          'run-2 starts, continuing no turn, AwaitingText',
+          'RUN_STARTED, AwaitingText',
+          'RUN_FINISHED, AwaitingText',
+          'ends completed',
+        ]);
+        expect(logs(), hasLength(1));
       });
 
       test(
@@ -5865,7 +5986,8 @@ void main() {
           'does not report a run that continues the turn of the run before '
           'it, as a run resumed after a client tool does, and says so in the '
           'log', () async {
-        final notFollowed = captureRecords('continues a turn');
+        final notFollowed =
+            captureRecords('repeats a message the thread already holds');
         stubThread({
           'run-1': {...finishedRunOne, 'run_input': sentHello('user-1')},
           'run-2': {
@@ -5875,6 +5997,17 @@ void main() {
               'messages': [
                 {'id': 'user-1', 'role': 'user', 'content': 'hello'},
                 {
+                  'id': 'p1',
+                  'role': 'assistant',
+                  'toolCalls': [
+                    {
+                      'id': 'call-1',
+                      'type': 'function',
+                      'function': {'name': 'weather', 'arguments': '{}'},
+                    },
+                  ],
+                },
+                {
                   'id': 'tool-result-1',
                   'role': 'tool',
                   'toolCallId': 'call-1',
@@ -5882,6 +6015,30 @@ void main() {
                 },
               ],
             },
+          },
+        });
+        stubRun('run-1', events: runOneEvents, runInput: sentHello('user-1'));
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.runInProgress, isNull);
+        expect(notFollowed(), hasLength(1));
+        expect(notFollowed().single.attributes['runId'], 'run-2');
+      });
+
+      // Following a run opens a turn with its message; one the thread
+      // already shows would be shown, and sent, twice.
+      test(
+          'does not report a run that repeats a message the thread already '
+          'shows, and says so in the log', () async {
+        final notFollowed =
+            captureRecords('repeats a message the thread already holds');
+        stubThread({
+          'run-1': {...finishedRunOne, 'run_input': sentHello('user-1')},
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'run_input': sentHello('user-1'),
           },
         });
         stubRun('run-1', events: runOneEvents, runInput: sentHello('user-1'));
@@ -7191,11 +7348,13 @@ void main() {
         expect(texts, containsAll(['first question', 'second question']));
       });
 
-      // A continuation run adds no user turn, so its `run_input` still ends
-      // with the message its parent contributed. Appending is blind, so the
-      // guard is the only thing keeping the turn to one bubble.
+      // A continuation run adds no user turn, so its `run_input` still holds
+      // the message its parent contributed, ahead of the tool results it
+      // answers with. Appending is blind, so the guard is the only thing
+      // keeping the turn to one bubble.
       test('a continuation run does not repeat its parent user message',
           () async {
+        final repeats = captureRecords('repeats message');
         final history = await hydrate({
           'run-1': {
             ...userInput('user-1', 'do the thing'),
@@ -7209,7 +7368,23 @@ void main() {
             'run_input': {
               'messages': [
                 {'id': 'user-1', 'role': 'user', 'content': 'do the thing'},
-                {'id': 'a-1', 'role': 'assistant', 'content': 'calling a tool'},
+                {
+                  'id': 'a-1',
+                  'role': 'assistant',
+                  'toolCalls': [
+                    {
+                      'id': 'c1',
+                      'type': 'function',
+                      'function': {'name': 'tool', 'arguments': '{}'},
+                    },
+                  ],
+                },
+                {
+                  'id': 'tool_result_c1',
+                  'role': 'tool',
+                  'toolCallId': 'c1',
+                  'content': 'done',
+                },
               ],
             },
             'events': [
@@ -7226,6 +7401,34 @@ void main() {
         );
         // Both runs key their state to the one message; the later run wins.
         expect(history.messageStates['user-1']?.runId, equals('run-2'));
+        expect(repeats(), isEmpty, reason: 'a continuation repeats by design');
+      });
+
+      // Every send mints a fresh id, so a run that repeats one without
+      // answering a tool is not this client's: it is reported, and its
+      // message kept to one bubble.
+      test('a run that repeats a message without answering a tool is reported',
+          () async {
+        final repeats = captureRecords('repeats message');
+        final history = await hydrate({
+          'run-1': {
+            ...userInput('user-1', 'do the thing'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-1'},
+            ],
+          },
+          'run-2': {
+            ...userInput('user-1', 'do the thing'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-2'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-2'},
+            ],
+          },
+        });
+
+        expect(history.messages.where((m) => m.id == 'user-1'), hasLength(1));
+        expect(repeats().map((r) => r.level), [LogLevel.error]);
       });
 
       // One id given to two different messages is two turns, not one resumed:
@@ -8557,10 +8760,16 @@ void main() {
     });
 
     group('getThreadHistory transcript', () {
-      Map<String, dynamic> listed(String runId, String created) => {
+      Map<String, dynamic> listed(
+        String runId,
+        String created, {
+        String? parent,
+      }) =>
+          {
             'run_id': runId,
             'created': created,
             'finished': created,
+            if (parent != null) 'parent_run_id': parent,
           };
       Map<String, dynamic> userMessage(String id, String text) =>
           {'id': id, 'role': 'user', 'content': text};
@@ -8830,10 +9039,11 @@ void main() {
         ]);
       });
 
-      // run-a waits on a client tool and run-c repeats its user message,
-      // answering a call of its own; [stubB] answers for the run between them.
-      // Whatever run-b is, run-c continues no turn but its own, so run-a keeps
-      // its outcome, and with it the tile that shows its work.
+      // run-a waits on a client tool and run-c answers it, naming run-a as its
+      // parent; [stubB] answers for the run between them. Whatever run-b is,
+      // run-a is not the run before run-c, so run-c continues no turn but its
+      // own, and run-a keeps its outcome, and with it the tile that shows its
+      // work.
       Future<ThreadHistory> replayedAroundRunB(
         void Function() stubB, {
         RunFoldObserver? observer,
@@ -8841,7 +9051,11 @@ void main() {
         stubThread({
           'run-a': listed('run-a', '2026-01-07T01:00:00.000Z'),
           'run-b': listed('run-b', '2026-01-07T01:01:00.000Z'),
-          'run-c': listed('run-c', '2026-01-07T01:02:00.000Z'),
+          'run-c': listed(
+            'run-c',
+            '2026-01-07T01:02:00.000Z',
+            parent: 'run-a',
+          ),
         });
         stubRun(
           'run-a',
@@ -8865,9 +9079,20 @@ void main() {
             'messages': [
               userMessage('u1', 'Where am I?'),
               {
-                'id': 'tool_result_call-other',
+                'id': 'p1',
+                'role': 'assistant',
+                'toolCalls': [
+                  {
+                    'id': 'call-locate',
+                    'type': 'function',
+                    'function': {'name': 'locate', 'arguments': '{}'},
+                  },
+                ],
+              },
+              {
+                'id': 'tool_result_call-locate',
                 'role': 'tool',
-                'toolCallId': 'call-other',
+                'toolCallId': 'call-locate',
                 'content': 'Paris',
               },
             ],
@@ -8894,6 +9119,7 @@ void main() {
       // What the run after it continues is unknown.
       test('a run after one that could not be fetched starts a new turn',
           () async {
+        final notContinued = captureRecords('does not continue its parent');
         final observer = _RecordingObserver();
         final history = await replayedAroundRunB(observer: observer, () {
           when(
@@ -8916,40 +9142,15 @@ void main() {
           'run-a starts, continuing no turn, AwaitingText',
           'run-c starts, continuing no turn, AwaitingText',
         ]);
+        expect(notContinued(), hasLength(1));
       });
 
-      test('a run after one with no user message starts a new turn', () async {
-        final observer = _RecordingObserver();
-        final history = await replayedAroundRunB(
-          observer: observer,
-          () => stubRun(
-            'run-b',
-            runInput: {'messages': <Object?>[]},
-            events: [
-              event(
-                'RUN_STARTED',
-                {'threadId': 'thread-456', 'runId': 'run-b'},
-              ),
-              event(
-                'RUN_FINISHED',
-                {'threadId': 'thread-456', 'runId': 'run-b'},
-              ),
-            ],
-          ),
-        );
-
-        expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
-        expect(runStarts(observer), [
-          'run-a starts, continuing no turn, AwaitingText',
-          'run-b starts, continuing no turn, AwaitingText',
-          'run-c starts, continuing no turn, AwaitingText',
-        ]);
-      });
-
-      // A repeat of an earlier turn's message does not resume the turn in
-      // between.
-      test('a run repeating an earlier turn after another starts a new turn',
-          () async {
+      // Only the run replayed just before can be the one a run continues; a
+      // waiting run further back is not looked up by id.
+      test(
+          'a run naming a waiting run that is not the one before it starts a '
+          'new turn', () async {
+        final notContinued = captureRecords('does not continue its parent');
         final observer = _RecordingObserver();
         final history = await replayedAroundRunB(
           observer: observer,
@@ -8977,6 +9178,273 @@ void main() {
           'run-b starts, continuing no turn, AwaitingText',
           'run-c starts, continuing no turn, AwaitingText',
         ]);
+        expect(notContinued(), hasLength(1));
+      });
+
+      group('a run continues the turn of the run before it', () {
+        // run-a asks for a client tool and waits; [runB] is stored after it.
+        const waitingEvents = [
+          {'type': 'RUN_STARTED', 'threadId': 'thread-456', 'runId': 'run-a'},
+          {
+            'type': 'TEXT_MESSAGE_START',
+            'messageId': 'p1',
+            'role': 'assistant',
+          },
+          {'type': 'TEXT_MESSAGE_END', 'messageId': 'p1'},
+          {
+            'type': 'TOOL_CALL_START',
+            'toolCallId': 'tc1',
+            'toolCallName': 'weather',
+            'parentMessageId': 'p1',
+          },
+          {'type': 'TOOL_CALL_END', 'toolCallId': 'tc1'},
+          {'type': 'RUN_FINISHED', 'threadId': 'thread-456', 'runId': 'run-a'},
+        ];
+        final question = userMessage('u1', 'Weather?');
+        final call = {
+          'id': 'p1',
+          'role': 'assistant',
+          'content': '',
+          'toolCalls': [
+            {
+              'id': 'tc1',
+              'type': 'function',
+              'function': {'name': 'weather', 'arguments': '{}'},
+            },
+          ],
+        };
+        const result = {
+          'id': 'tool_result_tc1',
+          'role': 'tool',
+          'toolCallId': 'tc1',
+          'content': 'Sunny',
+        };
+        final answer = [
+          event('RUN_STARTED', {'threadId': 'thread-456', 'runId': 'run-b'}),
+          event('TEXT_MESSAGE_START', {'messageId': 'a2', 'role': 'assistant'}),
+          event('TEXT_MESSAGE_CONTENT', {'messageId': 'a2', 'delta': 'Sunny.'}),
+          event('TEXT_MESSAGE_END', {'messageId': 'a2'}),
+          event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-b'}),
+        ];
+
+        // [parentOfB] is the listing's `parent_run_id` for run-b as the wire
+        // carries it, a run id or a value of the wrong type.
+        Future<(ThreadHistory, List<String>)> replay({
+          Object? parentOfB,
+          List<Map<String, dynamic>> runAEvents = waitingEvents,
+          List<Object?>? runBMessages,
+        }) async {
+          stubThread({
+            'run-a': listed('run-a', '2026-01-07T01:00:00.000Z'),
+            'run-b': {
+              ...listed('run-b', '2026-01-07T01:01:00.000Z'),
+              if (parentOfB != null) 'parent_run_id': parentOfB,
+            },
+          });
+          stubRun(
+            'run-a',
+            runInput: {
+              'messages': [question],
+            },
+            events: runAEvents,
+          );
+          stubRun(
+            'run-b',
+            runInput: {
+              'messages': runBMessages ?? [question, call, result],
+            },
+            events: answer,
+          );
+          final observer = _RecordingObserver();
+          final history = await api.getThreadHistory(
+            'room-123',
+            'thread-456',
+            observer: observer,
+          );
+          return (history, runStarts(observer));
+        }
+
+        test('when it names the waiting run and answers its call', () async {
+          final (history, starts) = await replay(parentOfB: 'run-a');
+
+          expect(starts, [
+            'run-a starts, continuing no turn, AwaitingText',
+            'run-b starts, continuing its turn, AwaitingText',
+          ]);
+          // The waiting run's outcome is taken back: it was not over.
+          expect(history.runOutcomes.keys, ['run-b']);
+        });
+
+        test('when the result it carries cannot be read', () async {
+          final unreadable = captureRecords('could not be read as a tool');
+          final (history, starts) = await replay(
+            parentOfB: 'run-a',
+            // A tool message with no call to answer is not a tool message
+            // replay can read, but the input still ends with the result.
+            runBMessages: [
+              question,
+              call,
+              {'id': 'tool_result_tc1', 'role': 'tool', 'content': 'Sunny'},
+            ],
+          );
+
+          expect(
+            starts.last,
+            'run-b starts, continuing its turn, AwaitingText',
+          );
+          expect(history.runOutcomes.keys, ['run-b']);
+          expect(unreadable(), hasLength(1));
+        });
+
+        test('not when it names no parent', () async {
+          final logs = captureRecords('does not continue its parent');
+          final (history, starts) = await replay();
+
+          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
+          expect(history.runOutcomes.keys, ['run-a', 'run-b']);
+          expect(logs(), hasLength(1));
+        });
+
+        test('not when its parent is not a run id', () async {
+          final unreadable = captureRecords('`parent_run_id`');
+          final notContinued = captureRecords('does not continue its parent');
+          final (_, starts) = await replay(parentOfB: 42);
+
+          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
+          expect(unreadable().map((r) => r.level), [LogLevel.warning]);
+          expect(unreadable().single.attributes['runId'], 'run-b');
+          expect(notContinued(), hasLength(1));
+        });
+
+        // A later turn's input still carries an earlier turn's tool exchange;
+        // only how the input ends says the run answers a tool.
+        test("not when a tool message is followed by the user's", () async {
+          final notContinued = captureRecords('does not continue its parent');
+          final (history, starts) = await replay(
+            runBMessages: [question, call, result, userMessage('u2', 'Thanks')],
+          );
+
+          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
+          expect(history.runOutcomes.keys, ['run-a', 'run-b']);
+          expect(notContinued(), isEmpty);
+        });
+
+        test("not when its input ends with the user's message", () async {
+          final (history, starts) = await replay(
+            parentOfB: 'run-a',
+            runBMessages: [question],
+          );
+
+          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
+          expect(history.runOutcomes.keys, ['run-a', 'run-b']);
+        });
+
+        test('not when its parent ended with an error', () async {
+          final logs = captureRecords('does not continue its parent');
+          final (history, starts) = await replay(
+            parentOfB: 'run-a',
+            runAEvents: [
+              ...waitingEvents.take(waitingEvents.length - 1),
+              event('RUN_ERROR', {'message': 'boom'}),
+            ],
+          );
+
+          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
+          expect(
+            history.runOutcomes['run-a']?.reason,
+            TerminalReason.failed,
+          );
+          expect(logs(), hasLength(1));
+        });
+
+        test('not when its parent left no call pending', () async {
+          final logs = captureRecords('does not continue its parent');
+          final (history, starts) = await replay(
+            parentOfB: 'run-a',
+            runAEvents: [
+              event(
+                'RUN_STARTED',
+                {'threadId': 'thread-456', 'runId': 'run-a'},
+              ),
+              event(
+                'RUN_FINISHED',
+                {'threadId': 'thread-456', 'runId': 'run-a'},
+              ),
+            ],
+          );
+
+          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
+          expect(history.runOutcomes.keys, ['run-a', 'run-b']);
+          expect(logs(), hasLength(1));
+        });
+
+        // run-a's call stays pending: nothing answered it before run-x
+        // opened a turn of its own. run-x left nothing pending, so a run
+        // naming it is not answering it.
+        test("not when the call left pending is an earlier run's", () async {
+          final logs = captureRecords('does not continue its parent');
+          stubThread({
+            'run-a': listed('run-a', '2026-01-07T01:00:00.000Z'),
+            'run-x': listed('run-x', '2026-01-07T01:01:00.000Z'),
+            'run-b': listed(
+              'run-b',
+              '2026-01-07T01:02:00.000Z',
+              parent: 'run-x',
+            ),
+          });
+          stubRun(
+            'run-a',
+            runInput: {
+              'messages': [question],
+            },
+            events: waitingEvents,
+          );
+          stubRun(
+            'run-x',
+            runInput: {
+              'messages': [userMessage('u2', 'Never mind')],
+            },
+            events: [
+              event(
+                'RUN_STARTED',
+                {'threadId': 'thread-456', 'runId': 'run-x'},
+              ),
+              event(
+                'RUN_FINISHED',
+                {'threadId': 'thread-456', 'runId': 'run-x'},
+              ),
+            ],
+          );
+          stubRun(
+            'run-b',
+            runInput: {
+              'messages': [question, call, result],
+            },
+            events: answer,
+          );
+          final observer = _RecordingObserver();
+
+          await api.getThreadHistory(
+            'room-123',
+            'thread-456',
+            observer: observer,
+          );
+
+          expect(
+            runStarts(observer).last,
+            'run-b starts, continuing no turn, AwaitingText',
+          );
+          expect(logs(), hasLength(1));
+        });
+
+        test('not when its parent is not the run before it', () async {
+          final logs = captureRecords('does not continue its parent');
+          final (history, starts) = await replay(parentOfB: 'run-elsewhere');
+
+          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
+          expect(history.runOutcomes.keys, ['run-a', 'run-b']);
+          expect(logs(), hasLength(1));
+        });
       });
 
       test('skips a supplied tool message it cannot read, keeping the rest',

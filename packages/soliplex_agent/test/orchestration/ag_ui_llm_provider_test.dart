@@ -95,7 +95,13 @@ void main() {
         );
 
         expect(handle.runId, 'existing-run-42');
-        verifyNever(() => mockApi.createRun(any(), any()));
+        verifyNever(
+          () => mockApi.createRun(
+            any(),
+            any(),
+            parentRunId: any(named: 'parentRunId'),
+          ),
+        );
       });
 
       test('builds correct endpoint from key and runId', () async {

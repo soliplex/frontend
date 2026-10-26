@@ -22,10 +22,11 @@ class AgUiLlmProvider implements AgentLlmProvider {
     required ThreadKey key,
     required SimpleRunAgentInput input,
     String? existingRunId,
+    String? parentRunId,
     CancelToken? cancelToken,
     void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
-    final runId = existingRunId ?? await _createRun(key);
+    final runId = existingRunId ?? await _createRun(key, parentRunId);
     final updatedInput = SimpleRunAgentInput(
       threadId: input.threadId,
       runId: runId,
@@ -62,8 +63,12 @@ class AgUiLlmProvider implements AgentLlmProvider {
   String _endpoint(ThreadKey key, String runId) =>
       'rooms/${key.roomId}/agui/${key.threadId}/$runId';
 
-  Future<String> _createRun(ThreadKey key) async {
-    final runInfo = await _api.createRun(key.roomId, key.threadId);
+  Future<String> _createRun(ThreadKey key, String? parentRunId) async {
+    final runInfo = await _api.createRun(
+      key.roomId,
+      key.threadId,
+      parentRunId: parentRunId,
+    );
     return runInfo.id;
   }
 }

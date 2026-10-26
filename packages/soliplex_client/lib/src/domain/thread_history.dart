@@ -118,8 +118,9 @@ class ThreadHistory {
   /// still going, which a client can follow to its end. Null when the newest
   /// run has finished; was never sent a message (a thread's initial run before
   /// its first send); has an entry whose id or message cannot be read; or
-  /// continues a turn the thread already holds, as a run resumed after a
-  /// client tool does, which cannot be followed without resuming that turn.
+  /// repeats a message the thread already holds: a run resumed after a
+  /// client tool does, which cannot be followed without resuming that turn,
+  /// and following any other would show the message twice.
   ///
   /// Not part of [messages], [transcript], [runs] or [runOutcomes]: nothing
   /// of it is replayed, because its stored events are only what it has sent

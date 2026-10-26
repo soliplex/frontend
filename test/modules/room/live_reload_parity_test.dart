@@ -105,8 +105,14 @@ class _BandWatch {
 }
 
 Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
-  final (session: _, :orchestrator, trackers: ext, :events, sent: _) =
-      startLiveSession(key: _key, runId: _runId);
+  final (
+    session: _,
+    :orchestrator,
+    trackers: ext,
+    :events,
+    sent: _,
+    parents: _
+  ) = startLiveSession(key: _key, runId: _runId);
   final watch = _BandWatch();
   await Future<void>.delayed(Duration.zero);
   for (final (index, event) in sequence.indexed) {
@@ -350,6 +356,7 @@ Future<({_Inputs live, _Inputs reloaded})> _clientToolTurn(
     ].indexed)
       (
         runId: runId,
+        parentRunId: session.parents[index],
         runInput: session.sent[index].toJson(),
         events: [for (final event in events) event.toJson()],
       ),

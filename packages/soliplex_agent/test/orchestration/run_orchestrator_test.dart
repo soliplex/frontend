@@ -9,6 +9,8 @@ import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
 import 'package:test/test.dart';
 
+import '../helpers/create_run_bodies.dart';
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -113,6 +115,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(_FakeSimpleRunAgentInput());
     registerFallbackValue(_FakeCancelToken());
+    registerFallbackValue(Uri());
   });
   late MockSoliplexApi api;
   late MockAgUiStreamClient agUiStreamClient;
@@ -138,7 +141,9 @@ void main() {
   });
 
   void stubCreateRun() {
-    when(() => api.createRun(any(), any())).thenAnswer((_) async => _runInfo());
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer((_) async => _runInfo());
   }
 
   void stubRunAgent({required Stream<BaseEvent> stream}) {
@@ -210,7 +215,10 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      verifyNever(() => api.createRun(any(), any()));
+      verifyNever(
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+      );
       expect(orchestrator.currentState, isA<CompletedState>());
     });
 
@@ -395,7 +403,8 @@ void main() {
 
     test('createRun throws transitions to FailedState', () async {
       when(
-        () => api.createRun(any(), any()),
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       ).thenThrow(const AuthException(message: 'Token expired'));
 
       await orchestrator
@@ -1686,6 +1695,32 @@ void main() {
       expect(toolResult.runId, equals(yielding.runId));
     });
 
+    test('the resumed run names the run that yielded as its parent', () async {
+      final (:provider, :createRunBodies) =
+          providerRecordingCreateRunBodies(agUiStreamClient);
+      orchestrator = RunOrchestrator(
+        llmProvider: provider,
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubRunAgentSequential(
+        first: Stream.fromIterable(_toolCallEvents()),
+        second: Stream.fromIterable(_resumeTextEvents()),
+      );
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
+      await Future<void>.delayed(Duration.zero);
+      await orchestrator.submitToolOutputs(_executedTools());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      expect(createRunBodies, [
+        <String, dynamic>{},
+        {'parent_run_id': 'run-1'},
+      ]);
+    });
+
     test('throws when not in ToolYieldingState', () {
       expect(
         () => orchestrator.submitToolOutputs(_executedTools()),
@@ -1908,7 +1943,13 @@ void main() {
       // failure here leaves the yield without a run of its own to record the
       // ending — the yielding run is the only one there is.
       var call = 0;
-      when(() => api.createRun(any(), any())).thenAnswer((_) async {
+      when(
+        () => api.createRun(
+          any(),
+          any(),
+          parentRunId: any(named: 'parentRunId'),
+        ),
+      ).thenAnswer((_) async {
         call++;
         if (call == 1) return _runInfo();
         throw const NetworkException(message: 'could not create the resume');
@@ -2285,7 +2326,8 @@ void main() {
 
       final resumeCreateRun = Completer<RunInfo>();
       when(
-        () => api.createRun(any(), any()),
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       ).thenAnswer((_) => resumeCreateRun.future);
 
       toolExecutorTrigger.complete();
@@ -2380,7 +2422,8 @@ void main() {
 
       final resumeCreateRun = Completer<RunInfo>();
       when(
-        () => api.createRun(any(), any()),
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       ).thenAnswer((_) => resumeCreateRun.future);
 
       toolExecutorTrigger.complete();
@@ -2439,7 +2482,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       final resumeCreateRun = Completer<RunInfo>();
       when(
-        () => api.createRun(any(), any()),
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       ).thenAnswer((_) => resumeCreateRun.future);
       toolExecutorTrigger.complete();
       await Future<void>.delayed(Duration.zero);
@@ -2455,7 +2499,8 @@ void main() {
     test('dispose during startRun await aborts', () async {
       final createRunCompleter = Completer<RunInfo>();
       when(
-        () => api.createRun(any(), any()),
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       ).thenAnswer((_) => createRunCompleter.future);
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
@@ -2499,7 +2544,8 @@ void main() {
       // Make the resume createRun hang.
       final resumeCompleter = Completer<RunInfo>();
       when(
-        () => api.createRun(any(), any()),
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       ).thenAnswer((_) => resumeCompleter.future);
 
       unawaited(orchestrator.submitToolOutputs(_executedTools()));
@@ -2547,8 +2593,13 @@ void main() {
         // Pins that `_handleStartError` routes a cancel during the
         // initial `startRun` await (the IdleState window) to
         // `CancelledState`, not `FailedState`.
-        when(() => api.createRun(any(), any()))
-            .thenThrow(const CancelledException(reason: 'user'));
+        when(
+          () => api.createRun(
+            any(),
+            any(),
+            parentRunId: any(named: 'parentRunId'),
+          ),
+        ).thenThrow(const CancelledException(reason: 'user'));
 
         await orchestrator
             .startRun(key: _key, userMessage: [const TextPart('Hi')]);
@@ -2573,7 +2624,8 @@ void main() {
       //     than overwriting it with RunningState via _subscribeToStream.
       final createRunCompleter = Completer<RunInfo>();
       when(
-        () => api.createRun(any(), any()),
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       ).thenAnswer((_) => createRunCompleter.future);
       stubRunAgent(stream: const Stream<BaseEvent>.empty());
 

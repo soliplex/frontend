@@ -276,6 +276,7 @@ class StaticSoliplexApi extends SoliplexApi {
   Future<RunInfo> createRun(
     String roomId,
     String threadId, {
+    String? parentRunId,
     CancelToken? cancelToken,
   }) async =>
       RunInfo(

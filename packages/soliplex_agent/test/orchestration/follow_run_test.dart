@@ -296,7 +296,9 @@ void main() {
       ),
     );
     Object? resumeSent;
-    when(() => api.createRun('room', 'thread')).thenAnswer(
+    // Answers only a run that names the followed one as its parent, the run
+    // whose wait it continues.
+    when(() => api.createRun('room', 'thread', parentRunId: _runId)).thenAnswer(
       (_) async => RunInfo(
         id: 'run-2',
         threadId: 'thread',

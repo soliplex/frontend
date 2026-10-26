@@ -59,7 +59,9 @@ void main() {
       if (!events.isClosed) await events.close();
     });
 
-    when(() => api.createRun(any(), any())).thenAnswer(
+    when(() =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')))
+        .thenAnswer(
       (_) async => RunInfo(
         id: _runId,
         threadId: 't',

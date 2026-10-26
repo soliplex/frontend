@@ -95,7 +95,9 @@ void main() {
   }
 
   void stubCreateRun() {
-    when(() => api.createRun(any(), any())).thenAnswer((_) async => _runInfo());
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer((_) async => _runInfo());
   }
 
   void stubDeleteThread() {

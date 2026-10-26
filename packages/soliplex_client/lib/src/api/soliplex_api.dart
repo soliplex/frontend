@@ -567,6 +567,8 @@ class SoliplexApi {
   /// Parameters:
   /// - [roomId]: The room ID (must not be empty)
   /// - [threadId]: The thread ID (must not be empty)
+  /// - [parentRunId]: The run in [threadId] whose conversation the new run's
+  ///   input extends; null to name none
   ///
   /// Returns a [RunInfo] for the newly created run.
   ///
@@ -580,6 +582,7 @@ class SoliplexApi {
   Future<RunInfo> createRun(
     String roomId,
     String threadId, {
+    String? parentRunId,
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
@@ -588,7 +591,9 @@ class SoliplexApi {
     final response = await _transport.request<Map<String, dynamic>>(
       'POST',
       _urlBuilder.build(pathSegments: ['rooms', roomId, 'agui', threadId]),
-      body: <String, dynamic>{},
+      body: <String, dynamic>{
+        if (parentRunId != null) 'parent_run_id': parentRunId,
+      },
       cancelToken: cancelToken,
     );
 

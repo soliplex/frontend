@@ -438,6 +438,7 @@ class FakeSoliplexApi extends SoliplexApi {
   Future<RunInfo> createRun(
     String roomId,
     String threadId, {
+    String? parentRunId,
     CancelToken? cancelToken,
   }) async {
     if (createRunGate != null) await createRunGate!.future;
