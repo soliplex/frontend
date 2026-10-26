@@ -465,7 +465,7 @@ ThreadHistory replayThreadHistory(
     // history tells the runs it read from the ones it could not fetch.
     if (fetchError == null) {
       runs.add(
-        RunEventBundle(runId: runId, continuesTurn: continuesTurn),
+        RunEventBundle(runId: runId),
       );
     }
 

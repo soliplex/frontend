@@ -8834,7 +8834,10 @@ void main() {
       // answering a call of its own; [stubB] answers for the run between them.
       // Whatever run-b is, run-c continues no turn but its own, so run-a keeps
       // its outcome, and with it the tile that shows its work.
-      Future<ThreadHistory> replayedAroundRunB(void Function() stubB) {
+      Future<ThreadHistory> replayedAroundRunB(
+        void Function() stubB, {
+        RunFoldObserver? observer,
+      }) {
         stubThread({
           'run-a': listed('run-a', '2026-01-07T01:00:00.000Z'),
           'run-b': listed('run-b', '2026-01-07T01:01:00.000Z'),
@@ -8874,13 +8877,25 @@ void main() {
             event('RUN_FINISHED', {'threadId': 'thread-456', 'runId': 'run-c'}),
           ],
         );
-        return api.getThreadHistory('room-123', 'thread-456');
+        return api.getThreadHistory(
+          'room-123',
+          'thread-456',
+          observer: observer,
+        );
       }
+
+      // Each run replay told [observer] of starting, and whether it continued
+      // a turn.
+      List<String> runStarts(_RecordingObserver observer) => [
+            for (final line in observer.seen)
+              if (line.contains(' starts, ')) line,
+          ];
 
       // What the run after it continues is unknown.
       test('a run after one that could not be fetched starts a new turn',
           () async {
-        final history = await replayedAroundRunB(() {
+        final observer = _RecordingObserver();
+        final history = await replayedAroundRunB(observer: observer, () {
           when(
             () => mockTransport.request<Map<String, dynamic>>(
               'GET',
@@ -8897,14 +8912,16 @@ void main() {
         });
 
         expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
-        expect(
-          {for (final run in history.runs) run.runId: run.continuesTurn},
-          {'run-a': false, 'run-c': false},
-        );
+        expect(runStarts(observer), [
+          'run-a starts, continuing no turn, AwaitingText',
+          'run-c starts, continuing no turn, AwaitingText',
+        ]);
       });
 
       test('a run after one with no user message starts a new turn', () async {
+        final observer = _RecordingObserver();
         final history = await replayedAroundRunB(
+          observer: observer,
           () => stubRun(
             'run-b',
             runInput: {'messages': <Object?>[]},
@@ -8922,17 +8939,20 @@ void main() {
         );
 
         expect(history.runOutcomes.keys, containsAll(['run-a', 'run-c']));
-        expect(
-          history.runs.map((run) => run.continuesTurn),
-          everyElement(false),
-        );
+        expect(runStarts(observer), [
+          'run-a starts, continuing no turn, AwaitingText',
+          'run-b starts, continuing no turn, AwaitingText',
+          'run-c starts, continuing no turn, AwaitingText',
+        ]);
       });
 
       // A repeat of an earlier turn's message does not resume the turn in
       // between.
       test('a run repeating an earlier turn after another starts a new turn',
           () async {
+        final observer = _RecordingObserver();
         final history = await replayedAroundRunB(
+          observer: observer,
           () => stubRun(
             'run-b',
             runInput: {
@@ -8952,10 +8972,11 @@ void main() {
         );
 
         expect(history.runOutcomes.keys, ['run-a', 'run-b', 'run-c']);
-        expect(
-          history.runs.map((run) => run.continuesTurn),
-          everyElement(false),
-        );
+        expect(runStarts(observer), [
+          'run-a starts, continuing no turn, AwaitingText',
+          'run-b starts, continuing no turn, AwaitingText',
+          'run-c starts, continuing no turn, AwaitingText',
+        ]);
       });
 
       test('skips a supplied tool message it cannot read, keeping the rest',
