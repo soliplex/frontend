@@ -392,6 +392,7 @@ class RunOrchestrator {
       final handle = await _llmProvider.startRun(
         key: yielding.threadKey,
         input: input,
+        parentRunId: yielding.runId,
         cancelToken: _cancelToken,
       );
       if (_interruptedDuringResume()) return;
@@ -579,6 +580,7 @@ class RunOrchestrator {
     final handle = await _llmProvider.startRun(
       key: yielding.threadKey,
       input: input,
+      parentRunId: yielding.runId,
       cancelToken: _cancelToken,
       onReconnectStatus: _activeOnReconnectStatus,
     );

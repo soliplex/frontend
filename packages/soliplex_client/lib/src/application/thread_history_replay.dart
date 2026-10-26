@@ -38,7 +38,9 @@ typedef RunUserMessage = ({
 /// What a run's GET yielded: the AG-UI events the backend streamed, plus the
 /// user message that initiated the run, which those events never carry, and
 /// the tool results that end its input, which they carry only for server
-/// tools.
+/// tools. `endsWithToolMessage` says the input ends with a tool message, as
+/// the input of a run that answers client tools does, read from the raw
+/// message so a result `toolResults` could not read still counts.
 ///
 /// `events` is `List<Object?>` rather than `List<dynamic>` deliberately. Items
 /// must survive shape drift as *data* — the replay loop mints a drop tile for
@@ -49,11 +51,12 @@ typedef RunPayload = ({
   List<Object?> events,
   RunUserMessage? userMessage,
   List<ToolMessage> toolResults,
+  bool endsWithToolMessage,
 });
 
-/// One run as replay sees it: its payload joined with the identity, fetch
-/// outcome, and server `created` time from the thread listing, in creation
-/// order.
+/// One run as replay sees it: its payload joined with the identity, parent,
+/// fetch outcome, and server `created` time from the thread listing, in
+/// creation order.
 ///
 /// Separate from [RunPayload] because [RunPayload] is what the run cache
 /// stores. A fetch outcome or a listing timestamp folded into it would be
@@ -61,6 +64,7 @@ typedef RunPayload = ({
 /// true.
 typedef ReplayRun = ({
   String runId,
+  String? parentRunId,
   RunPayload payload,
   SoliplexException? fetchError,
   StackTrace? fetchStackTrace,
@@ -86,6 +90,7 @@ const RunPayload noRunData = (
   events: <Object?>[],
   userMessage: null,
   toolResults: <ToolMessage>[],
+  endsWithToolMessage: false,
 );
 
 /// Builds the history of thread [threadId] from its listing, [thread],
@@ -135,6 +140,7 @@ Future<ThreadHistory> assembleThreadHistory(
   //    the candidate run in progress.
   final slots = <({
     String runId,
+    String? parentRunId,
     MalformedResponseException? malformed,
     DateTime? created,
   })>[];
@@ -146,6 +152,7 @@ Future<ThreadHistory> assembleThreadHistory(
       slots.add(
         (
           runId: key,
+          parentRunId: null,
           malformed: MalformedResponseException(
             message: 'Run entry $key has unexpected shape: '
                 '${value.runtimeType}',
@@ -175,6 +182,7 @@ Future<ThreadHistory> assembleThreadHistory(
       slots.add(
         (
           runId: key,
+          parentRunId: null,
           malformed: MalformedResponseException(
             message: 'Run entry $key missing `run_id` (got $got)',
           ),
@@ -183,7 +191,22 @@ Future<ThreadHistory> assembleThreadHistory(
       );
       continue;
     }
-    slots.add((runId: rawRunId, malformed: null, created: created));
+    final parentRunId = value['parent_run_id'];
+    if (parentRunId != null && parentRunId is! String) {
+      _logger.warning(
+        'replay: run $rawRunId in thread $threadId has `parent_run_id` as '
+        '${parentRunId.runtimeType}, not a string; it is read as no parent.',
+        attributes: {'threadId': threadId, 'runId': rawRunId},
+      );
+    }
+    slots.add(
+      (
+        runId: rawRunId,
+        parentRunId: parentRunId is String ? parentRunId : null,
+        malformed: null,
+        created: created,
+      ),
+    );
   }
 
   if (slots.isEmpty) {
@@ -211,10 +234,11 @@ Future<ThreadHistory> assembleThreadHistory(
   //    (results may arrive out of order).
   final fetchByRunId = {for (final r in results) r.runId: r};
   final runsToReplay = <ReplayRun>[
-    for (final (:runId, :malformed, :created) in slots)
+    for (final (:runId, :parentRunId, :malformed, :created) in slots)
       if (malformed != null)
         (
           runId: runId,
+          parentRunId: parentRunId,
           payload: noRunData,
           fetchError: malformed,
           // Built here, not thrown, so there is no stack worth carrying.
@@ -224,6 +248,7 @@ Future<ThreadHistory> assembleThreadHistory(
       else
         (
           runId: runId,
+          parentRunId: parentRunId,
           payload: fetchByRunId[runId]!.payload,
           fetchError: fetchByRunId[runId]!.fetchError,
           fetchStackTrace: fetchByRunId[runId]!.fetchStackTrace,
@@ -266,40 +291,60 @@ ThreadHistory replayThreadHistory(
   var conversation = Conversation.empty(threadId: threadId);
   final storedStateWarnings = <ThreadStateWarning>{...scopeWarnings};
   final runs = <RunEventBundle>[];
-  // Text of the user messages already appended, keyed by id, so a
-  // continuation run does not add its parent's message a second time. An
-  // index of what this loop appended, rather than a scan of the whole
-  // conversation, so it cannot be confused by an assistant message that
-  // happens to share an id.
-  //
-  // The text is kept because a repeated id has two very different causes: a
-  // continuation run re-stating the turn it continues, or one id assigned to
-  // two different messages. Both drop the second message; only the first is
-  // harmless, and without the text they are indistinguishable.
-  final appendedUserText = <String, String>{};
-  // The run replayed just before, with the user message that opened its turn.
-  // A run continues that turn only when it repeats that message: it was
-  // resumed from the run before it, whose citations, accumulated across every
-  // run of the turn, carry on. They carry cited ids and inline figures so an
-  // earlier invocation's figure survives a later invocation's `searches`
-  // clear, mirroring the live path. A run that could not be fetched, or had no
-  // user message, leaves none, so the run after it starts a turn of its own.
-  ({String userMessageId, RunFold fold})? previousRun;
+  // Ids of the user messages already appended, so a continuation run does not
+  // add its parent's message a second time. An index of what this loop
+  // appended, rather than a scan of the whole conversation, so it cannot be
+  // confused by an assistant message that happens to share an id.
+  final appendedUserIds = <String>{};
+  // The run replayed just before, and whether it ended waiting on a client
+  // tool. A run continues its turn only when it answers that wait: its input
+  // ends with a tool message and names that run as its parent. It is resumed
+  // from that run, whose citations, accumulated across every run of the turn,
+  // carry on. They carry cited ids and inline figures so an earlier
+  // invocation's figure survives a later invocation's `searches` clear,
+  // mirroring the live path. A run that could not be fetched leaves none, so
+  // the run after it starts a turn of its own.
+  ({String runId, RunFold fold, bool waitsOnClientTool})? previousRun;
   // Where the measured run ended in the transcript, once replay reaches it.
   int? coveredByLatest;
   // How the run replayed last ended, untold until the next run whose events
   // were read starts: a run the next one continues waited on a client tool,
-  // whatever its own events say, as `_resumed` takes its outcome back. The
-  // observer is told then, or when the history ends.
+  // though its events end as completed, as `_resumed` takes its outcome back.
+  // The observer is told then, or when the history ends.
   RunEnding? untoldEnding;
 
-  for (final (:runId, :payload, :fetchError, :fetchStackTrace, :created)
-      in runsToReplay) {
+  for (final (
+        :runId,
+        :parentRunId,
+        :payload,
+        :fetchError,
+        :fetchStackTrace,
+        :created,
+      ) in runsToReplay) {
     final events = payload.events;
     final userMessage = payload.userMessage;
     final previous = previousRun;
     previousRun = null;
-    var continuesTurn = false;
+    final continuesTurn = payload.endsWithToolMessage &&
+        previous != null &&
+        previous.runId == parentRunId &&
+        previous.waitsOnClientTool;
+    // Live resumes only the run that just waited on a client tool, so a run
+    // answering any other is one replay cannot join to a turn: it names no
+    // parent, or its parent could not be read, ended otherwise, or is not the
+    // run before it.
+    if (payload.endsWithToolMessage && !continuesTurn) {
+      _logger.warning(
+        'replay: run $runId in thread $threadId does not continue its '
+        'parent; it starts a turn of its own.',
+        attributes: {
+          'threadId': threadId,
+          'runId': runId,
+          'parentRunId': parentRunId,
+          'previousRunId': previous?.runId,
+        },
+      );
+    }
     // Run-level fetch failure (transient HTTP error or pre-fetch
     // shape-drift on the run entry) → mint one drop tile in place so
     // the run is visibly missing from the timeline rather than
@@ -333,31 +378,28 @@ ThreadHistory replayThreadHistory(
     // A run that could not be fetched has no user message to append, so its
     // drop tile stands alone.
     //
-    // A repeat id is normally a continuation run, whose `run_input`'s last
-    // user message is still the one its parent already contributed; the
-    // turn keeps one bubble and later runs fold their events onto it.
+    // A run answering client tools repeats the user message of the turn it
+    // answers, whether or not replay could join it to that turn; the turn
+    // keeps one bubble. Every send mints a fresh id, so a repeat from any
+    // other run is not this client's: one of the two turns is missing from
+    // the timeline and the history sent, and its citations are keyed onto
+    // the other.
     if (userMessage != null) {
-      final appended = appendedUserText[userMessage.messageId];
-      if (appended == null) {
-        appendedUserText[userMessage.messageId] = userMessage.text;
+      if (appendedUserIds.add(userMessage.messageId)) {
         conversation = appendUserMessage(
           conversation,
           _hydratedUserMessage(userMessage, threadId, runId),
         );
-      } else if (appended == userMessage.text) {
-        continuesTurn = previous?.userMessageId == userMessage.messageId;
-        _logger.info(
-          'replay: run $runId in thread $threadId repeats message '
-          '${userMessage.messageId}; not appending it twice.',
-        );
-      } else {
-        // Same id, different message: one of the two turns is missing from
-        // the timeline and the history sent, and its citations are keyed
-        // onto the other.
+      } else if (!payload.endsWithToolMessage) {
         _logger.error(
-          'replay: run $runId in thread $threadId reuses message id '
-          '${userMessage.messageId} for different text; the user message of '
-          'this run is dropped from the timeline and the history sent.',
+          'replay: run $runId in thread $threadId repeats message '
+          '${userMessage.messageId} without answering a tool; it is dropped '
+          'from the timeline and the history sent.',
+          attributes: {
+            'threadId': threadId,
+            'runId': runId,
+            'messageId': userMessage.messageId,
+          },
         );
       }
     }
@@ -378,11 +420,12 @@ ThreadHistory replayThreadHistory(
         transcript: payload.toolResults
             .fold<Transcript>(conversation.transcript, appendToolResult),
       );
-      final resumedFrom = continuesTurn ? previous?.fold : null;
+      final resumedFrom = continuesTurn ? previous.fold : null;
       if (resumedFrom != null) {
         conversation = _resumed(conversation, resumedFrom, payload.toolResults);
       }
 
+      final callsBefore = conversation.toolCalls.length;
       var fold = RunFold.start(
         conversation,
         runId: runId,
@@ -437,8 +480,17 @@ ThreadHistory replayThreadHistory(
       // resolve.
       fold = fold.resolveTurn();
       conversation = fold.conversation;
+      previousRun = (
+        runId: runId,
+        fold: fold,
+        // Taken as a tool yield, as live would take it: the run finished with
+        // a call it started still unanswered.
+        waitsOnClientTool: conversation.status is Completed &&
+            conversation.toolCalls
+                .skip(callsBefore)
+                .any((call) => call.status == ToolCallStatus.pending),
+      );
       if (userMessageId != null) {
-        previousRun = (userMessageId: userMessageId, fold: fold);
         // The fold dates the user message from the run's `RUN_STARTED`, as
         // live does; a stored run without one leaves it to the run record.
         if (created != null) {
@@ -487,15 +539,17 @@ ThreadHistory replayThreadHistory(
   // Nothing continues the turn of the history's last run.
   if (untoldEnding != null) told?.runEnded(untoldEnding);
 
-  // A run in progress whose message the thread already holds continues that
-  // message's turn, as a run resumed after a client tool does. Following it
-  // would need the turn resumed as live resumes it (the waiting run's outcome
-  // taken back, the tool results it was sent added), so it is not reported.
+  // A run in progress whose message the thread already holds either
+  // continues that message's turn, as a run resumed after a client tool does,
+  // or sends it again. Following the first would need the turn resumed as live
+  // resumes it (the waiting run's outcome taken back, the tool results it was
+  // sent added); following the second would show and send the message twice.
+  // Neither is reported.
   var followable = runInProgress;
   if (followable != null &&
-      appendedUserText.containsKey(followable.userMessage.id)) {
+      appendedUserIds.contains(followable.userMessage.id)) {
     _logger.info(
-      'replay: the run in progress continues a turn the thread already '
+      'replay: the run in progress repeats a message the thread already '
       'holds; it is not followed.',
       attributes: {'threadId': threadId, 'runId': followable.runId},
     );
@@ -695,7 +749,20 @@ RunPayload runPayloadFromJson(
     events: rawEvents is List ? rawEvents : const <Object?>[],
     userMessage: _extractUserMessage(rawRun, threadId, runId),
     toolResults: _extractToolResults(rawRun, threadId, runId),
+    endsWithToolMessage: _inputEndsWithToolMessage(rawRun),
   );
+}
+
+/// Whether [rawRun]'s input ends with a tool message. A malformed `run_input`
+/// or `messages` is already reported by [_extractUserMessage], so it reads
+/// here as no.
+bool _inputEndsWithToolMessage(Map<String, dynamic> rawRun) {
+  final runInput = rawRun['run_input'];
+  if (runInput is! Map<String, dynamic>) return false;
+  final rawMessages = runInput['messages'];
+  if (rawMessages is! List || rawMessages.isEmpty) return false;
+  final last = rawMessages.last;
+  return last is Map<String, dynamic> && last['role'] == 'tool';
 }
 
 /// The user message that initiated the run [runId], read from `run_input`.

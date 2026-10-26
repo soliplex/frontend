@@ -43,13 +43,15 @@ void registerLiveSessionFallbacks() {
 /// A session running [runId], fed by [events], with its band registry
 /// attached as the room attaches one, unless `startLiveSession` was given a
 /// `foldObserver`, which observes in its place. `sent` collects the input each
-/// of its runs was sent, in order.
+/// of its runs was sent, in order, and `parents` the parent each was created
+/// with.
 typedef LiveSession = ({
   AgentSession session,
   RunOrchestrator orchestrator,
   ExecutionTrackerExtension trackers,
   StreamController<Map<String, dynamic>> events,
   List<SimpleRunAgentInput> sent,
+  List<String?> parents,
 });
 
 /// [event] as the stream client delivers it: sent as JSON text, decoded by
@@ -80,13 +82,17 @@ LiveSession startLiveSession({
   final streamClient = _MockStreamClient();
   final events = StreamController<Map<String, dynamic>>();
   final runIds = [runId, for (final run in laterRuns) run.runId];
-  when(() => api.createRun(any(), any())).thenAnswer(
-    (_) async => RunInfo(
+  final parents = <String?>[];
+  when(() =>
+          api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')))
+      .thenAnswer((invocation) async {
+    parents.add(invocation.namedArguments[#parentRunId] as String?);
+    return RunInfo(
       id: runIds.removeAt(0),
       threadId: key.threadId,
       createdAt: DateTime.utc(2026),
-    ),
-  );
+    );
+  });
   final streams = [
     events.stream,
     for (final run in laterRuns) Stream.fromIterable(run.events),
@@ -140,6 +146,7 @@ LiveSession startLiveSession({
     trackers: trackers,
     events: events,
     sent: sent,
+    parents: parents,
   );
 }
 
@@ -180,6 +187,7 @@ Future<ThreadHistory> storedHistory(
       for (final run in runs)
         (
           runId: run.runId,
+          parentRunId: null,
           runInput: {
             'messages': [
               {'role': 'user', 'id': run.userMessageId, 'content': run.prompt},
@@ -189,10 +197,12 @@ Future<ThreadHistory> storedHistory(
         ),
     ]);
 
-/// A run as the backend stores it, in JSON: its id, the input it was sent,
-/// and its events, which may include one the client cannot decode.
+/// A run as the backend stores it, in JSON: its id, the run it was created
+/// with as its parent, the input it was sent, and its events, which may
+/// include one the client cannot decode.
 typedef StoredRunJson = ({
   String runId,
+  String? parentRunId,
   Map<String, dynamic> runInput,
   List<Map<String, dynamic>> events,
 });
@@ -238,6 +248,7 @@ Future<ThreadHistory> storedHistoryFromJson(
           'run_id': run.runId,
           'created': DateTime.utc(2026, 1, 7, 1, index).toIso8601String(),
           'finished': DateTime.utc(2026, 1, 7, 1, index, 30).toIso8601String(),
+          if (run.parentRunId case final parent?) 'parent_run_id': parent,
         },
     },
   });

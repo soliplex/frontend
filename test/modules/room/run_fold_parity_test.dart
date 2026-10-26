@@ -84,7 +84,12 @@ void main() {
     await storedHistoryFromJson(observer: reloadSteps, [
       for (final (index, MapEntry(key: runId, value: events))
           in runs.entries.indexed)
-        (runId: runId, runInput: live.sent[index].toJson(), events: events),
+        (
+          runId: runId,
+          parentRunId: live.parents[index],
+          runInput: live.sent[index].toJson(),
+          events: events,
+        ),
     ]);
 
     expect(liveSteps.seen, isNotEmpty);

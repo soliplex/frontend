@@ -7,6 +7,8 @@ import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
 import 'package:test/test.dart';
 
+import '../helpers/create_run_bodies.dart';
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -102,6 +104,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(_FakeSimpleRunAgentInput());
     registerFallbackValue(_FakeCancelToken());
+    registerFallbackValue(Uri());
   });
 
   late MockSoliplexApi api;
@@ -120,7 +123,9 @@ void main() {
   });
 
   void stubCreateRun() {
-    when(() => api.createRun(any(), any())).thenAnswer((_) async => _runInfo());
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer((_) async => _runInfo());
   }
 
   void stubRunAgent({required Stream<BaseEvent> stream}) {
@@ -267,6 +272,45 @@ void main() {
 
       expect(result, isA<CompletedState>());
       expect(callCount, equals(4));
+    });
+
+    test('each resumed run names the run before it as its parent', () async {
+      final (:provider, :createRunBodies) =
+          providerRecordingCreateRunBodies(agUiStreamClient);
+      orchestrator = RunOrchestrator(
+        llmProvider: provider,
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      var callCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        callCount++;
+        // Two runs yield to the tool, the third answers.
+        return callCount <= 2
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
+      });
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: [const TextPart('Weather?')],
+        toolExecutor: _defaultToolExecutor,
+      );
+
+      expect(result, isA<CompletedState>());
+      expect(createRunBodies, [
+        <String, dynamic>{},
+        {'parent_run_id': 'run-1'},
+        {'parent_run_id': 'run-2'},
+      ]);
     });
 
     test('tool depth exceeded → FailedState', () async {
@@ -437,7 +481,13 @@ void main() {
         logger: logger,
       );
       var callCount = 0;
-      when(() => api.createRun(any(), any())).thenAnswer((_) async {
+      when(
+        () => api.createRun(
+          any(),
+          any(),
+          parentRunId: any(named: 'parentRunId'),
+        ),
+      ).thenAnswer((_) async {
         callCount++;
         if (callCount > 1) throw Exception('resume API error');
         return _runInfo();

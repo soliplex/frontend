@@ -122,7 +122,9 @@ void main() {
   void serve(List<({String runId, Stream<DecodeOutcome> events})> runs) {
     final queue = [...runs];
     final streams = <Stream<DecodeOutcome>>[];
-    when(() => api.createRun(any(), any())).thenAnswer((_) async {
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer((_) async {
       final run = queue.removeAt(0);
       streams.add(run.events);
       return RunInfo(
@@ -337,7 +339,9 @@ void main() {
       'a run whose turn cannot resume after its client tool ends again, '
       'failed', () async {
     var created = 0;
-    when(() => api.createRun(any(), any())).thenAnswer((_) async {
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer((_) async {
       if (created++ > 0) {
         throw const NetworkException(message: 'unreachable');
       }
@@ -470,8 +474,9 @@ void main() {
   });
 
   test('a run that could not be started reports nothing', () async {
-    when(() => api.createRun(any(), any()))
-        .thenThrow(const NetworkException(message: 'unreachable'));
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenThrow(const NetworkException(message: 'unreachable'));
 
     final state = await run(orchestratorWith());
 

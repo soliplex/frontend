@@ -8,6 +8,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- A run resumed after a client tool names the run it continues as its
+  parent, which the backend records (v0.86 or later). **Library
+  consumers:** `SoliplexApi.createRun` takes `parentRunId`, sent as the
+  backend's `parent_run_id`.
+
+### Changed
+
+- **Library consumers (breaking):** `AgentLlmProvider.startRun` takes
+  `parentRunId`, the run whose conversation the input extends, which only a
+  client-tool resume names so far. An implementation that runs in-process
+  ignores it.
+- A reopened thread joins a run to the turn before it only when the run
+  names that run as its parent, its input ends with a tool message, and that
+  run finished with a call still pending; a repeated user message no longer
+  joins them. A run that repeats a user message without answering a tool is
+  logged as an error.
+
 ### Removed
 
 - **Library consumers (breaking):** `RunEventBundle.continuesTurn`. A reader

@@ -50,10 +50,16 @@ abstract interface class AgentLlmProvider {
   /// the AG-UI backend (the only provider that can drop and resume
   /// mid-run). Other providers ignore the callback. Optional — null
   /// means no reconnect surfacing.
+  ///
+  /// [parentRunId] names the run whose conversation [input] extends, for a
+  /// backend that records runs to link the new one to it; null names none.
+  /// It is ignored with [existingRunId], which creates no run, and by
+  /// providers that run in-process, which record no runs.
   Future<LlmRunHandle> startRun({
     required ThreadKey key,
     required SimpleRunAgentInput input,
     String? existingRunId,
+    String? parentRunId,
     CancelToken? cancelToken,
     void Function(ReconnectStatus)? onReconnectStatus,
   });

@@ -83,7 +83,10 @@ flowchart LR
      by the stored events' times. Live knows at once that a run waits on a
      client tool; replay holds each run's ending until the next run whose
      events were read starts and says whether it continues the turn, or the
-     history ends.
+     history ends. A run continues the turn when it names the run before it
+     as its parent (`parent_run_id`), its input ends with a tool message, and
+     that run finished with a call still pending, as a live tool yield
+     does.
    - A client tool's call has one step, from the model's `TOOL_CALL_START`.
      Running the tool adds none; its card shows how it went.
 4. **Where things render is decided once, by a pure function.**
@@ -122,8 +125,8 @@ flowchart LR
      run. A run that waited on a client tool, read without the run that
      resumed it, would otherwise end the turn early (`0f67979b`).
    - History reads no run the backend has not finished. It reports the
-     thread's newest run, if still going, sent a message, and not resuming a
-     turn the thread already holds (§5, item 5), as
+     thread's newest run, if still going, sent a message, and not repeating
+     a message the thread already holds (§5, item 5), as
      `ThreadHistory.runInProgress`, and the view follows it as a live run
      (`AgentRuntime.follow`): the same fold, states, tile and registry entry,
      from the run's first stored event. It is not followed while a session
@@ -232,8 +235,9 @@ From #619's "Not in this PR" and #566's known issues:
      and resume the turn, as live does. A run followed in two places at once
      would be resumed twice.
    - A run already resuming a turn when the thread loads (its message repeats
-     the run before it) is not followed: that needs the turn resumed first, as
-     live resumes it, which is the turn model of item 1.
+     one the thread holds) is not followed: that needs the turn resumed first,
+     as live resumes it, which is the turn model of item 1. Nor is one that
+     sends a held message again, which following would show twice.
 6. **Mutation-testing survivors.** #566 listed survivors (the whitespace
    guard, the active-run guard, a dead known-run entry). It is not recorded
    whether later work closed them.

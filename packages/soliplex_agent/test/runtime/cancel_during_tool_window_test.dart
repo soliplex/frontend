@@ -178,7 +178,9 @@ void main() {
       toolRegistry: _registry(),
       logger: logger,
     );
-    when(() => api.createRun(any(), any())).thenAnswer((_) async => _runInfo());
+    when(
+      () => api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+    ).thenAnswer((_) async => _runInfo());
     when(
       () => agUiStreamClient.runAgent(
         any(),
@@ -311,7 +313,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<IdleState>());
-      verifyNever(() => api.createRun(any(), any()));
+      verifyNever(
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+      );
       // The runtime awaits this before disposing the session and draining
       // the spawn queue, so it has to settle.
       expect(
@@ -349,7 +354,10 @@ void main() {
       attaching.complete();
 
       await expectLater(started, completes);
-      verifyNever(() => api.createRun(any(), any()));
+      verifyNever(
+        () =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
+      );
       expect(await session.result, isA<AgentFailure>());
     },
   );

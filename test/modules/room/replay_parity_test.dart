@@ -200,11 +200,13 @@ Map<String, Object?> _parityView({
     };
 
 /// How a live run ended: its conversation, the input each of its runs was
-/// sent, and the bands the room collected for it.
+/// sent and the parent each was created with, and the bands the room
+/// collected for it.
 typedef _LiveRun = ({
   RunState state,
   Conversation conversation,
   List<SimpleRunAgentInput> sent,
+  List<String?> parents,
   Map<String, ExecutionTracker> bands,
 });
 
@@ -222,7 +224,9 @@ void main() {
     final streamClient = _MockAgUiStreamClient();
     final runIds = runs.keys.toList();
     final streams = runs.values.toList();
-    when(() => api.createRun(any(), any())).thenAnswer(
+    when(() =>
+            api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')))
+        .thenAnswer(
       (_) async => RunInfo(
         id: runIds.removeAt(0),
         threadId: _key.threadId,
@@ -289,13 +293,14 @@ void main() {
       state: state,
       conversation: conversation,
       sent: live.sent,
+      parents: live.parents,
       bands: live.trackers.trackers,
     );
   }
 
   /// Runs [runs] live, then reloads them as the backend stored them — each
-  /// run's input as live sent it, and its events — and expects both paths to
-  /// arrive at the same thread.
+  /// run's parent and input as live sent them, and its events — and expects
+  /// both paths to arrive at the same thread.
   ///
   /// Storing the input live sent is what gives both paths one user message
   /// id: the backend stores the id the client minted.
@@ -310,6 +315,7 @@ void main() {
           in runs.entries.indexed)
         (
           runId: runId,
+          parentRunId: live.parents[index],
           runInput: live.sent[index].toJson(),
           events: events,
         ),

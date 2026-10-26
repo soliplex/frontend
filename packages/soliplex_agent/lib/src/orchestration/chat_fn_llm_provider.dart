@@ -72,6 +72,7 @@ class ChatFnLlmProvider implements AgentLlmProvider {
     required ThreadKey key,
     required SimpleRunAgentInput input,
     String? existingRunId,
+    String? parentRunId,
     CancelToken? cancelToken,
     void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
