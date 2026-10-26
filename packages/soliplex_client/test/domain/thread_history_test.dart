@@ -105,11 +105,11 @@ void main() {
 
     test('is immutable - runs list cannot be modified externally', () {
       final runs = <RunEventBundle>[
-        const RunEventBundle(continuesTurn: false, runId: 'run-1'),
+        const RunEventBundle(runId: 'run-1'),
       ];
       final history = ThreadHistory(messages: const [], runs: runs);
 
-      runs.add(const RunEventBundle(continuesTurn: false, runId: 'run-2'));
+      runs.add(const RunEventBundle(runId: 'run-2'));
 
       expect(history.runs, hasLength(1));
     });

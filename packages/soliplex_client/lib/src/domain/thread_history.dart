@@ -154,17 +154,8 @@ class RunInProgress {
 @immutable
 class RunEventBundle {
   /// Records that [runId]'s events were read.
-  const RunEventBundle({
-    required this.runId,
-    required this.continuesTurn,
-  });
+  const RunEventBundle({required this.runId});
 
   /// The run read.
   final String runId;
-
-  /// Whether this run continues the turn of the run before it: its user
-  /// message repeats that run's, as a run resumed after a client tool does.
-  /// Live collects a turn's work into one band across that wait, so reload has
-  /// to know.
-  final bool continuesTurn;
 }

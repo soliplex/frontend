@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Removed
+
+- **Library consumers (breaking):** `RunEventBundle.continuesTurn`. A reader
+  that needs whether a replayed run continues a turn passes a
+  `RunFoldObserver` to `getThreadHistory` and reads `runStarted`'s
+  `continuesTurn`.
+
 ## [0.112.0+99] - 2026-10-22
 
 ### Added

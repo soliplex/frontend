@@ -691,8 +691,8 @@ void main() {
         ),
       },
       runs: [
-        const RunEventBundle(runId: 'run-waits', continuesTurn: false),
-        const RunEventBundle(runId: 'run-continues', continuesTurn: true),
+        const RunEventBundle(runId: 'run-waits'),
+        const RunEventBundle(runId: 'run-continues'),
       ],
     );
 
@@ -817,7 +817,7 @@ void main() {
             ),
         },
         runs: const [
-          RunEventBundle(runId: 'run-waits', continuesTurn: false),
+          RunEventBundle(runId: 'run-waits'),
         ],
       );
       stored = [
