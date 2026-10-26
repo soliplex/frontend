@@ -266,6 +266,7 @@ class RunOrchestrator {
         key: key,
         input: input,
         existingRunId: existingRunId,
+        parentRunId: conversation.transcript.lastRunId,
         cancelToken: _cancelToken,
       );
       if (_disposedDuringAwait()) return;
@@ -452,6 +453,7 @@ class RunOrchestrator {
       key: key,
       input: input,
       existingRunId: existingRunId,
+      parentRunId: conversation.transcript.lastRunId,
       cancelToken: _cancelToken,
       onReconnectStatus: _activeOnReconnectStatus,
     );

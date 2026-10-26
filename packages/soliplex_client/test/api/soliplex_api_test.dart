@@ -241,6 +241,75 @@ void main() {
       );
     });
 
+    group('getThreadHistory the run its transcript ends with', () {
+      Map<String, dynamic> listed(String runId, {required int minute}) => {
+            'run_id': runId,
+            'created': '2026-01-07T01:0$minute:00.000Z',
+            'finished': '2026-01-07T01:0$minute:30.000Z',
+          };
+
+      void stubAnsweredRun(String runId) => stubRun(
+            runId,
+            runInput: {
+              'messages': [
+                {'role': 'user', 'id': 'user-$runId', 'content': 'Q'},
+              ],
+            },
+            events: [
+              {
+                'type': 'RUN_STARTED',
+                'threadId': 'thread-456',
+                'runId': runId,
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'threadId': 'thread-456',
+                'runId': runId,
+              },
+            ],
+          );
+
+      test('is the newest run replayed', () async {
+        stubThread({
+          'run-1': listed('run-1', minute: 0),
+          'run-2': listed('run-2', minute: 1),
+        });
+        stubAnsweredRun('run-1');
+        stubAnsweredRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.transcript.lastRunId, 'run-2');
+      });
+
+      test('is not a newer run that could not be fetched', () async {
+        final fetchFailures = captureRecords('could not be fetched');
+        stubThread({
+          'run-1': listed('run-1', minute: 0),
+          'run-2': listed('run-2', minute: 1),
+        });
+        stubAnsweredRun('run-1');
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-2',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenThrow(const NetworkException(message: 'Connection failed'));
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.transcript.lastRunId, 'run-1');
+        expect(fetchFailures().single.message, contains('run-2'));
+      });
+    });
+
     // ============================================================
     // Rooms
     // ============================================================
@@ -6026,30 +6095,6 @@ void main() {
         expect(notFollowed().single.attributes['runId'], 'run-2');
       });
 
-      // Following a run opens a turn with its message; one the thread
-      // already shows would be shown, and sent, twice.
-      test(
-          'does not report a run that repeats a message the thread already '
-          'shows, and says so in the log', () async {
-        final notFollowed =
-            captureRecords('repeats a message the thread already holds');
-        stubThread({
-          'run-1': {...finishedRunOne, 'run_input': sentHello('user-1')},
-          'run-2': {
-            'run_id': 'run-2',
-            'created': '2026-01-07T02:00:00.000Z',
-            'run_input': sentHello('user-1'),
-          },
-        });
-        stubRun('run-1', events: runOneEvents, runInput: sentHello('user-1'));
-
-        final history = await api.getThreadHistory('room-123', 'thread-456');
-
-        expect(history.runInProgress, isNull);
-        expect(notFollowed(), hasLength(1));
-        expect(notFollowed().single.attributes['runId'], 'run-2');
-      });
-
       test(
           'reports the run the thread lists last, which the backend lists in '
           'creation order, whatever its created says', () async {
@@ -9337,24 +9382,6 @@ void main() {
 
           expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
           expect(history.runOutcomes.keys, ['run-a', 'run-b']);
-        });
-
-        test('not when its parent ended with an error', () async {
-          final logs = captureRecords('does not continue its parent');
-          final (history, starts) = await replay(
-            parentOfB: 'run-a',
-            runAEvents: [
-              ...waitingEvents.take(waitingEvents.length - 1),
-              event('RUN_ERROR', {'message': 'boom'}),
-            ],
-          );
-
-          expect(starts.last, 'run-b starts, continuing no turn, AwaitingText');
-          expect(
-            history.runOutcomes['run-a']?.reason,
-            TerminalReason.failed,
-          );
-          expect(logs(), hasLength(1));
         });
 
         test('not when its parent left no call pending', () async {

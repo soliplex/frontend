@@ -846,6 +846,44 @@ void main() {
   });
 
   group('cachedHistory', () {
+    test('a send on a history names the run the history ends with', () async {
+      final (:provider, :createRunBodies) =
+          providerRecordingCreateRunBodies(agUiStreamClient);
+      orchestrator = RunOrchestrator(
+        llmProvider: provider,
+        toolRegistry: const ToolRegistry(),
+        logger: logger,
+      );
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) => _wrap(Stream.fromIterable(_happyPathEvents())));
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+      final first = orchestrator.currentState as CompletedState;
+      await orchestrator.startRun(
+        key: _key,
+        userMessage: [const TextPart('And again')],
+        cachedHistory: ThreadHistory(
+          messages: first.conversation.messages,
+          transcript: first.conversation.transcript,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(createRunBodies, [
+        <String, dynamic>{},
+        {'parent_run_id': 'run-1'},
+      ]);
+    });
+
     test('prepends cached messages before new user message', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));

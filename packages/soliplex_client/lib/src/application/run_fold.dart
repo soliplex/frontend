@@ -36,19 +36,26 @@ class RunFold {
     required String? userMessageId,
     required TurnCitations turnCitations,
     required DateTime? runCreated,
-  }) =>
-      RunFold._(
-        conversation: conversation.withStatus(Running(runId: runId)),
-        streaming: const AwaitingText(),
-        runId: runId,
-        userMessageId: userMessageId,
-        turnCitations: turnCitations,
-        sentTranscript: conversation.transcript,
-        unreadable: false,
-        eventIndex: 0,
-        runCreated: runCreated,
-        lastEventTime: null,
-      );
+  }) {
+    // The run is marked on the transcript before that transcript is kept as
+    // what the run was sent, so a cut-off run reverted to it still names this
+    // run as the next send's parent.
+    final transcript = conversation.transcript.withRunStarted(runId);
+    return RunFold._(
+      conversation: conversation
+          .copyWith(transcript: transcript)
+          .withStatus(Running(runId: runId)),
+      streaming: const AwaitingText(),
+      runId: runId,
+      userMessageId: userMessageId,
+      turnCitations: turnCitations,
+      sentTranscript: transcript,
+      unreadable: false,
+      eventIndex: 0,
+      runCreated: runCreated,
+      lastEventTime: null,
+    );
+  }
 
   const RunFold._({
     required this.conversation,
@@ -83,14 +90,14 @@ class RunFold {
   /// What the turn has cited so far, across its runs.
   final TurnCitations turnCitations;
 
-  /// The history the run was sent, until its state snapshot or its
-  /// `RUN_FINISHED` is processed. A run cut off before then keeps this instead
-  /// of what it streamed: the snapshot, which the backend sends just before
-  /// the terminal event, is the state that accounts for what it streamed, and
-  /// a backend that receives a run's results without it, as haiku.rag does its
-  /// evidence, can refuse the history. A run that finished is complete, so an
-  /// ending recorded after it (a client tool failing while the run waits on
-  /// it) keeps what was streamed.
+  /// The history the run was sent, marked as started on this run, until its
+  /// state snapshot or its `RUN_FINISHED` is processed. A run cut off before
+  /// then keeps this instead of what it streamed: the snapshot, which the
+  /// backend sends just before the terminal event, is the state that accounts
+  /// for what it streamed, and a backend that receives a run's results without
+  /// it, as haiku.rag does its evidence, can refuse the history. A run that
+  /// finished is complete, so an ending recorded after it (a client tool
+  /// failing while the run waits on it) keeps what was streamed.
   final Transcript? _sentTranscript;
 
   /// Whether any event became a drop tile: one that could not be decoded, or

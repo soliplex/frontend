@@ -1018,4 +1018,32 @@ void main() {
       const TextMessageContentEvent(messageId: 'm1', delta: 'Partial answ'),
     ]);
   });
+
+  test('a turn sent after a reload names the newest run the reload read',
+      () async {
+    // The parent comes from the history the reload seeded, so it reaches
+    // createRun only if that history carries it from replay to the send.
+    StoredRun answered(String runId) => (
+          runId: runId,
+          userMessageId: 'u-$runId',
+          prompt: 'Q',
+          events: [
+            RunStartedEvent(threadId: 't', runId: runId),
+            const TextMessageStartEvent(messageId: 'a'),
+            const TextMessageContentEvent(messageId: 'a', delta: 'A'),
+            const TextMessageEndEvent(messageId: 'a'),
+            RunFinishedEvent(threadId: 't', runId: runId),
+          ],
+        );
+    final history = await storedHistory([
+      answered('run-1'),
+      answered('run-2'),
+    ]);
+
+    final live =
+        startLiveSession(key: _key, runId: _runId, cachedHistory: history);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(live.parents, ['run-2']);
+  });
 }

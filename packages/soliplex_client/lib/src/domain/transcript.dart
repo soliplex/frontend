@@ -10,7 +10,7 @@ typedef OpenToolCall = ({ToolCall call, String parentId});
 /// The AG-UI messages a thread sends as its history — its user messages, the
 /// messages its events build, and the tool results supplied for its calls, in
 /// the order they arrived — with what building it carries from one event to
-/// the next.
+/// the next, and the run last started on it.
 ///
 /// Its messages start empty and only grow: a change appends a message or
 /// replaces one in place. A backend that numbers a thread's questions by
@@ -21,12 +21,14 @@ final class Transcript {
   const Transcript()
       : messages = const [],
         openToolCalls = const {},
-        unansweredToolCallIds = const {};
+        unansweredToolCallIds = const {},
+        lastRunId = null;
 
   const Transcript._(
     this.messages,
     this.openToolCalls,
     this.unansweredToolCallIds,
+    this.lastRunId,
   );
 
   /// The messages to send.
@@ -44,12 +46,18 @@ final class Transcript {
   @internal
   final Set<String> unansweredToolCallIds;
 
+  /// The last run started on this transcript, whether or not what it
+  /// streamed was kept: the run a send extending it names as its parent. Null
+  /// before any run has started.
+  final String? lastRunId;
+
   /// Returns a copy with [message] appended.
   @internal
   Transcript withAppendedMessage(Message message) => Transcript._(
         UnmodifiableListView([...messages, message]),
         openToolCalls,
         unansweredToolCallIds,
+        lastRunId,
       );
 
   /// Returns a copy with the message at [index] replaced by [message].
@@ -58,6 +66,16 @@ final class Transcript {
         UnmodifiableListView([...messages]..[index] = message),
         openToolCalls,
         unansweredToolCallIds,
+        lastRunId,
+      );
+
+  /// Returns a copy that names [runId] as the last run started on it.
+  @internal
+  Transcript withRunStarted(String runId) => Transcript._(
+        messages,
+        openToolCalls,
+        unansweredToolCallIds,
+        runId,
       );
 
   /// Creates a copy with the given call bookkeeping replaced; its messages
@@ -78,5 +96,6 @@ final class Transcript {
         unansweredToolCallIds == null
             ? this.unansweredToolCallIds
             : UnmodifiableSetView(unansweredToolCallIds),
+        lastRunId,
       );
 }
