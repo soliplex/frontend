@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../modules/room/ui/room_info/room_info_widgets.dart';
-import '../classification_levels.dart';
+import '../sensitivity_levels.dart';
 import '../model.dart';
 import '../store.dart';
 import 'common.dart';

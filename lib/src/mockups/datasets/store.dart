@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import 'classification_levels.dart';
+import 'sensitivity_levels.dart';
 import 'model.dart';
 
 enum CatalogSort {
@@ -88,10 +88,10 @@ class DatasetsStore extends ChangeNotifier {
 
   // ---- Access ------------------------------------------------------------
 
-  /// Cleared for its level, and the owner or in its audience — directly or
-  /// through a group. Clearance alone is not need-to-know.
+  /// Its level within the user's access, and the owner or in its audience —
+  /// directly or through a group. A high enough level alone is not enough.
   bool canAccess(Dataset d) {
-    if (levelRank(user.clearance) < levelRank(d.level)) return false;
+    if (levelRank(user.access) < levelRank(d.level)) return false;
     if (d.ownerId == user.id) return true;
     return d.audience.contains(user.id) ||
         d.audience.any(user.groupIds.contains);
@@ -180,7 +180,7 @@ class DatasetsStore extends ChangeNotifier {
     return entries;
   }
 
-  /// What to show for a facet value: owners by name, levels by marking.
+  /// What to show for a facet value: owners by name, levels by label.
   String facetLabel(Facet facet, String value) => switch (facet) {
         Facet.owner => principals[value]?.name ?? value,
         Facet.level => levelLabel(value),

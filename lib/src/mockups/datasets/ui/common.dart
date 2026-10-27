@@ -4,7 +4,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../model.dart';
 import '../store.dart';
 
-/// A level's marking pill.
+/// A level's badge.
 class LevelBadge extends StatelessWidget {
   const LevelBadge(this.level, {super.key});
 
@@ -15,8 +15,8 @@ class LevelBadge extends StatelessWidget {
       SoliplexClassificationBadge(classification: level);
 }
 
-/// Puts [level] as the default marking for everything under it, so the
-/// app's own classification band — which shows the default — shows the
+/// Puts [level] as the default level for everything under it, so the
+/// app's own level band — which shows the default — shows the
 /// room's ceiling with no change of its own.
 class CeilingScope extends StatelessWidget {
   const CeilingScope({required this.level, required this.child, super.key});

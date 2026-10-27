@@ -27,8 +27,8 @@ class Mockup {
 
   final WidgetBuilder build;
 
-  /// The confidentiality markings this mockup renders under, as a deployment
+  /// The sensitivity levels this mockup renders under, as a deployment
   /// flavor would configure them. Null leaves the harness theme without any,
-  /// so markings stay hidden — the standard flavor ships none either.
+  /// so levels stay hidden — the standard flavor ships none either.
   final ClassificationTheme? classifications;
 }

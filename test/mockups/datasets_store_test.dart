@@ -11,11 +11,12 @@ void main() {
   setUp(() => store = sampleStore());
   tearDown(() => store.dispose());
 
-  test('lists only datasets the user is cleared for and shared with', () {
+  test('lists only datasets within the user\'s access and shared with them',
+      () {
     final ids = store.visible.map((d) => d.id).toSet();
-    // Above jdoe's CONFIDENTIAL clearance.
+    // Above jdoe's CONFIDENTIAL access.
     expect(ids, isNot(contains('ops/security-assessments-2026')));
-    // Cleared, but not in the audience: clearance is not need-to-know.
+    // Within access, but not in the audience: level alone is not enough.
     expect(ids, isNot(contains('eng/compressor-overhaul-planning')));
     // Shared with a group jdoe is in; and jdoe's own private dataset.
     expect(ids, contains('ops/pump-service-manuals'));

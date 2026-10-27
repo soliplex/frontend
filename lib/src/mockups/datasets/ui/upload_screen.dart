@@ -4,7 +4,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../core/layout.dart';
 import '../../../modules/room/pick_file.dart';
-import '../classification_levels.dart';
+import '../sensitivity_levels.dart';
 import '../model.dart';
 import '../store.dart';
 import '../upload_session.dart';
@@ -362,8 +362,8 @@ class _ScanStep extends StatelessWidget {
       children: [
         const Notice(
           icon: Icons.policy_outlined,
-          text: 'The scan looks for classification markings. Its results '
-              'are advisory: an unmarked file can still hold more than it '
+          text: 'The scan looks for content above the dataset\'s level. Its '
+              'results are advisory: an unflagged file can still hold more than it '
               'says.',
         ),
         const SizedBox(height: SoliplexSpacing.s3),
@@ -551,7 +551,7 @@ class _ReviewStep extends StatelessWidget {
             style: theme.textTheme.bodyMedium,
           ),
           subtitle: const Text(
-            'Soliplex does not verify classification; scan results are '
+            'Soliplex does not verify sensitivity; scan results are '
             'advisory only.',
           ),
         ),
