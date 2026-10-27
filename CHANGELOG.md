@@ -6,21 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.113.0+100] - 2026-10-26
 
 ### Added
 
-- A run resumed after a client tool names the run it continues as its
-  parent, which the backend records (v0.86 or later). **Library
+- Every run but a thread's first names, as its parent, the run whose
+  conversation it extends, which the backend records (v0.86 or later): a
+  run resumed after a client tool names the run that waited, and a new user
+  turn names the last run started on the history it sends. **Library
   consumers:** `SoliplexApi.createRun` takes `parentRunId`, sent as the
-  backend's `parent_run_id`.
+  backend's `parent_run_id`, and `Transcript.lastRunId` holds the last run
+  started on a transcript.
 
 ### Changed
 
 - **Library consumers (breaking):** `AgentLlmProvider.startRun` takes
-  `parentRunId`, the run whose conversation the input extends, which only a
-  client-tool resume names so far. An implementation that runs in-process
-  ignores it.
+  `parentRunId`, the run whose conversation the input extends. An
+  implementation that runs in-process ignores it.
 - A reopened thread joins a run to the turn before it only when the run
   names that run as its parent, its input ends with a tool message, and that
   run finished with a call still pending; a repeated user message no longer
