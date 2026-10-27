@@ -9,6 +9,22 @@ import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_client.http_transport');
+
+const _errorBodyLimit = 4096;
+const _errorBodyWait = Duration(seconds: 2);
+const _reasonLimit = 200;
+
+/// A `Bearer`/`Basic` token of 16 or more characters, or a JWT: what an
+/// intermediary echoing the `Authorization` header would put in a reason.
+/// The length floor lets a reason that only names one ("Missing Bearer
+/// token") keep its words. An opaque token, API key or cookie is not caught.
+final _credential = RegExp(
+  r'\b(?:Bearer|Basic)\s+[\w\-.~+/]{16,}=*|\beyJ[\w-]+\.[\w-]+(?:\.[\w-]*)?',
+  caseSensitive: false,
+);
+
 /// HTTP transport layer with JSON serialization and exception mapping.
 ///
 /// Wraps a [SoliplexHttpClient] and provides:
@@ -80,7 +96,7 @@ class HttpTransport {
   /// - [AuthException] for 401 responses
   /// - [PermissionDeniedException] for 403 responses
   /// - [NotFoundException] for 404 responses
-  /// - [ApiException] for other 4xx and 5xx responses
+  /// - [ApiException] for any other non-2xx response
   /// - [NetworkException] for connection failures (from client)
   Future<T> request<T>(
     String method,
@@ -143,7 +159,7 @@ class HttpTransport {
   /// - [AuthException] for 401 responses
   /// - [PermissionDeniedException] for 403 responses
   /// - [NotFoundException] for 404 responses
-  /// - [ApiException] for other 4xx and 5xx responses
+  /// - [ApiException] for any other non-2xx response
   /// - [NetworkException] for connection failures (from client)
   Future<Uint8List> requestBytes(
     String method,
@@ -182,12 +198,17 @@ class HttpTransport {
   /// - [headers]: Optional request headers
   /// - [cancelToken]: Optional token for cancelling the stream
   ///
+  /// A refused stream's body is read (at most 4096 bytes, for at most 2
+  /// seconds) for the server's reason before throwing.
+  ///
   /// Throws:
-  /// - [CancelledException] if cancelled before the stream starts
+  /// - [CancelledException] if cancelled before the stream starts, including
+  ///   while a refused stream's error body is read
   /// - [NetworkException] for connection failures (from client)
   /// - [AuthException] for 401 on stream setup
   /// - [PermissionDeniedException] for 403 on stream setup
-  /// - [ApiException] for other 4xx/5xx on stream setup
+  /// - [NotFoundException] for 404 on stream setup
+  /// - [ApiException] for any other non-2xx on stream setup
   Future<StreamedHttpResponse> requestStream(
     String method,
     Uri uri, {
@@ -219,15 +240,25 @@ class HttpTransport {
     try {
       // Check cancellation after connection established
       cancelToken?.throwIfCancelled();
-
-      // Map status codes to exceptions (same logic as request())
-      _throwForStreamStatusCode(response, uri);
     } catch (_) {
-      // Drain the body stream to release the underlying socket.
-      // Without this, a thrown exception (status error or cancellation)
-      // would leave the HTTP connection open indefinitely.
-      unawaited(response.body.listen((_) {}).cancel());
+      // Cancel the body stream to release the underlying socket.
+      // Without this, a thrown cancellation would leave the HTTP
+      // connection open indefinitely.
+      _cancelBody(response.body.listen((_) {}));
       rethrow;
+    }
+
+    if (!response.isSuccess) {
+      // Reading the head cancels the body, which releases the socket.
+      final (bodyHead, bodyRead) =
+          await _readErrorBodyHead(response.body, cancelToken);
+      _throwForStreamStatusCode(
+        response,
+        uri,
+        bodyHead,
+        bodyRead,
+        cancelToken,
+      );
     }
 
     // If no cancel token, return response as-is
@@ -293,36 +324,111 @@ class HttpTransport {
     return controller.stream;
   }
 
-  /// Throws appropriate exception for HTTP error status codes on streams.
+  /// Reads a refused stream's body until it ends, reaches [_errorBodyLimit]
+  /// bytes, outlasts [_errorBodyWait], or [cancelToken] fires, then cancels
+  /// it so the socket is released. Returns the first [_errorBodyLimit] bytes
+  /// and how the read ended: `complete`, `limit`, `timeout`, `cancelled`, or
+  /// `error: <type>`.
   ///
-  /// Unlike [_throwForStatusCode], the body is a stream and cannot be read
-  /// for error messages. Uses status code and reason phrase only.
-  void _throwForStreamStatusCode(StreamedHttpResponse response, Uri uri) {
+  /// A refused stream answers with an ordinary error body, not SSE, but
+  /// nothing stops a misbehaving server from streaming it forever. A body
+  /// that fails mid-read is deliberately not rethrown: the status the caller
+  /// throws for is the failure, and the bytes read so far still help.
+  Future<(List<int>, String)> _readErrorBodyHead(
+    Stream<List<int>> body,
+    CancelToken? cancelToken,
+  ) async {
+    final bytes = <int>[];
+    final ended = Completer<String>();
+    void end(String outcome) {
+      if (!ended.isCompleted) ended.complete(outcome);
+    }
+
+    final subscription = body.listen(
+      (chunk) {
+        bytes.addAll(chunk);
+        if (bytes.length >= _errorBodyLimit) end('limit');
+      },
+      onError: (Object error) => end('error: ${error.runtimeType}'),
+      onDone: () => end('complete'),
+      cancelOnError: true,
+    );
+    // Subscribed rather than chained with `then`, so the listener detaches
+    // when the read ends instead of pinning it to the token.
+    final cancelled =
+        cancelToken?.whenCancelled.asStream().listen((_) => end('cancelled'));
+    final outcome = await ended.future.timeout(
+      _errorBodyWait,
+      onTimeout: () => 'timeout',
+    );
+    unawaited(cancelled?.cancel());
+    _cancelBody(subscription);
+    return (bytes.take(_errorBodyLimit).toList(), outcome);
+  }
+
+  /// Cancels a response body's [subscription], which releases the socket.
+  ///
+  /// A failed cancel is logged rather than left to surface as an uncaught
+  /// async error.
+  void _cancelBody(StreamSubscription<List<int>> subscription) {
+    unawaited(
+      subscription.cancel().catchError((Object error, StackTrace stackTrace) {
+        _logger.warning(
+          'Could not cancel a response body',
+          attributes: {'failure': describeFailure(error)},
+          stackTrace: stackTrace,
+        );
+      }),
+    );
+  }
+
+  /// Logs a refused stream, then throws [CancelledException] if
+  /// [cancelToken] fired, or else the exception for its status code.
+  ///
+  /// The message is the server's reason in [bodyHead] (see [_serverReason]);
+  /// otherwise the status code and reason phrase. The refusal is logged even
+  /// when the caller cancelled, so it is not lost behind the cancellation.
+  Never _throwForStreamStatusCode(
+    StreamedHttpResponse response,
+    Uri uri,
+    List<int> bodyHead,
+    String bodyRead,
+    CancelToken? cancelToken,
+  ) {
     final statusCode = response.statusCode;
+    final reason = _serverReason(utf8.decode(bodyHead, allowMalformed: true));
 
-    if (statusCode >= 200 && statusCode < 300) {
-      return;
-    }
+    // Every value here is safe to log: the only caller, `AgUiStreamClient`,
+    // streams `rooms/{room}/agui/{thread}/{run}`, which holds only
+    // identifiers, and the query is not logged; the reason has been through
+    // [_serverReason]; and the `Server` header names software, not a person.
+    // A body that is not JSON — a proxy's HTML page, say — contributes only
+    // its content type and the number of bytes read. Those and the `Server`
+    // header are what tell a proxy's refusal from the backend's.
+    _logger.warning(
+      'Stream request refused',
+      attributes: {
+        'statusCode': statusCode,
+        'path': uri.path,
+        'contentType': response.headers['content-type'] ?? 'none',
+        'bodyBytesRead': bodyHead.length,
+        'bodyRead': bodyRead,
+        if (response.headers['server'] case final server?) 'server': server,
+        if (reason != null) 'reason': reason,
+      },
+    );
 
-    final message = 'HTTP $statusCode'
-        '${response.reasonPhrase != null ? ': ${response.reasonPhrase}' : ''}';
+    cancelToken?.throwIfCancelled();
 
-    if (statusCode == 401) {
-      throw AuthException(message: message, statusCode: statusCode);
-    }
-
-    if (statusCode == 403) {
-      throw PermissionDeniedException(
-        message: message,
-        statusCode: statusCode,
-      );
-    }
-
-    if (statusCode == 404) {
-      throw NotFoundException(message: message, resource: uri.path);
-    }
-
-    throw ApiException(message: message, statusCode: statusCode);
+    final reasonPhrase = response.reasonPhrase;
+    _throwForStatus(
+      statusCode,
+      uri,
+      message: reason ??
+          'HTTP $statusCode${reasonPhrase != null ? ': $reasonPhrase' : ''}',
+      serverMessage: reason,
+      body: null,
+    );
   }
 
   /// Throws appropriate exception for HTTP error status codes.
@@ -336,9 +442,23 @@ class HttpTransport {
     // Lenient: an error body is diagnostic text only, and a non-UTF-8 payload
     // must not throw here or it would mask the status (breaking retry/re-auth).
     final body = response.bodyLenient;
-    final serverMessage = _extractErrorMessage(body);
-    final message = serverMessage ?? 'HTTP $statusCode';
+    final serverMessage = _serverReason(body);
+    _throwForStatus(
+      statusCode,
+      uri,
+      message: serverMessage ?? 'HTTP $statusCode',
+      serverMessage: serverMessage,
+      body: body.isNotEmpty ? body : null,
+    );
+  }
 
+  Never _throwForStatus(
+    int statusCode,
+    Uri uri, {
+    required String message,
+    required String? serverMessage,
+    required String? body,
+  }) {
     if (statusCode == 401) {
       throw AuthException(
         message: message,
@@ -363,29 +483,43 @@ class HttpTransport {
       );
     }
 
-    // All other 4xx and 5xx errors
+    // All other non-2xx statuses
     throw ApiException(
       message: message,
       statusCode: statusCode,
       serverMessage: serverMessage,
-      body: body.isNotEmpty ? body : null,
+      body: body,
     );
   }
 
-  /// Attempts to extract an error message from a JSON response body.
-  String? _extractErrorMessage(String body) {
-    if (body.isEmpty) return null;
-
+  /// The reason a server wrote for an error: the first of its JSON
+  /// `message`, `error` and `detail` that is a non-blank string, with
+  /// [_credential] matches replaced and capped at [_reasonLimit] characters.
+  ///
+  /// This is the only text of an error body that becomes an exception's
+  /// message, which the UI shows and logs record. ([ApiException.body] holds
+  /// the full body; its `toString()` leaves it out, and it must not be
+  /// logged.) The reason is taken on trust: the backend's error strings are
+  /// its own words and must never quote request content or a secret, which
+  /// the client cannot detect in prose. [_credential] is only a backstop. A
+  /// validation list is never used: it echoes the request back.
+  static String? _serverReason(String body) {
+    final Object? json;
     try {
-      final json = jsonDecode(body);
-      if (json is Map<String, dynamic>) {
-        // Common error message fields
-        return json['message'] as String? ??
-            json['error'] as String? ??
-            json['detail'] as String?;
+      json = jsonDecode(body);
+    } on FormatException {
+      return null;
+    }
+    if (json is! Map<String, dynamic>) return null;
+
+    for (final key in const ['message', 'error', 'detail']) {
+      if (json[key] case final String text when text.trim().isNotEmpty) {
+        final safe = text.replaceAll(_credential, '[REDACTED]');
+        final runes = safe.runes;
+        return runes.length <= _reasonLimit
+            ? safe
+            : '${String.fromCharCodes(runes.take(_reasonLimit))}…';
       }
-    } catch (_) {
-      // Not JSON, return null
     }
     return null;
   }

@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:mocktail/mocktail.dart';
 // HttpTransport uses our local CancelToken, not ag_ui's.
 // Hide ag_ui's CancelToken to avoid ambiguity.
 import 'package:soliplex_client/soliplex_client.dart' hide CancelToken;
 import 'package:soliplex_client/src/api/mappers.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 class MockSoliplexHttpClient extends Mock implements SoliplexHttpClient {}
@@ -736,6 +738,67 @@ void main() {
         );
       });
 
+      group('server reason', () {
+        Future<SoliplexException> failedWith(Object body) async {
+          when(
+            () => mockClient.request(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => jsonResponse(403, body: body));
+          try {
+            await transport.request<void>(
+              'GET',
+              Uri.parse('https://api.example.com'),
+            );
+          } on SoliplexException catch (e) {
+            return e;
+          }
+          fail('request did not throw');
+        }
+
+        test('ignores a blank reason', () async {
+          final error = await failedWith({'detail': '  '});
+
+          expect(error.message, 'HTTP 403');
+        });
+
+        test('skips a key that is not a string', () async {
+          final error = await failedWith({
+            'error': [
+              {'msg': 'Field required', 'input': 'the user prompt'},
+            ],
+            'detail': 'Not permitted',
+          });
+
+          expect(error.message, 'Not permitted');
+        });
+
+        test('removes credentials echoed in the reason', () async {
+          final error = await failedWith({
+            'detail': 'Rejected Bearer abcdefghij0123456789 and '
+                'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2ln',
+          });
+
+          expect(error.message, 'Rejected [REDACTED] and [REDACTED]');
+        });
+
+        test('keeps a reason that only names a credential', () async {
+          final error = await failedWith({'detail': 'Missing Bearer token'});
+
+          expect(error.message, 'Missing Bearer token');
+        });
+
+        test('caps a long reason without splitting a character', () async {
+          final error = await failedWith({'detail': '😀' * 300});
+
+          expect(error.message, '${'😀' * 200}…');
+        });
+      });
+
       test('passes through NetworkException from client', () async {
         const networkError = NetworkException(message: 'Connection refused');
 
@@ -1049,6 +1112,276 @@ void main() {
             ),
           ),
         );
+      });
+
+      group('refusal reason', () {
+        void stubRefusal(StreamedHttpResponse response) {
+          when(
+            () => mockClient.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        StreamedHttpResponse refusal(
+          int statusCode,
+          String reasonPhrase, {
+          String? contentType,
+          String body = '',
+        }) =>
+            StreamedHttpResponse(
+              statusCode: statusCode,
+              reasonPhrase: reasonPhrase,
+              headers: {if (contentType != null) 'content-type': contentType},
+              body: Stream.value(utf8.encode(body)),
+            );
+
+        Future<SoliplexException> refusedWith(
+          StreamedHttpResponse response,
+        ) async {
+          stubRefusal(response);
+          try {
+            await transport.requestStream(
+              'POST',
+              Uri.parse('https://api.example.com/agui/t/r'),
+            );
+          } on SoliplexException catch (e) {
+            return e;
+          }
+          fail('requestStream did not throw');
+        }
+
+        MemorySink captureLogs() {
+          final sink = MemorySink();
+          LogManager.instance.addSink(sink);
+          addTearDown(() => LogManager.instance.removeSink(sink));
+          return sink;
+        }
+
+        test('uses the JSON detail as the message', () async {
+          final error = await refusedWith(
+            refusal(
+              403,
+              'Forbidden',
+              contentType: 'application/json',
+              body: '{"detail": "Not permitted to run in this room"}',
+            ),
+          );
+
+          expect(
+            error,
+            isA<PermissionDeniedException>()
+                .having((e) => e.statusCode, 'statusCode', 403)
+                .having(
+                  (e) => e.serverMessage,
+                  'serverMessage',
+                  'Not permitted to run in this room',
+                ),
+          );
+          expect(error.message, 'Not permitted to run in this room');
+        });
+
+        test('falls back to status and reason phrase without a body', () async {
+          final error = await refusedWith(refusal(403, 'Forbidden'));
+
+          expect(error.message, 'HTTP 403: Forbidden');
+        });
+
+        test('logs the refusal with its content type and size', () async {
+          final sink = captureLogs();
+
+          await refusedWith(
+            refusal(
+              403,
+              'Forbidden',
+              contentType: 'application/json',
+              body: '{"detail": "Not permitted"}',
+            ),
+          );
+
+          final record = sink.records.single;
+          expect(record.level, LogLevel.warning);
+          expect(record.attributes, {
+            'statusCode': 403,
+            'path': '/agui/t/r',
+            'contentType': 'application/json',
+            'bodyBytesRead': 27,
+            'bodyRead': 'complete',
+            'reason': 'Not permitted',
+          });
+        });
+
+        test('logs the Server header of whoever refused the stream', () async {
+          final sink = captureLogs();
+
+          await refusedWith(
+            const StreamedHttpResponse(
+              statusCode: 403,
+              reasonPhrase: 'Forbidden',
+              headers: {'server': 'awselb/2.0'},
+              body: Stream.empty(),
+            ),
+          );
+
+          expect(sink.records.single.attributes['server'], 'awselb/2.0');
+        });
+
+        test('logs no text of an HTML page', () async {
+          final sink = captureLogs();
+          const page =
+              '<html><body>Request blocked. Your IP: 10.1.2.3</body></html>';
+
+          await refusedWith(
+            refusal(403, 'Forbidden', contentType: 'text/html', body: page),
+          );
+
+          final record = sink.records.single;
+          expect(record.attributes.containsKey('reason'), isFalse);
+          expect(
+            record.attributes.values.map((v) => '$v'),
+            everyElement(isNot(contains('10.1.2.3'))),
+          );
+        });
+
+        test('stops reading an error body that never ends', () {
+          fakeAsync((async) {
+            var cancelled = false;
+            final body = StreamController<List<int>>(
+              onCancel: () => cancelled = true,
+            );
+            stubRefusal(
+              StreamedHttpResponse(
+                statusCode: 403,
+                reasonPhrase: 'Forbidden',
+                body: body.stream,
+              ),
+            );
+            final sink = captureLogs();
+
+            Object? thrown;
+            transport
+                .requestStream('POST', Uri.parse('https://api.example.com/x'))
+                .then<void>((_) {}, onError: (Object e) => thrown = e);
+            async.flushMicrotasks();
+            body.add([1, 2, 3]);
+            async.elapse(const Duration(seconds: 2));
+
+            expect(thrown, isA<PermissionDeniedException>());
+            expect(cancelled, isTrue);
+            expect(sink.records.single.attributes['bodyRead'], 'timeout');
+          });
+        });
+
+        test('throws a cancellation that arrives during the read', () {
+          fakeAsync((async) {
+            final token = CancelToken();
+            var cancelled = false;
+            final body = StreamController<List<int>>(
+              onCancel: () => cancelled = true,
+            );
+            stubRefusal(
+              StreamedHttpResponse(
+                statusCode: 403,
+                reasonPhrase: 'Forbidden',
+                body: body.stream,
+              ),
+            );
+
+            final sink = captureLogs();
+
+            Object? thrown;
+            transport
+                .requestStream(
+                  'POST',
+                  Uri.parse('https://api.example.com/x'),
+                  cancelToken: token,
+                )
+                .then<void>((_) {}, onError: (Object e) => thrown = e);
+            async.flushMicrotasks();
+            token.cancel('user stopped');
+            async.flushMicrotasks();
+
+            expect(thrown, isA<CancelledException>());
+            expect(cancelled, isTrue);
+            final record = sink.records.single;
+            expect(record.attributes['statusCode'], 403);
+            expect(record.attributes['bodyRead'], 'cancelled');
+          });
+        });
+
+        test('reports a body whose cancel fails', () async {
+          final body = StreamController<List<int>>(
+            onCancel: () => Future<void>.error(StateError('cancel failed')),
+          )..add(List.filled(4096, 0x61));
+          final sink = captureLogs();
+
+          await refusedWith(
+            StreamedHttpResponse(
+              statusCode: 403,
+              reasonPhrase: 'Forbidden',
+              body: body.stream,
+            ),
+          );
+          await pumpEventQueue();
+
+          expect(
+            sink.records.map((r) => r.attributes['failure']),
+            contains('StateError'),
+          );
+        });
+
+        test('records a body that failed mid-read', () async {
+          final sink = captureLogs();
+
+          await refusedWith(
+            StreamedHttpResponse(
+              statusCode: 403,
+              reasonPhrase: 'Forbidden',
+              body: Stream.error(StateError('reset')),
+            ),
+          );
+
+          expect(
+            sink.records.single.attributes['bodyRead'],
+            'error: StateError',
+          );
+        });
+
+        test('stops reading an error body past its size cap', () {
+          fakeAsync((async) {
+            var cancelled = false;
+            final body = StreamController<List<int>>(
+              onCancel: () => cancelled = true,
+            );
+            stubRefusal(
+              StreamedHttpResponse(
+                statusCode: 403,
+                reasonPhrase: 'Forbidden',
+                body: body.stream,
+              ),
+            );
+            final sink = captureLogs();
+
+            Object? thrown;
+            transport
+                .requestStream('POST', Uri.parse('https://api.example.com/x'))
+                .then<void>((_) {}, onError: (Object e) => thrown = e);
+            async.flushMicrotasks();
+            for (var i = 0; i < 10; i++) {
+              body.add(List.filled(1024, 0x61));
+            }
+            async.flushMicrotasks();
+
+            expect(thrown, isA<PermissionDeniedException>());
+            expect(cancelled, isTrue);
+            expect(sink.records.single.attributes['bodyBytesRead'], 4096);
+            expect(sink.records.single.attributes['bodyRead'], 'limit');
+          });
+        });
       });
 
       test('throws CancelledException when token already cancelled', () async {

@@ -108,19 +108,31 @@ included/excluded by presence in the flavor — no enum or toggle framework. See
 
 ## Logging
 
-### Hard rule — never log a value the user or the backend supplied
+### Hard rule — never expose anything sensitive, and include every other detail available
 
-`error:` puts the exception object on the `LogRecord`, and `toString()` renders
-it into the in-memory buffer the diagnostics screen displays and can export to
-a file. Some exceptions carry the input they failed on:
+A log record, and the `message:` of any exception you throw, should carry
+everything that diagnoses a failure: status codes, reason phrases, hosts,
+public URLs, paths and identifiers, content types, sizes, type names, and a
+server's written reason for an error (included on trust; see below). Never
+include a credential (a token,
+password, cookie, auth code or callback query), the user's content (a message,
+prompt, document or file), or an echo of input that could be either. When a
+value might be sensitive, keep its shape and drop its text: its type, its
+length, or the name of the field it came from.
+
+#### The trap: exceptions that carry their input
+
+`error:` puts the exception object on the `LogRecord`, and `toString()`
+renders it into the in-memory buffer the diagnostics screen displays and can
+export to a file. Some exceptions carry the input they failed on:
 
 | Thrown by | What travels with it |
 | --------- | -------------------- |
 | `jsonDecode`, `int.parse`, `double.parse`, `Uri.parse`, `base64Decode` | `FormatException.source` — roughly 78 characters of the input around the failure offset |
 | `ArgumentError.value` | the rejected value |
 
-`utf8.decode` is the exception to the rule: its source is a byte list, so
-`toString()` prints no window.
+`utf8.decode` is the exception: its `FormatException.source` is a byte list,
+so `toString()` prints no window.
 
 When a `catch` can see one of those — directly, or through a function it calls
 — pass `attributes: {'failure': describeFailure(e)}` (from `soliplex_logging`)
@@ -142,23 +154,33 @@ parameter it rejected, but never the value. Everything else is reduced to a
 type name, `StateError` and `UnsupportedError` included, because their text is
 supplied by whoever threw them.
 
-The rule does not fire when every value the catch can see is non-secret and is
-what makes the record actionable: hosts, public URLs (a discovery document's
-endpoints), status codes, and error codes — never a token, a credential, a
-callback query, or the content of a message or document. Keep `error:` there,
-and say in one comment at the catch which values it can carry and why they are
-safe. `connection_probe.dart` is one such site: it logs `input`, `inputLength`,
-`candidates` and `hosts` as attributes, because a typed address with a stray
-character is a reported failure mode and the address is not a secret, so
-forwarding the `Uri.parse` failure beside them adds the offset of the offending
-character and no new value. `ServerSignOutControl`, the caller of
-`logoutServer`, is another: what it catches is the discovery errors (hosts,
-public URLs, status codes) and the fixed-text `AuthException` that
-`NativeAuthFlow.endSession` throws in place of a platform failure — AppAuth on
-iOS and macOS can put the end-session URL, `id_token_hint` included, into the
-error's text.
+Keep `error:` when every value the catch can see is non-secret and is what
+makes the record actionable — hosts, public URLs (a discovery document's
+endpoints), status codes, and error codes — and say in one comment at the catch
+which values it can carry and why they are safe. `connection_probe.dart` is one
+such site: it logs `input`, `inputLength`, `candidates` and `hosts` as
+attributes, because a typed address with a stray character is a reported
+failure mode and the address is not a secret, so forwarding the `Uri.parse`
+failure beside them adds the offset of the offending character and no new
+value. `ServerSignOutControl`, the caller of `logoutServer`, is another: what
+it catches is the discovery errors (hosts, public URLs, status codes) and the
+fixed-text `AuthException` that `NativeAuthFlow.endSession` throws in place of
+a platform failure — AppAuth on iOS and macOS can put the end-session URL,
+`id_token_hint` included, into the error's text.
 
-The rule does not reach network failures. A `SocketException` renders as a host
+#### Detail that is safe to include
+
+The reason an HTTP error response gives becomes the exception's message
+through `HttpTransport._serverReason` alone; its doc comment says what it
+takes and what it strips. Without it a refused run reads only "HTTP 403:
+Forbidden". The reason is included on trust, because the client cannot tell
+a secret from prose: the backend's error strings are its own words about the
+failure and must never quote request content or a secret, and a backend
+string that does is the bug to fix. The diagnostics screen's requests pane
+is different: it shows request and response bodies, user prompts included,
+redacted by `HttpRedactor`.
+
+Network failures need no reduction. A `SocketException` renders as a host
 and an OS error, and this codebase already logs hostnames as attributes
 (`discoveryUrl`). A `catch` that can only see those should keep `error:` —
 routing it through `describeFailure` would drop the failed host lookup that is
