@@ -1216,7 +1216,12 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    return _parseFileList(response, 'uploads', fileUploadFromJson);
+    return _parseFileList(
+      response,
+      'uploads',
+      fileUploadFromJson,
+      scope: 'roomId=$roomId',
+    );
   }
 
   /// Lists files uploaded to a thread within a room.
@@ -1249,7 +1254,12 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    return _parseFileList(response, 'uploads', fileUploadFromJson);
+    return _parseFileList(
+      response,
+      'uploads',
+      fileUploadFromJson,
+      scope: 'roomId=$roomId threadId=$threadId',
+    );
   }
 
   /// Uploads a file to a room's shared upload directory.
@@ -1376,9 +1386,9 @@ class SoliplexApi {
   // Workdir files
   // ============================================================
 
-  /// Lists the files the agent left at the top level of the thread's sandbox
-  /// workspace. The workspace persists across the thread's runs, so the list
-  /// is the thread's, not any one run's.
+  /// Lists the files in the thread's sandbox workspace, each named by its
+  /// path relative to the workspace root. The workspace persists across the
+  /// thread's runs, so the list is the thread's, not any one run's.
   ///
   /// Parameters:
   /// - [roomId]: The room ID (must not be empty)
@@ -1412,7 +1422,12 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    return _parseFileList(response, 'files', workdirFileFromJson);
+    return _parseFileList(
+      response,
+      'files',
+      workdirFileFromJson,
+      scope: 'roomId=$roomId threadId=$threadId',
+    );
   }
 
   /// Downloads one file from the thread's sandbox workspace.
@@ -1424,14 +1439,17 @@ class SoliplexApi {
   /// Parameters:
   /// - [roomId]: The room ID (must not be empty)
   /// - [threadId]: The thread ID (must not be empty)
-  /// - [filename]: A name from [getThreadWorkdirFiles] (must not be empty)
+  /// - [filename]: A path from [getThreadWorkdirFiles]; each `/`-separated
+  ///   segment is sent as its own URL path segment, so none may be empty,
+  ///   `.` or `..` (see [isWorkspaceFilePath])
   ///
   /// Returns the raw file bytes.
   ///
   /// Throws:
-  /// - [ArgumentError] if any parameter is empty
+  /// - [ArgumentError] if any parameter is empty, or [filename] has an empty,
+  ///   `.` or `..` segment
   /// - [NotFoundException] (404) if the workspace is not served or holds no
-  ///   regular file by that name
+  ///   regular file at that path
   /// - [AuthException] if not authenticated (401)
   /// - [PermissionDeniedException] if access is denied (403)
   /// - [NetworkException] if connection fails
@@ -1445,7 +1463,13 @@ class SoliplexApi {
   }) {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(threadId, 'threadId');
-    _requireNonEmpty(filename, 'filename');
+    if (!isWorkspaceFilePath(filename)) {
+      throw ArgumentError.value(
+        filename,
+        'filename',
+        'must have no empty, . or .. segment',
+      );
+    }
 
     return _transport.requestBytes(
       'GET',
@@ -1514,19 +1538,25 @@ class SoliplexApi {
   /// transient server omission doesn't break callers. A non-list value
   /// indicates a schema mismatch and is raised as [UnexpectedException].
   /// Malformed per-entry rows surface as warnings and are skipped.
+  /// [scope] names the listing (`roomId=… threadId=…`) in every warning and
+  /// in the non-list error.
   List<T> _parseFileList<T>(
     Map<String, dynamic> response,
     String jsonKey,
-    T Function(Map<String, dynamic>) fromJson,
-  ) {
+    T Function(Map<String, dynamic>) fromJson, {
+    required String scope,
+  }) {
     final raw = response[jsonKey];
     if (raw == null) {
-      _onWarning?.call('Response missing "$jsonKey" key; treating as empty');
+      _onWarning?.call(
+        'Response missing "$jsonKey" key $scope; treating as empty',
+      );
       return const [];
     }
     if (raw is! List) {
       throw UnexpectedException(
-        message: 'Response has non-list "$jsonKey" field: ${raw.runtimeType}',
+        message: 'Response has non-list "$jsonKey" field $scope: '
+            '${raw.runtimeType}',
       );
     }
     if (raw.isEmpty) return const [];
@@ -1534,7 +1564,7 @@ class SoliplexApi {
     for (final entry in raw) {
       if (entry is! Map<String, dynamic>) {
         _onWarning?.call(
-          'Malformed "$jsonKey" entry ignored: expected a JSON object, '
+          'Malformed "$jsonKey" entry ignored $scope: expected a JSON object, '
           'got ${entry.runtimeType}',
         );
         continue;
@@ -1542,7 +1572,12 @@ class SoliplexApi {
       try {
         result.add(fromJson(entry));
       } on FormatException catch (e) {
-        _onWarning?.call('Malformed "$jsonKey" entry ignored: $e');
+        // The mappers' messages carry at most field names, a parser's reason,
+        // and the entry's filename and URL. describeFailure keeps the message
+        // and drops any source window.
+        _onWarning?.call(
+          'Malformed "$jsonKey" entry ignored $scope: ${describeFailure(e)}',
+        );
       }
     }
     return result;

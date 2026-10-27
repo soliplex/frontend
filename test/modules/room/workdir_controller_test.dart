@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
     show DownloadOutcome;
@@ -236,6 +237,27 @@ void main() {
       expect(gotBytes, bytes);
     });
 
+    test('fetches a nested file by its path and saves it under its basename',
+        () async {
+      final bytes = Uint8List.fromList([1, 2, 3]);
+      when(() => api.getThreadWorkdirFile('room-1', 't', 'dir/sub/file.csv'))
+          .thenAnswer((_) async => bytes);
+
+      String? gotName;
+      final controller = build(
+        saveFile: ({required String fileName, required Uint8List bytes}) async {
+          gotName = fileName;
+          return '/Users/me/Desktop/$fileName';
+        },
+      );
+
+      final outcome =
+          await controller.downloadFile('t', _file('dir/sub/file.csv'));
+
+      expect(outcome, DownloadOutcome.success);
+      expect(gotName, 'file.csv');
+    });
+
     test('returns cancelled on native when saveFile returns null', () async {
       when(() => api.getThreadWorkdirFile(any(), any(), any()))
           .thenAnswer((_) async => Uint8List(0));
@@ -291,6 +313,68 @@ void main() {
         await controller.downloadFile('t', _file('output.csv')),
         DownloadOutcome.failed,
       );
+    });
+
+    group('logs', () {
+      late MemorySink sink;
+
+      setUp(() {
+        sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+      });
+
+      LogRecord warning() =>
+          sink.records.singleWhere((r) => r.level == LogLevel.warning);
+
+      test('a failed fetch as a warning with the failure and its status code',
+          () async {
+        when(() => api.getThreadWorkdirFile(any(), any(), any())).thenThrow(
+          const ApiException(
+            message: 'HTTP 500: workspace unreadable',
+            statusCode: 500,
+          ),
+        );
+        final controller = build();
+
+        await controller.downloadFile('t', _file('dir/output.csv'));
+
+        final record = warning();
+        expect(
+          record.error,
+          isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500),
+        );
+        expect(record.attributes['filename'], 'dir/output.csv');
+      });
+
+      test("a vanished file as a warning, unlike a preview's debug-level 404",
+          () async {
+        when(() => api.getThreadWorkdirFile(any(), any(), any()))
+            .thenThrow(const NotFoundException(message: 'No workdir file'));
+        final controller = build();
+
+        await controller.downloadFile('t', _file('dir/output.csv'));
+
+        expect(warning().error, isA<NotFoundException>());
+      });
+
+      test('a failed save as a warning without the failure text', () async {
+        when(() => api.getThreadWorkdirFile(any(), any(), any()))
+            .thenAnswer((_) async => Uint8List(1));
+        final controller = build(
+          saveFile: ({required String fileName, required Uint8List bytes}) {
+            throw Exception('cannot write /Users/me/Desktop/output.csv');
+          },
+        );
+
+        await controller.downloadFile('t', _file('dir/output.csv'));
+
+        final record = warning();
+        expect(record.error, isNull);
+        expect(record.attributes['failure'], '_Exception');
+        expect(record.toString(), isNot(contains('/Users/me')));
+        expect(record.attributes['filename'], 'dir/output.csv');
+      });
     });
   });
 

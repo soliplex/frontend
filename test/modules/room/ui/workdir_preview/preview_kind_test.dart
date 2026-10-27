@@ -14,6 +14,11 @@ void main() {
       }
     });
 
+    test('reads the kind from the last segment of a path', () {
+      // A dotfile has no extension, wherever it sits.
+      expect(PreviewKind.from('dir/.md'), PreviewKind.unknown);
+    });
+
     test('maps svg to svg', () {
       expect(PreviewKind.from('chart.svg'), PreviewKind.svg);
       expect(PreviewKind.from('chart.SVG'), PreviewKind.svg);
@@ -168,6 +173,16 @@ void main() {
 
     test('returns null for no-extension filenames', () {
       expect(extensionOf('binary'), isNull);
+    });
+
+    test('returns null for a trailing dot', () {
+      expect(extensionOf('notes.'), isNull);
+    });
+
+    test('reads only the last segment of a path', () {
+      expect(extensionOf('dir/file.TXT'), 'txt');
+      expect(extensionOf('dir.v2/Makefile'), isNull);
+      expect(extensionOf('dir/.env'), isNull);
     });
   });
 }

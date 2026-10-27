@@ -2177,6 +2177,40 @@ void main() {
         );
       });
 
+      test('a missing url names the entry by its filename', () {
+        expect(
+          () => fileUploadFromJson({'filename': 'a.pdf'}),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('a.pdf'), contains('"url"')),
+            ),
+          ),
+        );
+      });
+
+      test(
+          'a malformed url names the url and the reason, '
+          "without the parser's source window", () {
+        expect(
+          () => fileUploadFromJson(
+            {'filename': 'a.pdf', 'url': 'https://example.test:port/a'},
+          ),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.toString(),
+              'toString',
+              allOf(
+                contains('https://example.test:port/a'),
+                contains('Invalid port'),
+                isNot(contains('\n')),
+              ),
+            ),
+          ),
+        );
+      });
+
       test('throws FormatException when filename is non-string', () {
         expect(
           () => fileUploadFromJson({
@@ -2234,6 +2268,40 @@ void main() {
         );
       });
 
+      test('a missing url names the entry by its filename', () {
+        expect(
+          () => workdirFileFromJson({'filename': 'dir/output.csv'}),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('dir/output.csv'), contains('"url"')),
+            ),
+          ),
+        );
+      });
+
+      test(
+          'a malformed url names the url and the reason, '
+          "without the parser's source window", () {
+        expect(
+          () => workdirFileFromJson(
+            {'filename': 'a.pdf', 'url': 'https://example.test:port/a'},
+          ),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.toString(),
+              'toString',
+              allOf(
+                contains('https://example.test:port/a'),
+                contains('Invalid port'),
+                isNot(contains('\n')),
+              ),
+            ),
+          ),
+        );
+      });
+
       test('throws FormatException when filename is non-string', () {
         expect(
           () => workdirFileFromJson(
@@ -2252,15 +2320,30 @@ void main() {
         );
       });
 
-      test('throws FormatException when filename contains a path separator',
-          () {
-        expect(
-          () => workdirFileFromJson(
-            {'filename': 'sub/file.txt', 'url': 'https://example.test/x'},
-          ),
-          throwsFormatException,
-        );
+      test('parses a filename that is a relative path', () {
+        final result = workdirFileFromJson({
+          'filename': 'dir/sub/file.txt',
+          'url': 'https://example.test/dir/sub/file.txt',
+        });
+        expect(result.filename, 'dir/sub/file.txt');
       });
+
+      for (final (shape, filename) in [
+        ('a leading separator', '/etc/passwd'),
+        ('an empty segment', 'dir//file.txt'),
+        ('a trailing separator', 'dir/'),
+        ('a . segment', '.'),
+        ('a .. segment', '..'),
+      ]) {
+        test('throws FormatException when filename has $shape', () {
+          expect(
+            () => workdirFileFromJson(
+              {'filename': filename, 'url': 'https://example.test/x'},
+            ),
+            throwsFormatException,
+          );
+        });
+      }
 
       test('throws FormatException when filename contains a NUL byte', () {
         expect(

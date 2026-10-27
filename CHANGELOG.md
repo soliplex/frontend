@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Changed
+
+- **Library consumers (breaking):** `WorkdirFile.filename` is the file's
+  path relative to the workspace root and can contain `/` (`dir/file.txt`);
+  `WorkdirFile.basename` and `WorkdirFile.directory` split it.
+  `SoliplexApi.getThreadWorkdirFile` takes such a path and throws
+  `ArgumentError` for one with an empty, `.` or `..` segment, which would
+  otherwise request a different path.
+
+### Fixed
+
+- Files the agent writes into subdirectories of a thread's sandbox
+  workspace (`dir/file.png`, `dir/sub/file.py`) appear in the Workspace file
+  list under their full path. They preview and download like top-level
+  files, and a download is saved under the file's own name. The listing
+  skips an entry with an empty, `.` or `..` segment, or a NUL byte.
+- The warning for a skipped upload or workspace entry names its room, and
+  its thread for a thread's listing. An entry skipped for its URL, or for a
+  workspace path with an empty, `.` or `..` segment, is also named by its
+  file name, and a malformed URL is reported with the URL and the reason.
+- A workspace download that fails to fetch logs the status code and the
+  server's reason, as a preview does; one that fails to save still logs only
+  a reduced description of the failure, since its text can hold a local
+  path.
+
 ## [0.113.0+100] - 2026-10-26
 
 ### Added

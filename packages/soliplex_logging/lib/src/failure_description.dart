@@ -5,10 +5,9 @@
 /// `FormatException.source` around the failure offset. Where the source is a
 /// persisted blob or a response body, that window is the payload itself, so
 /// it must not reach a sink. The offset is a number, and the SDK parsers
-/// these callers use (`jsonDecode`, `DateTime.parse`) draw the reason from a
-/// fixed vocabulary, so neither carries input. A hand-thrown
-/// `FormatException` is free to interpolate one into its message; none of
-/// the callers produce those.
+/// (`jsonDecode`, `DateTime.parse`, `Uri.parse`) draw the reason from a fixed
+/// vocabulary, so neither carries input. A hand-thrown `FormatException`'s
+/// message is kept whole, values included.
 ///
 /// A [TypeError] is kept whole. The runtime builds it from type names alone,
 /// so it carries no value, and it is what says a response arrived as a string

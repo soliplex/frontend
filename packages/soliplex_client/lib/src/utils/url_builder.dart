@@ -52,6 +52,7 @@ class UrlBuilder {
   ///
   /// Path segments are automatically normalized:
   /// - Leading and trailing slashes are stripped
+  /// - A segment containing `/` is split into one segment per part
   /// - Empty segments are ignored
   Uri build({
     String? path,

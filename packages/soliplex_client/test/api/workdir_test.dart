@@ -132,8 +132,12 @@ void main() {
             'url': 'https://example.test/empty',
           },
           {
-            'filename': 'sub/file.txt',
+            'filename': 'sub/../file.txt',
             'url': 'https://example.test/sub.txt',
+          },
+          {
+            'filename': 'dir/file.txt',
+            'url': 'https://example.test/dir/file.txt',
           },
           {
             'filename': 'no-url.csv',
@@ -149,7 +153,41 @@ void main() {
 
       final files = await api.getThreadWorkdirFiles('room-123', 'thread-456');
 
-      expect(files.map((f) => f.filename), ['good.csv', 'also-good.csv']);
+      expect(
+        files.map((f) => f.filename),
+        ['good.csv', 'dir/file.txt', 'also-good.csv'],
+      );
+    });
+
+    test(
+        'warns of a skipped entry with its room, thread, value and reason, '
+        "without a parser's source window", () async {
+      final warnings = <String>[];
+      final warningApi = SoliplexApi(
+        transport: mockTransport,
+        urlBuilder: UrlBuilder('https://api.example.com/api/v1'),
+        onWarning: warnings.add,
+      );
+      stubListing({
+        'files': [
+          {'filename': 'dir/../file.txt', 'url': 'https://example.test/a'},
+          // Uri.parse fails on the port.
+          {'filename': 'file.txt', 'url': 'https://example.test:port/b'},
+        ],
+      });
+
+      await warningApi.getThreadWorkdirFiles('room-123', 'thread-456');
+
+      expect(warnings, hasLength(2));
+      for (final warning in warnings) {
+        expect(warning, contains('roomId=room-123'));
+        expect(warning, contains('threadId=thread-456'));
+      }
+      expect(warnings.first, contains('dir/../file.txt'));
+      expect(warnings.last, contains('https://example.test:port/b'));
+      expect(warnings.last, contains('Invalid port'));
+      // Not the multi-line source window FormatException.toString() draws.
+      expect(warnings, everyElement(isNot(contains('\n'))));
     });
 
     test('uses /workdirs/{roomId}/thread/{threadId} URL', () async {
@@ -212,6 +250,19 @@ void main() {
       expect(
         captured.path,
         endsWith('/workdirs/room-1/thread/thread-1/file/out.csv'),
+      );
+    });
+
+    test('sends a nested filename as separate path segments', () async {
+      // A proxy may reject or rewrite an encoded '%2F', so each directory
+      // must travel as its own segment.
+      stubBytes(() async => Uint8List(0));
+
+      await api.getThreadWorkdirFile('room-1', 'thread-1', 'dir/file.txt');
+
+      expect(
+        capturedBytesUri().path,
+        endsWith('/workdirs/room-1/thread/thread-1/file/dir/file.txt'),
       );
     });
 
@@ -280,5 +331,18 @@ void main() {
         throwsA(isA<ArgumentError>()),
       );
     });
+
+    // Each would reach the server as a different path: the URL resolves a dot
+    // segment and drops an empty one.
+    for (final filename in ['dir/../file.txt', 'dir//file.txt']) {
+      test('throws ArgumentError for "$filename"', () {
+        expect(
+          () => api.getThreadWorkdirFile('room-1', 'thread-1', filename),
+          throwsA(
+            isA<ArgumentError>().having((e) => e.name, 'name', 'filename'),
+          ),
+        );
+      });
+    }
   });
 }
