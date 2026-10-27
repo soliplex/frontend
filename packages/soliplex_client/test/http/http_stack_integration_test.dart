@@ -294,11 +294,10 @@ void main() {
     );
 
     test('SSE 401 on connection throws AuthException from transport', () async {
-      final controller = StreamController<List<int>>();
-      platform.nextStreamResponse = StreamedHttpResponse(
+      platform.nextStreamResponse = const StreamedHttpResponse(
         statusCode: 401,
         reasonPhrase: 'Unauthorized',
-        body: controller.stream,
+        body: Stream.empty(),
       );
 
       Object? caughtError;
@@ -310,7 +309,36 @@ void main() {
 
       expect(caughtError, isA<AuthException>());
       expect((caughtError! as AuthException).statusCode, equals(401));
-      await controller.close();
+    });
+
+    test('SSE 403 reaches the caller and the observer with its reason',
+        () async {
+      platform.nextStreamResponse = StreamedHttpResponse(
+        statusCode: 403,
+        reasonPhrase: 'Forbidden',
+        headers: const {'content-type': 'application/json'},
+        body: Stream.value(
+          utf8.encode('{"detail": "Not permitted", "token": "secret-jwt"}'),
+        ),
+      );
+
+      Object? caughtError;
+      try {
+        await transport.requestStream('POST', testUri);
+      } catch (e) {
+        caughtError = e;
+      }
+
+      expect(
+        caughtError,
+        isA<PermissionDeniedException>()
+            .having((e) => e.message, 'message', 'Not permitted'),
+      );
+      final end = observer.ofType<HttpStreamEndEvent>().single;
+      expect(end.statusCode, 403);
+      expect(end.isSuccess, isFalse);
+      expect(end.body, contains('Not permitted'));
+      expect(end.body, isNot(contains('secret-jwt')));
     });
 
     test('CancelToken cancels SSE before connection', () async {

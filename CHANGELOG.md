@@ -42,6 +42,22 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   consumers:** `HttpStreamEndEvent` carries `statusCode`, `reasonPhrase`
   and redacted `headers`; its `isRefused` says the status was not 2xx, and
   its `isSuccess` is false when it was refused.
+- A refused stream says why: when the server gives a reason, the run's error
+  shows it in place of "HTTP 403: Forbidden", and a
+  `soliplex_client.http_transport` warning records the status, path,
+  content type, `Server` header, bytes read (up to 4 KB), how the read of
+  the error body ended, and that reason. Cancelling while the error body is read still
+  cancels the run. The warning records only the content type and bytes read
+  of a body that is not JSON, such as a proxy's HTML page. **Library
+  consumers:** `HttpTransport.requestStream` reads a refused stream's body
+  for up to 2 seconds before throwing, and the exception carries the
+  reason as `serverMessage`.
+- A server's reason for an error, on any request, is the first non-blank
+  string among its JSON `message`, `error` and `detail`, with JWTs and
+  `Bearer`/`Basic` values of 16 or more characters replaced by
+  `[REDACTED]`, and capped at 200 characters plus an ellipsis. A blank
+  reason no longer replaces the status, and a field of another type no
+  longer hides the reason in a later one.
 
 ## [0.112.0+99] - 2026-10-22
 
