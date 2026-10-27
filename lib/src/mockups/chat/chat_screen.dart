@@ -187,6 +187,8 @@ class RoomScreen extends StatefulWidget {
     this.roomReadMarkers,
     this.serverReadMarkers,
     this.datasets,
+    this.conversationsRoomId,
+    this.startNew = false,
   });
 
   final ServerEntry serverEntry;
@@ -215,6 +217,15 @@ class RoomScreen extends StatefulWidget {
   /// MOCKUP: another mockup's datasets in place of the panel's stubbed
   /// databases. Null keeps the chat mockup as it was.
   final ThreadDatasetsSeam? datasets;
+
+  /// MOCKUP: the hidden room that holds conversations started outside any
+  /// room. It heads the rail, and offers no room info. Null keeps the chat
+  /// mockup as it was.
+  final String? conversationsRoomId;
+
+  /// MOCKUP: with no thread in the URL, open on the welcome composer rather
+  /// than the most recent thread, so a new conversation starts fresh.
+  final bool startNew;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -894,7 +905,7 @@ class _RoomScreenState extends State<RoomScreen> {
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
       _beginUnreadTracking(widget.threadId!);
-    } else {
+    } else if (!widget.startNew) {
       _autoSelectFirstThread();
     }
     unawaited(_restorePersistedComposer());
@@ -1004,7 +1015,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
         _beginUnreadTracking(widget.threadId!);
-      } else {
+      } else if (!widget.startNew) {
         _autoSelectFirstThread();
       }
     } else if (widget.threadId != oldWidget.threadId) {
@@ -1722,9 +1733,25 @@ class _RoomScreenState extends State<RoomScreen> {
             _unreadRoomIds,
             selectedRoomId: widget.roomId,
           );
+    // MOCKUP: conversations outside any room head the rail, whatever their
+    // activity, so there is always one tap back to them.
+    var railRooms = order?.rooms;
+    var dividerIndex = order?.dividerIndex;
+    final pinnedIndex =
+        railRooms?.indexWhere((r) => r.id == widget.conversationsRoomId) ?? -1;
+    if (railRooms != null && pinnedIndex >= 0) {
+      railRooms = [
+        railRooms[pinnedIndex],
+        ...railRooms.take(pinnedIndex),
+        ...railRooms.skip(pinnedIndex + 1),
+      ];
+      if (dividerIndex != null && pinnedIndex >= dividerIndex) {
+        dividerIndex++;
+      }
+    }
     return RoomRail(
-      rooms: order?.rooms,
-      dividerIndex: order?.dividerIndex,
+      rooms: railRooms,
+      dividerIndex: dividerIndex,
       roomsError: _serverRoomsError,
       onRetryRooms: () => setState(_fetchServerRooms),
       unreadRoomIds: _unreadRoomIds,
@@ -1956,12 +1983,13 @@ class _RoomScreenState extends State<RoomScreen> {
         _buildDocumentsButton(roomStatus, threadStatus, theme);
     return [
       if (documentsButton != null) documentsButton,
-      IconButton(
-        icon: const Icon(Icons.info_outline),
-        tooltip: 'Room info',
-        onPressed: _onRoomInfo,
-        visualDensity: VisualDensity.compact,
-      ),
+      if (widget.roomId != widget.conversationsRoomId)
+        IconButton(
+          icon: const Icon(Icons.info_outline),
+          tooltip: 'Room info',
+          onPressed: _onRoomInfo,
+          visualDensity: VisualDensity.compact,
+        ),
     ];
   }
 

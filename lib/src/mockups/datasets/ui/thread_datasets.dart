@@ -66,6 +66,7 @@ class _TrayBody extends StatelessWidget {
     final scheme = theme.colorScheme;
     final tray = _Tray.of(store, scope);
     final preset = tray.preset;
+    final ceiling = store.ceilingFor(scope.roomId);
     final locked = scope.hasMessages;
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: scheme.onSurfaceVariant,
@@ -74,15 +75,14 @@ class _TrayBody extends StatelessWidget {
       for (final d in store.pinned)
         if (!tray.ids.contains(d.id) &&
             !d.isDeprecated &&
-            (preset == null || isWithin(d.level, preset.ceiling)))
+            isWithin(d.level, ceiling))
           d,
     ];
 
     Future<void> add() async {
-      if (preset == null) return;
       final picked = await showDatasetPicker(
         context,
-        ceiling: preset.ceiling,
+        ceiling: preset?.ceiling,
         inUse: tray.ids.toSet(),
       );
       for (final id in picked ?? const <String>[]) {
@@ -107,6 +107,32 @@ class _TrayBody extends StatelessWidget {
               const SizedBox(width: SoliplexSpacing.s2),
               Expanded(
                 child: Text('datasets above it are locked', style: muted),
+              ),
+            ],
+          )
+        else
+          // No room, so no ceiling: the conversation takes the level of the
+          // most restrictive dataset it uses.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: SoliplexSpacing.s2,
+                runSpacing: SoliplexSpacing.s1,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'Conversation level',
+                    style: theme.textTheme.labelSmall,
+                  ),
+                  LevelBadge(store.levelOf(scope.roomId, scope.threadId)),
+                ],
+              ),
+              const SizedBox(height: SoliplexSpacing.s1),
+              Text(
+                'No room, so no ceiling: the most restrictive dataset sets '
+                'the level.',
+                style: muted,
               ),
             ],
           ),
