@@ -1,5 +1,5 @@
 import 'chat/chat_mockup.dart';
-import 'datasets/classification_levels.dart';
+import 'datasets/sensitivity_levels.dart';
 import 'datasets/datasets_mockup.dart';
 import 'example_mockup.dart';
 import 'mockup.dart';
@@ -19,7 +19,7 @@ final mockups = <Mockup>[
     name: 'Datasets',
     description: 'Rooms as presets, a catalog of datasets to pick from, and '
         'creating, uploading to and sharing your own',
-    classifications: mockupClassifications,
+    classifications: mockupLevels,
     build: (_) => const DatasetsMockup(),
   ),
   Mockup(

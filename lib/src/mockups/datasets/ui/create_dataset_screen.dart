@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../core/layout.dart';
-import '../classification_levels.dart';
+import '../sensitivity_levels.dart';
 import '../model.dart';
 import '../store.dart';
 import 'common.dart';
@@ -170,15 +170,15 @@ class _CreateDatasetScreenState extends State<CreateDatasetScreen> {
                     for (final id in levelIds)
                       RadioListTile<String>(
                         value: id,
-                        enabled: isWithin(id, store.user.clearance),
+                        enabled: isWithin(id, store.user.access),
                         contentPadding: EdgeInsets.zero,
                         title: Align(
                           alignment: Alignment.centerLeft,
                           child: LevelBadge(id),
                         ),
-                        subtitle: isWithin(id, store.user.clearance)
+                        subtitle: isWithin(id, store.user.access)
                             ? null
-                            : const Text('Above your clearance'),
+                            : const Text('Above your access'),
                       ),
                   ],
                 ),
@@ -221,7 +221,7 @@ class _CreateDatasetScreenState extends State<CreateDatasetScreen> {
               const Notice(
                 warning: true,
                 icon: Icons.policy_outlined,
-                text: 'Soliplex does not check classification. You are '
+                text: 'Soliplex does not check sensitivity. You are '
                     'responsible for what you put in this dataset.',
               ),
               const SizedBox(height: SoliplexSpacing.s4),

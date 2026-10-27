@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import '../classification_levels.dart';
+import '../sensitivity_levels.dart';
 import '../model.dart';
 import '../store.dart';
 import 'common.dart';
@@ -257,8 +257,8 @@ class _NoResults extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(SoliplexSpacing.s6),
       child: Text(
-        'No datasets match. Datasets you are not cleared for, or not shared '
-        'with, are never listed.',
+        'No datasets match. Datasets above your access, or not shared '
+        'with you, are never listed.',
         textAlign: TextAlign.center,
         style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
@@ -456,7 +456,7 @@ class _FacetGroupState extends State<_FacetGroup> {
               onChanged: (v) =>
                   store.setFacet(facet, value, selected: v ?? false),
               title: facet == Facet.level
-                  // Shrinks a long marking to fit the column rather than
+                  // Shrinks a long level label to fit the column rather than
                   // breaking it mid-word.
                   ? FittedBox(
                       fit: BoxFit.scaleDown,
