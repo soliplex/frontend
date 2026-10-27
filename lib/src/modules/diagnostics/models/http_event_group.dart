@@ -113,7 +113,7 @@ class HttpEventGroup {
     if (isStream) {
       return switch (streamEnd) {
         null => HttpEventStatus.streaming,
-        HttpStreamEndEvent(error: _?) => HttpEventStatus.streamError,
+        HttpStreamEndEvent(isSuccess: false) => HttpEventStatus.streamError,
         HttpStreamEndEvent() => HttpEventStatus.streamComplete,
       };
     }
@@ -127,6 +127,13 @@ class HttpEventGroup {
       HttpResponseEvent() => HttpEventStatus.success,
     };
   }
+
+  /// The non-2xx status the server refused a stream with. Null for a stream
+  /// it accepted, one still open, and one that failed before any response.
+  int? get streamRefusalStatus => switch (streamEnd) {
+        final end? when end.isRefused => end.statusCode,
+        _ => null,
+      };
 
   bool get hasSpinner =>
       status == HttpEventStatus.pending || status == HttpEventStatus.streaming;
@@ -144,7 +151,10 @@ class HttpEventGroup {
         'network error, ${exception.runtimeType}',
       (HttpEventStatus.streaming, _, _) => 'streaming',
       (HttpEventStatus.streamComplete, _, _) => 'stream complete',
-      (HttpEventStatus.streamError, _, _) => 'stream error',
+      (HttpEventStatus.streamError, _, _) => switch (streamRefusalStatus) {
+          final code? => 'stream error, status $code',
+          null => 'stream error',
+        },
       _ => status.name,
     };
   }

@@ -182,16 +182,18 @@ class _SummarySection extends StatelessWidget {
     final streamEnd = group.streamEnd;
 
     if (response != null) {
-      final status = response.reasonPhrase != null
-          ? '${response.statusCode} ${response.reasonPhrase}'
-          : '${response.statusCode}';
       entries
-        ..add(('Status', status))
+        ..add(
+          ('Status', _statusText(response.statusCode, response.reasonPhrase)),
+        )
         ..add(('Duration', response.duration.toHttpDurationString()))
         ..add(('Size', response.bodySize.toHttpBytesString()));
     } else if (streamEnd != null) {
+      entries.add(('Stream', 'true'));
+      if (streamEnd.statusCode case final code?) {
+        entries.add(('Status', _statusText(code, streamEnd.reasonPhrase)));
+      }
       entries
-        ..add(('Stream', 'true'))
         ..add(('Duration', streamEnd.duration.toHttpDurationString()))
         ..add(('Received', streamEnd.bytesReceived.toHttpBytesString()));
     } else if (error != null) {
@@ -206,6 +208,9 @@ class _SummarySection extends StatelessWidget {
 
     return entries;
   }
+
+  static String _statusText(int statusCode, String? reasonPhrase) =>
+      reasonPhrase != null ? '$statusCode $reasonPhrase' : '$statusCode';
 
   @override
   Widget build(BuildContext context) {
@@ -246,26 +251,11 @@ class _RequestSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _SectionTitle(title: 'Request'),
-        if (headers.isEmpty && body == null)
-          const _EmptyHint(message: 'No request headers or body')
-        else ...[
-          if (headers.isNotEmpty) ...[
-            _SubHeader(
-              title: 'Headers',
-              copyText:
-                  headers.entries.map((e) => '${e.key}: ${e.value}').join('\n'),
-            ),
-            _HeadersTable(headers: headers),
-          ],
-          if (body != null) ...[
-            if (headers.isNotEmpty) const SizedBox(height: SoliplexSpacing.s4),
-            _SubHeader(
-              title: 'Body',
-              copyText: HttpEventGroup.formatBody(body),
-            ),
-            _BodyView(body: body),
-          ],
-        ],
+        _HeadersAndBody(
+          headers: headers,
+          body: body,
+          emptyMessage: 'No request headers or body',
+        ),
       ],
     );
   }
@@ -293,6 +283,25 @@ class _ResponseSection extends StatelessWidget {
       if (streamEnd == null) {
         return const _EmptyHint(message: 'Stream in progress…');
       }
+      // A refused stream's body is an ordinary error response, not SSE.
+      if (streamEnd.isRefused) {
+        final body = streamEnd.body;
+        final error = streamEnd.error;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (error != null) ...[
+              _ErrorDisplay(message: error.message),
+              const SizedBox(height: SoliplexSpacing.s4),
+            ],
+            _HeadersAndBody(
+              headers: streamEnd.headers ?? const {},
+              body: body == null || body.isEmpty ? null : body,
+              emptyMessage: 'No response headers or body',
+            ),
+          ],
+        );
+      }
       if (streamEnd.error != null) {
         return _ErrorDisplay(message: streamEnd.error!.message);
       }
@@ -313,11 +322,29 @@ class _ResponseSection extends StatelessWidget {
       return const _EmptyHint(message: 'Waiting for response…');
     }
 
-    final headers = response.headers ?? const <String, String>{};
-    final body = response.body;
+    return _HeadersAndBody(
+      headers: response.headers ?? const {},
+      body: response.body,
+      emptyMessage: 'No response headers or body',
+    );
+  }
+}
 
+class _HeadersAndBody extends StatelessWidget {
+  const _HeadersAndBody({
+    required this.headers,
+    required this.body,
+    required this.emptyMessage,
+  });
+
+  final Map<String, String> headers;
+  final dynamic body;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
     if (headers.isEmpty && body == null) {
-      return const _EmptyHint(message: 'No response headers or body');
+      return _EmptyHint(message: emptyMessage);
     }
 
     return Column(

@@ -2001,6 +2001,86 @@ void main() {
       });
     });
 
+    group('stream response status', () {
+      void stubStream(StreamedHttpResponse response) {
+        when(
+          () => mockClient.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        ).thenAnswer((_) async => response);
+      }
+
+      test('records the status of a refused stream whose body was dropped',
+          () async {
+        stubStream(
+          StreamedHttpResponse(
+            statusCode: 403,
+            reasonPhrase: 'Forbidden',
+            headers: const {'content-type': 'application/json'},
+            body: Stream.value('{"detail": "Not permitted"}'.codeUnits),
+          ),
+        );
+
+        final response = await observableClient.requestStream(
+          'POST',
+          Uri.parse('https://example.com/agui/t/r'),
+        );
+        await response.body.listen((_) {}).cancel();
+
+        final end = recorder.eventsOfType<HttpStreamEndEvent>().single;
+        expect(end.statusCode, 403);
+        expect(end.reasonPhrase, 'Forbidden');
+      });
+
+      test('records redacted response headers', () async {
+        stubStream(
+          const StreamedHttpResponse(
+            statusCode: 403,
+            headers: {
+              'content-type': 'text/html',
+              'set-cookie': 'session=abc',
+            },
+            body: Stream.empty(),
+          ),
+        );
+
+        final response = await observableClient.requestStream(
+          'POST',
+          Uri.parse('https://example.com/agui/t/r'),
+        );
+        await response.body.drain<void>();
+
+        final end = recorder.eventsOfType<HttpStreamEndEvent>().single;
+        expect(end.headers, containsPair('content-type', 'text/html'));
+        expect(end.headers!['set-cookie'], isNot(contains('abc')));
+      });
+
+      test('redacts a refused stream JSON body as JSON, not as SSE', () async {
+        stubStream(
+          StreamedHttpResponse(
+            statusCode: 403,
+            headers: const {'content-type': 'application/json'},
+            body: Stream.value(
+              '{"detail": "Not permitted", "token": "secret-jwt"}'.codeUnits,
+            ),
+          ),
+        );
+
+        final response = await observableClient.requestStream(
+          'POST',
+          Uri.parse('https://example.com/agui/t/r'),
+        );
+        await response.body.drain<void>();
+
+        final end = recorder.eventsOfType<HttpStreamEndEvent>().single;
+        expect(end.body, contains('Not permitted'));
+        expect(end.body, isNot(contains('secret-jwt')));
+      });
+    });
+
     group('SSE stream buffering', () {
       test('buffers SSE content in stream end event', () async {
         final controller = StreamController<List<int>>();

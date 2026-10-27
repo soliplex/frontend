@@ -545,6 +545,18 @@ void main() {
       expect(event.isSuccess, isFalse);
     });
 
+    test('isSuccess returns false for a refused stream with no error', () {
+      final event = HttpStreamEndEvent(
+        requestId: 'req-123',
+        timestamp: DateTime.now(),
+        bytesReceived: 0,
+        duration: const Duration(milliseconds: 50),
+        statusCode: 403,
+      );
+
+      expect(event.isSuccess, isFalse);
+    });
+
     test('equality is based on requestId', () {
       final event1 = HttpStreamEndEvent(
         requestId: 'req-123',
