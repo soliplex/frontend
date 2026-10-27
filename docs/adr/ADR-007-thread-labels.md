@@ -176,9 +176,10 @@ through a few places:
 
 1. **Backend catalogue read.** `GET /v1/agui/labels` (`ThreadStorage.list_labels`)
    gains a filter on the caller.
-2. **Auto-labelling.** `auto_labels.candidate_labels` is the only place the
-   agent reads the catalogue. Filtering it by the thread's owner keeps the
-   assistant from attaching a label its owner could not see.
+2. **Auto-labelling.** `auto_labels.maybe_apply_labels` reads the catalogue
+   with `list_labels()` in one place. Applying the same filter there, for the
+   thread's owner, keeps the assistant from attaching a label its owner could
+   not see.
 3. **Labels on a user's own threads** (`get_threads_labels`). This needs a
    policy decision: does a label that was hidden later still show on threads
    that already carry it?
@@ -203,6 +204,10 @@ unseen. The notice is the only control at the moment a name is written.
   which labels the model applied. That is a column with no consumer yet.
 - **Timing.** A label applied after the room's post-run refetch shows up on
   the next listing. Thread titles have the same timing today.
+- **An unfinished first run.** A thread whose first run does not finish is
+  never auto-labelled, because by its next finished run it has two runs.
+  Closing this would need a flag on the thread recording that it was
+  auto-labelled.
 
 ## 6. Migration
 
