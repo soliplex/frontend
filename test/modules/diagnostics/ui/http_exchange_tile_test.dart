@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/models/http_event_group.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/ui/http_exchange_tile.dart';
 
@@ -119,6 +120,51 @@ void main() {
       // Summary records the stream flag, and the response hosts the toggle.
       expect(find.text('Conversation'), findsOneWidget);
       expect(find.text('Events'), findsOneWidget);
+    });
+
+    testWidgets('refused stream shows its status, headers and error body',
+        (tester) async {
+      final group = HttpEventGroup(
+        requestId: 'req-1',
+        streamStart: createStreamStartEvent(),
+        streamEnd: createStreamEndEvent(
+          bytesReceived: 27,
+          statusCode: 403,
+          reasonPhrase: 'Forbidden',
+          headers: const {'content-type': 'application/json'},
+          body: '{"detail": "Not permitted"}',
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrap(HttpExchangeTile(group: group, initiallyExpanded: true)),
+      );
+
+      expect(find.text('403 Forbidden'), findsOneWidget);
+      expect(find.text('application/json'), findsOneWidget);
+      expect(find.textContaining('Not permitted'), findsWidgets);
+      expect(find.text('Conversation'), findsNothing);
+    });
+
+    testWidgets('refused stream whose body failed shows that failure',
+        (tester) async {
+      final group = HttpEventGroup(
+        requestId: 'req-1',
+        streamStart: createStreamStartEvent(),
+        streamEnd: createStreamEndEvent(
+          bytesReceived: 12,
+          statusCode: 403,
+          body: '<html><body>',
+          error: const NetworkException(message: 'Connection reset'),
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrap(HttpExchangeTile(group: group, initiallyExpanded: true)),
+      );
+
+      expect(find.text('Connection reset'), findsOneWidget);
+      expect(find.textContaining('<html><body>'), findsWidgets);
     });
 
     testWidgets('tabular header renders the endpoint path', (tester) async {

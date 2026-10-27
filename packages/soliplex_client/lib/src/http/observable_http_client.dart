@@ -192,6 +192,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
     });
 
     var emittedEnd = false;
+    StreamedHttpResponse? streamResponse;
 
     void emitEnd({Object? error, StackTrace? stackTrace}) {
       if (emittedEnd) return;
@@ -207,6 +208,12 @@ class ObservableHttpClient implements SoliplexHttpClient {
                   originalError: error,
                   stackTrace: stackTrace,
                 ));
+      final received = streamResponse;
+      final redactedBody =
+          _redactStreamBody(streamBuffer.content, received, uri);
+      final redactedHeaders = received == null
+          ? null
+          : HttpRedactor.redactHeaders(received.headers);
       _notifyObservers((observer) {
         observer.onStreamEnd(
           HttpStreamEndEvent(
@@ -215,7 +222,10 @@ class ObservableHttpClient implements SoliplexHttpClient {
             bytesReceived: bytesReceived,
             duration: duration,
             error: soliplexError,
-            body: HttpRedactor.redactSseContent(streamBuffer.content, uri),
+            body: redactedBody,
+            statusCode: received?.statusCode,
+            reasonPhrase: received?.reasonPhrase,
+            headers: redactedHeaders,
           ),
         );
       });
@@ -236,6 +246,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
       emitEnd(error: error, stackTrace: stackTrace);
       rethrow;
     }
+    streamResponse = response;
 
     late StreamController<List<int>> controller;
     StreamSubscription<List<int>>? subscription;
@@ -393,16 +404,49 @@ class ObservableHttpClient implements SoliplexHttpClient {
       return '<binary body: ${response.bodyBytes.length} bytes>';
     }
 
+    return _redactTextBody(response.body, contentType, uri);
+  }
+
+  dynamic _redactTextBody(String text, String contentType, Uri uri) {
     if (contentType.contains('application/json')) {
       try {
-        final parsed = jsonDecode(response.body);
+        final parsed = jsonDecode(text);
         return HttpRedactor.redactJsonBody(parsed, uri);
       } on FormatException {
-        return HttpRedactor.redactString(response.body, uri);
+        return HttpRedactor.redactString(text, uri);
       }
     }
 
-    return HttpRedactor.redactString(response.body, uri);
+    return HttpRedactor.redactString(text, uri);
+  }
+
+  /// Redacts the buffered body of a stream. A refused stream answers with
+  /// an ordinary error body (a JSON reason or a proxy's HTML page) rather
+  /// than SSE, so it is redacted the way a text response body is. Same
+  /// contract as [_redactRequestBody]: never throws.
+  String _redactStreamBody(
+    String content,
+    StreamedHttpResponse? response,
+    Uri uri,
+  ) {
+    try {
+      if (response == null || response.isSuccess) {
+        return HttpRedactor.redactSseContent(content, uri);
+      }
+      final redacted = _redactTextBody(
+        content,
+        response.headers['content-type'] ?? '',
+        uri,
+      );
+      return redacted is String ? redacted : jsonEncode(redacted);
+    } on Object catch (error, stackTrace) {
+      _onDiagnostic(
+        error,
+        stackTrace,
+        message: 'Stream body redaction failed unexpectedly',
+      );
+      return '<redaction failed>';
+    }
   }
 
   /// Whether [contentType] denotes a binary media payload whose body should

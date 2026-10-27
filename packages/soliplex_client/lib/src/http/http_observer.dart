@@ -255,7 +255,27 @@ class HttpStreamEndEvent extends HttpEvent {
     required this.duration,
     this.error,
     this.body,
+    this.statusCode,
+    this.reasonPhrase,
+    this.headers,
   });
+
+  /// The HTTP status code the server answered the stream request with.
+  ///
+  /// Null when no response arrived. Anything but 2xx is a refused stream
+  /// (see [isRefused]).
+  final int? statusCode;
+
+  /// The reason phrase from the server (e.g., "Forbidden").
+  ///
+  /// Null when the request failed before any response arrived, or when the
+  /// server sent none.
+  final String? reasonPhrase;
+
+  /// Response headers, with sensitive values redacted.
+  ///
+  /// Null when the request failed before any response arrived.
+  final Map<String, String>? headers;
 
   /// Total bytes received during streaming.
   final int bytesReceived;
@@ -263,20 +283,29 @@ class HttpStreamEndEvent extends HttpEvent {
   /// Time elapsed from stream start to end.
   final Duration duration;
 
-  /// The error that caused the stream to end, if any.
+  /// The error the body stream ended with, if any.
   ///
-  /// Null for successful completions or user cancellations.
+  /// A refused stream usually has none: the exception for its status is
+  /// thrown by `HttpTransport`, above this event. [isSuccess] says whether
+  /// the stream succeeded.
   final SoliplexException? error;
 
-  /// The accumulated stream content (e.g., SSE events).
+  /// The accumulated stream content (e.g., SSE events), redacted.
   ///
   /// Contains the buffered stream data, potentially truncated if it exceeded
   /// the maximum buffer size (500KB). When truncated, the string starts with
-  /// "[EARLIER CONTENT DROPPED]".
+  /// "[EARLIER CONTENT DROPPED]". For a refused stream ([statusCode] not 2xx)
+  /// it is the part of the error body that was read.
   final String? body;
 
-  /// Whether the stream completed successfully (no error).
-  bool get isSuccess => error == null;
+  /// Whether the server answered with a [statusCode] other than 2xx.
+  bool get isRefused {
+    final code = statusCode;
+    return code != null && (code < 200 || code >= 300);
+  }
+
+  /// Whether the stream completed successfully: no error, and not refused.
+  bool get isSuccess => error == null && !isRefused;
 
   @override
   String toString() => 'HttpStreamEndEvent($requestId, '

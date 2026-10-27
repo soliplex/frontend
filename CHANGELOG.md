@@ -34,6 +34,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `RunFoldObserver` to `getThreadHistory` and reads `runStarted`'s
   `continuesTurn`.
 
+### Fixed
+
+- The diagnostics screen shows a stream the server refused (a run answered
+  with 403, say) as an error with its status code, response headers and
+  error body, instead of as a green "complete" with no content. **Library
+  consumers:** `HttpStreamEndEvent` carries `statusCode`, `reasonPhrase`
+  and redacted `headers`; its `isRefused` says the status was not 2xx, and
+  its `isSuccess` is false when it was refused.
+
 ## [0.112.0+99] - 2026-10-22
 
 ### Added

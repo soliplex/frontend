@@ -78,6 +78,15 @@ void main() {
         );
         expect(group.status, HttpEventStatus.streamError);
       });
+
+      test('returns streamError when the server refused the stream', () {
+        final group = HttpEventGroup(
+          requestId: 'req-1',
+          streamStart: createStreamStartEvent(),
+          streamEnd: createStreamEndEvent(bytesReceived: 0, statusCode: 403),
+        );
+        expect(group.status, HttpEventStatus.streamError);
+      });
     });
 
     group('method', () {
@@ -405,6 +414,27 @@ void main() {
           streamEnd: createStreamEndEvent(),
         );
         expect(group.statusDescription, 'stream complete');
+      });
+
+      test('names the status of a refused stream', () {
+        final group = HttpEventGroup(
+          requestId: 'req-1',
+          streamStart: createStreamStartEvent(),
+          streamEnd: createStreamEndEvent(statusCode: 403),
+        );
+        expect(group.statusDescription, 'stream error, status 403');
+      });
+
+      test('names no status for a stream that was accepted, then dropped', () {
+        final group = HttpEventGroup(
+          requestId: 'req-1',
+          streamStart: createStreamStartEvent(),
+          streamEnd: createStreamEndEvent(
+            statusCode: 200,
+            error: const NetworkException(message: 'Connection lost'),
+          ),
+        );
+        expect(group.statusDescription, 'stream error');
       });
     });
 

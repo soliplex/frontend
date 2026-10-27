@@ -84,6 +84,9 @@ HttpStreamEndEvent createStreamEndEvent({
   Duration duration = const Duration(seconds: 10),
   SoliplexException? error,
   String? body,
+  int? statusCode,
+  String? reasonPhrase,
+  Map<String, String>? headers,
 }) {
   return HttpStreamEndEvent(
     requestId: requestId,
@@ -92,6 +95,9 @@ HttpStreamEndEvent createStreamEndEvent({
     duration: duration,
     error: error,
     body: body,
+    statusCode: statusCode,
+    reasonPhrase: reasonPhrase,
+    headers: headers,
   );
 }
 

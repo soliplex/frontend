@@ -76,8 +76,8 @@ class HttpStatusDisplay extends StatelessWidget {
       HttpEventStatus.streamComplete =>
         'complete (${streamEnd?.duration.toHttpDurationString() ?? '—'}, '
             '${streamEnd?.bytesReceived.toHttpBytesString() ?? '—'})',
-      HttpEventStatus.streamError =>
-        'error (${streamEnd?.duration.toHttpDurationString() ?? '—'})',
+      HttpEventStatus.streamError => '${group.streamRefusalStatus ?? 'error'} '
+          '(${streamEnd?.duration.toHttpDurationString() ?? '—'})',
     };
   }
 
