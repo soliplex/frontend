@@ -8,9 +8,9 @@ import 'package:soliplex_client/soliplex_client.dart'
         ThreadLabel;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
-import 'package:soliplex_frontend/src/modules/lobby/labels_state.dart';
+import 'package:soliplex_frontend/src/stores/labels_state.dart';
 
-import '../../helpers/fakes.dart';
+import '../helpers/fakes.dart';
 
 class _Harness {
   _Harness({List<ThreadLabel>? labels}) {

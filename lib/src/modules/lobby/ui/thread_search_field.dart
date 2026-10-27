@@ -7,7 +7,7 @@ import 'package:soliplex_client/soliplex_client.dart' show ThreadLabel;
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../thread_query.dart';
-import 'labels_view.dart' show LabelChip;
+import '../../../shared/label_chip.dart';
 
 /// How long typing settles before the listing is refetched.
 ///
