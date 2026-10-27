@@ -15,5 +15,19 @@ void main() {
       expect(a, isNot(equals(differentName)));
       expect(a, isNot(equals(differentUrl)));
     });
+
+    final url = Uri.parse('https://example.test/x');
+
+    test('a nested file splits into its directory and basename', () {
+      final file = WorkdirFile(filename: 'dir/sub/file.txt', url: url);
+      expect(file.basename, 'file.txt');
+      expect(file.directory, 'dir/sub');
+    });
+
+    test('a top-level file has its filename as basename and no directory', () {
+      final file = WorkdirFile(filename: 'notes.txt', url: url);
+      expect(file.basename, 'notes.txt');
+      expect(file.directory, isNull);
+    });
   });
 }

@@ -183,6 +183,23 @@ String _requireString(Map<String, dynamic> json, String field, String context) {
   return value;
 }
 
+/// Reads a required URL [field] from [json], like [_requireString].
+///
+/// A malformed URL is rethrown as a [FormatException] naming the URL and the
+/// parser's reason: the parser's own holds the URL only in its source window,
+/// which `describeFailure` drops. The URL is trusted to carry no credential,
+/// because the backend builds it from a host, ids and a path.
+Uri _requireUrl(Map<String, dynamic> json, String field, String context) {
+  final value = _requireString(json, field, context);
+  try {
+    return Uri.parse(value);
+  } on FormatException catch (e) {
+    throw FormatException(
+      '$context "$field" is not a URL (${e.message}): $value',
+    );
+  }
+}
+
 /// Creates a [RoomTool] from JSON.
 RoomTool roomToolFromJson(String name, Map<String, dynamic> json) {
   return RoomTool(
@@ -516,9 +533,10 @@ Map<String, dynamic> ragDocumentToJson(RagDocument doc) {
 /// Throws [FormatException] if `filename` or `url` is missing or
 /// malformed.
 FileUpload fileUploadFromJson(Map<String, dynamic> json) {
+  final filename = _requireString(json, 'filename', 'file upload');
   return FileUpload(
-    filename: _requireString(json, 'filename', 'file upload'),
-    url: Uri.parse(_requireString(json, 'url', 'file upload')),
+    filename: filename,
+    url: _requireUrl(json, 'url', 'file upload "$filename"'),
   );
 }
 
@@ -526,29 +544,41 @@ FileUpload fileUploadFromJson(Map<String, dynamic> json) {
 // WorkdirFile mappers
 // ============================================================
 
+/// Whether every `/`-separated segment of [path] names an entry: none is
+/// empty, `.` or `..`. That excludes the empty path and a leading or
+/// trailing `/`.
+///
+/// Only such a path reaches the server as written when its segments are
+/// built into a URL: `UrlBuilder` drops empty segments and [Uri] resolves
+/// dot segments, so `dir/../file.txt` would request `file.txt`.
+bool isWorkspaceFilePath(String path) => path.split('/').every(
+      (segment) => segment.isNotEmpty && segment != '.' && segment != '..',
+    );
+
 /// Creates a [WorkdirFile] from JSON.
 ///
-/// Throws [FormatException] if `filename` is missing, empty, contains a
-/// path separator, or contains a NUL byte; or if `url` is missing or
+/// Throws [FormatException] if `filename` is missing, empty, contains a NUL
+/// byte, or has a segment that is empty (a leading, trailing or doubled
+/// `/`), `.` or `..` (see [isWorkspaceFilePath]); or if `url` is missing or
 /// malformed.
 WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
   final filename = _requireString(json, 'filename', 'workdir file');
   if (filename.isEmpty) {
     throw const FormatException('workdir file filename must not be empty');
   }
-  if (filename.contains('/')) {
-    throw FormatException(
-      'workdir file filename must not contain path separators: $filename',
-    );
-  }
   if (filename.contains('\x00')) {
     throw const FormatException(
       'workdir file filename must not contain NUL bytes',
     );
   }
+  if (!isWorkspaceFilePath(filename)) {
+    throw FormatException(
+      'workdir file filename must have no empty, . or .. segment: $filename',
+    );
+  }
   return WorkdirFile(
     filename: filename,
-    url: Uri.parse(_requireString(json, 'url', 'workdir file')),
+    url: _requireUrl(json, 'url', 'workdir file "$filename"'),
   );
 }
 

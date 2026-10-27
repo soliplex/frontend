@@ -92,12 +92,14 @@ enum PreviewKind {
       };
 }
 
-/// Lower-cased extension without the leading dot, or `null` when the
-/// filename has no usable extension. `.bashrc` (leading dot, nothing
-/// before it) yields `null`.
+/// Lower-cased extension of the last `/`-separated segment of [filename],
+/// without the leading dot, or `null` when that segment has none: no dot
+/// (`Makefile`, `dir.v2/Makefile`), only a leading one (`.bashrc`,
+/// `dir/.env`), or a trailing one (`notes.`).
 String? extensionOf(String filename) {
   final dot = filename.lastIndexOf('.');
-  if (dot <= 0) return null;
+  final segmentStart = filename.lastIndexOf('/') + 1;
+  if (dot <= segmentStart || dot == filename.length - 1) return null;
   return filename.substring(dot + 1).toLowerCase();
 }
 

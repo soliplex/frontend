@@ -23,6 +23,10 @@ Future<String?> _defaultSaveFile({
   required String fileName,
   required Uint8List bytes,
 }) {
+  // file_picker 11.0.3 throws on web for empty bytes or a name with no
+  // extension (`Makefile`, `.env`), so such a download reports failed. On
+  // desktop it writes nothing for empty bytes, yet returns the chosen path,
+  // so an empty file reports success with nothing saved.
   return FilePicker.saveFile(fileName: fileName, bytes: bytes);
 }
 
@@ -153,13 +157,19 @@ class WorkdirController {
     _logger.debug(
       'workdir download start threadId=$threadId name=${file.filename}',
     );
+    final Uint8List bytes;
     try {
-      final bytes = await _api.getThreadWorkdirFile(
+      bytes = await _api.getThreadWorkdirFile(
         _roomId,
         threadId,
         file.filename,
       );
-      final path = await _saveFile(fileName: file.filename, bytes: bytes);
+    } catch (e, st) {
+      _warnFetchFailed('download', threadId, file, e, st);
+      return DownloadOutcome.failed;
+    }
+    try {
+      final path = await _saveFile(fileName: file.basename, bytes: bytes);
       if (!_isWeb && path == null) {
         _logger.debug(
           'workdir file download cancelled threadId=$threadId '
@@ -185,7 +195,7 @@ class WorkdirController {
     } catch (e, st) {
       // Save-step failures carry the local save path; logs can ship off-device.
       _logger.warning(
-        'workdir download failed threadId=$threadId',
+        'workdir download save failed threadId=$threadId',
         stackTrace: st,
         attributes: {
           'failure': describeFailure(e),
@@ -223,19 +233,32 @@ class WorkdirController {
       );
       rethrow;
     } catch (e, st) {
-      // A bodiless GET with the token in a header, so a failure can carry only
-      // the URL path (room and thread ids, the filename), a status code, a
-      // host, or the answering server's JSON message field: a fixed string on
-      // the workdir routes, a status phrase from a proxy answering in their
-      // place.
-      _logger.warning(
-        'workdir preview fetch failed threadId=$threadId',
-        error: e,
-        stackTrace: st,
-        attributes: {'filename': file.filename},
-      );
+      _warnFetchFailed('preview', threadId, file, e, st);
       rethrow;
     }
+  }
+
+  /// Logs a failed fetch of [file]'s bytes for [purpose] with the failure
+  /// whole, so the record keeps its status code and the server's reason.
+  void _warnFetchFailed(
+    String purpose,
+    String threadId,
+    WorkdirFile file,
+    Object e,
+    StackTrace st,
+  ) {
+    // A bodiless GET with the token in a header, so a failure can carry only
+    // the URL path (room and thread ids, the file's path), a status code, a
+    // host, or the answering server's JSON message field: a fixed string on
+    // the workdir routes, a status phrase from a proxy answering in their
+    // place. The client's own ArgumentError for an empty or malformed argument
+    // names only that argument and its value: an id or the file's path.
+    _logger.warning(
+      'workdir $purpose fetch failed threadId=$threadId',
+      error: e,
+      stackTrace: st,
+      attributes: {'filename': file.filename},
+    );
   }
 
   void dispose() {
