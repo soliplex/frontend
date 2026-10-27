@@ -15,8 +15,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         ThreadLabel;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../auth/server_entry.dart';
-import 'lobby_state.dart' show ApiResolver;
+import '../modules/auth/server_entry.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.labels_state');
 
@@ -56,17 +55,17 @@ final class LabelsUnsupported extends Labels {
 /// Reading is open to anyone — a user has to know the catalogue to
 /// attach anything from it — while creating, renaming, recolouring and
 /// deleting require administrator access. This holds no opinion about
-/// who is allowed what: [LobbyState.labelAdmins] decides what the UI
+/// who is allowed what: the lobby's `labelAdmins` decides what the UI
 /// paints, and the server refuses anything it should not honour.
 class LabelsState {
   LabelsState({
     required ServerEntry? Function(String serverId) entryResolver,
-    ApiResolver? apiResolver,
+    SoliplexApi Function(ServerEntry entry)? apiResolver,
   })  : _entryResolver = entryResolver,
         _apiResolver = apiResolver ?? ((entry) => entry.connection.api);
 
   final ServerEntry? Function(String serverId) _entryResolver;
-  final ApiResolver _apiResolver;
+  final SoliplexApi Function(ServerEntry entry) _apiResolver;
 
   final Signal<Labels> _labels = Signal(const LabelsLoading());
   ReadonlySignal<Labels> get labels => _labels;
@@ -88,10 +87,14 @@ class LabelsState {
   /// For callers that only need the names — the `@label` autocomplete,
   /// the properties dialog — and have nothing useful to show for a
   /// failure anyway.
-  List<ThreadLabel> get current {
+  List<ThreadLabel> get current => catalogue.value;
+
+  /// [current] as a signal, for a widget that should repaint when the
+  /// catalogue arrives without knowing about this state object.
+  late final ReadonlySignal<List<ThreadLabel>> catalogue = computed(() {
     final value = _labels.value;
     return value is LabelsLoaded ? value.labels : const [];
-  }
+  });
 
   /// Points the catalogue at [serverId] and loads it.
   ///

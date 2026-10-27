@@ -9,7 +9,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
 import '../global_threads_state.dart';
-import '../labels_state.dart';
+import '../../../stores/labels_state.dart';
 import '../lobby_tab.dart';
 import '../thread_query.dart';
 import 'thread_search_field.dart';

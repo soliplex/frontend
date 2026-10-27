@@ -11,6 +11,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/labels_view.dart';
+import 'package:soliplex_frontend/src/shared/label_chip.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 
 import '../../../helpers/fakes.dart';
