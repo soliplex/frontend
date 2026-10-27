@@ -286,6 +286,21 @@ class RoomPreset {
 bool isWithin(String level, String ceiling) =>
     levelRank(level) <= levelRank(ceiling);
 
+/// The room that holds conversations started outside any room.
+///
+/// The cheaper of the two backend shapes in `docs/mockups.md`: the
+/// installation provides one hidden room, so every room-keyed route
+/// (threads, uploads, labels, feedback) keeps working unchanged. It has no
+/// preset: no ceiling and no default datasets.
+const conversationsRoomId = 'conversations';
+
+/// The most restrictive of [levels], or the least restrictive level when
+/// there are none.
+String highestLevel(Iterable<String> levels) => levels.fold(
+      levelIds.first,
+      (a, b) => levelRank(b) > levelRank(a) ? b : a,
+    );
+
 /// The outcome of the upload scan for one staged file.
 enum ScanStatus {
   /// Not scanned yet.

@@ -238,6 +238,19 @@ class DatasetsStore extends ChangeNotifier {
     return p != null && !isWithin(d.level, p.ceiling);
   }
 
+  /// The most a thread in [roomId] may use: the room's ceiling, or, outside
+  /// any room, whatever the user can access.
+  String ceilingFor(String roomId) => presets[roomId]?.ceiling ?? user.access;
+
+  /// The level a thread runs at. A room's thread runs at the room's
+  /// ceiling; a conversation outside any room has no ceiling, so it runs at
+  /// the most restrictive dataset it uses, and rises as datasets are added.
+  String levelOf(String roomId, String? threadId) =>
+      presets[roomId]?.ceiling ??
+      highestLevel(
+        [for (final id in trayFor(roomId, threadId)) byId(id)?.level].nonNulls,
+      );
+
   /// The datasets a new thread in [roomId] will start with: the room's
   /// defaults, as edited since.
   List<String> draftFor(String roomId) => _drafts.putIfAbsent(
