@@ -125,9 +125,10 @@ The rules it assumes:
 
 - **Levels.** A room's level is a ceiling the deployer sets. A thread may use
   datasets at or below it; the picker shows the rest locked.
-- **Access.** A dataset is listed only when the user is cleared for its level
-  *and* is in its audience. Clearance alone is not need-to-know.
-- **No enforcement.** Nothing checks classification, so uploads and shares end
+- **Access.** A dataset is listed only when the user's access reaches its
+  level *and* the user is in its audience. A high enough level alone is not
+  enough.
+- **No enforcement.** Nothing checks sensitivity, so uploads and shares end
   with an attestation and the scan's results are worded as advisory.
 - **Fixed after the first message.** A new thread starts from the room's
   defaults and can change them until its first message; after that they are
@@ -142,7 +143,7 @@ The rules it assumes:
 
 | File                         | What it is                                                                                |
 | ---------------------------- | ----------------------------------------------------------------------------------------- |
-| `classification_levels.dart` | The marking vocabulary: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED. The only file allowed hex colors. |
+| `sensitivity_levels.dart` | The sensitivity levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED. The only file allowed hex colors. |
 | `model.dart`                 | Datasets, files and their ingestion states, tags, principals, room presets.               |
 | `store.dart`                 | `DatasetsStore`: the catalog query, access rule, thread trays, simulated ingestion.       |
 | `upload_session.dart`        | One upload: staged files, the simulated scan, what committing adds.                       |

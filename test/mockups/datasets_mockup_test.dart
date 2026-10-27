@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:soliplex_frontend/src/mockups/datasets/classification_levels.dart';
+import 'package:soliplex_frontend/src/mockups/datasets/sensitivity_levels.dart';
 import 'package:soliplex_frontend/src/mockups/datasets/datasets_mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup_app.dart';
@@ -11,7 +11,7 @@ void main() {
 
   final mockup = Mockup(
     name: 'Datasets',
-    classifications: mockupClassifications,
+    classifications: mockupLevels,
     build: (_) => const DatasetsMockup(),
   );
 
@@ -88,7 +88,7 @@ void main() {
 
     expect(find.textContaining("It won't be added"), findsOneWidget);
     expect(
-        find.textContaining('Possible CONFIDENTIAL markings'), findsOneWidget);
+        find.textContaining('Possible CONFIDENTIAL content'), findsOneWidget);
     // A flag nobody has looked at holds the upload back.
     final next = find.widgetWithText(FilledButton, 'Continue to review');
     expect(tester.widget<FilledButton>(next).onPressed, isNull);
@@ -178,7 +178,7 @@ void main() {
     expect(share().onPressed, isNull);
 
     await tester.tap(find.text('Plant/Maintenance'));
-    // Cleared below INTERNAL: can't be picked.
+    // Access below INTERNAL: can't be picked.
     await tester.scrollUntilVisible(
       find.textContaining("wouldn't have access"),
       100,

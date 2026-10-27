@@ -16,11 +16,11 @@ void main() {
       .where((f) => f.path.endsWith('.dart'))
       .toList();
 
-  // Classification markings are deployment configuration, fixed per
+  // Sensitivity levels are deployment configuration, fixed per
   // deployment and never derived from the brand — the one place a flavor
   // writes colors. The datasets mockup configures its levels here, in this
   // one file, as an approved exception.
-  const hexExempt = {'lib/src/mockups/datasets/classification_levels.dart'};
+  const hexExempt = {'lib/src/mockups/datasets/sensitivity_levels.dart'};
 
   List<String> scan(RegExp pattern) {
     final offenders = <String>[];
