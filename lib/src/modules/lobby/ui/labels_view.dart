@@ -3,7 +3,8 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ThreadLabel;
 import 'package:soliplex_design/soliplex_design.dart';
 
-import '../labels_state.dart';
+import '../../../shared/label_chip.dart';
+import '../../../stores/labels_state.dart';
 
 /// The swatches offered by the colour editor.
 ///
@@ -30,33 +31,6 @@ List<Color> _swatches(Brightness brightness) => [
 String _toHex(Color color) {
   final value = color.toARGB32() & 0xFFFFFF;
   return '#${value.toRadixString(16).padLeft(6, '0').toUpperCase()}';
-}
-
-/// The colour to paint [label] with.
-///
-/// Falls back to a tint hashed from the name when the stored swatch does
-/// not parse — a label with an unreadable colour is still a usable label,
-/// and a blank chip would look like a rendering fault.
-Color labelColor(ThreadLabel label, Brightness brightness) =>
-    colorFromHex(label.color) ?? hashedHueColor(label.name, brightness);
-
-/// A chip for one label, in the label's own colour.
-class LabelChip extends StatelessWidget {
-  const LabelChip({super.key, required this.label, this.onDeleted});
-
-  final ThreadLabel label;
-
-  /// Shows a trailing close button when non-null.
-  final VoidCallback? onDeleted;
-
-  @override
-  Widget build(BuildContext context) {
-    return SoliplexChip.colored(
-      label: Text(label.name),
-      color: labelColor(label, Theme.of(context).brightness),
-      onDeleted: onDeleted,
-    );
-  }
 }
 
 /// The lobby's label catalogue.

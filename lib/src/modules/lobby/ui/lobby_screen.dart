@@ -13,10 +13,11 @@ import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../../stores/run_registry.dart';
+import '../../../shared/thread_properties_dialog.dart';
+import '../../../stores/labels_state.dart';
 import '../../../stores/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
 import '../global_threads_state.dart';
-import '../labels_state.dart';
 import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_tab.dart';
@@ -25,7 +26,6 @@ import '../room_activity_format.dart';
 import '../room_grouping.dart';
 import 'global_threads_view.dart';
 import 'labels_view.dart';
-import 'thread_properties_dialog.dart';
 import 'room_card.dart';
 import 'room_grid_card.dart';
 import 'room_grid_layout.dart';
@@ -158,7 +158,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           context: context,
           builder: (_) => ThreadPropertiesDialog(
             thread: thread,
-            labels: _labelsState,
+            labels: _labelsState.catalogue,
             onSave: ({
               required name,
               required description,

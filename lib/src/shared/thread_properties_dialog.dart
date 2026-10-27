@@ -6,8 +6,7 @@ import 'package:soliplex_client/soliplex_client.dart'
     show ThreadInfo, ThreadLabel;
 import 'package:soliplex_design/soliplex_design.dart';
 
-import '../labels_state.dart';
-import 'labels_view.dart' show LabelChip, labelColor;
+import 'label_chip.dart';
 
 /// What a properties save has to do, from the dialog's point of view.
 ///
@@ -43,8 +42,9 @@ class ThreadPropertiesDialog extends StatefulWidget {
 
   final ThreadInfo thread;
 
-  /// The server's catalogue, for the label picker.
-  final LabelsState labels;
+  /// The server's label catalogue, for the picker. A signal so the
+  /// picker fills in if the catalogue arrives while the dialog is open.
+  final ReadonlySignal<List<ThreadLabel>> labels;
 
   final ThreadPropertiesSaver onSave;
 
@@ -170,7 +170,7 @@ class _ThreadPropertiesDialogState extends State<ThreadPropertiesDialog> {
 
   Widget _buildPicker(BuildContext context) {
     final theme = Theme.of(context);
-    final catalogue = widget.labels.current;
+    final catalogue = widget.labels.value;
 
     if (catalogue.isEmpty) {
       return Text(

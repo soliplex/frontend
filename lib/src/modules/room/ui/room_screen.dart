@@ -36,8 +36,8 @@ import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../../stores/lobby_read_markers.dart';
-import '../../lobby/labels_state.dart';
-import '../../lobby/ui/thread_properties_dialog.dart';
+import '../../../shared/thread_properties_dialog.dart';
+import '../../../stores/labels_state.dart';
 import '../anchor_tracker.dart';
 import '../../../stores/room_run_activity.dart';
 import '../room_unread.dart';
@@ -1673,7 +1673,7 @@ class _RoomScreenState extends State<RoomScreen> {
       context: context,
       builder: (_) => ThreadPropertiesDialog(
         thread: thread,
-        labels: _labelsState,
+        labels: _labelsState.catalogue,
         onSave: ({
           required name,
           required description,
