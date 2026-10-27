@@ -5,6 +5,7 @@ import 'package:soliplex_frontend/src/mockups/datasets/sensitivity_levels.dart';
 import 'package:soliplex_frontend/src/mockups/datasets/datasets_mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup_app.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -260,6 +261,55 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     expect(find.text('3 in use · fixed'), findsOneWidget);
+  });
+
+  /// The level the chat's band shows.
+  Finder band(String label) => find.descendant(
+        of: find.byType(ChatClassificationBand),
+        matching: find.text(label),
+      );
+
+  testWidgets(
+      'the threads tab lists conversations outside any room beside room '
+      'threads, filters by label, and opens one', (tester) async {
+    await open(tester);
+    await tester.tap(find.text('Threads'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No room · '), findsNWidgets(3));
+    expect(find.textContaining('Plant Maintenance · '), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search threads'),
+      '@drafts ',
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Holiday staffing memo'), findsOneWidget);
+    expect(find.text('Reply to the bearing supplier'), findsOneWidget);
+    expect(find.text('Seal kits for P-100 and P-200'), findsNothing);
+
+    await tester.tap(find.text('Holiday staffing memo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Conversations'), findsOneWidget);
+    expect(find.byTooltip('Room info'), findsNothing);
+    // No room, no ceiling: its one dataset sets the level.
+    expect(find.text('Conversation level'), findsOneWidget);
+    expect(band('CONFIDENTIAL'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a new conversation starts empty and public, and rises with the '
+      'datasets added to it', (tester) async {
+    await open(tester);
+    await tester.tap(find.text('New conversation'));
+    await tester.pumpAndSettle();
+    expect(find.text('0 in use'), findsOneWidget);
+    expect(band('PUBLIC'), findsOneWidget);
+
+    await tester.tap(find.text('ops/maintenance-trend-data'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 in use'), findsOneWidget);
+    expect(band('INTERNAL'), findsOneWidget);
   });
 
   testWidgets('narrow: the composer summary opens the datasets sheet',

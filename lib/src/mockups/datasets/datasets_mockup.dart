@@ -11,6 +11,7 @@ import '../../modules/room/message_expansions.dart';
 import '../../modules/room/room_providers.dart';
 import '../chat/chat_screen.dart';
 import '../chat/static_backend.dart';
+import 'model.dart';
 import 'sample_data.dart';
 import 'store.dart';
 import 'ui/common.dart';
@@ -43,7 +44,6 @@ class _DatasetsMockupState extends State<DatasetsMockup> {
     super.initState();
     _backend = StaticBackend(api: datasetsApi());
     _store = sampleStore();
-    final alias = _backend.entry.alias;
     final seam = threadDatasetsSeam(_store);
     _router = GoRouter(
       // `--dart-define=DATASETS_ROUTE=/datasets/ops/pump-service-manuals` opens
@@ -57,8 +57,8 @@ class _DatasetsMockupState extends State<DatasetsMockup> {
           path: AppRoutes.lobby,
           pageBuilder: (context, state) => NoTransitionPage(
             child: DatasetsLobbyScreen(
-              serverAlias: alias,
-              showDatasets: state.uri.queryParameters['view'] == 'datasets',
+              entry: _backend.entry,
+              view: LobbyView.parse(state.uri.queryParameters['view']),
             ),
           ),
         ),
@@ -85,19 +85,28 @@ class _DatasetsMockupState extends State<DatasetsMockup> {
             path: path,
             pageBuilder: (context, state) {
               final roomId = state.pathParameters['roomId']!;
+              final threadId = state.pathParameters['threadId'];
               return NoTransitionPage(
-                child: CeilingScope(
-                  level: _store.preset(roomId)?.ceiling ?? 'public',
+                // A room's band shows its ceiling; outside any room, the
+                // level follows the datasets the conversation uses.
+                child: ListenableBuilder(
+                  listenable: _store,
+                  builder: (context, child) => CeilingScope(
+                    level: _store.levelOf(roomId, threadId),
+                    child: child!,
+                  ),
                   child: RoomScreen(
                     serverEntry: _backend.entry,
                     roomId: roomId,
-                    threadId: state.pathParameters['threadId'],
+                    threadId: threadId,
                     appName: AppIdentity.soliplex.appName,
                     runtimeManager: _backend.runtimeManager,
                     registry: _backend.registry,
                     uploadRegistry: _backend.uploadRegistry,
                     documentSelections: _documentSelections,
                     datasets: seam,
+                    conversationsRoomId: conversationsRoomId,
+                    startNew: state.uri.queryParameters.containsKey('new'),
                   ),
                 ),
               );

@@ -115,11 +115,12 @@ the routes below) to open straight on a screen.
 
 | Route                              | Screen                                                                 |
 | ---------------------------------- | ---------------------------------------------------------------------- |
-| `/lobby`, `/lobby?view=datasets`   | Room presets, or the dataset catalog with search and facets.           |
+| `/lobby`, `/lobby?view=threads`, `/lobby?view=datasets` | Room presets, every thread wherever it lives, or the dataset catalog with search and facets. |
 | `/datasets/new`                    | Create a dataset: namespace, name, level, optional tags.               |
 | `/datasets/<namespace>/<name>`     | A dataset's files and ingestion. Anyone with access uploads and marks files outdated; the owner shares and deprecates. |
 | `/datasets/<namespace>/<name>/upload` | Choose files, scan, review and commit.                              |
 | `/room/mock/<room>[/thread/<id>]`  | The chat mockup's room screen, its panel showing the thread's datasets. |
+| `/room/mock/conversations[?new]`   | Conversations outside any room; `?new` opens on a fresh one.           |
 
 The rules it assumes:
 
@@ -154,3 +155,45 @@ The chat screen takes the datasets through `ThreadDatasetsSeam`
 (`chat/thread_panel/panel_section.dart`): it replaces the panel's Databases
 segment and adds a summary row above the composer. Without one, the chat
 mockup is unchanged.
+
+### Conversations outside rooms
+
+The same mockup prototypes a conversation that belongs to no room. *New
+conversation* in the lobby opens one, and the lobby's Threads view lists them
+beside room threads, reading "No room" where a thread names its room. That
+view is the app's own cross-room listing (`GlobalThreadsView`), label search
+included, answered by the static backend.
+
+What a conversation outside a room assumes:
+
+- **No preset.** It starts with no datasets, picked in the thread panel and
+  fixed after the first message, like any thread. The agent and its skills
+  would be the installation's default; the mockup does not model them.
+- **No ceiling.** Its level is that of the most restrictive dataset it uses,
+  so it rises as datasets are added, and the band follows. It can never pass
+  the user's own access, because the catalog lists nothing beyond it.
+- **Labels, not rooms, group it.** It is found through the Threads view and
+  its label search, and through a rail entry pinned above the rooms.
+
+Two backend shapes could carry it, and the mockup follows the first:
+
+| | A. A hidden room | B. Threads without a room |
+| --- | --- | --- |
+| Model | The installation provides one room that the room list never shows. | `Thread.room_id` becomes nullable. |
+| Routes | None new: every `/v1/rooms/{room_id}/…` route (runs, uploads, labels, feedback) works as is. | Roomless twins of the thread, run, upload and label routes. |
+| Thread listing | Unchanged; the client maps the hidden room's id to "No room". | `room_id: null` in `GET /v1/agui/threads`. |
+| Agent | The hidden room's agent config. | An installation-level default, such as a `default_agent_config_id`. |
+| Frontend | Two small affordances in the room screen: the room pinned in the rail, no room info. | A nullable room id through `ThreadInfo`, `ThreadKey`, `RoomState` and the routes. |
+| Cost | A room that is not really a room: its stats and uploads mix every user's conversations. | A migration and a second set of routes. |
+
+A is the cheaper first step. B is cleaner if rooms later become folders that
+a thread can move in and out of.
+
+Open questions:
+
+- A thread's level is derived on the client from its datasets. Should the
+  backend store it, so the thread listing and other clients can show it?
+- Can a conversation move into a room, or a room thread move out? A move would
+  change its preset and its ceiling partway through.
+- Should the hidden room's sidebar list only conversations outside rooms, as
+  now, or every thread?
