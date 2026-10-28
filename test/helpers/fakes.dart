@@ -511,6 +511,19 @@ class FakeSoliplexApi extends SoliplexApi {
     return nextRoomUploads ?? const [];
   }
 
+  /// Drops the file from [nextRoomUploads], as the server would.
+  @override
+  Future<void> deleteRoomUpload(
+    String roomId,
+    String filename, {
+    CancelToken? cancelToken,
+  }) async {
+    nextRoomUploads = [
+      for (final upload in nextRoomUploads ?? const <FileUpload>[])
+        if (upload.filename != filename) upload,
+    ];
+  }
+
   @override
   Future<List<FileUpload>> getThreadUploads(
     String roomId,

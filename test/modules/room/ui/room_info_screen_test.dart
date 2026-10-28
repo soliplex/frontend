@@ -194,6 +194,67 @@ void main() {
         expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
       });
 
+      testWidgets('a user with the write permission can delete a room upload',
+          (tester) async {
+        final api = FakeSoliplexApi()
+          ..nextRoomUploads = [
+            FileUpload(
+              filename: 'shared.pdf',
+              url: Uri.parse('https://example.com/shared.pdf'),
+            ),
+          ];
+
+        final semantics = tester.ensureSemantics();
+        await pumpAs(
+          tester,
+          api,
+          room: _testRoom.copyWith(userHasWrite: true),
+        );
+        // Its own control: merged into the card, it would turn the whole card
+        // into one button and its name into part of the card's.
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Delete')),
+          isSemantics(label: 'Delete', isButton: true),
+        );
+        semantics.dispose();
+        await tester.tap(find.byTooltip('Delete'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(SoliplexButton, 'Delete'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('shared.pdf'), findsNothing);
+      });
+
+      // Not the administrator check: it stands in only for the upload
+      // controls, and this administrator is offered them.
+      for (final userHasWrite in [false, null]) {
+        testWidgets('no delete when the write permission is $userHasWrite',
+            (tester) async {
+          final api = FakeSoliplexApi()
+            ..nextIsAdminUser = true
+            ..nextRoomUploads = [
+              FileUpload(
+                filename: 'shared.pdf',
+                url: Uri.parse('https://example.com/shared.pdf'),
+              ),
+            ];
+
+          await pumpAs(
+            tester,
+            api,
+            room: Room(
+              id: _testRoom.id,
+              name: _testRoom.name,
+              acceptsRoomUploads: true,
+              userHasWrite: userHasWrite,
+            ),
+          );
+
+          expect(find.text('shared.pdf'), findsOneWidget);
+          expect(find.byTooltip('Delete'), findsNothing);
+        });
+      }
+
       testWidgets('a reported refusal withholds the controls', (tester) async {
         final api = FakeSoliplexApi()..nextIsAdminUser = true;
 
