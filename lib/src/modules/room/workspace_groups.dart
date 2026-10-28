@@ -54,6 +54,11 @@ String? directoryWithin(WorkdirFile file, String folder) {
 /// is rarely what a reader opens the workspace for.
 bool startsCollapsed(String folder) => _toolingDirectories.contains(folder);
 
+/// Whether the first-level [folder] is open: as the reader last set it in
+/// [toggles], or else unless it [startsCollapsed].
+bool isFolderExpanded(Map<String, bool> toggles, String folder) =>
+    toggles[folder] ?? !startsCollapsed(folder);
+
 /// Whether any segment of [path] is a tooling directory's name, at any
 /// depth: so a file inside one, or a file with that name, such as the `.git`
 /// file a Git worktree writes.

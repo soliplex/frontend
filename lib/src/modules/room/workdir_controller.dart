@@ -102,14 +102,16 @@ class WorkdirController {
   }
 
   /// Opens the thread's first-level folders that hold [files], so a reader
-  /// shown them finds them whatever they closed before.
+  /// shown them finds them whatever they closed before. Folders already open
+  /// are left untouched, so the panel does not rebuild for nothing.
   void openFoldersOf(String threadId, Iterable<WorkdirFile> files) {
+    final toggles = _thread(threadId).folderToggles;
     final folders = {
       for (final file in files)
-        if (firstFolderOf(file) case final folder?) folder,
+        if (firstFolderOf(file) case final folder?)
+          if (!isFolderExpanded(toggles.value, folder)) folder,
     };
     if (folders.isEmpty) return;
-    final toggles = _thread(threadId).folderToggles;
     toggles.value = {
       ...toggles.value,
       for (final folder in folders) folder: true,

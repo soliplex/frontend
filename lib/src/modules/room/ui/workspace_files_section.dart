@@ -92,7 +92,7 @@ class WorkspaceFilesSection extends StatelessWidget {
     BuildContext context,
     ({String name, List<WorkdirFile> files}) group,
   ) {
-    final expanded = folderToggles[group.name] ?? !startsCollapsed(group.name);
+    final expanded = isFolderExpanded(folderToggles, group.name);
     return [
       _FolderRow(
         name: group.name,

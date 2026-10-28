@@ -19,6 +19,10 @@ void main() {
       expect(splitExtension('.bashrc'), ('.bashrc', ''));
     });
 
+    test('a trailing dot is no extension', () {
+      expect(splitExtension('notes.'), ('notes.', ''));
+    });
+
     test('a name without a dot has no extension', () {
       expect(splitExtension('Makefile'), ('Makefile', ''));
     });
