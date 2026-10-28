@@ -1319,6 +1319,64 @@ void main() {
       );
     });
 
+    group('deleteRoomUpload', () {
+      test('deletes the file named by one encoded path segment', () async {
+        when(
+          () => mockTransport.request<void>(
+            'DELETE',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async {});
+
+        // A space or a '#' left unencoded would address another path.
+        await api.deleteRoomUpload('room-1', 'q3 report#1.pdf');
+
+        final captured = verify(
+          () => mockTransport.request<void>(
+            'DELETE',
+            captureAny(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).captured.single as Uri;
+        expect(
+          captured.path,
+          '/api/v1/uploads/room-1/q3%20report%231.pdf',
+        );
+      });
+
+      test('rejects an empty roomId or filename', () {
+        expect(
+          () => api.deleteRoomUpload('', 'report.pdf'),
+          throwsA(isA<ArgumentError>()),
+        );
+        expect(
+          () => api.deleteRoomUpload('room-1', ''),
+          throwsA(isA<ArgumentError>()),
+        );
+      });
+
+      test('rejects a filename that is not one path segment', () {
+        // Each would address a path other than the file: the URL builder
+        // splits on '/', and a '.' or '..' segment collapses.
+        for (final filename in ['a/b.pdf', '.', '..']) {
+          expect(
+            () => api.deleteRoomUpload('room-1', filename),
+            throwsA(isA<ArgumentError>()),
+            reason: filename,
+          );
+        }
+      });
+    });
+
     group('deleteThread', () {
       test('completes successfully', () async {
         when(

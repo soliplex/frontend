@@ -1346,6 +1346,47 @@ class SoliplexApi {
     );
   }
 
+  /// Deletes one file from a room's shared upload directory.
+  ///
+  /// [filename] is sent as one encoded path segment, so a name holding `#` or
+  /// a space still addresses that one file. A name that is not one segment —
+  /// one holding `/`, or `.` or `..` — is refused, because it would address
+  /// another path.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [filename]: The uploaded file's name (must not be empty)
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] or [filename] is empty, or [filename] is
+  ///   not one path segment
+  /// - [NotFoundException] if the room has no upload by that name (404)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] without the room's write permission (403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors, including 405 when the
+  ///   installation has no room upload path
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<void> deleteRoomUpload(
+    String roomId,
+    String filename, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(filename, 'filename');
+    if (filename.contains('/') || filename == '.' || filename == '..') {
+      // Not ArgumentError.value: the name is user content, and the value
+      // would travel inside the exception.
+      throw ArgumentError('must be one path segment', 'filename');
+    }
+
+    await _transport.request<void>(
+      'DELETE',
+      _urlBuilder.build(pathSegments: ['uploads', roomId, filename]),
+      cancelToken: cancelToken,
+    );
+  }
+
   /// Uploads a file to a thread's upload directory.
   ///
   /// The backend stores the file at `{upload_path}/threads/{threadId}/`.
