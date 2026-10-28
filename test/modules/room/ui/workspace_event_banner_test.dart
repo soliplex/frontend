@@ -15,6 +15,7 @@ WorkdirFilesLoaded _loaded(List<String> names) =>
 Widget _banner(
   ReadonlySignal<WorkdirFilesStatus> status, {
   String threadId = 't-1',
+  void Function(List<WorkdirFile> added)? onShow,
 }) =>
     MaterialApp(
       theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
@@ -22,7 +23,7 @@ Widget _banner(
         body: WorkspaceEventBanner(
           status: status,
           threadId: threadId,
-          onShow: (_) {},
+          onShow: onShow ?? (_) {},
         ),
       ),
     );
@@ -220,6 +221,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(pillText(), findsNothing);
+  });
+
+  testWidgets('Show hands over every file the notice names, in path order',
+      (tester) async {
+    final shown = <List<String>>[];
+    await tester.pumpWidget(_banner(
+      status,
+      onShow: (added) => shown.add([for (final f in added) f.filename]),
+    ));
+    status.value = _loaded(['a.csv']);
+    await tester.pump();
+    status.value = _loaded(['a.csv', 'z/b.csv']);
+    await tester.pump();
+    status.value = _loaded(['a.csv', 'm/c.csv', 'z/b.csv']);
+    await tester.pump();
+
+    await tester.tap(find.text('Show'));
+    await tester.pump();
+
+    expect(shown, [
+      ['m/c.csv', 'z/b.csv'],
+    ]);
   });
 
   testWidgets('Show dismisses the pill', (tester) async {

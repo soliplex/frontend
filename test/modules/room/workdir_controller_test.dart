@@ -229,6 +229,28 @@ void main() {
       expect(controller.folderToggles('t-1').value, {'reports': false});
     });
 
+    test('a toggle keeps the others', () {
+      final controller = build();
+      addTearDown(controller.dispose);
+
+      controller.setFolderExpanded('t-1', 'reports', expanded: false);
+      controller.setFolderExpanded('t-1', 'crm_app', expanded: false);
+
+      expect(controller.folderToggles('t-1').value,
+          {'reports': false, 'crm_app': false});
+    });
+
+    test('opening the folders of files opens only theirs', () {
+      final controller = build();
+      addTearDown(controller.dispose);
+      controller.setFolderExpanded('t-1', 'a', expanded: false);
+      controller.setFolderExpanded('t-1', 'b', expanded: false);
+
+      controller.openFoldersOf('t-1', [_file('b/x.csv'), _file('root.txt')]);
+
+      expect(controller.folderToggles('t-1').value, {'a': false, 'b': true});
+    });
+
     test('are kept per thread', () {
       final controller = build();
       addTearDown(controller.dispose);
