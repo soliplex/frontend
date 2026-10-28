@@ -33,17 +33,24 @@ class WorkdirFileRow extends StatelessWidget {
   const WorkdirFileRow({
     super.key,
     required this.file,
+    required this.directory,
     required this.onTap,
     required this.onOpenPreview,
   });
 
   final WorkdirFile file;
 
+  /// The part of [file]'s directory the row shows after its name, or `null`
+  /// to show none. A row inside a folder group shows only what lies below
+  /// that folder.
+  final String? directory;
+
   final Future<DownloadOutcome> Function() onTap;
 
   /// Opens the preview of a previewable file: tapping the row or the eye
-  /// icon invokes it (the parent opens the multi-file pager so all sibling
-  /// files are reachable via swipe). Ignored for files that cannot preview.
+  /// icon invokes it (the parent opens the multi-file pager on the files of
+  /// the row's group, so they are reachable via swipe). Ignored for files
+  /// that cannot preview.
   final VoidCallback onOpenPreview;
 
   @override
@@ -83,6 +90,7 @@ class WorkdirFileRow extends StatelessWidget {
                 Expanded(
                   child: _NameAndDirectory(
                     file: file,
+                    directory: directory,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
@@ -110,21 +118,26 @@ class WorkdirFileRow extends StatelessWidget {
   }
 }
 
-/// A file's basename on one line, followed by its directory in muted text.
+/// A file's basename on one line, followed by [directory] in muted text.
 ///
 /// The basename is what a reader scans the list for, so the directory gives
 /// way first: it is end-ellipsized into whatever width the basename leaves,
 /// and gets none once the basename fills the row. Wraps in a [Tooltip] so the
 /// full path is reachable on hover / long-press.
 class _NameAndDirectory extends StatelessWidget {
-  const _NameAndDirectory({required this.file, this.style});
+  const _NameAndDirectory({
+    required this.file,
+    required this.directory,
+    this.style,
+  });
 
   final WorkdirFile file;
+  final String? directory;
   final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
-    final directory = file.directory;
+    final directory = this.directory;
     final directoryStyle = style?.copyWith(
       color: Theme.of(context).colorScheme.onSurfaceVariant,
     );

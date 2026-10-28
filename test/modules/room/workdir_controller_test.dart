@@ -214,6 +214,31 @@ void main() {
     });
   });
 
+  group('folder toggles', () {
+    test('are kept across a refresh', () async {
+      when(() => api.getThreadWorkdirFiles('room-1', 't-1',
+              cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((_) async => [_file('reports/a.csv')]);
+      final controller = build();
+      addTearDown(controller.dispose);
+      await controller.refresh('t-1');
+
+      controller.setFolderExpanded('t-1', 'reports', expanded: false);
+      await controller.refresh('t-1');
+
+      expect(controller.folderToggles('t-1').value, {'reports': false});
+    });
+
+    test('are kept per thread', () {
+      final controller = build();
+      addTearDown(controller.dispose);
+
+      controller.setFolderExpanded('t-1', 'reports', expanded: false);
+
+      expect(controller.folderToggles('t-2').value, isEmpty);
+    });
+  });
+
   group('downloadFile', () {
     test('returns success on native when saveFile returns a path', () async {
       final bytes = Uint8List.fromList([1, 2, 3]);

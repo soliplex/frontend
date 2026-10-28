@@ -8,6 +8,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../workdir_files_status.dart';
+import '../workspace_groups.dart';
 import 'notice_pill.dart';
 
 final _logger =
@@ -21,8 +22,10 @@ final _logger =
 /// baseline and fires nothing. Within a room visit, returning to a thread
 /// re-baselines on its cached listing, so files added while away are
 /// announced when the reopening fetch lands. Loading and Failed listings are
-/// skipped, and a path that disappears never fires. The notice names the
-/// first added file, in path order, by its basename.
+/// skipped, and a path that disappears never fires, nor does one inside a
+/// tooling directory (see [isToolingPath]): a commit or an import there is not
+/// news. The notice names the first added file, in path order, by its
+/// basename.
 class WorkspaceEventBanner extends StatefulWidget {
   const WorkspaceEventBanner({
     required this.status,
@@ -94,7 +97,7 @@ class _WorkspaceEventBannerState extends State<WorkspaceEventBanner> {
     }
     final added = [
       for (final f in status.files)
-        if (!previous.contains(f.filename)) f,
+        if (!previous.contains(f.filename) && !isToolingPath(f.filename)) f,
     ];
     if (added.isEmpty) return;
     _logger.debug(

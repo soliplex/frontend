@@ -21,16 +21,23 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Files the agent writes into subdirectories of a thread's sandbox
   workspace (`dir/file.png`, `dir/sub/file.py`) appear in the Workspace file
-  list, each named by its file name followed by its directory in muted
-  text. When the row is narrow the directory is cut first, and hidden once
-  the name fills the row; the tooltip holds the full path. The preview
-  titles a file by its name, with its directory on the line below, after
-  the position when there are several files, and the workspace notice
-  names an added file by its name. Nested files preview and download like
-  top-level files, and a download is saved under the file's own name. The
-  listing skips an entry with an empty, `.` or `..` segment, or a NUL byte.
+  list. The files at the workspace root come first, then one row per
+  first-level folder, with its file count, that opens and closes the
+  folder's files; a folder named `.git` or `__pycache__` starts closed, and
+  a folder stays as the reader left it for the rest of the room visit. Each
+  file is named by its file name, followed in muted text by its directory
+  below its folder. When the row is narrow the directory is cut first, and
+  hidden once the name fills the row; the tooltip holds the full path. The
+  preview pages through the files of the tapped file's group, and titles a
+  file by its name, with its directory on the line below, after the
+  position when there are several files. The workspace notice names an
+  added file by its name, and leaves out files under `.git` or
+  `__pycache__`. Nested files preview and download like top-level files,
+  and a download is saved under the file's own name. The listing skips an
+  entry with an empty, `.` or `..` segment, or a NUL byte.
 - A screen reader reads a Workspace file's name once, as its full path,
-  rather than twice, or as a shortened name followed by the full name.
+  rather than twice, or as a shortened name followed by the full name, and
+  a folder by its name, its file count, and whether it is open.
 - A file name too long for its Workspace row or the preview title is
   shortened before its extension at any system text size or bold-text
   setting, so a short extension stays visible unless the slot is narrower
