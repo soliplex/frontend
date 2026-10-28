@@ -2492,6 +2492,22 @@ void main() {
       expect(findFileName('report.csv'), findsOneWidget);
     });
 
+    testWidgets('a folder toggle rebuilds the files section, not the room',
+        (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('reports/a.csv')];
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('1 in workspace'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('reports'));
+
+      expect(tester.element(find.byType(RoomScreen)).dirty, isFalse);
+      await tester.pump();
+      expect(findFileName('a.csv'), findsNothing);
+    });
+
     testWidgets('a closed folder stays closed when the panel reopens',
         (tester) async {
       wideView(tester);

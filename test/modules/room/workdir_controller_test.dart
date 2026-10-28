@@ -251,6 +251,17 @@ void main() {
       expect(controller.folderToggles('t-1').value, {'a': false, 'b': true});
     });
 
+    test('opening the folders of files already open changes nothing', () {
+      final controller = build();
+      addTearDown(controller.dispose);
+      controller.setFolderExpanded('t-1', 'a', expanded: true);
+
+      controller.openFoldersOf('t-1', [_file('a/x.csv'), _file('b/y.csv')]);
+
+      expect(controller.folderToggles('t-1').value, {'a': true},
+          reason: 'b is open by default');
+    });
+
     test('are kept per thread', () {
       final controller = build();
       addTearDown(controller.dispose);

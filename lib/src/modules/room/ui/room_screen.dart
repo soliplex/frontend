@@ -2219,17 +2219,21 @@ class _RoomScreenState extends State<RoomScreen> {
       if (_scopeRendersContent(threadStatus))
         _buildScopeSection('Thread', threadStatus, theme),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))
-        WorkspaceFilesSection(
-          status: workspaceStatus,
-          onDownload: (file) => _workdirs.downloadFile(threadId, file),
-          onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
-          onRetry: () {
-            _logger.debug('workspace refresh: retry threadId=$threadId');
-            unawaited(_workdirs.refresh(threadId));
-          },
-          folderToggles: _workdirs.folderToggles(threadId).watch(context),
-          onFolderToggled: (folder, {required expanded}) =>
-              _workdirs.setFolderExpanded(threadId, folder, expanded: expanded),
+        // Only the section reads the toggles, so a folder tap rebuilds it
+        // alone rather than the whole room.
+        Watch(
+          (context) => WorkspaceFilesSection(
+            status: workspaceStatus,
+            onDownload: (file) => _workdirs.downloadFile(threadId, file),
+            onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
+            onRetry: () {
+              _logger.debug('workspace refresh: retry threadId=$threadId');
+              unawaited(_workdirs.refresh(threadId));
+            },
+            folderToggles: _workdirs.folderToggles(threadId).value,
+            onFolderToggled: (folder, {required expanded}) => _workdirs
+                .setFolderExpanded(threadId, folder, expanded: expanded),
+          ),
         ),
     ];
 

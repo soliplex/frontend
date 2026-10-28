@@ -245,12 +245,13 @@ class FileName extends StatelessWidget {
 
 /// Splits the basename [name] into its stem and its extension, dot included.
 ///
-/// A leading-dot name (`.bashrc`) has no extension, and an extension of more
-/// than 8 characters after the dot is not worth keeping whole: both yield the
-/// name as the stem and an empty extension.
+/// A name with no extension (see [extensionOf]), or with one of more than 8
+/// characters, which is not worth keeping whole, yields the name as the stem
+/// and an empty extension.
 (String, String) splitExtension(String name) {
-  final dot = name.lastIndexOf('.');
-  if (dot <= 0 || name.length - dot - 1 > 8) return (name, '');
+  final extension = extensionOf(name);
+  if (extension == null || extension.length > 8) return (name, '');
+  final dot = name.length - extension.length - 1;
   return (name.substring(0, dot), name.substring(dot));
 }
 
