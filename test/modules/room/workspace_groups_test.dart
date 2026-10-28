@@ -12,7 +12,6 @@ void main() {
   group('groupByFirstFolder', () {
     test('puts root files first, then one folder per first segment', () {
       final grouped = groupByFirstFolder([
-        _file('__pycache__/a.pyc'),
         _file('crm_app/README.md'),
         _file('crm_app/backend/x.py'),
         _file('notes.txt'),
@@ -20,10 +19,21 @@ void main() {
       ]);
 
       expect(_paths(grouped.files), ['notes.txt']);
-      expect([for (final f in grouped.folders) f.name],
-          ['__pycache__', 'crm_app', 'reports']);
-      expect(_paths(grouped.folders[1].files),
+      expect([for (final f in grouped.folders) f.name], ['crm_app', 'reports']);
+      expect(_paths(grouped.folders[0].files),
           ['crm_app/README.md', 'crm_app/backend/x.py']);
+    });
+
+    test('puts the folders that start collapsed last', () {
+      final grouped = groupByFirstFolder([
+        _file('.git/HEAD'),
+        _file('__pycache__/a.pyc'),
+        _file('crm_app/x.py'),
+        _file('reports/a.csv'),
+      ]);
+
+      expect([for (final f in grouped.folders) f.name],
+          ['crm_app', 'reports', '.git', '__pycache__']);
     });
 
     test('a workspace without folders has none', () {
