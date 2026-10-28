@@ -15,7 +15,7 @@ final _logger =
     LogManager.instance.getLogger('soliplex_frontend.workspace_event_banner');
 
 /// A transient notice that files were added to the open thread's workspace,
-/// with a Show action that opens the files panel.
+/// with a Show action that hands [onShow] the files it named.
 ///
 /// Derives the added files by diffing the paths of successive
 /// [WorkdirFilesLoaded] listings. The first listing seen for a thread is the
@@ -36,7 +36,10 @@ class WorkspaceEventBanner extends StatefulWidget {
 
   final ReadonlySignal<WorkdirFilesStatus> status;
   final String threadId;
-  final VoidCallback onShow;
+
+  /// Called with the added files the notice names, so the caller can open
+  /// the files panel on them.
+  final void Function(List<WorkdirFile> added) onShow;
 
   @override
   State<WorkspaceEventBanner> createState() => _WorkspaceEventBannerState();
@@ -95,10 +98,20 @@ class _WorkspaceEventBannerState extends State<WorkspaceEventBanner> {
       );
       return;
     }
-    final added = [
+    final fresh = [
       for (final f in status.files)
-        if (!previous.contains(f.filename) && !isToolingPath(f.filename)) f,
+        if (!previous.contains(f.filename)) f,
     ];
+    final added = [
+      for (final f in fresh)
+        if (!isToolingPath(f.filename)) f,
+    ];
+    if (added.length < fresh.length) {
+      _logger.debug(
+        'workspace pill left out tooling files threadId=${widget.threadId} '
+        'count=${fresh.length - added.length}',
+      );
+    }
     if (added.isEmpty) return;
     _logger.debug(
       'workspace pill shown threadId=${widget.threadId} added=${added.length}',
@@ -121,7 +134,7 @@ class _WorkspaceEventBannerState extends State<WorkspaceEventBanner> {
   }
 
   void _show() {
-    widget.onShow();
+    widget.onShow(_added.toList());
     _dismiss('show');
   }
 

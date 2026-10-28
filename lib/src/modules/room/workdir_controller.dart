@@ -9,6 +9,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'ui/workdir_files.dart' show DownloadOutcome;
 import 'workdir_files_status.dart';
+import 'workspace_groups.dart';
 
 /// Save the [bytes] under [fileName], typically by opening the platform
 /// save dialog. Returns the chosen path on success, or `null` if the user
@@ -81,8 +82,8 @@ class WorkdirController {
 
   /// The first-level folders of the thread's listing the reader has opened
   /// or closed, by name, mapped to whether each is open. A folder not in it
-  /// shows its default. Kept apart from the listing, so a refresh after a
-  /// run leaves it as the reader set it.
+  /// shows its default. Kept apart from the listing, so a refresh leaves it
+  /// as the reader set it; it lasts as long as this controller.
   ReadonlySignal<Map<String, bool>> folderToggles(String threadId) =>
       _thread(threadId).folderToggles;
 
@@ -94,6 +95,29 @@ class WorkdirController {
   }) {
     final toggles = _thread(threadId).folderToggles;
     toggles.value = {...toggles.value, folder: expanded};
+    _logger.debug(
+      'workdir folder toggled threadId=$threadId folder=$folder '
+      'expanded=$expanded',
+    );
+  }
+
+  /// Opens the thread's first-level folders that hold [files], so a reader
+  /// shown them finds them whatever they closed before.
+  void openFoldersOf(String threadId, Iterable<WorkdirFile> files) {
+    final folders = {
+      for (final file in files)
+        if (firstFolderOf(file) case final folder?) folder,
+    };
+    if (folders.isEmpty) return;
+    final toggles = _thread(threadId).folderToggles;
+    toggles.value = {
+      ...toggles.value,
+      for (final folder in folders) folder: true,
+    };
+    _logger.debug(
+      'workdir folders opened to show files threadId=$threadId '
+      'folders=${folders.length}',
+    );
   }
 
   /// Fetches the thread's listing, cancelling any fetch still in flight for

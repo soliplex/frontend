@@ -22,7 +22,7 @@ Widget _banner(
         body: WorkspaceEventBanner(
           status: status,
           threadId: threadId,
-          onShow: () {},
+          onShow: (_) {},
         ),
       ),
     );

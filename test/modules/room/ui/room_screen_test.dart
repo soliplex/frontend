@@ -2649,6 +2649,32 @@ void main() {
       );
     });
 
+    testWidgets('Show opens the closed folder of the added file',
+        (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('reports/a.csv')];
+      final live = await openRunningThread(tester);
+      await tester.tap(find.byTooltip('1 in workspace'));
+      await pumpFrames(tester);
+      await tester.tap(find.text('reports'));
+      await pumpFrames(tester);
+      expect(findFileName('a.csv'), findsNothing, reason: 'precondition');
+
+      api.nextWorkdirFiles = [file('reports/a.csv'), file('reports/b.csv')];
+      completeRun(live);
+      await pumpFrames(tester);
+      await tester.tap(find.text('Show'));
+      await pumpFrames(tester);
+
+      expect(
+        find.descendant(
+          of: find.byKey(filePanelKey),
+          matching: findFileName('b.csv'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('Show keeps an open files panel open', (tester) async {
       wideView(tester);
       api.nextWorkdirFiles = [file('a.csv')];

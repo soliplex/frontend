@@ -5,9 +5,10 @@ import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
 const _toolingDirectories = {'.git', '__pycache__'};
 
 /// Splits a workspace listing into its root files and one folder per first
-/// path segment, each in listing order, except that the folders that
-/// [startsCollapsed] come last: they hold no output a reader looks for, so
-/// they stay out of the way of the folders that do.
+/// path segment: files in listing order, and folders in the order they first
+/// appear, except that the folders that [startsCollapsed] come last. They
+/// hold no output a reader looks for, so they stay out of the way of the
+/// folders that do.
 ({
   List<WorkdirFile> files,
   List<({String name, List<WorkdirFile> files})> folders,
@@ -15,11 +16,10 @@ const _toolingDirectories = {'.git', '__pycache__'};
   final files = <WorkdirFile>[];
   final folders = <String, List<WorkdirFile>>{};
   for (final file in listing) {
-    final slash = file.filename.indexOf('/');
-    if (slash == -1) {
-      files.add(file);
+    if (firstFolderOf(file) case final folder?) {
+      (folders[folder] ??= []).add(file);
     } else {
-      (folders[file.filename.substring(0, slash)] ??= []).add(file);
+      files.add(file);
     }
   }
   return (
@@ -33,9 +33,19 @@ const _toolingDirectories = {'.git', '__pycache__'};
   );
 }
 
+/// The first-level folder that holds [file], or `null` for a root file.
+String? firstFolderOf(WorkdirFile file) {
+  final slash = file.filename.indexOf('/');
+  return slash == -1 ? null : file.filename.substring(0, slash);
+}
+
 /// The directory of [file] below the first-level [folder] that holds it, or
-/// `null` for a file directly in [folder].
+/// `null` for a file directly in [folder]. [file] must lie under [folder].
 String? directoryWithin(WorkdirFile file, String folder) {
+  assert(
+    file.filename.startsWith('$folder/'),
+    'directoryWithin takes a file under the folder',
+  );
   final directory = file.directory;
   return directory == folder ? null : directory?.substring(folder.length + 1);
 }
@@ -44,6 +54,8 @@ String? directoryWithin(WorkdirFile file, String folder) {
 /// is rarely what a reader opens the workspace for.
 bool startsCollapsed(String folder) => _toolingDirectories.contains(folder);
 
-/// Whether [path] lies in, or names, a tooling directory at any depth.
+/// Whether any segment of [path] is a tooling directory's name, at any
+/// depth: so a file inside one, or a file with that name, such as the `.git`
+/// file a Git worktree writes.
 bool isToolingPath(String path) =>
     path.split('/').any(_toolingDirectories.contains);
