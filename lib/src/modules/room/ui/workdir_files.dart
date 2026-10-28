@@ -81,8 +81,8 @@ class WorkdirFileRow extends StatelessWidget {
                 ),
                 const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
-                  child: _FilenameText(
-                    filename: file.filename,
+                  child: _NameAndDirectory(
+                    file: file,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
@@ -110,36 +110,68 @@ class WorkdirFileRow extends StatelessWidget {
   }
 }
 
-/// Single-line filename that preserves the extension when truncating.
+/// A file's basename on one line, followed by its directory in muted text.
 ///
-/// End-ellipsis on a long filename hides the extension, which is the
-/// most informative byte for telling files apart. This widget keeps the
-/// extension intact and ellipsizes the basename instead. Wraps in a
-/// [Tooltip] so the full name is reachable on hover / long-press.
-class _FilenameText extends StatelessWidget {
-  const _FilenameText({required this.filename, this.style});
+/// The basename is what a reader scans the list for, so the directory gives
+/// way first: it is end-ellipsized into whatever width the basename leaves,
+/// and gets none once the basename fills the row. Wraps in a [Tooltip] so the
+/// full path is reachable on hover / long-press.
+class _NameAndDirectory extends StatelessWidget {
+  const _NameAndDirectory({required this.file, this.style});
 
-  final String filename;
+  final WorkdirFile file;
   final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
+    final directory = file.directory;
+    final directoryStyle = style?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final display = _fitFilename(filename, style, constraints.maxWidth);
-        // Align lets the Text size to its content (instead of being stretched
-        // by the parent Expanded), so the Tooltip anchors to the actual
-        // painted text bounds and appears near the cursor.
+        // Align lets the row size to its content (instead of being stretched
+        // by the parent Expanded), so the Tooltip anchors to the painted name
+        // and directory and appears near the cursor.
         return Align(
           alignment: Alignment.centerLeft,
           child: Tooltip(
-            message: filename,
+            message: file.filename,
             waitDuration: const Duration(milliseconds: 500),
-            child: Text(
-              display,
-              style: style,
-              maxLines: 1,
-              softWrap: false,
+            // The label announces the full path once: the tooltip would
+            // announce it a second time, and the texts would read the
+            // basename, then the directory apart from it.
+            excludeFromSemantics: true,
+            child: Semantics(
+              label: file.filename,
+              child: ExcludeSemantics(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      // A Row leaves an inflexible child's width unbounded;
+                      // the basename may take the whole row, but no more.
+                      constraints:
+                          BoxConstraints(maxWidth: constraints.maxWidth),
+                      child: FileName(file.basename, style: style),
+                    ),
+                    if (directory != null)
+                      Flexible(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.only(left: SoliplexSpacing.s2),
+                          child: Text(
+                            directory,
+                            style: directoryStyle,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -148,57 +180,65 @@ class _FilenameText extends StatelessWidget {
   }
 }
 
-@visibleForTesting
-String fitFilenameForWidth(String name, TextStyle? style, double maxWidth) =>
-    _fitFilename(name, style, maxWidth);
+/// A file name on one line that, when cut, shortens its stem before its
+/// extension.
+///
+/// The extension is the most informative part of a cut name, so a short one
+/// (see [splitExtension]) stays whole while it fits:
+/// `quarterly_report_final.xlsx` reads `quarterly_rep….xlsx`. Flutter lays
+/// out and ellipsizes both parts, so the cut follows the text scale and
+/// bold-text settings. Announces the whole name to a screen reader.
+class FileName extends StatelessWidget {
+  FileName(this.name, {super.key, this.style})
+      : assert(!name.contains('/'), 'FileName takes a basename, not a path');
 
-String _fitFilename(String name, TextStyle? style, double maxWidth) {
-  if (_measure(name, style) <= maxWidth) return name;
+  /// A basename, not a path: a dot in a directory segment would be taken for
+  /// the extension.
+  final String name;
+  final TextStyle? style;
 
+  @override
+  Widget build(BuildContext context) {
+    final (stem, extension) = splitExtension(name);
+    return Semantics(
+      label: name,
+      child: ExcludeSemantics(
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: _line(stem)),
+              ConstrainedBox(
+                // A slot narrower than the extension cuts it rather than
+                // overflowing.
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                child: _line(extension),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Text _line(String text) => Text(
+        text,
+        style: style,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+      );
+}
+
+/// Splits the basename [name] into its stem and its extension, dot included.
+///
+/// A leading-dot name (`.bashrc`) has no extension, and an extension of more
+/// than 8 characters after the dot is not worth keeping whole: both yield the
+/// name as the stem and an empty extension.
+(String, String) splitExtension(String name) {
   final dot = name.lastIndexOf('.');
-  // Treat as no extension if name starts with a dot (e.g. ".bashrc"), or
-  // the extension is long enough that preserving it isn't useful.
-  final hasUsefulExtension = dot > 0 && name.length - dot - 1 <= 8;
-  if (!hasUsefulExtension) {
-    return _truncateWithEllipsis(name, '', style, maxWidth);
-  }
-
-  final basename = name.substring(0, dot);
-  final extension = name.substring(dot);
-  return _truncateWithEllipsis(basename, extension, style, maxWidth);
-}
-
-String _truncateWithEllipsis(
-  String head,
-  String tail,
-  TextStyle? style,
-  double maxWidth,
-) {
-  const ellipsis = '…';
-  // Binary-search the largest prefix of [head] that still fits.
-  var lo = 0;
-  var hi = head.length;
-  while (lo < hi) {
-    final mid = (lo + hi + 1) ~/ 2;
-    final candidate = '${head.substring(0, mid)}$ellipsis$tail';
-    if (_measure(candidate, style) <= maxWidth) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return '${head.substring(0, lo)}$ellipsis$tail';
-}
-
-double _measure(String text, TextStyle? style) {
-  final painter = TextPainter(
-    text: TextSpan(text: text, style: style),
-    textDirection: TextDirection.ltr,
-    maxLines: 1,
-  )..layout();
-  final width = painter.width;
-  painter.dispose();
-  return width;
+  if (dot <= 0 || name.length - dot - 1 > 8) return (name, '');
+  return (name.substring(0, dot), name.substring(dot));
 }
 
 /// Full-screen preview for workdir artifacts. Fetches the bytes lazily
@@ -448,6 +488,13 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   Widget _buildTitleBar(BuildContext context) {
     final theme = Theme.of(context);
     final file = widget.files[_currentIndex];
+    // The position leads so that a long directory, not the position, is
+    // what the ellipsis cuts.
+    final subtitle = [
+      if (widget.files.length > 1)
+        '${_currentIndex + 1} / ${widget.files.length}',
+      if (file.directory case final directory?) directory,
+    ].join(' · ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         SoliplexSpacing.s4,
@@ -463,18 +510,15 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  file.filename,
-                  style: theme.textTheme.titleMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (widget.files.length > 1)
+                FileName(file.basename, style: theme.textTheme.titleMedium),
+                if (subtitle.isNotEmpty)
                   Text(
-                    '${_currentIndex + 1} / ${widget.files.length}',
+                    subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
               ],
             ),

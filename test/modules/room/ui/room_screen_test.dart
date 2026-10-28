@@ -40,6 +40,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
 import '../../../helpers/fakes.dart';
+import '../../../helpers/file_name_finder.dart';
 import '../../../helpers/live_session.dart';
 import '../image_fixtures.dart';
 import '../../../helpers/test_server_entry.dart';
@@ -2488,7 +2489,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('WORKSPACE'), findsOneWidget);
-      expect(find.text('report.csv'), findsOneWidget);
+      expect(findFileName('report.csv'), findsOneWidget);
     });
 
     testWidgets('a server without workspaces never shows the files button',
@@ -2550,7 +2551,7 @@ void main() {
       gate.complete();
       await tester.pumpAndSettle();
 
-      expect(find.text('a.csv'), findsOneWidget);
+      expect(findFileName('a.csv'), findsOneWidget);
     });
 
     /// Opens thread-1 with a run in flight and lets its first listing land.
@@ -2619,7 +2620,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(filePanelKey),
-          matching: find.text('b.csv'),
+          matching: findFileName('b.csv'),
         ),
         findsOneWidget,
       );
@@ -2642,7 +2643,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(filePanelKey),
-          matching: find.text('b.csv'),
+          matching: findFileName('b.csv'),
         ),
         findsOneWidget,
       );
