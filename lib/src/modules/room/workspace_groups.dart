@@ -5,7 +5,9 @@ import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
 const _toolingDirectories = {'.git', '__pycache__'};
 
 /// Splits a workspace listing into its root files and one folder per first
-/// path segment, each in listing order.
+/// path segment, each in listing order, except that the folders that
+/// [startsCollapsed] come last: they hold no output a reader looks for, so
+/// they stay out of the way of the folders that do.
 ({
   List<WorkdirFile> files,
   List<({String name, List<WorkdirFile> files})> folders,
@@ -24,7 +26,9 @@ const _toolingDirectories = {'.git', '__pycache__'};
     files: files,
     folders: [
       for (final MapEntry(:key, :value) in folders.entries)
-        (name: key, files: value),
+        if (!startsCollapsed(key)) (name: key, files: value),
+      for (final MapEntry(:key, :value) in folders.entries)
+        if (startsCollapsed(key)) (name: key, files: value),
     ],
   );
 }

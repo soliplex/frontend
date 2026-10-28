@@ -175,7 +175,11 @@ class _FolderRow extends StatelessWidget {
                 ),
                 // With no gap, the folder icon lines up with the icons of
                 // its files, which indent by s4.
-                Icon(Icons.folder_outlined, size: 16, color: muted),
+                Icon(
+                  expanded ? Icons.folder_open_outlined : Icons.folder_outlined,
+                  size: 16,
+                  color: muted,
+                ),
                 const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
                   child: Text(

@@ -23,8 +23,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   workspace (`dir/file.png`, `dir/sub/file.py`) appear in the Workspace file
   list. The files at the workspace root come first, then one row per
   first-level folder, with its file count, that opens and closes the
-  folder's files; a folder named `.git` or `__pycache__` starts closed, and
-  a folder stays as the reader left it for the rest of the room visit. Each
+  folder's files; a folder named `.git` or `__pycache__` starts closed and
+  is listed after the others, and a folder stays as the reader left it for
+  the rest of the room visit. Each
   file is named by its file name, followed in muted text by its directory
   below its folder. When the row is narrow the directory is cut first, and
   hidden once the name fills the row; the tooltip holds the full path. The

@@ -162,6 +162,20 @@ void main() {
       expect(findFileName('a.csv'), findsOneWidget);
     });
 
+    testWidgets('a folder shows an open icon while open, a closed one shut',
+        (tester) async {
+      await tester.pumpWidget(_grouped(['reports/a.csv']));
+      Finder icon(IconData data) =>
+          find.descendant(of: folder('reports'), matching: find.byIcon(data));
+      expect(icon(Icons.folder_open_outlined), findsOneWidget);
+
+      await tester.tap(folder('reports'));
+      await tester.pump();
+
+      expect(icon(Icons.folder_outlined), findsOneWidget);
+      expect(icon(Icons.folder_open_outlined), findsNothing);
+    });
+
     testWidgets('.git and __pycache__ start closed', (tester) async {
       await tester.pumpWidget(_grouped(
         ['.git/HEAD', '__pycache__/x.pyc', 'reports/a.csv'],
