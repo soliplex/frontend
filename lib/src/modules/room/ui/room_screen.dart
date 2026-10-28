@@ -72,6 +72,7 @@ import 'room_rail.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
 import 'thread_state_warning_banner.dart';
+import 'upload_entry_row.dart';
 import 'upload_event_banner.dart';
 import 'workspace_event_banner.dart';
 import 'workspace_files_section.dart';
@@ -2305,7 +2306,12 @@ class _RoomScreenState extends State<RoomScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             FilePanelSectionLabel(label),
-            for (final entry in list) _buildFileRow(entry),
+            for (final entry in list)
+              UploadEntryRow(
+                entry: entry,
+                onCancel: _state.uploadTracker.cancelUpload,
+                onDismiss: _state.uploadTracker.dismissFailed,
+              ),
           ],
         ),
       UploadsFailed(error: final error) => Row(
@@ -2325,107 +2331,6 @@ class _RoomScreenState extends State<RoomScreen> {
           ],
         ),
     };
-  }
-
-  Widget _buildFileRow(DisplayUpload entry) {
-    final theme = Theme.of(context);
-    final isFailed = entry is FailedUpload;
-    final (icon, color, errorMessage) = switch (entry) {
-      PersistedUpload() => (
-          Icons.check_circle_outline,
-          context.success,
-          null,
-        ),
-      PendingUpload() => (null, theme.colorScheme.primary, null),
-      FailedUpload(message: final m) => (
-          Icons.error_outline,
-          theme.colorScheme.onErrorContainer,
-          m,
-        ),
-    };
-
-    final (closeTooltip, closeAction) = switch (entry) {
-      PendingUpload(:final id) => (
-          'Cancel upload',
-          () => _state.uploadTracker.cancelUpload(id)
-        ),
-      FailedUpload(:final id) => (
-          'Dismiss',
-          () => _state.uploadTracker.dismissFailed(id)
-        ),
-      _ => (null, null),
-    };
-    final closeColor = isFailed
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.outline;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-      padding: isFailed
-          ? const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1)
-          : const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
-      decoration: isFailed
-          ? BoxDecoration(
-              color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(context.radii.sm),
-            )
-          : null,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(icon, size: 16, color: color)
-          else
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: color,
-                value: switch (entry) {
-                  PendingUpload(:final progress) => progress,
-                  _ => null,
-                },
-              ),
-            ),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.filename,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isFailed ? theme.colorScheme.onErrorContainer : null,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (errorMessage != null)
-                  Text(
-                    errorMessage,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onErrorContainer,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-          if (closeAction != null)
-            IconButton(
-              icon: const Icon(Icons.close, size: 14),
-              color: closeColor,
-              tooltip: closeTooltip,
-              onPressed: closeAction,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              visualDensity: VisualDensity.compact,
-            ),
-        ],
-      ),
-    );
   }
 
   Widget _buildNoThreadBody(Room? room) {
