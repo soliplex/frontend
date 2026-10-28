@@ -23,19 +23,20 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   workspace (`dir/file.png`, `dir/sub/file.py`) appear in the Workspace file
   list. The files at the workspace root come first, then one row per
   first-level folder, with its file count, that opens and closes the
-  folder's files; a folder named `.git` or `__pycache__` starts closed and
-  is listed after the others, and a folder stays as the reader left it for
-  the rest of the room visit. Each
-  file is named by its file name, followed in muted text by its directory
-  below its folder. When the row is narrow the directory is cut first, and
-  hidden once the name fills the row; the tooltip holds the full path. The
-  preview pages through the files of the tapped file's group, and titles a
-  file by its name, with its directory on the line below, after the
-  position when there are several files. The workspace notice names an
-  added file by its name, and leaves out files under `.git` or
-  `__pycache__`. Nested files preview and download like top-level files,
-  and a download is saved under the file's own name. The listing skips an
-  entry with an empty, `.` or `..` segment, or a NUL byte.
+  folder's files. A first-level folder named `.git` or `__pycache__` starts
+  closed and is listed after the others. Each folder stays as the reader
+  left it in that thread until they leave the room. Each file is named by
+  its file name, followed in muted text by its directory below its folder.
+  When the row is narrow the directory is cut first, and hidden once the
+  name fills the row; the tooltip holds the full path. The preview pages
+  through the files of the tapped file's group, and titles a file by its
+  name, with its directory on the line below, after the position when
+  there are several files. The workspace notice names an added file by its
+  name, and leaves out files under a `.git` or `__pycache__` directory at
+  any depth; its Show opens the folders that hold the files it names.
+  Nested files preview and download like top-level files, and a download
+  is saved under the file's own name. The listing skips an entry with an
+  empty, `.` or `..` segment, or a NUL byte.
 - A screen reader reads a Workspace file's name once, as its full path,
   rather than twice, or as a shortened name followed by the full name, and
   a folder by its name, its file count, and whether it is open.

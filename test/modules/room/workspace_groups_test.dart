@@ -52,6 +52,12 @@ void main() {
       );
     });
 
+    test('refuses a file outside the folder', () {
+      // Folder `a` would otherwise read `ab/c/d.txt` as directory `c`.
+      expect(() => directoryWithin(_file('ab/c/d.txt'), 'a'),
+          throwsAssertionError);
+    });
+
     test('is null for a file directly in the folder', () {
       expect(directoryWithin(_file('crm_app/README.md'), 'crm_app'), isNull);
     });

@@ -2608,8 +2608,9 @@ class _RoomScreenState extends State<RoomScreen> {
             WorkspaceEventBanner(
               status: _workdirs.files(threadView.threadId),
               threadId: threadView.threadId,
-              onShow: () {
+              onShow: (added) {
                 _logger.debug('files panel opened from workspace pill');
+                _workdirs.openFoldersOf(threadView.threadId, added);
                 setState(() => _filesExpanded = true);
               },
             ),
