@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -12,6 +13,8 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
+
+import '../../../helpers/file_name_finder.dart';
 
 /// Minimal 1x1 transparent PNG so [Image.memory] can decode in tests.
 final Uint8List _tinyPng = Uint8List.fromList(const [
@@ -90,6 +93,14 @@ final Uint8List _htmlBytes =
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
 
+// The list underneath a preview still renders each row's FileName, so an
+// unqualified findFileName('x.md') can hit two widgets. Scope finders to the
+// preview page widget tree where it matters.
+Finder _inPreview(Finder f) => find.descendant(
+      of: find.byType(WorkdirPreviewPage),
+      matching: f,
+    );
+
 Widget _wrap(Widget child) =>
     MaterialApp(home: Scaffold(body: SingleChildScrollView(child: child)));
 
@@ -108,8 +119,8 @@ void main() {
     )));
     await tester.pump();
 
-    expect(find.text('report.pdf'), findsOneWidget);
-    expect(find.text('plot.png'), findsOneWidget);
+    expect(findFileName('report.pdf'), findsOneWidget);
+    expect(findFileName('plot.png'), findsOneWidget);
   });
 
   testWidgets('shows check icon briefly on success and reverts after 2s',
@@ -467,7 +478,7 @@ void main() {
 
     // Tap the filename text — that's a non-icon part of the row body, so it
     // exercises the row InkWell rather than either trailing icon.
-    await tester.tap(find.text('plot.png'));
+    await tester.tap(findFileName('plot.png'));
     await tester.pumpAndSettle();
 
     expect(downloads, 0);
@@ -693,14 +704,6 @@ void main() {
   });
 
   group('multi-file pager', () {
-    // The list underneath the preview still renders row filenames as
-    // bodySmall Text, so unqualified find.text('x.md') hits two widgets.
-    // Scope finders to the preview page widget tree where it matters.
-    Finder inPreview(Finder f) => find.descendant(
-          of: find.byType(WorkdirPreviewPage),
-          matching: f,
-        );
-
     IconButton iconButtonWith(WidgetTester tester, IconData icon) {
       return tester.widget<IconButton>(
         find.descendant(
@@ -731,7 +734,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The title bar shows the tapped filename and "2 / 3" position.
-      expect(inPreview(find.text('b.md')), findsOneWidget);
+      expect(_inPreview(findFileName('b.md')), findsOneWidget);
       expect(find.text('2 / 3'), findsOneWidget);
     });
 
@@ -793,7 +796,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('2 / 2'), findsOneWidget);
-      expect(inPreview(find.text('b.md')), findsOneWidget);
+      expect(_inPreview(findFileName('b.md')), findsOneWidget);
     });
 
     testWidgets('dots jump to the tapped index', (tester) async {
@@ -1251,6 +1254,183 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('3 / 3'), findsOneWidget);
-    expect(find.text('c.png'), findsOneWidget);
+    expect(findFileName('c.png'), findsOneWidget);
+  });
+
+  group('nested paths', () {
+    const path = 'crm_app/backend/models/customer.py';
+
+    Future<void> pumpRow(
+      WidgetTester tester, {
+      required double width,
+      String name = path,
+      double textScale = 1,
+    }) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: Scaffold(
+              body: SizedBox(
+                width: width,
+                child: WorkspaceFilesSection(
+                  status: WorkdirFilesLoaded([_file(name)]),
+                  onRetry: () {},
+                  onDownload: (_) async => DownloadOutcome.success,
+                  onFetchBytes: (_) async => Uint8List(0),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+    }
+
+    bool isCut(WidgetTester tester, Finder text) =>
+        tester.renderObject<RenderParagraph>(text).didExceedMaxLines;
+
+    testWidgets('a row shows the basename, then the directory muted',
+        (tester) async {
+      await pumpRow(tester, width: 800);
+
+      expect(find.text(path), findsNothing);
+      expect(find.text('customer'), findsOneWidget);
+      expect(find.text('.py'), findsOneWidget);
+      expect(find.text('crm_app/backend/models'), findsOneWidget);
+      Color? painted(String text) => tester
+          .renderObject<RenderParagraph>(find.text(text))
+          .text
+          .style
+          ?.color;
+      expect(painted('crm_app/backend/models'), isNot(painted('customer')));
+    });
+
+    testWidgets('a narrow row cuts the directory, never the basename',
+        (tester) async {
+      await pumpRow(tester, width: 320);
+
+      expect(isCut(tester, find.text('customer')), isFalse);
+      expect(isCut(tester, find.text('crm_app/backend/models')), isTrue);
+    });
+
+    testWidgets(
+        'a row too narrow for the basename hides the directory '
+        'and keeps the extension', (tester) async {
+      await pumpRow(tester, width: 180);
+
+      expect(isCut(tester, find.text('customer')), isTrue);
+      expect(isCut(tester, find.text('.py')), isFalse);
+      expect(tester.getSize(find.text('crm_app/backend/models')).width, 0);
+    });
+
+    testWidgets('a row at a large text size stays within its slot',
+        (tester) async {
+      const name = 'quarterly_report_final.xlsx';
+      await pumpRow(tester, width: 420, name: name);
+      expect(isCut(tester, find.text('quarterly_report_final')), isFalse,
+          reason: 'the name fits at 1x');
+
+      await pumpRow(tester, width: 420, name: name, textScale: 1.3);
+
+      expect(tester.takeException(), isNull);
+      expect(isCut(tester, find.text('quarterly_report_final')), isTrue);
+      expect(isCut(tester, find.text('.xlsx')), isFalse);
+    });
+
+    testWidgets('the row tooltip names the full path', (tester) async {
+      await pumpRow(tester, width: 800);
+
+      expect(find.byTooltip(path), findsOneWidget);
+    });
+
+    testWidgets('a screen reader hears the full path once', (tester) async {
+      // Narrow enough that the visible basename is cut: what is announced
+      // must not follow the cut.
+      await pumpRow(tester, width: 180);
+
+      final data =
+          tester.getSemantics(find.byType(WorkdirFileRow)).getSemanticsData();
+      expect(data.label, path);
+      expect(data.tooltip, isEmpty, reason: 'the label already names it');
+    });
+
+    group('preview header', () {
+      Future<void> openPreview(
+        WidgetTester tester,
+        List<String> names, {
+        int index = 0,
+      }) async {
+        final files = [for (final n in names) _file(n)];
+        late BuildContext capturedContext;
+        await tester.pumpWidget(MaterialApp(
+          home: Builder(builder: (context) {
+            capturedContext = context;
+            return const Scaffold(body: SizedBox.shrink());
+          }),
+        ));
+        WorkdirPreviewPage.show(
+          context: capturedContext,
+          files: files,
+          initialIndex: index,
+          fetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
+          onDownload: (_) async => DownloadOutcome.success,
+        );
+        await tester.pumpAndSettle();
+      }
+
+      void usePhoneWidth(WidgetTester tester) {
+        tester.view.physicalSize = const Size(320, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+      }
+
+      testWidgets('titles a nested file by its basename', (tester) async {
+        await openPreview(tester, ['reports/a.md', 'reports/b.md'], index: 1);
+
+        expect(_inPreview(findFileName('b.md')), findsOneWidget);
+      });
+
+      testWidgets('puts the directory after the position', (tester) async {
+        await openPreview(tester, ['reports/a.md', 'notes.md']);
+
+        expect(find.text('1 / 2 · reports'), findsOneWidget);
+      });
+
+      testWidgets('shows the directory alone for a single nested file',
+          (tester) async {
+        await openPreview(tester, ['reports/a.md']);
+
+        expect(_inPreview(find.text('reports')), findsOneWidget);
+      });
+
+      testWidgets('keeps the extension of a long basename', (tester) async {
+        usePhoneWidth(tester);
+
+        await openPreview(tester, ['quarterly_revenue_by_region_2026.md']);
+
+        expect(isCut(tester, _inPreview(find.text('.md'))), isFalse);
+        expect(
+          isCut(tester,
+              _inPreview(find.text('quarterly_revenue_by_region_2026'))),
+          isTrue,
+        );
+      });
+
+      testWidgets('announces the whole basename while its text is cut',
+          (tester) async {
+        // The cut is what a screen reader must not follow.
+        usePhoneWidth(tester);
+        await openPreview(tester, ['quarterly_revenue_by_region_2026.md']);
+
+        expect(
+          _inPreview(
+              find.bySemanticsLabel('quarterly_revenue_by_region_2026.md')),
+          findsOneWidget,
+        );
+      });
+    });
   });
 }

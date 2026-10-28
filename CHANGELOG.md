@@ -21,9 +21,20 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Files the agent writes into subdirectories of a thread's sandbox
   workspace (`dir/file.png`, `dir/sub/file.py`) appear in the Workspace file
-  list under their full path. They preview and download like top-level
-  files, and a download is saved under the file's own name. The listing
-  skips an entry with an empty, `.` or `..` segment, or a NUL byte.
+  list, each named by its file name followed by its directory in muted
+  text. When the row is narrow the directory is cut first, and hidden once
+  the name fills the row; the tooltip holds the full path. The preview
+  titles a file by its name, with its directory on the line below, after
+  the position when there are several files, and the workspace notice
+  names an added file by its name. Nested files preview and download like
+  top-level files, and a download is saved under the file's own name. The
+  listing skips an entry with an empty, `.` or `..` segment, or a NUL byte.
+- A screen reader reads a Workspace file's name once, as its full path,
+  rather than twice, or as a shortened name followed by the full name.
+- A file name too long for its Workspace row or the preview title is
+  shortened before its extension at any system text size or bold-text
+  setting, so a short extension stays visible unless the slot is narrower
+  than the extension itself.
 - The warning for a skipped upload or workspace entry names its room, and
   its thread for a thread's listing. An entry skipped for its URL, or for a
   workspace path with an empty, `.` or `..` segment, is also named by its

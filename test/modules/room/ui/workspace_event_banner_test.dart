@@ -69,6 +69,25 @@ void main() {
     expect(find.text('Added report.csv to the workspace'), findsOneWidget);
   });
 
+  testWidgets('a nested file is named by its basename', (tester) async {
+    await enterWith(tester, ['a.csv']);
+
+    status.value = _loaded(['a.csv', 'reports/chart.png']);
+    await tester.pump();
+
+    expect(find.text('Added chart.png to the workspace'), findsOneWidget);
+  });
+
+  testWidgets('added files that share a basename count as two', (tester) async {
+    await enterWith(tester, ['a.csv']);
+
+    status.value = _loaded(['a.csv', 'a/x.csv', 'b/x.csv']);
+    await tester.pump();
+
+    expect(
+        find.text('Added x.csv and 1 more to the workspace'), findsOneWidget);
+  });
+
   testWidgets('several added files name the first and count the rest',
       (tester) async {
     await enterWith(tester, ['a.csv']);
