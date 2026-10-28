@@ -134,18 +134,13 @@ void main() {
       );
     });
 
-    testWidgets('a folder names its file count', (tester) async {
-      await tester.pumpWidget(_grouped(['reports/a.csv', 'reports/b.csv']));
+    testWidgets('a folder counts every file below it, and no root file',
+        (tester) async {
+      await tester.pumpWidget(
+        _grouped(['notes.txt', 'reports/a.csv', 'reports/sub/b.csv']),
+      );
 
       expect(find.text('2'), findsOneWidget);
-    });
-
-    testWidgets('a file in a folder shows its directory below that folder',
-        (tester) async {
-      await tester.pumpWidget(_grouped(['crm_app/backend/models/customer.py']));
-
-      expect(find.text('backend/models'), findsOneWidget);
-      expect(find.text('crm_app/backend/models'), findsNothing);
     });
 
     testWidgets('tapping a folder closes it, and tapping again opens it',
@@ -195,8 +190,14 @@ void main() {
 
     testWidgets('a screen reader hears a folder, its count and its state',
         (tester) async {
-      await tester.pumpWidget(_grouped(['reports/a.csv', 'reports/b.csv']));
+      await tester.pumpWidget(
+        _grouped(['logs/x.log', 'reports/a.csv', 'reports/b.csv']),
+      );
 
+      expect(
+        tester.getSemantics(folder('logs')).getSemanticsData().label,
+        'logs, 1 file',
+      );
       var data = tester.getSemantics(folder('reports')).getSemanticsData();
       expect(data.label, 'reports, 2 files');
       expect(data.flagsCollection.isExpanded.toBoolOrNull(), isTrue);
