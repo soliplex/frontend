@@ -16,8 +16,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `SoliplexApi.getThreadWorkdirFile` takes such a path and throws
   `ArgumentError` for one with an empty, `.` or `..` segment, which would
   otherwise request a different path.
+- **Library consumers:** `Room.userHasWrite` carries the rooms API's
+  `user_has_write`: whether the signed-in user holds the room's write
+  permission, or `null` when the server does not report it.
 
 ### Fixed
+
+- A user with a room's write permission who is not an administrator gets the
+  room info screen's upload controls; before, only administrators did. A
+  user without it reads "You can't add files to this room." When the server
+  does not return the permission, the controls go to administrators only; a
+  user the administrator check says is not one reads "The server did not
+  return whether you can write to this room.", and when that check fails,
+  "Couldn't check whether you can add files here." with a retry.
 
 - Files the agent writes into subdirectories of a thread's sandbox
   workspace (`dir/file.png`, `dir/sub/file.py`) appear in the Workspace file

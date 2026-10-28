@@ -13,6 +13,11 @@ import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart'
 import '../../../helpers/fakes.dart';
 import '../../../helpers/test_server_entry.dart';
 
+const _refusedNote = "You can't add files to this room.";
+const _unconfirmedNote =
+    'The server did not return whether you can write to this room.';
+const _unknownNote = "Couldn't check whether you can add files here.";
+
 const _testRoom = Room(
   id: 'room-1',
   name: 'Test Room',
@@ -145,9 +150,15 @@ void main() {
     });
 
     group('room upload controls', () {
-      // Uploading to a room needs an administrator; reading the list does not.
-      Future<void> pumpAs(WidgetTester tester, FakeSoliplexApi api) async {
-        await tester.pumpWidget(_buildScreen(api: api));
+      // Uploading to a room needs its write permission; reading the list does
+      // not. [_testRoom] leaves the permission unreported, so these tests run
+      // on the administrator check that stands in for it.
+      Future<void> pumpAs(
+        WidgetTester tester,
+        FakeSoliplexApi api, {
+        Room? room,
+      }) async {
+        await tester.pumpWidget(_buildScreen(api: api, room: room));
         await tester.pumpAndSettle();
         await tester.scrollUntilVisible(
           // Not the exact string: the card titles itself 'UPLOADED FILES (n)'
@@ -166,18 +177,51 @@ void main() {
             ),
           );
 
+      testWidgets('a reported write permission offers the controls',
+          (tester) async {
+        // A user with the room's write permission need not administer the
+        // installation, and the administrator check would withhold the
+        // controls from them.
+        final api = FakeSoliplexApi()..nextIsAdminUser = false;
+
+        await pumpAs(
+          tester,
+          api,
+          room: _testRoom.copyWith(userHasWrite: true),
+        );
+
+        expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
+        expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
+      });
+
+      testWidgets('a reported refusal withholds the controls', (tester) async {
+        final api = FakeSoliplexApi()..nextIsAdminUser = true;
+
+        await pumpAs(
+          tester,
+          api,
+          room: _testRoom.copyWith(userHasWrite: false),
+        );
+
+        expect(find.text('Upload files to room'), findsNothing);
+        expect(
+          find.text(_refusedNote),
+          findsOneWidget,
+        );
+      });
+
       testWidgets('an administrator gets the plain empty message',
           (tester) async {
-        // The other arm names who adds the files. Saying that to the person
-        // who does would be wrong, and it is the only thing that tells the two
-        // empty states apart.
+        // The other answer puts a note in the controls' slot. An administrator
+        // gets the controls and the empty message alone, and the note is the
+        // only thing that tells the two empty states apart.
         final api = FakeSoliplexApi()..nextIsAdminUser = true;
 
         await pumpAs(tester, api);
 
         expect(find.text('No uploaded files in this room.'), findsOneWidget);
         expect(
-          find.text('An administrator adds files to this room.'),
+          find.text(_unconfirmedNote),
           findsNothing,
         );
       });
@@ -194,7 +238,7 @@ void main() {
         expect(find.text('UPLOADED FILES'), findsOneWidget);
         expect(find.text('No uploaded files in this room.'), findsOneWidget);
         expect(
-          find.text('An administrator adds files to this room.'),
+          find.text(_unconfirmedNote),
           findsOneWidget,
         );
       });
@@ -219,17 +263,15 @@ void main() {
         expect(find.text('shared.pdf'), findsOneWidget);
         expect(find.text('Upload files to room'), findsNothing);
         expect(
-          find.text('An administrator adds files to this room.'),
+          find.text(_unconfirmedNote),
           findsOneWidget,
         );
       });
 
       testWidgets('an unanswerable check says so and offers a retry',
           (tester) async {
-        // The upload POST authorizes through the same installation-side check
-        // this answer comes from, so a check that cannot answer cannot
-        // authorize either. Offering the controls would offer an action whose
-        // every use fails.
+        // Nothing established that the user may upload, so offering the
+        // controls could offer an action whose every use fails.
         final api = FakeSoliplexApi()
           ..nextIsAdminUserThrow = NetworkException(message: 'offline');
 
@@ -237,13 +279,13 @@ void main() {
 
         expect(find.text('Upload files to room'), findsNothing);
         expect(
-          find.text("Couldn't check whether you can add files here."),
+          find.text(_unknownNote),
           findsOneWidget,
         );
-        // Not the refusal copy: it names who does add the files, which is a
-        // claim about the user that nothing here established.
+        // Not the note for a "no": the check did not answer at all, which is
+        // a different state and must not read like an answer.
         expect(
-          find.text('An administrator adds files to this room.'),
+          find.text(_unconfirmedNote),
           findsNothing,
         );
       });
@@ -282,7 +324,7 @@ void main() {
 
         expect(find.text('Upload files to room'), findsNothing);
         expect(
-          find.text("Couldn't check whether you can add files here."),
+          find.text(_unknownNote),
           findsOneWidget,
         );
 
@@ -317,11 +359,11 @@ void main() {
         expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
       });
 
-      testWidgets('a refusal after the bound replaces the unknown',
+      testWidgets('a "no" after the bound replaces the unknown',
           (tester) async {
         // The other polarity of the late answer: the check outruns the bound,
-        // then the installation says no. The client may name who adds the
-        // files only once it has been told.
+        // then the installation says the user is not an administrator. The
+        // client may say so only once it has been told.
         final gate = Completer<bool>();
         final api = FakeSoliplexApi()..isAdminUserGate = gate;
 
@@ -334,11 +376,11 @@ void main() {
 
         expect(find.text('Upload files to room'), findsNothing);
         expect(
-          find.text('An administrator adds files to this room.'),
+          find.text(_unconfirmedNote),
           findsOneWidget,
         );
         expect(
-          find.text("Couldn't check whether you can add files here."),
+          find.text(_unknownNote),
           findsNothing,
         );
       });

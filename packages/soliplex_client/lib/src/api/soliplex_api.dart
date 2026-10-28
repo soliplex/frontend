@@ -140,6 +140,7 @@ class SoliplexApi {
         final json = entry.value as Map<String, dynamic>;
         rooms.add(roomFromJson(json));
         _noteUploadCapability(entry.key, json);
+        _noteWritePermission(entry.key, json);
       } catch (e, st) {
         // The room id names the entry; the failure carries the payload that
         // produced it, so only its shape is kept.
@@ -179,6 +180,7 @@ class SoliplexApi {
       fromJson: (json) {
         final room = roomFromJson(json);
         _noteUploadCapability(roomId, json);
+        _noteWritePermission(roomId, json);
         return room;
       },
     );
@@ -192,21 +194,41 @@ class SoliplexApi {
   /// Absence withholds every upload control, which is otherwise
   /// indistinguishable from a room the installation has no upload path for,
   /// so this record is where that difference survives. It is written once per
-  /// server: the omission belongs to the release the server runs, not to one
-  /// room, and every room in a session comes from one release. Both the
+  /// client, for whichever room first leaves it out: one record says the
+  /// server omits the capability, and one per room would repeat it. Both the
   /// listing and the single-room fetch report, because a deep link reaches a
   /// room without ever listing one.
   ///
   /// Only a payload that reports neither scope counts, per
-  /// [roomOmitsUploadCapability]. A release that publishes one key and not the
-  /// other withholds that scope's control with nothing recorded here — the two
-  /// keys ship together, so nothing is expected to produce it.
+  /// [roomOmitsUploadCapability]. A payload that carries one key and not the
+  /// other withholds that scope's control with nothing recorded here.
   void _noteUploadCapability(String roomId, Map<String, dynamic> json) {
     if (_reportedUploadCapabilityOmission) return;
     if (!roomOmitsUploadCapability(json)) return;
     _reportedUploadCapabilityOmission = true;
     _logger.warning(
       'Server did not report upload capability; attach controls withheld',
+      attributes: {'roomId': roomId, 'baseUrl': _urlBuilder.baseUrl},
+    );
+  }
+
+  /// Whether [_noteWritePermission] has already recorded an omission.
+  bool _reportedWritePermissionOmission = false;
+
+  /// Records that the server did not report the user's write permission for
+  /// [roomId].
+  ///
+  /// Callers fall back to another check when it is absent, which is otherwise
+  /// indistinguishable from a server that reported it. Written once per
+  /// client, for whichever room first leaves it out, and kept apart from
+  /// [_noteUploadCapability] because a payload can carry the upload capability
+  /// without the permission.
+  void _noteWritePermission(String roomId, Map<String, dynamic> json) {
+    if (_reportedWritePermissionOmission) return;
+    if (!roomOmitsWritePermission(json)) return;
+    _reportedWritePermissionOmission = true;
+    _logger.warning(
+      "Server did not report the user's room write permission",
       attributes: {'roomId': roomId, 'baseUrl': _urlBuilder.baseUrl},
     );
   }

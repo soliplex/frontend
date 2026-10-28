@@ -26,6 +26,7 @@ class Room {
     this.aguiFeatureNames = const [],
     this.acceptsRoomUploads = false,
     this.acceptsThreadUploads = false,
+    this.userHasWrite,
   });
 
   /// Unique identifier for the room.
@@ -81,17 +82,24 @@ class Room {
   /// Whether the server accepts uploads scoped to this room, as the rooms API
   /// reports it.
   ///
-  /// It says nothing about the caller: the server additionally requires an
-  /// administrator to upload here, which is a property of the user rather than
-  /// of the room. A server that reports nothing reads as `false`.
+  /// It says nothing about the caller: the server additionally requires
+  /// [userHasWrite], which depends on the signed-in user as well as the room.
+  /// A server that reports nothing reads as `false`.
   final bool acceptsRoomUploads;
 
   /// Whether the server accepts uploads scoped to threads in this room, as the
   /// rooms API reports it.
   ///
-  /// Unlike a room upload, the server does not additionally require an
-  /// administrator. A server that reports nothing reads as `false`.
+  /// Unlike a room upload, the server does not additionally require
+  /// [userHasWrite]. A server that reports nothing reads as `false`.
   final bool acceptsThreadUploads;
+
+  /// Whether the signed-in user holds this room's write permission, which
+  /// administrators hold implicitly; adding room uploads needs it.
+  ///
+  /// `null` when the server did not return it: that is not a refusal, and
+  /// callers decide what to do without an answer.
+  final bool? userHasWrite;
 
   /// Quiz IDs available in this room.
   List<String> get quizIds => quizzes.keys.toList();
@@ -132,6 +140,7 @@ class Room {
     List<String>? aguiFeatureNames,
     bool? acceptsRoomUploads,
     bool? acceptsThreadUploads,
+    bool? userHasWrite,
   }) {
     return Room(
       id: id ?? this.id,
@@ -150,14 +159,15 @@ class Room {
       aguiFeatureNames: aguiFeatureNames ?? this.aguiFeatureNames,
       acceptsRoomUploads: acceptsRoomUploads ?? this.acceptsRoomUploads,
       acceptsThreadUploads: acceptsThreadUploads ?? this.acceptsThreadUploads,
+      userHasWrite: userHasWrite ?? this.userHasWrite,
     );
   }
 
   /// Identity, not value: two rooms with the same [id] are equal however much
-  /// else differs. [acceptsRoomUploads] and [acceptsThreadUploads] are among
-  /// what it ignores, so a refetch that changes what the user may upload is
-  /// equal to the room it replaces — do not use this to decide whether a room
-  /// changed.
+  /// else differs. [acceptsRoomUploads], [acceptsThreadUploads] and
+  /// [userHasWrite] are among what it ignores, so a refetch that changes what
+  /// the user may upload is equal to the room it replaces — do not use this to
+  /// decide whether a room changed.
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

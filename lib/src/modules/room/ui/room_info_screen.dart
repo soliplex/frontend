@@ -252,6 +252,7 @@ class _RoomInfoBody extends StatelessWidget {
                 uploadRegistry: uploadRegistry,
                 serverEntry: serverEntry,
                 roomId: roomId,
+                userHasWrite: room.userHasWrite,
               ),
             DocumentsCard(
               documentsFuture: documentsFuture,
@@ -420,11 +421,17 @@ class _UploadedFilesCard extends StatefulWidget {
     required this.uploadRegistry,
     required this.serverEntry,
     required this.roomId,
+    required this.userHasWrite,
   });
 
   final UploadTrackerRegistry uploadRegistry;
   final ServerEntry serverEntry;
   final String roomId;
+
+  /// The user's write permission for the room as the server returned it, or
+  /// `null` when it was not returned, in which case the administrator check
+  /// stands in.
+  final bool? userHasWrite;
 
   @override
   State<_UploadedFilesCard> createState() => _UploadedFilesCardState();
@@ -432,20 +439,31 @@ class _UploadedFilesCard extends StatefulWidget {
 
 /// What is known about whether the signed-in user may upload to this room.
 ///
-/// Four states rather than a `bool?`, because a question that was *not
+/// Five states rather than a `bool?`, because a question that was *not
 /// answered* is not the same as one answered "no", and the two must not render
-/// alike: the refusal names who does add the files, which is a claim about the
-/// user this client is in no position to make when it never got an answer.
+/// alike: the refusal tells the user they cannot add files, which is a claim
+/// about the user this client is in no position to make when it never got an
+/// answer.
+///
+/// When the user's write permission is not returned, the administrator check
+/// stands in. A "no" from it is [unconfirmed] rather than [refused]: a user who
+/// is not an administrator may still hold the permission, so the client
+/// withholds the controls without claiming they cannot add files.
 enum _UploadPermission {
   /// The answer is outstanding and still within [_UploadedFilesCardState
   /// ._permissionWait].
   checking,
 
-  /// The installation said the user is an administrator.
+  /// The server returned the user's write permission as held or, when it
+  /// returned none, said the user is an administrator.
   permitted,
 
-  /// The installation said the user is not one.
+  /// The server returned the user's write permission as not held.
   refused,
+
+  /// The server returned no write permission and said the user is not an
+  /// administrator.
+  unconfirmed,
 
   /// The question could not be answered — the request failed, or was still
   /// queued at the bound. Not a verdict, and never rendered as one.
@@ -458,11 +476,10 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   /// What is known about the caller's permission to upload here.
   ///
   /// The controls are offered only under [_UploadPermission.permitted]. An
-  /// unanswered check withholds them and says so, because the upload `POST`
-  /// authorizes through the same installation-side administrator check this
-  /// answer comes from: when that check cannot answer, it cannot authorize
-  /// either, so offering the controls would offer an action whose every use
-  /// fails — a folder of N files uploaded in full to be refused N times.
+  /// unanswered check withholds them and says so, because nothing established
+  /// that the user may upload, and offering the controls could offer an action
+  /// whose every use fails — a folder of N files uploaded in full to be
+  /// refused N times.
   _UploadPermission _permission = _UploadPermission.checking;
 
   @override
@@ -472,7 +489,14 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       entry: widget.serverEntry,
       roomId: widget.roomId,
     );
-    unawaited(_resolveUploadPermission());
+    switch (widget.userHasWrite) {
+      case true:
+        _permission = _UploadPermission.permitted;
+      case false:
+        _permission = _UploadPermission.refused;
+      case null:
+        unawaited(_resolveUploadPermission());
+    }
     // Refresh only if no other screen has populated the shared tracker
     // yet. When `RoomState` is already mounted it has refreshed on room
     // entry, so navigating Room → Info skips a redundant GET.
@@ -495,8 +519,11 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   /// request — an answer arriving later still replaces what the bound wrote.
   static const Duration _permissionWait = Duration(seconds: 3);
 
-  /// Uploading to a room needs an administrator, which is a fact about the
-  /// user rather than the room, so it arrives separately from the room itself.
+  /// Stands in for the user's write permission when it is not returned: an
+  /// administrator holds that permission implicitly, and being one is a fact
+  /// about the user rather than the room, so it arrives separately from the
+  /// room itself. A user who is not an administrator is not offered the
+  /// controls, whether or not they hold the permission.
   ///
   /// `AdminStatus.read` never completes with an error, so nothing here needs a
   /// guard beyond [mounted].
@@ -536,8 +563,8 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     // correctly: the wait and the failure are separate events, and only the
     // first is about this screen.
     _logger.warning(
-      'Could not confirm whether the user administers this room; withholding '
-      'the room upload controls',
+      'Could not confirm whether the user is an administrator; withholding the '
+      'room upload controls',
       attributes: {
         'roomId': widget.roomId,
         'reason': timedOut ? 'queued' : 'unanswered',
@@ -559,16 +586,19 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   /// Recorded at `info`, below the release log floor, because neither outcome
   /// is a fault — but which one it was is the first question asked of a user
   /// who says the controls are missing, or present when they should not be.
-  /// Without it a diagnostics export cannot tell "the server said yes" from
-  /// "the gate never ran".
+  /// Without it a diagnostics export cannot tell "the administrator check said
+  /// yes" from "it never ran". When the server returns the write permission
+  /// this check does not run and nothing is recorded here. The client's
+  /// warning that the permission was not returned, if present, says only that
+  /// it was left out for at least one room.
   void _settle(bool isAdmin) {
     _logger.info(
-      'The installation answered on whether the user administers this room',
+      'The installation answered on whether the user is an administrator',
       attributes: {'roomId': widget.roomId, 'isAdmin': isAdmin},
     );
     setState(
       () => _permission =
-          isAdmin ? _UploadPermission.permitted : _UploadPermission.refused,
+          isAdmin ? _UploadPermission.permitted : _UploadPermission.unconfirmed,
     );
   }
 
@@ -650,20 +680,35 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
             _buildUploadControls(
               isLoading: _permission == _UploadPermission.checking,
             ),
-          // The installation answered, so the client may say who does add
-          // them. Stands whether or not the list is empty.
-          _UploadPermission.refused => Text(
-              'An administrator adds files to this room.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+          // The server returned the permission as not held, so the client may
+          // say the user cannot add them. Stands whether or not the list is
+          // empty, as does the note below.
+          _UploadPermission.refused => _buildPermissionNote(
+              "You can't add files to this room.",
+              theme,
             ),
-          // Says only what is true: the check did not answer. Naming an
-          // administrator here would assert something about the user that
-          // nothing established, to someone who may well be one.
+          // Says only what is true: the server did not return the permission,
+          // and the administrator check cannot speak for a user who holds it.
+          _UploadPermission.unconfirmed => _buildPermissionNote(
+              'The server did not return whether you can write to this room.',
+              theme,
+            ),
+          // Says only what is true: the check did not answer. A refusal here
+          // would assert something about the user that nothing established, to
+          // someone who may well be allowed.
           _UploadPermission.unknown => _buildPermissionUnknown(theme),
         },
       ],
+    );
+  }
+
+  /// What stands in the controls' slot when they are withheld on an answer.
+  Widget _buildPermissionNote(String text, ThemeData theme) {
+    return Text(
+      text,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 
@@ -702,8 +747,8 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   /// second, which is why pressing this repeatedly cannot stack them up.
   Widget _buildPermissionUnknown(ThemeData theme) {
     // The failed-row shape `DocumentsCard` uses, so the two cards on this
-    // screen that can fail read alike. It also carries its weight: the refusal
-    // this slot otherwise holds is an ordinary state in ordinary type, and
+    // screen that can fail read alike. It also carries its weight: the notes
+    // this slot otherwise holds are ordinary states in ordinary type, and
     // rendering a failure the same way would leave "you may not add files"
     // and "nobody could find out" indistinguishable at a glance.
     return Row(

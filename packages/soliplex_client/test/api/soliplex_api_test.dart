@@ -384,8 +384,8 @@ void main() {
         await api.getRooms();
         await api.getRooms();
 
-        // Once per server, not once per room per response: the omission
-        // belongs to the release the server runs.
+        // Once per client, not once per room per response: one record says
+        // the server omits the capability.
         expect(capabilityRecords(), hasLength(1));
       });
 
@@ -414,6 +414,63 @@ void main() {
         await api.getRooms();
 
         expect(capabilityRecords(), isEmpty);
+      });
+
+      test('records once that the server reported no write permission',
+          () async {
+        // An unreported permission falls back to another check, which looks
+        // exactly like a server that reported one. Nothing else survives to
+        // say which of the two it was.
+        final permissionRecords = captureRecords('write permission');
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room-1': {'id': 'room-1', 'name': 'Room 1'},
+            'room-2': {'id': 'room-2', 'name': 'Room 2'},
+          },
+        );
+
+        await api.getRooms();
+        await api.getRooms();
+
+        expect(permissionRecords(), hasLength(1));
+      });
+
+      test('says nothing when the server reported a write permission',
+          () async {
+        final permissionRecords = captureRecords('write permission');
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room-1': {
+              'id': 'room-1',
+              'name': 'Room 1',
+              'user_has_write': false,
+            },
+          },
+        );
+
+        await api.getRooms();
+
+        expect(permissionRecords(), isEmpty);
       });
 
       test('propagates exceptions', () async {
@@ -563,6 +620,30 @@ void main() {
         await api.getRoom('room-1');
 
         expect(capabilityRecords(), hasLength(1));
+      });
+
+      test('records an unreported write permission for a deep-linked room',
+          () async {
+        final permissionRecords = captureRecords('write permission');
+        when(
+          () => mockTransport.request<Room>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          final fromJson = invocation.namedArguments[#fromJson]! as Room
+              Function(Map<String, dynamic>);
+          return fromJson(<String, dynamic>{'id': 'room-1', 'name': 'Room 1'});
+        });
+
+        await api.getRoom('room-1');
+
+        expect(permissionRecords(), hasLength(1));
       });
 
       test('propagates NotFoundException', () async {
