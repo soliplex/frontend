@@ -40,8 +40,15 @@ sealed class DisplayUpload {
 }
 
 class PersistedUpload extends DisplayUpload {
-  const PersistedUpload({required super.filename, required this.url});
+  const PersistedUpload({
+    required super.filename,
+    required this.url,
+    this.isDeleting = false,
+  });
   final Uri url;
+
+  /// Whether a delete of this file is waiting on the server.
+  final bool isDeleting;
 }
 
 class PendingUpload extends DisplayUpload {
@@ -132,6 +139,21 @@ String uploadErrorMessage(Object error) {
   return 'Something went wrong. Please try again.';
 }
 
+/// Says why a room upload could not be deleted, in words for the user.
+String deleteErrorMessage(Object error) {
+  const failed = "Couldn't delete:";
+  return switch (error) {
+    PermissionDeniedException() =>
+      "$failed you don't have permission to delete files here.",
+    ApiException(statusCode: 405) =>
+      "$failed file uploads aren't configured on this server.",
+    NetworkException() => "$failed couldn't reach the server. Try again.",
+    AuthException() => '$failed your session expired. Sign in again.',
+    SoliplexException(:final message) => '$failed $message',
+    _ => "Couldn't delete this file. Try again.",
+  };
+}
+
 bool _isFileSystemRead(Object error) {
   if (error is FileSystemException) return true;
   if (error is SoliplexException && error.originalError != null) {
@@ -206,8 +228,14 @@ class _ScopeState {
   CancelToken? fetchToken;
   final Signal<UploadsStatus> signal;
 
+  /// Deletes waiting on the server, keyed by filename.
+  final Map<String, CancelToken> deleting = {};
+
   void dispose() {
     fetchToken?.cancel('disposed');
+    for (final token in deleting.values) {
+      token.cancel('disposed');
+    }
     signal.dispose();
   }
 }
@@ -798,6 +826,88 @@ class UploadTracker {
   }
 
   // --------------------------------------------------------
+  // Deletion
+  // --------------------------------------------------------
+
+  /// Deletes [filename] from [roomId]'s uploads. Never completes with an
+  /// error.
+  ///
+  /// The file shows as deleting until the server answers, and a second
+  /// delete of it meanwhile is ignored. A 404 counts as deleted, because the
+  /// file is gone either way; a deleted file leaves the list at once and a
+  /// refresh follows. Any other failure keeps the file listed and adds a
+  /// failed row saying why. A delete cancelled by [dispose] or by the
+  /// session ending says nothing.
+  Future<void> deleteRoomUpload({
+    required String roomId,
+    required String filename,
+  }) async {
+    if (_isDisposed) return;
+    final scope = _scope(_roomKey(roomId));
+    if (scope.deleting.containsKey(filename)) return;
+    final token = CancelToken();
+    scope.deleting[filename] = token;
+    _emit(scope);
+
+    try {
+      await _api.deleteRoomUpload(roomId, filename, cancelToken: token);
+    } on NotFoundException {
+      // Deleted already, which is what the user asked for.
+    } on CancelledException {
+      if (_isDisposed) return;
+      scope.deleting.remove(filename);
+      _emit(scope);
+      return;
+    } on Object catch (error, stackTrace) {
+      if (_isDisposed) return;
+      scope.deleting.remove(filename);
+      _recordDeleteFailure(scope, roomId, filename, error, stackTrace);
+      // After the failed row, as for an upload, so a listener reacting to
+      // the session flip sees a consistent tracker.
+      if (error is AuthException) _auth.markSessionExpired();
+      return;
+    }
+    if (_isDisposed) return;
+    scope.deleting.remove(filename);
+    final persisted = scope.persisted;
+    if (persisted != null) {
+      scope.persisted = [
+        for (final f in persisted)
+          if (f.filename != filename) f,
+      ];
+    }
+    _emit(scope);
+    unawaited(refreshRoom(roomId));
+  }
+
+  void _recordDeleteFailure(
+    _ScopeState scope,
+    String roomId,
+    String filename,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    // The failure is described, not attached: a server's text can name the
+    // file, which is user content.
+    final attributes = {'roomId': roomId, 'failure': describeFailure(error)};
+    if (error is SoliplexException) {
+      _logger.warning('Room upload delete failed', attributes: attributes);
+    } else {
+      _logger.error(
+        'Unexpected error during a room upload delete',
+        attributes: attributes,
+        stackTrace: stackTrace,
+      );
+    }
+    scope.pending.add(_Failed(
+      id: 'upload-${_nextId++}',
+      filename: filename,
+      message: deleteErrorMessage(error),
+    ));
+    _emit(scope);
+  }
+
+  // --------------------------------------------------------
   // Signal emission
   // --------------------------------------------------------
 
@@ -807,7 +917,11 @@ class UploadTracker {
     final merged = <DisplayUpload>[
       if (persisted != null)
         for (final f in persisted)
-          PersistedUpload(filename: f.filename, url: f.url),
+          PersistedUpload(
+            filename: f.filename,
+            url: f.url,
+            isDeleting: scope.deleting.containsKey(f.filename),
+          ),
       for (final p in scope.pending)
         switch (p) {
           _Pending(
@@ -884,6 +998,9 @@ class UploadTracker {
         if (record is _Pending) {
           record.cancelToken.cancel('auth expired');
         }
+      }
+      for (final token in scope.deleting.values) {
+        token.cancel('auth expired');
       }
     }
   }
