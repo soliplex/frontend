@@ -79,6 +79,18 @@ void main() {
   });
 
   group('Room mappers', () {
+    test('roomOmitsWritePermission is true when the key is present but null',
+        () {
+      // An implementation keying off `containsKey` passes an absent-key case
+      // and fails this one.
+      expect(
+        roomOmitsWritePermission(
+          <String, dynamic>{'id': 'r', 'user_has_write': null},
+        ),
+        isTrue,
+      );
+    });
+
     group('roomOmitsUploadCapability', () {
       Map<String, dynamic> room({
         Object? roomUploads,
@@ -160,6 +172,43 @@ void main() {
 
         expect(room.acceptsRoomUploads, isTrue);
         expect(room.acceptsThreadUploads, isFalse);
+      });
+
+      test('parses the write permission', () {
+        final granted = roomFromJson(<String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'user_has_write': true,
+        });
+        final refused = roomFromJson(<String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'user_has_write': false,
+        });
+
+        expect(granted.userHasWrite, isTrue);
+        expect(refused.userHasWrite, isFalse);
+      });
+
+      test('reads an unreported write permission as unknown', () {
+        // A payload without the key gives null, which lets a caller fall
+        // back rather than read the omission as a refusal.
+        final room = roomFromJson(
+          <String, dynamic>{'id': 'room-1', 'name': 'Test Room'},
+        );
+
+        expect(room.userHasWrite, isNull);
+      });
+
+      test('survives a wrong-typed write permission', () {
+        // Throwing here would drop the entire room from the lobby.
+        final room = roomFromJson(<String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'user_has_write': 'yes',
+        });
+
+        expect(room.userHasWrite, isNull);
       });
 
       test('parses correctly with only required fields', () {

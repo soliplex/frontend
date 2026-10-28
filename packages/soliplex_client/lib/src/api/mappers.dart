@@ -440,6 +440,7 @@ Room roomFromJson(Map<String, dynamic> json) {
         boolOrNull(json[_roomUploadsKey], _roomUploadsKey) ?? false,
     acceptsThreadUploads:
         boolOrNull(json[_threadUploadsKey], _threadUploadsKey) ?? false,
+    userHasWrite: boolOrNull(json[_userHasWriteKey], _userHasWriteKey),
   );
 }
 
@@ -448,6 +449,9 @@ Room roomFromJson(Map<String, dynamic> json) {
 /// Named once so the reader below cannot drift from the parser above.
 const _roomUploadsKey = 'has_room_uploads';
 const _threadUploadsKey = 'has_thread_uploads';
+
+/// The rooms API's key for the signed-in user's write permission.
+const _userHasWriteKey = 'user_has_write';
 
 /// Whether a room payload reported neither upload scope.
 ///
@@ -458,13 +462,20 @@ const _threadUploadsKey = 'has_thread_uploads';
 bool roomOmitsUploadCapability(Map<String, dynamic> json) =>
     json[_roomUploadsKey] == null && json[_threadUploadsKey] == null;
 
+/// Whether a room payload did not report the user's write permission.
+///
+/// Absent and explicitly null read alike, as in [roomOmitsUploadCapability].
+bool roomOmitsWritePermission(Map<String, dynamic> json) =>
+    json[_userHasWriteKey] == null;
+
 /// Converts a [Room] to JSON.
 ///
 /// This is a partial serialization — [Room.agent], [Room.mcpClientToolsets],
 /// [Room.allowMcp], [Room.suggestions], [Room.quizzes], [Room.tools],
-/// [Room.acceptsRoomUploads] and [Room.acceptsThreadUploads] are not
-/// serialized. Add them here when round-trip fidelity is needed; until then a
-/// round trip reports a room as accepting no uploads.
+/// [Room.acceptsRoomUploads], [Room.acceptsThreadUploads] and
+/// [Room.userHasWrite] are not serialized. Add them here when round-trip
+/// fidelity is needed; until then a round trip reports a room as accepting no
+/// uploads and as not returning the user's write permission.
 Map<String, dynamic> roomToJson(Room room) {
   return {
     'id': room.id,
