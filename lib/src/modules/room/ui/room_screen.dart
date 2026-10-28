@@ -2227,6 +2227,9 @@ class _RoomScreenState extends State<RoomScreen> {
             _logger.debug('workspace refresh: retry threadId=$threadId');
             unawaited(_workdirs.refresh(threadId));
           },
+          folderToggles: _workdirs.folderToggles(threadId).watch(context),
+          onFolderToggled: (folder, {required expanded}) =>
+              _workdirs.setFolderExpanded(threadId, folder, expanded: expanded),
         ),
     ];
 

@@ -32,11 +32,13 @@ Future<String?> _defaultSaveFile({
 
 class _ThreadFiles {
   final signal = Signal<WorkdirFilesStatus>(const WorkdirFilesLoading());
+  final folderToggles = Signal<Map<String, bool>>(const {});
   CancelToken? fetchToken;
 
   void dispose() {
     fetchToken?.cancel('disposed');
     signal.dispose();
+    folderToggles.dispose();
   }
 }
 
@@ -76,6 +78,23 @@ class WorkdirController {
   /// [refresh] to fetch.
   ReadonlySignal<WorkdirFilesStatus> files(String threadId) =>
       _thread(threadId).signal;
+
+  /// The first-level folders of the thread's listing the reader has opened
+  /// or closed, by name, mapped to whether each is open. A folder not in it
+  /// shows its default. Kept apart from the listing, so a refresh after a
+  /// run leaves it as the reader set it.
+  ReadonlySignal<Map<String, bool>> folderToggles(String threadId) =>
+      _thread(threadId).folderToggles;
+
+  /// Records that the reader opened or closed the thread's [folder].
+  void setFolderExpanded(
+    String threadId,
+    String folder, {
+    required bool expanded,
+  }) {
+    final toggles = _thread(threadId).folderToggles;
+    toggles.value = {...toggles.value, folder: expanded};
+  }
 
   /// Fetches the thread's listing, cancelling any fetch still in flight for
   /// it. A failure or 404 after a list has loaded keeps that list: the

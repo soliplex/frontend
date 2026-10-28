@@ -2492,6 +2492,29 @@ void main() {
       expect(findFileName('report.csv'), findsOneWidget);
     });
 
+    testWidgets('a closed folder stays closed when the panel reopens',
+        (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('reports/a.csv')];
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+      final filesButton = find.byTooltip('1 in workspace');
+
+      await tester.tap(filesButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('reports'));
+      await tester.pumpAndSettle();
+      expect(findFileName('a.csv'), findsNothing);
+
+      await tester.tap(filesButton);
+      await tester.pumpAndSettle();
+      await tester.tap(filesButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('reports'), findsOneWidget);
+      expect(findFileName('a.csv'), findsNothing);
+    });
+
     testWidgets('a server without workspaces never shows the files button',
         (tester) async {
       // Every open fetches the list, and a server that keeps no workspaces
