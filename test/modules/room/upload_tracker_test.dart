@@ -4,6 +4,7 @@ import 'dart:io' show FileSystemException, SocketException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
@@ -1806,6 +1807,233 @@ void main() {
             onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           ));
+    });
+  });
+
+  group('deleteRoomUpload', () {
+    // Two files listed; later list fetches never answer unless a test says so,
+    // so what the list shows after a delete is the tracker's own doing.
+    late Completer<List<FileUpload>> laterFetch;
+
+    Future<void> loadTwoFiles() async {
+      var fetches = 0;
+      laterFetch = Completer<List<FileUpload>>();
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) async {
+        fetches++;
+        if (fetches == 1) return [_fileUpload('a.pdf'), _fileUpload('b.pdf')];
+        return laterFetch.future;
+      });
+      await tracker.refreshRoom('room-1');
+    }
+
+    void stubDelete(Future<void> Function(CancelToken token) answer) {
+      when(() => mockApi.deleteRoomUpload(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((invocation) => answer(
+            invocation.namedArguments[#cancelToken] as CancelToken,
+          ));
+    }
+
+    List<DisplayUpload> shown() =>
+        (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+
+    void signIn() => auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+    PersistedUpload persisted(String filename) => shown()
+        .whereType<PersistedUpload>()
+        .singleWhere((u) => u.filename == filename);
+
+    test('a deleted file leaves the list before the refresh lands', () async {
+      await loadTwoFiles();
+      stubDelete((_) async {});
+
+      await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+
+      expect(shown().map((u) => u.filename), ['b.pdf']);
+      // A refresh follows, so a change made elsewhere shows up too.
+      laterFetch.complete([_fileUpload('b.pdf'), _fileUpload('c.pdf')]);
+      await _pump();
+      expect(shown().map((u) => u.filename), ['b.pdf', 'c.pdf']);
+    });
+
+    test('a file already gone is dropped as deleted', () async {
+      await loadTwoFiles();
+      stubDelete((_) async {
+        throw const NotFoundException(message: 'gone');
+      });
+
+      await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+
+      expect(shown().map((u) => u.filename), ['b.pdf']);
+      expect(shown().whereType<FailedUpload>(), isEmpty);
+    });
+
+    test('a refused delete keeps the file and says why', () async {
+      await loadTwoFiles();
+      stubDelete((_) async {
+        throw const PermissionDeniedException(
+          message: 'Forbidden',
+          statusCode: 403,
+        );
+      });
+
+      await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+
+      expect(persisted('a.pdf').isDeleting, isFalse);
+      final failed = shown().whereType<FailedUpload>().single;
+      expect(failed.filename, 'a.pdf');
+      expect(
+        failed.message,
+        "Couldn't delete: you don't have permission to delete files here.",
+      );
+    });
+
+    test('a file being deleted says so and is not deleted twice', () async {
+      await loadTwoFiles();
+      final request = Completer<void>();
+      stubDelete((_) => request.future);
+
+      final first =
+          tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+      await _pump();
+      expect(persisted('a.pdf').isDeleting, isTrue);
+      expect(persisted('b.pdf').isDeleting, isFalse);
+
+      await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+      request.complete();
+      await first;
+
+      // The second request is the duplicate the guard exists to prevent.
+      verify(() => mockApi.deleteRoomUpload(
+            'room-1',
+            'a.pdf',
+            cancelToken: any(named: 'cancelToken'),
+          )).called(1);
+    });
+
+    test('an expired session fails the delete and ends the session', () async {
+      signIn();
+      await loadTwoFiles();
+      stubDelete((_) async {
+        throw const AuthException(message: 'expired', statusCode: 401);
+      });
+
+      await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+
+      expect(auth.session.value, isA<ExpiredSession>());
+      expect(
+        shown().whereType<FailedUpload>().single.message,
+        "Couldn't delete: your session expired. Sign in again.",
+      );
+    });
+
+    test('ending the session cancels a delete in flight', () async {
+      signIn();
+      await loadTwoFiles();
+      final request = Completer<void>();
+      late CancelToken token;
+      stubDelete((t) async {
+        token = t;
+        await request.future;
+        if (t.isCancelled) throw const CancelledException();
+      });
+
+      final pending =
+          tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+      await _pump();
+      auth.markSessionExpired();
+      expect(token.isCancelled, isTrue);
+
+      request.complete();
+      await pending;
+      // A cancelled delete says nothing about the file, which stays listed.
+      expect(persisted('a.pdf').isDeleting, isFalse);
+      expect(shown().whereType<FailedUpload>(), isEmpty);
+    });
+
+    test('disposing cancels a delete in flight', () async {
+      await loadTwoFiles();
+      final request = Completer<void>();
+      late CancelToken token;
+      stubDelete((t) async {
+        token = t;
+        await request.future;
+        throw const CancelledException();
+      });
+
+      final pending =
+          tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+      await _pump();
+      tracker.dispose();
+      expect(token.isCancelled, isTrue);
+
+      request.complete();
+      await pending;
+    });
+
+    test('a failed delete logs the room and never the filename', () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      await loadTwoFiles();
+      stubDelete((_) async {
+        throw const ApiException(
+          message: 'HTTP 500: secret-name.pdf exploded',
+          statusCode: 500,
+        );
+      });
+
+      await tracker.deleteRoomUpload(
+        roomId: 'room-1',
+        filename: 'secret-name.pdf',
+      );
+
+      final record = sink.records.singleWhere(
+        (r) => r.message.contains('delete'),
+      );
+      expect(record.attributes['roomId'], 'room-1');
+      expect(record.message, isNot(contains('secret-name')));
+      for (final value in record.attributes.values) {
+        expect('$value', isNot(contains('secret-name')));
+      }
+      // The exception carries the server's text, which can name the file.
+      expect(record.error, isNull);
+    });
+  });
+
+  group('deleteErrorMessage', () {
+    test('says why a delete failed', () {
+      final cases = <Object, String>{
+        const PermissionDeniedException(message: 'x', statusCode: 403):
+            "Couldn't delete: you don't have permission to delete files here.",
+        const ApiException(message: 'x', statusCode: 405):
+            "Couldn't delete: file uploads aren't configured on this server.",
+        const NetworkException(message: 'x'):
+            "Couldn't delete: couldn't reach the server. Try again.",
+        const AuthException(message: 'x', statusCode: 401):
+            "Couldn't delete: your session expired. Sign in again.",
+        const ApiException(message: 'HTTP 500: boom', statusCode: 500):
+            "Couldn't delete: HTTP 500: boom",
+        StateError('bug'): "Couldn't delete this file. Try again.",
+      };
+      for (final MapEntry(key: error, value: message) in cases.entries) {
+        expect(deleteErrorMessage(error), message, reason: '$error');
+      }
     });
   });
 }
