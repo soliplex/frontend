@@ -1924,6 +1924,79 @@ void main() {
     expect(find.text('shared.pdf'), findsOneWidget);
   });
 
+  Future<void> openFilePanel(
+    WidgetTester tester, {
+    required bool? userHasWrite,
+  }) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    api.nextRoom = Room(
+      id: 'room-1',
+      name: 'Attachable',
+      acceptsRoomUploads: true,
+      acceptsThreadUploads: true,
+      userHasWrite: userHasWrite,
+    );
+    api.nextThreads = const [];
+    api.nextRoomUploads = [
+      FileUpload(
+        filename: 'shared.pdf',
+        url: Uri.parse('https://example.com/shared.pdf'),
+      ),
+    ];
+    api.nextThreadUploads = [
+      FileUpload(
+        filename: 'mine.pdf',
+        url: Uri.parse('https://example.com/mine.pdf'),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.folder_outlined));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('the file panel offers delete on room uploads only',
+      (tester) async {
+    await openFilePanel(tester, userHasWrite: true);
+
+    expect(find.text('mine.pdf'), findsOneWidget);
+    // One button, on the room's file: a thread upload has no delete.
+    expect(find.byTooltip('Delete'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SoliplexButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('shared.pdf'), findsNothing);
+    expect(find.text('mine.pdf'), findsOneWidget);
+  });
+
+  testWidgets(
+      'the file panel offers no delete without the write permission '
+      'returned as held', (tester) async {
+    await openFilePanel(tester, userHasWrite: null);
+
+    expect(find.text('shared.pdf'), findsOneWidget);
+    expect(find.byTooltip('Delete'), findsNothing);
+  });
+
   testWidgets('shows file chip when room has uploads', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;

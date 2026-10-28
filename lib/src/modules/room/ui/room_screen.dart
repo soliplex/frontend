@@ -1924,6 +1924,7 @@ class _RoomScreenState extends State<RoomScreen> {
           const ChatClassificationBand(),
           if (_filesExpanded)
             _buildFilePanel(
+              room,
               roomStatus,
               threadStatus,
               workspaceStatus,
@@ -2205,6 +2206,7 @@ class _RoomScreenState extends State<RoomScreen> {
       (room?.acceptsThreadUploads ?? false);
 
   Widget _buildFilePanel(
+    Room? room,
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
     WorkdirFilesStatus workspaceStatus,
@@ -2216,9 +2218,19 @@ class _RoomScreenState extends State<RoomScreen> {
     // when Failed or with at least one file.
     final sections = <Widget>[
       if (_scopeRendersContent(roomStatus))
-        _buildScopeSection('Room', roomStatus, theme),
+        _buildScopeSection(
+          'Room',
+          roomStatus,
+          theme,
+          onDelete: (room?.acceptsRoomUploads ?? false) &&
+                  room?.userHasWrite == true
+              ? (filename) => unawaited(_state.uploadTracker
+                  .deleteRoomUpload(roomId: widget.roomId, filename: filename))
+              : null,
+        ),
+      // The server has no delete for a thread's uploads.
       if (_scopeRendersContent(threadStatus))
-        _buildScopeSection('Thread', threadStatus, theme),
+        _buildScopeSection('Thread', threadStatus, theme, onDelete: null),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))
         // Only the section reads the toggles, so a folder tap rebuilds it
         // alone rather than the whole room.
@@ -2286,8 +2298,9 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _buildScopeSection(
     String label,
     UploadsStatus status,
-    ThemeData theme,
-  ) {
+    ThemeData theme, {
+    required void Function(String filename)? onDelete,
+  }) {
     return switch (status) {
       UploadsLoading() => Row(
           children: [
@@ -2311,6 +2324,7 @@ class _RoomScreenState extends State<RoomScreen> {
                 entry: entry,
                 onCancel: _state.uploadTracker.cancelUpload,
                 onDismiss: _state.uploadTracker.dismissFailed,
+                onDelete: onDelete,
               ),
           ],
         ),

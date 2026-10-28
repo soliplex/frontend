@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 
 /// One row of an upload list: the file's state, its name, why it failed, and
@@ -11,11 +12,17 @@ class UploadEntryRow extends StatelessWidget {
     required this.entry,
     required this.onCancel,
     required this.onDismiss,
+    this.onDelete,
   });
 
   final DisplayUpload entry;
   final void Function(String entryId) onCancel;
   final void Function(String entryId) onDismiss;
+
+  /// Deletes a stored room upload by filename, once the user confirms. Null
+  /// where the user may not delete it, which leaves the row without the
+  /// control.
+  final void Function(String filename)? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +105,21 @@ class UploadEntryRow extends StatelessWidget {
               ],
             ),
           ),
+          if (entry case PersistedUpload(:final filename, :final isDeleting)
+              when onDelete != null)
+            isDeleting
+                ? Semantics(
+                    label: 'Deleting',
+                    child: const Padding(
+                      padding: EdgeInsets.all(SoliplexSpacing.s1),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : _DeleteButton(onTap: () => _confirmDelete(context, filename)),
           if (closeAction != null)
             IconButton(
               icon: const Icon(Icons.close, size: 14),
@@ -109,6 +131,53 @@ class UploadEntryRow extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, String filename) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete file?',
+      message: 'Delete "$filename" for everyone in this room? '
+          "This can't be undone.",
+      confirmLabel: 'Delete',
+      isDestructive: true,
+    );
+    if (confirmed) onDelete?.call(filename);
+  }
+}
+
+/// Drawn like the workspace rows' trailing actions, and named once: the
+/// tooltip is left out of semantics so the label is not read twice. Its own
+/// semantics node, so a card that merges its children's semantics does not
+/// absorb it and become a button itself.
+class _DeleteButton extends StatelessWidget {
+  const _DeleteButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'Delete',
+      child: Tooltip(
+        message: 'Delete',
+        excludeFromSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(context.radii.sm),
+          child: Padding(
+            padding: const EdgeInsets.all(SoliplexSpacing.s1),
+            child: Icon(
+              Icons.delete_outline,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
       ),
     );
   }
