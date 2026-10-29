@@ -780,6 +780,9 @@ class UploadTracker {
       );
       return;
     }
+    // A row a cancel or the session's end already settled keeps its
+    // words: a client can answer that cancel with an error of its own.
+    if (scope.pending[idx] is! _Pending) return;
     scope.pending[idx] = _Failed(
       id: id,
       filename: scope.pending[idx].filename,

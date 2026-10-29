@@ -835,6 +835,53 @@ void main() {
   });
 
   group('cancelUpload', () {
+    test('a late error leaves a cancelled row as it is', () async {
+      // A client can answer a cancel with an error other than
+      // CancelledException; the row already says how the upload ended.
+      stubGetRoomUploads([]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+      final post = Completer<void>();
+      when(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            openStream: any(named: 'openStream'),
+            contentLength: any(named: 'contentLength'),
+            mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) async {
+        await post.future;
+        throw const NetworkException(message: 'Client error: aborted');
+      });
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'a.pdf',
+        openStream: () => Stream<List<int>>.value(const [1, 2]),
+        contentLength: 2,
+      );
+      await _pump();
+      final id = (tracker.roomUploads('room-1').value as UploadsLoaded)
+          .uploads
+          .whereType<PendingUpload>()
+          .single
+          .id;
+
+      tracker.cancelUpload(id);
+      post.complete();
+      await _pump();
+
+      expect(
+        (tracker.roomUploads('room-1').value as UploadsLoaded)
+            .uploads
+            .whereType<FailedUpload>()
+            .single
+            .message,
+        'Upload cancelled.',
+      );
+    });
+
     test(
       'flips an in-flight Pending row to Failed with a cancelled message '
       'and cancels its token',
