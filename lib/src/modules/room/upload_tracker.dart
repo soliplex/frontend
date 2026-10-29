@@ -65,8 +65,8 @@ class PendingUpload extends DisplayUpload {
   /// request-body bytes on the web, so it can pass [totalBytes] there. Holds
   /// at [totalBytes] or more from the attempt's last byte until the row
   /// leaves pending, dropped by the next upload list or replaced by a
-  /// failure. A retry after a 401 counts again from zero once its first
-  /// chunk is counted.
+  /// failure, or until a 401 has the body sent again, which restarts it at
+  /// zero.
   final int sentBytes;
 
   /// Declared content length of the upload, used to compute progress.
@@ -77,19 +77,20 @@ class PendingUpload extends DisplayUpload {
   /// stream handed its last byte to the request's encoder, which can run
   /// ahead of the network, or ended, for an empty file; on the web, the
   /// browser reported the body sent up to the file's size, a little before it
-  /// ends. True once the server has answered; false while the upload waits
-  /// its turn.
+  /// ends. True once the server has accepted the upload; false while it waits
+  /// its turn, and again when a 401 has its body sent anew.
   ///
   /// An upload whose whole body reached the server is kept even when its
   /// request is then aborted (observed for room uploads; thread uploads take
   /// the same path), so a cancel from here on may not stop the file landing.
   final bool allBytesSent;
 
-  /// Progress in `[0, 1)`, or `null` for indeterminate: an empty file, which
-  /// has no bytes to measure, or every byte sent, which also covers a web
-  /// count past [totalBytes]. Once every byte is sent, what remains (the
-  /// server's answer and the next list) has no measure, and a full ring would
-  /// read as done.
+  /// Progress in `[0, 1)` as the tracker reports it, since it marks the body
+  /// sent once the count reaches [totalBytes]; or `null` for indeterminate:
+  /// an empty file, which has no bytes to measure, or every byte sent, which
+  /// also covers a web count past [totalBytes]. Once every byte is sent, what
+  /// remains (the server's answer and the next list) has no measure, and a
+  /// full ring would read as done.
   double? get progress {
     if (totalBytes <= 0 || allBytesSent) return null;
     return sentBytes / totalBytes;
@@ -604,7 +605,7 @@ class UploadTracker {
           now.difference(lastEmit!) >= _progressEmitInterval;
       if (isFinal || dueByThrottle) {
         lastEmit = now;
-        _updateProgress(scope, id, sent);
+        _updateProgress(scope, id, sent, restart: false);
       }
     }
 
@@ -666,7 +667,16 @@ class UploadTracker {
   /// Replaces the `_Pending` record at [id] with an updated [sentBytes]
   /// count, then emits the signal. Silent no-op if the record is gone
   /// (already Posted/Failed) or the tracker is disposed.
-  void _updateProgress(_ScopeState scope, String id, int sentBytes) {
+  /// Records an attempt's count. A count from a refused attempt's retry
+  /// ([restart]) starts again from nothing sent, so the retry offers Cancel
+  /// until its own body is sent; an empty file's zero would otherwise read
+  /// as sent at once.
+  void _updateProgress(
+    _ScopeState scope,
+    String id,
+    int sentBytes, {
+    required bool restart,
+  }) {
     if (_isDisposed) return;
     final idx = scope.pending.indexWhere((r) => r.id == id);
     if (idx < 0) return;
@@ -678,7 +688,7 @@ class UploadTracker {
       cancelToken: record.cancelToken,
       sentBytes: sentBytes,
       totalBytes: record.totalBytes,
-      bodySent: sentBytes >= record.totalBytes,
+      bodySent: !restart && sentBytes >= record.totalBytes,
     );
     _emit(scope);
   }
@@ -725,6 +735,7 @@ class UploadTracker {
             'Upload hit 401; retrying with a fresh stream',
             error: error,
           );
+          _updateProgress(scope, id, 0, restart: true);
           continue;
         }
         // Retries exhausted: commit the failed row first so the
