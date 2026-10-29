@@ -134,6 +134,37 @@ void main() {
       expect(tester.getSize(find.byType(FilledButton)), idle);
     });
 
+    testWidgets('a loading spinner fits the icon slot at a large font', (
+      tester,
+    ) async {
+      // A fork can set the button's text larger than its icon; the spinner
+      // must still fit the slot it takes.
+      final base = soliplexLightTheme();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: base.copyWith(
+            textTheme: base.textTheme.copyWith(
+              labelLarge: base.textTheme.labelLarge?.copyWith(fontSize: 30),
+            ),
+          ),
+          home: Scaffold(
+            body: Center(
+              child: SoliplexButton.filled(
+                onPressed: () {},
+                icon: const Icon(Icons.download_outlined),
+                isLoading: true,
+                child: const Text('Download'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      final spinner = tester.getSize(find.byType(CircularProgressIndicator));
+      expect(spinner.width, lessThanOrEqualTo(18));
+    });
+
     testWidgets('iconAlignment.end renders the icon after the label', (
       tester,
     ) async {

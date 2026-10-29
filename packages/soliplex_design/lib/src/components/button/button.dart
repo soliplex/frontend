@@ -73,8 +73,9 @@ class SoliplexButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   /// The label widget (typically a [Text]). When [isLoading] is true the
-  /// label is rendered at zero opacity so the button's measured width is
-  /// stable, and a spinner sits centered over it.
+  /// label is hidden at zero opacity, still read by a screen reader, so the
+  /// button's measured width is stable; the spinner takes the [icon]'s slot,
+  /// or sits centred over the label when there is no icon.
   final Widget child;
 
   /// Optional icon. Sits before the label by default; pass
@@ -229,14 +230,21 @@ class SoliplexButton extends StatelessWidget {
   Widget _iconOrSpinner(Color foregroundColor) {
     if (!isLoading) return icon!;
     // The spinner holds the icon's slot, sized by the button's icon theme,
-    // so the button keeps its width.
+    // which a theme-sized icon fills, so the button keeps its width; capped
+    // at the slot, a large font cannot make it overflow.
     return Builder(
-      builder: (context) => SizedBox.square(
-        dimension: IconTheme.of(context).size,
-        child: Center(
-          child: ButtonLoadingIndicator(foregroundColor: foregroundColor),
-        ),
-      ),
+      builder: (context) {
+        final slot = IconTheme.of(context).size;
+        return SizedBox.square(
+          dimension: slot,
+          child: Center(
+            child: ButtonLoadingIndicator(
+              foregroundColor: foregroundColor,
+              maxSize: slot,
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,20 +1,31 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
-/// A spinner sized to sit inside a button label without changing the
-/// button's width.
+/// A spinner the size of the button's text, and no larger than [maxSize].
 ///
-/// Stacked over the original label at `Opacity(0)` by `SoliplexButton` so
-/// the button's measured size is unchanged between idle and loading
-/// states — preventing the "jumping button" anti-pattern when an async
-/// action transitions to a loading state.
+/// `SoliplexButton` keeps the button's size around it, so the button does not
+/// jump between idle and loading: with no icon it stacks the spinner over the
+/// label hidden at `Opacity(0)`; with an icon it centres the spinner in the
+/// icon's slot, passing the slot's size as [maxSize] so a large font cannot
+/// overflow it.
 class ButtonLoadingIndicator extends StatelessWidget {
-  const ButtonLoadingIndicator({required this.foregroundColor, super.key});
+  const ButtonLoadingIndicator({
+    required this.foregroundColor,
+    this.maxSize,
+    super.key,
+  });
 
   final Color foregroundColor;
 
+  /// The largest the spinner may be; unbounded when null.
+  final double? maxSize;
+
   @override
   Widget build(BuildContext context) {
-    final size = DefaultTextStyle.of(context).style.fontSize ?? 14;
+    final fontSize = DefaultTextStyle.of(context).style.fontSize ?? 14;
+    final maxSize = this.maxSize;
+    final size = maxSize == null ? fontSize : math.min(fontSize, maxSize);
     // UnconstrainedBox so a tight non-square parent (e.g. an input's suffix
     // slot, which forces a ~48px height) can't stretch the indicator into an
     // ellipse: the child is laid out with loose constraints and keeps its
