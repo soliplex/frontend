@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -1449,6 +1450,24 @@ void main() {
         expect(tester.widget<Tooltip>(title).message, 'reports/b.md');
       });
 
+      testWidgets("the title's tooltip covers only the name and directory",
+          (tester) async {
+        await openPreview(tester, ['reports/a.md']);
+
+        // A tooltip shows at its target's centre: a target as wide as the
+        // bar would show it far from a short name.
+        final title = find.ancestor(
+          of: _inPreview(find.byType(FileName)),
+          matching: find.byType(Tooltip),
+        );
+        final name = tester.getRect(_inPreview(find.byType(FileName)));
+        final directory = tester.getRect(_inPreview(find.text('reports/')));
+        expect(
+          tester.getRect(title).right,
+          math.max(name.right, directory.right),
+        );
+      });
+
       testWidgets("a screen reader hears the title's name once",
           (tester) async {
         final semantics = tester.ensureSemantics();
@@ -1458,7 +1477,11 @@ void main() {
           final data = tester
               .getSemantics(_inPreview(find.byType(FileName)))
               .getSemanticsData();
-          expect(data.tooltip, isEmpty, reason: 'the label already names it');
+          expect(
+            data.tooltip,
+            isEmpty,
+            reason: 'the name and the line below it already read the path',
+          );
         } finally {
           semantics.dispose();
         }
