@@ -1926,6 +1926,25 @@ void main() {
           )).called(1);
     });
 
+    test('a refresh during a delete keeps the file shown as deleting',
+        () async {
+      await loadTwoFiles();
+      final request = Completer<void>();
+      stubDelete((_) => request.future);
+
+      final pending =
+          tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+      await _pump();
+      final refresh = tracker.refreshRoom('room-1');
+      laterFetch.complete([_fileUpload('a.pdf'), _fileUpload('b.pdf')]);
+      await refresh;
+
+      expect(persisted('a.pdf').isDeleting, isTrue);
+      request.complete();
+      await pending;
+      expect(shown().map((u) => u.filename), ['b.pdf']);
+    });
+
     test('an expired session fails the delete and ends the session', () async {
       signIn();
       await loadTwoFiles();
@@ -2007,6 +2026,8 @@ void main() {
         (r) => r.message.contains('delete'),
       );
       expect(record.attributes['roomId'], 'room-1');
+      // The status tells a server fault from a refusal the type cannot.
+      expect(record.attributes['statusCode'], 500);
       expect(record.message, isNot(contains('secret-name')));
       for (final value in record.attributes.values) {
         expect('$value', isNot(contains('secret-name')));
@@ -2024,7 +2045,7 @@ void main() {
         const ApiException(message: 'x', statusCode: 405):
             "Couldn't delete: file uploads aren't configured on this server.",
         const NetworkException(message: 'x'):
-            "Couldn't delete: couldn't reach the server. Try again.",
+            "Couldn't delete: the server can't be reached. Try again.",
         const AuthException(message: 'x', statusCode: 401):
             "Couldn't delete: your session expired. Sign in again.",
         const ApiException(message: 'HTTP 500: boom', statusCode: 500):

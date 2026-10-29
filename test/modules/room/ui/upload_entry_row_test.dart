@@ -85,6 +85,7 @@ void main() {
 
     expect(find.text('report.pdf'), findsOneWidget);
     expect(find.byType(IconButton), findsNothing);
+    expect(find.byTooltip('Delete'), findsNothing);
   });
 
   testWidgets('a stored file is deleted once the user confirms',
@@ -114,11 +115,14 @@ void main() {
   testWidgets('a file being deleted shows progress in place of delete',
       (tester) async {
     final semantics = tester.ensureSemantics();
-    await pumpRow(tester, stored(isDeleting: true), canDelete: true);
+    try {
+      await pumpRow(tester, stored(isDeleting: true), canDelete: true);
 
-    expect(find.byTooltip('Delete'), findsNothing);
-    expect(find.bySemanticsLabel('Deleting'), findsOneWidget);
-    semantics.dispose();
+      expect(find.byTooltip('Delete'), findsNothing);
+      expect(find.bySemanticsLabel('Deleting'), findsOneWidget);
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('only a stored file offers delete', (tester) async {
@@ -135,21 +139,20 @@ void main() {
     // A browser reads a node's label and then its tooltip, so a tooltip that
     // repeats the label reads "Delete Delete".
     final semantics = tester.ensureSemantics();
-    await pumpRow(tester, stored(), canDelete: true);
+    try {
+      await pumpRow(tester, stored(), canDelete: true);
 
-    expect(
-      find.bySemanticsLabel('Delete'),
-      findsOneWidget,
-    );
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('Delete')),
-      isSemantics(
-        label: 'Delete',
-        tooltip: '',
-        isButton: true,
-        hasTapAction: true,
-      ),
-    );
-    semantics.dispose();
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Delete')),
+        isSemantics(
+          label: 'Delete',
+          tooltip: '',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+    } finally {
+      semantics.dispose();
+    }
   });
 }

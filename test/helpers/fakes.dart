@@ -511,6 +511,9 @@ class FakeSoliplexApi extends SoliplexApi {
     return nextRoomUploads ?? const [];
   }
 
+  /// The room each delete was sent to, in order.
+  final List<String> deletedRoomUploadRoomIds = [];
+
   /// Drops the file from [nextRoomUploads], as the server would.
   @override
   Future<void> deleteRoomUpload(
@@ -518,6 +521,7 @@ class FakeSoliplexApi extends SoliplexApi {
     String filename, {
     CancelToken? cancelToken,
   }) async {
+    deletedRoomUploadRoomIds.add(roomId);
     nextRoomUploads = [
       for (final upload in nextRoomUploads ?? const <FileUpload>[])
         if (upload.filename != filename) upload,

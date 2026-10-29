@@ -20,8 +20,7 @@ class UploadEntryRow extends StatelessWidget {
   final void Function(String entryId) onDismiss;
 
   /// Deletes a stored room upload by filename, once the user confirms. Null
-  /// where the user may not delete it, which leaves the row without the
-  /// control.
+  /// where the row offers no delete.
   final void Function(String filename)? onDelete;
 
   @override

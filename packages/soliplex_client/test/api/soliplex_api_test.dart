@@ -1334,13 +1334,19 @@ void main() {
         ).thenAnswer((_) async {});
 
         // A space or a '#' left unencoded would address another path.
-        await api.deleteRoomUpload('room-1', 'q3 report#1.pdf');
+        final token = CancelToken();
+        await api.deleteRoomUpload(
+          'room-1',
+          'q3 report#1.pdf',
+          cancelToken: token,
+        );
 
         final captured = verify(
           () => mockTransport.request<void>(
             'DELETE',
             captureAny(),
-            cancelToken: any(named: 'cancelToken'),
+            // Forwarded, or ending the session would leave it running.
+            cancelToken: any(named: 'cancelToken', that: same(token)),
             fromJson: any(named: 'fromJson'),
             body: any(named: 'body'),
             headers: any(named: 'headers'),
@@ -1370,7 +1376,11 @@ void main() {
         for (final filename in ['a/b.pdf', '.', '..']) {
           expect(
             () => api.deleteRoomUpload('room-1', filename),
-            throwsA(isA<ArgumentError>()),
+            // The name is user content, so it must not travel inside.
+            throwsA(
+              isA<ArgumentError>()
+                  .having((e) => e.invalidValue, 'invalidValue', isNull),
+            ),
             reason: filename,
           );
         }
