@@ -41,9 +41,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   done. It and a delete's spinner are drawn muted, about the size of the
   icons beside them. A screen reader hears an upload's ring as Uploading,
   with how far it has got while that is known.
-- Once every byte of a non-empty upload is sent, its row no longer offers
-  Cancel: the server can keep a file whose upload is stopped then, so
-  Cancel said "Upload cancelled." for a file that still arrived.
+- Once an upload's file is sent, its row no longer offers Cancel: the
+  server can keep a file whose upload is stopped then, so Cancel said
+  "Upload cancelled." for a file that still arrived. An empty file keeps
+  Cancel while it waits its turn.
 - A file's or folder's name, and a Workspace file's directory, in the file
   panel and on the room info screen can no longer be selected, on any
   platform. Hovering over a name or, on touch, a long press shows the full
