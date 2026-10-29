@@ -70,12 +70,20 @@ class UploadEntryRow extends StatelessWidget {
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            entry.filename,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: isFailed ? theme.colorScheme.onErrorContainer : null,
+          // The full name, which a cut name hides. On touch its long press
+          // shows the name rather than selecting a word of it. Left out of
+          // semantics: the text already reads the name.
+          Tooltip(
+            message: entry.filename,
+            waitDuration: const Duration(milliseconds: 500),
+            excludeFromSemantics: true,
+            child: Text(
+              entry.filename,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isFailed ? theme.colorScheme.onErrorContainer : null,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
-            overflow: TextOverflow.ellipsis,
           ),
           if (errorMessage != null)
             Text(
