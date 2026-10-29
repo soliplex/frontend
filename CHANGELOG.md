@@ -76,6 +76,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   shortened before its extension at any system text size or bold-text
   setting, so a short extension stays visible unless the slot is narrower
   than the extension itself.
+- A shortened Workspace file name keeps a gap before its preview button,
+  as it does before a download button.
 - The warning for a skipped upload or workspace entry names its room, and
   its thread for a thread's listing. An entry skipped for its URL, or for a
   workspace path with an empty, `.` or `..` segment, is also named by its
