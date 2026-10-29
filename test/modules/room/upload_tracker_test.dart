@@ -1472,7 +1472,7 @@ void main() {
       },
     );
 
-    test('Posted state still reports 100% via PendingUpload.progress',
+    test('a posted upload awaiting its listing has no progress to report',
         () async {
       stubGetRoomUploads([]);
       unawaited(tracker.refreshRoom('room-1'));
@@ -1518,7 +1518,28 @@ void main() {
           .whereType<PendingUpload>()
           .single;
       expect(pending.sentBytes, equals(pending.totalBytes));
-      expect(pending.progress, equals(1.0));
+      expect(pending.progress, isNull);
+    });
+
+    test('progress measures the bytes sent while some remain', () {
+      const upload = PendingUpload(
+        id: 'x',
+        filename: 'half.bin',
+        sentBytes: 3,
+        totalBytes: 4,
+      );
+      expect(upload.progress, 0.75);
+    });
+
+    test('once every byte is sent, the wait for the server is unmeasured', () {
+      // A full ring would read as done while the server has yet to answer.
+      const upload = PendingUpload(
+        id: 'x',
+        filename: 'sent.bin',
+        sentBytes: 4,
+        totalBytes: 4,
+      );
+      expect(upload.progress, isNull);
     });
 
     test('zero-length file reports indeterminate progress (null)', () {

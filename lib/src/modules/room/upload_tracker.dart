@@ -60,20 +60,22 @@ class PendingUpload extends DisplayUpload {
   });
   final String id;
 
-  /// Bytes successfully sent for the in-flight POST. After the server
-  /// confirms the upload (but before the persisted list refresh observes
-  /// it), this equals [totalBytes] — the row shows 100% briefly.
+  /// Bytes successfully sent for the in-flight POST. Equals [totalBytes]
+  /// from the last byte sent until the persisted list refresh observes the
+  /// upload, through the server's answer.
   final int sentBytes;
 
   /// Declared content length of the upload, used to compute progress.
   /// Equal to the file size for single-file uploads.
   final int totalBytes;
 
-  /// Progress in `[0, 1]`, or `null` for indeterminate (empty file or
-  /// unknown length).
+  /// Progress in `[0, 1)`, or `null` for indeterminate: an empty file, an
+  /// unknown length, or every byte sent. Once every byte is sent, what remains
+  /// (the server's answer and the list refresh) has no measure, and a full
+  /// ring would read as done.
   double? get progress {
-    if (totalBytes <= 0) return null;
-    return (sentBytes / totalBytes).clamp(0.0, 1.0);
+    if (totalBytes <= 0 || sentBytes >= totalBytes) return null;
+    return sentBytes / totalBytes;
   }
 }
 

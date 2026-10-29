@@ -208,4 +208,45 @@ void main() {
     expect(failedIcon.left, storedIcon.left,
         reason: 'a failed row keeps the leading column');
   });
+
+  testWidgets('a ring is muted and as large as an icon\'s shape',
+      (tester) async {
+    await _pump(tester, [
+      _upload(_stored('room.csv'), canDelete: true),
+      _upload(PendingUpload(
+        id: 'p',
+        filename: 'pending.csv',
+        sentBytes: 1,
+        totalBytes: 2,
+      )),
+      _upload(_stored('deleting.csv', isDeleting: true), canDelete: true),
+    ]);
+
+    final icon = tester.getRect(find
+        .descendant(
+          of: _uploadRow('room.csv'),
+          matching: find.byType(Icon),
+        )
+        .first);
+    final muted = Theme.of(tester.element(find.byType(UploadEntryRow).first))
+        .colorScheme
+        .onSurfaceVariant;
+    for (final row in ['pending.csv', 'deleting.csv']) {
+      final ring = find.descendant(
+        of: _uploadRow(row),
+        matching: find.byType(CircularProgressIndicator),
+      );
+      // A Material icon draws its shape inside a margin; a ring filling the
+      // icon's whole box reads larger and heavier than the icons beside it.
+      expect(tester.getSize(ring), const Size.square(12), reason: row);
+      expect(tester.widget<CircularProgressIndicator>(ring).color, muted,
+          reason: row);
+    }
+    final pendingRing = tester.getRect(find.descendant(
+      of: _uploadRow('pending.csv'),
+      matching: find.byType(CircularProgressIndicator),
+    ));
+    expect(pendingRing.center.dx, icon.center.dx,
+        reason: 'the ring keeps the leading column');
+  });
 }
