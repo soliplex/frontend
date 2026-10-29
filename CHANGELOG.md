@@ -39,6 +39,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - An upload's progress ring spins once every byte is sent, while the
   server has yet to answer, rather than standing full as if done. It and a
   delete's spinner are drawn muted, at the size of the icons beside them.
+- Once every byte of an upload is sent, its row no longer offers Cancel:
+  the server keeps a file whose upload is stopped then, so the cancel
+  reported a file that still arrived.
 - On touch, a long press on the name of an upload or a Workspace folder
   shows its full name, as a Workspace file's does, rather than selecting a
   word of it. A failed upload's reason can still be selected.

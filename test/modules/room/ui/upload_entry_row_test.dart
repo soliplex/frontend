@@ -58,6 +58,38 @@ void main() {
     expect(dismissed, isEmpty);
   });
 
+  testWidgets('once every byte is sent, an upload offers no cancel',
+      (tester) async {
+    // The server keeps an upload whose request is aborted after its last
+    // byte, so a cancel then would report a file that still lands.
+    await pumpRow(
+      tester,
+      const PendingUpload(
+        id: 'p1',
+        filename: 'report.pdf',
+        sentBytes: 10,
+        totalBytes: 10,
+      ),
+    );
+
+    expect(find.byTooltip('Cancel upload'), findsNothing);
+  });
+
+  testWidgets('an upload of unknown length can be cancelled', (tester) async {
+    // With no length, nothing says every byte is sent.
+    await pumpRow(
+      tester,
+      const PendingUpload(
+        id: 'p1',
+        filename: 'report.pdf',
+        sentBytes: 10,
+        totalBytes: 0,
+      ),
+    );
+
+    expect(find.byTooltip('Cancel upload'), findsOneWidget);
+  });
+
   testWidgets('a failed upload shows why and can be dismissed', (tester) async {
     await pumpRow(
       tester,

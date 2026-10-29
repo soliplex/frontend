@@ -50,11 +50,12 @@ class UploadEntryRow extends StatelessWidget {
     };
 
     final close = switch (entry) {
-      PendingUpload(:final id) => FileRowAction(
+      PendingUpload(:final id, allBytesSent: false) => FileRowAction(
           icon: Icons.close,
           tooltip: 'Cancel upload',
           onTap: () => onCancel(id),
         ),
+      PendingUpload() => null,
       FailedUpload(:final id) => FileRowAction(
           icon: Icons.close,
           tooltip: 'Dismiss',
