@@ -30,6 +30,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   in the file panel.
 - A stored upload's row, in the file panel and on the room info screen,
   leads with the icon for its file type rather than a check.
+- The entries of the file panel and of the room info screen's uploaded
+  files (room and thread uploads, Workspace files and folders) are one
+  height, with or without buttons, and every failed upload is one height.
+  Their buttons, an upload's cancel and dismiss included, are drawn at one
+  size in one column, and a failed upload's icons line up with the rows
+  around it.
 - **Library consumers (breaking):** `WorkdirFile.filename` is the file's
   path relative to the workspace root and can contain `/` (`dir/file.txt`);
   `WorkdirFile.basename` and `WorkdirFile.directory` split it.

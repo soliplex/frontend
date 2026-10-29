@@ -1346,7 +1346,7 @@ void main() {
     });
 
     testWidgets('a cut name stops short of the preview button', (tester) async {
-      // The eye has no padding of its own, unlike the download button.
+      // A cut name ends at the action's padding, never at the icon itself.
       await pumpRow(tester, width: 180);
 
       final extension = tester.getRect(find.text('.py'));

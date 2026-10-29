@@ -7,8 +7,8 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../shared/preview_icon_button.dart';
 import '../../../shared/zoomable_image.dart';
+import 'file_list_row.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';
 import 'workdir_preview/download_feedback_button.dart';
@@ -76,44 +76,31 @@ class WorkdirFileRow extends StatelessWidget {
         return InkWell(
           onTap: canPreview ? onOpenPreview : downloadTap,
           borderRadius: BorderRadius.circular(context.radii.sm),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-                vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
-            child: Row(
-              children: [
-                Icon(
-                  leadingIcon,
-                  size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: SoliplexSpacing.s2),
-                Expanded(
-                  child: _NameAndDirectory(
-                    file: file,
-                    directory: directory,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
-                if (canPreview) ...[
-                  // The eye has no padding of its own, as the download
-                  // button has, to keep a cut name off it.
-                  const SizedBox(width: SoliplexSpacing.s1),
-                  PreviewIconButton(onTap: onOpenPreview),
-                  const SizedBox(width: SoliplexSpacing.s2),
-                ],
-                InkWell(
-                  onTap: downloadTap,
-                  borderRadius: BorderRadius.circular(context.radii.sm),
-                  child: Padding(
-                    padding: const EdgeInsets.all(SoliplexSpacing.s1),
-                    child: Tooltip(
-                      message: tooltip,
-                      child: Icon(icon, size: 16, color: color),
-                    ),
-                  ),
-                ),
-              ],
+          child: FileListRow(
+            leading: Icon(
+              leadingIcon,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
+            content: _NameAndDirectory(
+              file: file,
+              directory: directory,
+              style: theme.textTheme.bodySmall,
+            ),
+            actions: [
+              if (canPreview)
+                FileRowAction(
+                  icon: Icons.visibility_outlined,
+                  tooltip: 'Preview',
+                  onTap: onOpenPreview,
+                ),
+              FileRowAction(
+                icon: icon,
+                tooltip: tooltip,
+                onTap: downloadTap,
+                color: color,
+              ),
+            ],
           ),
         );
       },
