@@ -249,4 +249,29 @@ void main() {
     expect(pendingRing.center.dx, icon.center.dx,
         reason: 'the ring keeps the leading column');
   });
+
+  testWidgets("a focused dismiss shows its highlight over a failure's tint",
+      (tester) async {
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTraditional;
+    addTearDown(() => FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.automatic);
+    await _pump(tester, [
+      _upload(FailedUpload(id: 'f', filename: 'f.csv', message: 'Too big')),
+    ]);
+    final dismiss = tester.element(find.byIcon(Icons.close));
+    final theme = Theme.of(dismiss);
+
+    Focus.of(dismiss).requestFocus();
+    await tester.pumpAndSettle();
+
+    // An InkWell draws its highlights on the Material beneath it: the tint
+    // must be drawn there too, first, or it covers them.
+    expect(
+      Material.of(dismiss) as RenderObject,
+      paints
+        ..rrect(color: theme.colorScheme.errorContainer)
+        ..rrect(color: theme.focusColor),
+    );
+  });
 }
