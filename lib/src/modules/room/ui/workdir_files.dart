@@ -118,7 +118,8 @@ class WorkdirFileRow extends StatelessWidget {
   }
 }
 
-/// A file's basename on one line, followed by [directory] in muted text.
+/// A file's basename on one line, followed by [directory] in muted text,
+/// ending in `/` so it reads as a folder rather than a label.
 ///
 /// The basename is what a reader scans the list for, so the directory gives
 /// way first: it is end-ellipsized into whatever width the basename leaves,
@@ -174,7 +175,7 @@ class _NameAndDirectory extends StatelessWidget {
                           padding:
                               const EdgeInsets.only(left: SoliplexSpacing.s2),
                           child: Text(
-                            directory,
+                            '$directory/',
                             style: directoryStyle,
                             maxLines: 1,
                             softWrap: false,

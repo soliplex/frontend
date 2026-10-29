@@ -57,14 +57,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   folder's files. A first-level folder named `.git` or `__pycache__` starts
   closed and is listed after the others. Each folder stays as the reader
   left it in that thread until they leave the room. Each file is named by
-  its file name, followed in muted text by its directory below its folder.
-  When the row is narrow the directory is cut first, and hidden once the
-  name fills the row; the tooltip holds the full path. The preview pages
-  through the files of the tapped file's group, and titles a file by its
-  name, with its directory on the line below, after the position when
-  there are several files. The workspace notice names an added file by its
-  name, and leaves out files under a `.git` or `__pycache__` directory at
-  any depth; its Show opens the folders that hold the files it names.
+  its file name, followed in muted text by its directory below its folder,
+  ending in `/`. When the row is narrow the directory is cut first, and
+  hidden once the name fills the row; the tooltip holds the full path. The
+  preview pages through the files of the tapped file's group, and titles a
+  file by its name, with its directory on the line below, after the
+  position when there are several files. The workspace notice names an
+  added file by its name, and leaves out files under a `.git` or
+  `__pycache__` directory at any depth; its Show opens the folders that
+  hold the files it names.
   Nested files preview and download like top-level files, and a download
   is saved under the file's own name. The listing skips an entry with an
   empty, `.` or `..` segment, or a NUL byte.
