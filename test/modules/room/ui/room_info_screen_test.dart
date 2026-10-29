@@ -267,6 +267,23 @@ void main() {
         });
       }
 
+      testWidgets('no delete while the administrator check cannot answer',
+          (tester) async {
+        final api = FakeSoliplexApi()
+          ..nextIsAdminUserThrow = NetworkException(message: 'offline')
+          ..nextRoomUploads = [
+            FileUpload(
+              filename: 'shared.pdf',
+              url: Uri.parse('https://example.com/shared.pdf'),
+            ),
+          ];
+
+        await pumpAs(tester, api);
+
+        expect(find.text(_unknownNote), findsOneWidget);
+        expect(find.byTooltip('Delete'), findsNothing);
+      });
+
       testWidgets('a reported refusal withholds the controls', (tester) async {
         final api = FakeSoliplexApi()..nextIsAdminUser = true;
 
