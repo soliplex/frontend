@@ -1050,47 +1050,63 @@ class UploadTracker {
     _scopes.clear();
   }
 
-  /// Cancels all in-flight and queued uploads, and every delete in
-  /// flight, when the auth session leaves [ActiveSession]. The route
-  /// guard navigates the user away; this stops their HTTP work so it
-  /// doesn't reconnect-loop against a dead token.
+  /// When the auth session leaves [ActiveSession], stops every upload that
+  /// still has its body to send, queued or in flight, and every delete in
+  /// flight. The route guard navigates the user away; this stops their HTTP
+  /// work so it doesn't reconnect-loop against a dead token.
   ///
-  /// Walking `scope.pending` covers both states because each queued
-  /// job's [_QueuedJob.token] is the same [CancelToken] instance as the
-  /// matching `_Pending.cancelToken`. The drain loop skips queued jobs
-  /// whose token is cancelled (`_drain`'s `isCancelled` check).
+  /// An upload whose body is already sent is left to the server's answer:
+  /// the server may already be storing it, so a failed row would claim what
+  /// only the server knows, and a cancel could not stop it landing. Its
+  /// answer settles the row as any other's does.
+  ///
+  /// Walking `scope.pending` covers both queued and in-flight uploads
+  /// because each queued job's [_QueuedJob.token] is the same [CancelToken]
+  /// instance as the matching `_Pending.cancelToken`. The drain loop skips
+  /// queued jobs whose token is cancelled (`_drain`'s `isCancelled` check).
   void _onAuthChanged(SessionState state) {
     if (_isDisposed) return;
-    if (state is ActiveSession) return;
-    var stopped = 0;
+    final message = switch (state) {
+      ActiveSession() => null,
+      ExpiredSession() => _sessionExpiredMessage,
+      NoSession() => 'Upload stopped: signed out.',
+    };
+    if (message == null) return;
+    var uploadsStopped = 0;
+    var deletesStopped = 0;
     for (final scope in _scopes.values) {
-      // Each upload the session's end stops is failed before its token is
-      // cancelled, as [cancelUpload] does: the cancel ends the upload with
-      // nothing more said, so a row left pending would never leave.
+      // Each upload stopped here is failed before its token is cancelled,
+      // as [cancelUpload] does: the cancel ends the upload with nothing
+      // more said, so a row left pending would never leave.
       final stopping = <_Pending>[];
       for (var i = 0; i < scope.pending.length; i++) {
         final record = scope.pending[i];
-        if (record is! _Pending) continue;
+        if (record is! _Pending || record.bodySent) continue;
         scope.pending[i] = _Failed(
           id: record.id,
           filename: record.filename,
-          message: _sessionExpiredMessage,
+          message: message,
         );
         stopping.add(record);
       }
       if (stopping.isNotEmpty) _emit(scope);
       for (final record in stopping) {
-        record.cancelToken.cancel('auth expired');
+        record.cancelToken.cancel('auth ended');
       }
-      stopped += stopping.length;
+      uploadsStopped += stopping.length;
       for (final token in scope.deleting.values) {
-        token.cancel('auth expired');
+        token.cancel('auth ended');
       }
+      deletesStopped += scope.deleting.length;
     }
-    if (stopped > 0) {
+    if (uploadsStopped > 0 || deletesStopped > 0) {
       _logger.info(
-        'Uploads stopped by the session ending',
-        attributes: {'count': stopped},
+        'Uploads and deletes stopped by the session ending',
+        attributes: {
+          'state': state.runtimeType.toString(),
+          'uploads': uploadsStopped,
+          'deletes': deletesStopped,
+        },
       );
     }
   }

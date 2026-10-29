@@ -71,9 +71,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A button that is loading keeps its label for a screen reader, which
   heard an unnamed button while the spinner showed, and a button with an
   icon keeps its width, which its smaller spinner narrowed.
-- An upload the session's end stops, in flight or waiting its turn, fails
-  with "Session expired. Please sign in again." and can be dismissed; it
-  stayed pending, with nothing left to end it.
+- When the session expires or the user signs out, an upload still sending
+  its file or waiting its turn fails, with "Session expired. Please sign in
+  again." or "Upload stopped: signed out.", and can be dismissed; it stayed
+  pending, with nothing left to end it. One whose file is already sent is
+  left to the server's answer.
 - A screen reader names the room's menu button and the dismiss on its
   send-error, context-warning and reconnect banners and its upload and
   workspace notices, which it read as unnamed buttons.
