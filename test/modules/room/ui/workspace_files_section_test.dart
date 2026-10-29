@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -151,6 +152,23 @@ void main() {
       final name = tester.getRect(find.text('reports'));
       final count = tester.getRect(find.text('2 files'));
       expect(count.left - name.right, lessThanOrEqualTo(SoliplexSpacing.s2));
+    });
+
+    testWidgets('a narrow folder row shortens the name and keeps the count',
+        (tester) async {
+      tester.view.physicalSize = const Size(200, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      const folder = 'quarterly_financial_reports_archive';
+      await tester.pumpWidget(_grouped(['$folder/a.csv', '$folder/b.csv']));
+
+      final name = tester.renderObject<RenderParagraph>(find.text(folder));
+      final count = tester.renderObject<RenderParagraph>(find.text('2 files'));
+      expect(name.didExceedMaxLines, isTrue);
+      expect(
+        count.size.width,
+        greaterThanOrEqualTo(count.getMaxIntrinsicWidth(double.infinity)),
+      );
     });
 
     testWidgets('tapping a folder closes it, and tapping again opens it',
