@@ -41,6 +41,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   done. It and a delete's spinner are drawn muted, about the size of the
   icons beside them. A screen reader hears an upload's ring as Uploading,
   with how far it has got while that is known.
+- While a Workspace file downloads, its row's download button gives way to
+  a spinning ring, named Downloading to a screen reader, and the preview's
+  download button shows it is loading; before, both looked ready and
+  ignored taps.
 - Once an upload's file is sent, its row no longer offers Cancel: the
   server can keep a file whose upload is stopped then, so Cancel said
   "Upload cancelled." for a file that still arrived. An empty file keeps

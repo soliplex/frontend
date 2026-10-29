@@ -8,10 +8,10 @@ import 'download_outcome.dart';
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.download_feedback');
 
-/// Three-state download feedback the user sees after tapping a download
-/// affordance. [DownloadOutcome.cancelled] never reaches the builder —
-/// it leaves the state at [idle] and never animates.
-enum DownloadFeedbackState { idle, success, error }
+/// What a download affordance shows: ready, under way, then the outcome for
+/// a moment before it is ready again. A save the user cancels
+/// ([DownloadOutcome.cancelled]) goes straight back to [idle].
+enum DownloadFeedbackState { idle, downloading, success, error }
 
 /// Shared icon + label for each [DownloadFeedbackState]. Every download
 /// affordance (file row tooltip, fallback button labels) renders the
@@ -20,6 +20,10 @@ enum DownloadFeedbackState { idle, success, error }
 extension DownloadFeedbackAffordance on DownloadFeedbackState {
   (IconData icon, String label) get affordance => switch (this) {
         DownloadFeedbackState.idle => (Icons.download_outlined, 'Download'),
+        DownloadFeedbackState.downloading => (
+            Icons.download_outlined,
+            'Downloading'
+          ),
         DownloadFeedbackState.success => (Icons.check, 'Saved'),
         DownloadFeedbackState.error => (Icons.error_outline, "Couldn't save"),
       };
@@ -27,11 +31,11 @@ extension DownloadFeedbackAffordance on DownloadFeedbackState {
 
 /// Owns the download-feedback state machine so every download affordance
 /// (file row, can't-preview fallback, too-large fallback) gets the same
-/// behavior: tap → in-flight guard → success/error swap → 2 s revert.
+/// behavior: tap → downloading → success or error for 2 s → idle.
 ///
 /// The visual is supplied by [builder]; this widget only orchestrates
-/// the state. [onTap] is null while in-flight, when feedback is showing,
-/// or when the host wants the affordance disabled.
+/// the state. [onTap] is null in every state but
+/// [DownloadFeedbackState.idle], so a download runs once at a time.
 class DownloadFeedbackButton extends StatefulWidget {
   const DownloadFeedbackButton({
     super.key,
@@ -67,7 +71,6 @@ class DownloadFeedbackButton extends StatefulWidget {
 
 class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
   DownloadFeedbackState _state = DownloadFeedbackState.idle;
-  bool _inFlight = false;
   Timer? _revertTimer;
 
   @override
@@ -77,8 +80,8 @@ class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
   }
 
   Future<void> _handleTap() async {
-    if (_inFlight) return;
-    setState(() => _inFlight = true);
+    if (_state != DownloadFeedbackState.idle) return;
+    setState(() => _state = DownloadFeedbackState.downloading);
     DownloadOutcome outcome;
     try {
       outcome = await widget.onDownload();
@@ -99,11 +102,10 @@ class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
     }
     if (!mounted) return;
     if (outcome == DownloadOutcome.cancelled) {
-      setState(() => _inFlight = false);
+      setState(() => _state = DownloadFeedbackState.idle);
       return;
     }
     setState(() {
-      _inFlight = false;
       _state = outcome == DownloadOutcome.success
           ? DownloadFeedbackState.success
           : DownloadFeedbackState.error;
@@ -116,9 +118,7 @@ class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
 
   @override
   Widget build(BuildContext context) {
-    final onTap = (!_inFlight && _state == DownloadFeedbackState.idle)
-        ? _handleTap
-        : null;
+    final onTap = _state == DownloadFeedbackState.idle ? _handleTap : null;
     return widget.builder(context, _state, onTap);
   }
 }

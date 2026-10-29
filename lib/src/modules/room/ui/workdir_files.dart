@@ -68,10 +68,19 @@ class WorkdirFileRow extends StatelessWidget {
       logTag: 'row download callback threw',
       builder: (context, state, downloadTap) {
         final (icon, tooltip) = state.affordance;
-        final color = switch (state) {
-          DownloadFeedbackState.idle => theme.colorScheme.primary,
-          DownloadFeedbackState.success => theme.colorScheme.onSurfaceVariant,
-          DownloadFeedbackState.error => theme.colorScheme.error,
+        Widget action(Color color) => FileRowAction(
+              icon: icon,
+              tooltip: tooltip,
+              onTap: downloadTap,
+              color: color,
+            );
+        final download = switch (state) {
+          DownloadFeedbackState.idle => action(theme.colorScheme.primary),
+          DownloadFeedbackState.downloading =>
+            FileRowActionProgress(label: tooltip),
+          DownloadFeedbackState.success =>
+            action(theme.colorScheme.onSurfaceVariant),
+          DownloadFeedbackState.error => action(theme.colorScheme.error),
         };
         return InkWell(
           onTap: canPreview ? onOpenPreview : downloadTap,
@@ -94,12 +103,7 @@ class WorkdirFileRow extends StatelessWidget {
                   tooltip: 'Preview',
                   onTap: onOpenPreview,
                 ),
-              FileRowAction(
-                icon: icon,
-                tooltip: tooltip,
-                onTap: downloadTap,
-                color: color,
-              ),
+              download,
             ],
           ),
         );
@@ -758,6 +762,7 @@ class _CannotPreview extends StatelessWidget {
               final (btnIcon, label) = state.affordance;
               return SoliplexButton.filled(
                 onPressed: onTap,
+                isLoading: state == DownloadFeedbackState.downloading,
                 icon: Icon(btnIcon),
                 child: Text(label),
               );
