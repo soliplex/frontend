@@ -13,10 +13,10 @@ final _logger =
 /// ([DownloadOutcome.cancelled]) goes straight back to [idle].
 enum DownloadFeedbackState { idle, downloading, success, error }
 
-/// Shared icon + label for each [DownloadFeedbackState]. Every download
-/// affordance (file row tooltip, fallback button labels) renders the
-/// same words and, where an icon shows, the same icon; centralizing the
-/// mapping here keeps them from drifting apart.
+/// Shared icon + label for each [DownloadFeedbackState]. The file row uses
+/// [affordance] as it is; a button uses [buttonAffordance], which differs
+/// only while downloading. Centralizing the mapping here keeps the words
+/// from drifting apart.
 extension DownloadFeedbackAffordance on DownloadFeedbackState {
   (IconData icon, String label) get affordance => switch (this) {
         DownloadFeedbackState.idle => (Icons.download_outlined, 'Download'),
@@ -29,8 +29,9 @@ extension DownloadFeedbackAffordance on DownloadFeedbackState {
       };
 
   /// [affordance] for a button, which shows a download under way by loading:
-  /// it keeps the idle words, hidden, so it keeps its size while its spinner
-  /// says what is happening.
+  /// it keeps the idle words, hidden, so it keeps its size. Only its spinner
+  /// shows the download is under way; a screen reader hears the idle words on
+  /// a disabled button.
   (IconData icon, String label) get buttonAffordance =>
       (this == DownloadFeedbackState.downloading
               ? DownloadFeedbackState.idle
