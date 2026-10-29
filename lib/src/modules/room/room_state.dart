@@ -205,8 +205,11 @@ class RoomState {
   }
 
   /// `AdminStatus.read` never completes with an error, so nothing here needs
-  /// a guard beyond disposal, and it keeps a delivered answer per server, so
-  /// entering rooms asks the server only until one answer is delivered.
+  /// a guard beyond disposal; [AdminStatus] says which answers it keeps.
+  ///
+  /// While the check is still out, the file panel offers no delete, and says
+  /// nothing: the room info screen's upload controls report a check that has
+  /// not answered, and [AdminStatus] records one that failed.
   Future<void> _resolveWritePermission(Room room) async {
     final returned = room.userHasWrite;
     if (returned != null) {

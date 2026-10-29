@@ -14,10 +14,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   button on each stored file in the file panel's Room section and on the
   room info screen's uploaded files. It goes to the same users as the upload
   controls: when the server does not return the permission, to
-  administrators only. It asks first, naming the file and saying it is deleted for everyone in the
-  room, and shows a spinner while the delete is under way. When the delete
-  fails, the file stays listed and a failed row naming it, at the end of
-  the list, says why, with a dismiss button. Thread uploads have no delete.
+  administrators only. It asks first, naming the file and saying it is
+  deleted for everyone in the room, and shows a spinner while the delete is
+  under way. When the delete fails, the file stays listed and a failed row
+  naming it, at the end of the list, says why, with a dismiss button. Thread
+  uploads have no delete.
 - **Library consumers:** `SoliplexApi.deleteRoomUpload` deletes one file
   from a room's uploads. It throws `ArgumentError` for an empty argument or
   for a filename that is not one path segment (one holding `/`, or `.` or
@@ -25,9 +26,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
-- On the room info screen a failed upload's reason sits below its name, and
-  an upload in progress shows its spinner in the primary colour, as in the
-  file panel.
+- On the room info screen a failed upload's reason sits below its name, as
+  in the file panel.
 - **Library consumers (breaking):** `WorkdirFile.filename` is the file's
   path relative to the workspace root and can contain `/` (`dir/file.txt`);
   `WorkdirFile.basename` and `WorkdirFile.directory` split it.

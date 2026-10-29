@@ -196,8 +196,8 @@ class _Pending extends _PendingRecord {
 }
 
 /// Server-confirmed via POST but not yet observed in the persisted
-/// list. The next refresh to land drops it, whether or not the list
-/// holds the file; see `_fetch` for why that list can be trusted.
+/// list. The next list to load successfully drops it, whether or not
+/// it holds the file; see `_fetch` for why that list can be trusted.
 class _Posted extends _PendingRecord {
   const _Posted({
     required super.id,
@@ -373,7 +373,7 @@ class UploadTracker {
       // one cancels every refresh before it, so a list that lands here
       // was asked for after each POST it could describe had finished:
       // a posted file it leaves out is gone, deleted here or elsewhere.
-      // Waiting for the name instead strands the row at 100% for good.
+      // Waiting for its name would strand that row at 100%.
       scope.pending.removeWhere((r) => r is _Posted);
 
       _emit(scope);
@@ -836,9 +836,10 @@ class UploadTracker {
   /// The file shows as deleting until the server answers, and a second
   /// delete of it meanwhile is ignored. A 404 counts as deleted: the server
   /// answers a delete with it only when the room has no upload by that
-  /// name. A deleted file leaves the list at once and a refresh follows. Any other failure keeps the file listed and adds a
-  /// failed row saying why. A delete cancelled by [dispose] or by the
-  /// session ending says nothing.
+  /// name, because, unlike a list fetch, a delete checks no read access. A
+  /// deleted file leaves the list at once and a refresh follows. Any other
+  /// failure keeps the file listed and adds a failed row saying why. A
+  /// delete cancelled by [dispose] or by the session ending says nothing.
   Future<void> deleteRoomUpload({
     required String roomId,
     required String filename,
@@ -888,8 +889,8 @@ class UploadTracker {
     Object error,
     StackTrace stackTrace,
   ) {
-    // The failure is described, not attached: a server's text, or a network
-    // error's request address, can name the file, which is user content. The
+    // The failure is described, not attached: a network error's text can
+    // carry the request address, which names the file, user content. The
     // status is kept, because the type alone cannot tell a server fault from
     // an installation without an upload path.
     final statusCode = switch (error) {

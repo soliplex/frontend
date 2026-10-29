@@ -95,7 +95,8 @@ class Room {
   final bool acceptsThreadUploads;
 
   /// Whether the signed-in user holds this room's write permission, which
-  /// administrators hold implicitly; adding room uploads needs it.
+  /// administrators hold implicitly; adding and deleting room uploads need
+  /// it.
   ///
   /// `null` when the server did not return it: that is not a refusal, and
   /// callers decide what to do without an answer.
