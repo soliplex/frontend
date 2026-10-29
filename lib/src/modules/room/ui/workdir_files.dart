@@ -518,7 +518,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             child: Align(
               alignment: Alignment.centerLeft,
               // The full path, which a cut name and directory hide; the name
-              // and the line below it read the path's parts.
+              // and the directory below it read the path's parts.
               child: FullNameTooltip(
                 name: file.filename,
                 child: Column(
