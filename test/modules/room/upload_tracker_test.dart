@@ -1291,6 +1291,56 @@ void main() {
       expect(status.uploads.whereType<FailedUpload>(), isEmpty);
     });
 
+    for (final (label, bytes) in [
+      ('a file', const [1, 2, 3]),
+      ('an empty file', const <int>[]),
+    ]) {
+      test('a retry of $label offers Cancel again until it is sent', () async {
+        stubGetRoomUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        await _pump();
+
+        // The first attempt sends its whole body and is refused; the
+        // retry then waits, as one does for a fresh token, before sending.
+        var calls = 0;
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((invocation) async {
+          if (++calls == 1) {
+            final openStream = invocation.namedArguments[#openStream]
+                as Stream<List<int>> Function();
+            await openStream().drain<void>();
+            throw const AuthException(statusCode: 401, message: 'expired');
+          }
+          await Completer<void>().future;
+        });
+
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'a.bin',
+          openStream: () => Stream<List<int>>.value(bytes),
+          contentLength: bytes.length,
+        );
+        await _pump();
+        await _pump();
+
+        expect(calls, 2);
+        final pending = (tracker.roomUploads('room-1').value as UploadsLoaded)
+            .uploads
+            .whereType<PendingUpload>()
+            .single;
+        expect(pending.allBytesSent, isFalse);
+        expect(pending.sentBytes, 0);
+      });
+    }
+
     test('AuthException on every attempt surfaces a Failed row', () async {
       stubGetRoomUploads([]);
       unawaited(tracker.refreshRoom('room-1'));
