@@ -69,7 +69,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - The file panel's buttons show their hover, focus and press highlights,
   which its background had covered.
 - A button that is loading keeps its label for a screen reader, which
-  heard an unnamed button while the spinner showed.
+  heard an unnamed button while the spinner showed, and a button with an
+  icon keeps its width, which its smaller spinner narrowed.
 - An upload the session's end stops, in flight or waiting its turn, fails
   with "Session expired. Please sign in again." and can be dismissed; it
   stayed pending, with nothing left to end it.

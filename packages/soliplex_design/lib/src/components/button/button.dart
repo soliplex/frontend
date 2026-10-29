@@ -228,7 +228,16 @@ class SoliplexButton extends StatelessWidget {
   /// slot.
   Widget _iconOrSpinner(Color foregroundColor) {
     if (!isLoading) return icon!;
-    return ButtonLoadingIndicator(foregroundColor: foregroundColor);
+    // The spinner holds the icon's slot, sized by the button's icon theme,
+    // so the button keeps its width.
+    return Builder(
+      builder: (context) => SizedBox.square(
+        dimension: IconTheme.of(context).size,
+        child: Center(
+          child: ButtonLoadingIndicator(foregroundColor: foregroundColor),
+        ),
+      ),
+    );
   }
 }
 
