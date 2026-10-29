@@ -287,6 +287,21 @@ void main() {
       expect(find.text('Create'), findsOneWidget);
     });
 
+    testWidgets('refuses the name @no-label searches by', (tester) async {
+      final api = await _pumpLobby(tester, labels: const []);
+      await _openLabelsTab(tester);
+
+      await tester.tap(find.text('New label'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'No-Label');
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('is reserved'), findsOneWidget);
+      await tester.tap(find.text('Create'));
+      await tester.pumpAndSettle();
+      expect(api.createLabelCalls, isEmpty);
+    });
+
     testWidgets('renames a label', (tester) async {
       final api = await _pumpLobby(tester, labels: [_label(1, 'Manuals')]);
       await _openLabelsTab(tester);

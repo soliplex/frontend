@@ -337,6 +337,7 @@ class FakeSoliplexApi extends SoliplexApi {
         int limit,
         String? cursor,
         List<int>? labelIds,
+        bool unlabeled,
         String? query,
       })> allThreadsCalls = [];
 
@@ -432,6 +433,7 @@ class FakeSoliplexApi extends SoliplexApi {
     int limit = 50,
     String? cursor,
     List<int>? labelIds,
+    bool unlabeled = false,
     String? query,
     CancelToken? cancelToken,
   }) async {
@@ -440,6 +442,7 @@ class FakeSoliplexApi extends SoliplexApi {
       limit: limit,
       cursor: cursor,
       labelIds: labelIds,
+      unlabeled: unlabeled,
       query: query,
     ));
     if (allThreadsGate != null) await allThreadsGate!.future;
@@ -452,13 +455,17 @@ class FakeSoliplexApi extends SoliplexApi {
     //
     // Filtering is applied here rather than only recorded, so a test can
     // assert on what a filtered listing actually renders. 'labelIds' is
-    // an "any of" match and an empty list means unfiltered, mirroring the
-    // backend.
+    // an "any of" match, 'unlabeled' one more alternative beside it, and
+    // neither given means unfiltered, mirroring the backend.
     var all = allThreads ?? const <ThreadInfo>[];
-    if (labelIds != null && labelIds.isNotEmpty) {
-      final wanted = labelIds.toSet();
+    final wanted = (labelIds ?? const <int>[]).toSet();
+    if (wanted.isNotEmpty || unlabeled) {
       all = all
-          .where((t) => t.labels.any((l) => wanted.contains(l.id)))
+          .where(
+            (t) =>
+                (unlabeled && t.labels.isEmpty) ||
+                t.labels.any((l) => wanted.contains(l.id)),
+          )
           .toList(growable: false);
     }
     final trimmed = query?.trim() ?? '';

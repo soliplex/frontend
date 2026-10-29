@@ -152,6 +152,28 @@ void main() {
       h.state.dispose();
     });
 
+    test('an unlabeled filter refetches and counts as filtering', () async {
+      final h = _harness();
+      h.api.allThreads = [_thread('a')];
+      h.state.setServer(_serverId);
+      await pumpEventQueue();
+      expect(h.state.isFiltered, isFalse);
+
+      h.state.setFilter(labelIds: [3], unlabeled: true);
+      await pumpEventQueue();
+      expect(h.api.allThreadsCalls.last.unlabeled, isTrue);
+      expect(h.api.allThreadsCalls.last.labelIds, equals([3]));
+      expect(h.state.isFiltered, isTrue);
+
+      // The same filter again is a no-op, like any other.
+      final calls = h.api.getAllThreadsCallCount;
+      h.state.setFilter(labelIds: [3], unlabeled: true);
+      await pumpEventQueue();
+      expect(h.api.getAllThreadsCallCount, equals(calls));
+
+      h.state.dispose();
+    });
+
     test('switching servers discards the previous listing', () async {
       final h = _harness();
       h.api.allThreads = [_thread('a'), _thread('b'), _thread('c')];
