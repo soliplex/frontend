@@ -21,7 +21,9 @@ class SendErrorBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final errorText = error.error.toString();
-    return Container(
+    // The copy action draws its hover, focus and press highlights on the
+    // Material beneath it; Ink paints the tint there too, under them.
+    return Ink(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
           horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
