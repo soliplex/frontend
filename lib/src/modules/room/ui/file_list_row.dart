@@ -25,33 +25,37 @@ class FileListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      // Keeps the tints of two failed entries apart.
-      margin: isFailed
-          ? const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1)
-          : null,
-      // A failed entry's name and reason fill an action's height, so its tint
-      // needs room above and below them.
-      padding: EdgeInsets.symmetric(
-        horizontal: SoliplexSpacing.s1,
-        vertical: isFailed ? SoliplexSpacing.s1 : 0,
+    final row = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: FileRowAction.extent),
+      child: Row(
+        children: [
+          leading,
+          const SizedBox(width: SoliplexSpacing.s2),
+          Expanded(child: content),
+          ...actions,
+        ],
       ),
-      decoration: isFailed
-          ? BoxDecoration(
-              color: Theme.of(context).colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(context.radii.sm),
-            )
-          : null,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: FileRowAction.extent),
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: SoliplexSpacing.s2),
-            Expanded(child: content),
-            ...actions,
-          ],
+    );
+    if (!isFailed) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1),
+        child: row,
+      );
+    }
+    return Padding(
+      // Keeps the tints of two failed entries apart.
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
+      // An action draws its hover, focus and press highlights on the
+      // Material beneath it; Ink paints the tint there too, under them.
+      // A failed entry's name and reason stand taller than an action, so
+      // the tint also needs room above and below them.
+      child: Ink(
+        padding: const EdgeInsets.all(SoliplexSpacing.s1),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(context.radii.sm),
         ),
+        child: row,
       ),
     );
   }
