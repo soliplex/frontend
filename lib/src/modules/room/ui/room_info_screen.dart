@@ -800,9 +800,9 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
                 entry: entry,
                 onCancel: _tracker.cancelUpload,
                 onDismiss: _tracker.dismissFailed,
-                // Only a returned permission: the administrator check stands
-                // in for the upload controls alone.
-                onDelete: widget.userHasWrite == true
+                // The upload controls' answer: deleting a room upload needs
+                // the same permission as adding one.
+                onDelete: _permission == _UploadPermission.permitted
                     ? (filename) => unawaited(_tracker.deleteRoomUpload(
                           roomId: widget.roomId,
                           filename: filename,

@@ -4,6 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/util/debouncer.dart';
+import '../auth/admin_status.dart';
 import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
@@ -46,6 +47,7 @@ class RoomState {
     this.onHistoryLoaded,
   })  : _connection = serverEntry.connection,
         _auth = serverEntry.auth,
+        _adminStatus = serverEntry.adminStatus,
         _roomId = roomId,
         _runtimeManager = runtimeManager,
         _registry = registry,
@@ -87,6 +89,7 @@ class RoomState {
 
   final ServerConnection _connection;
   final AuthSession _auth;
+  final AdminStatus _adminStatus;
   final String _roomId;
   final AgentRuntimeManager _runtimeManager;
   final RunRegistry _registry;
@@ -122,6 +125,15 @@ class RoomState {
 
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
+
+  final Signal<bool> _mayWriteRoom = Signal<bool>(false);
+
+  /// Whether the signed-in user holds the room's write permission, which
+  /// adding and deleting room uploads need: as the server returned it or,
+  /// when it returned none, as the administrator check answers, because an
+  /// administrator holds it. False until known, and when the check cannot
+  /// answer.
+  ReadonlySignal<bool> get mayWriteRoom => _mayWriteRoom;
 
   /// The room's model's context window, or null until the room loads or
   /// when nothing knows it. Only a default agent has a model to have a
@@ -163,6 +175,7 @@ class RoomState {
       if (token.isCancelled) return;
       _roomFetchToken = null;
       _room.value = RoomLoaded(room);
+      unawaited(_resolveWritePermission(room));
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
@@ -189,6 +202,20 @@ class RoomState {
       );
       _room.value = RoomFailed(error);
     }
+  }
+
+  /// `AdminStatus.read` never completes with an error, so nothing here needs
+  /// a guard beyond disposal, and it keeps a delivered answer per server, so
+  /// entering rooms asks the server only until one answer is delivered.
+  Future<void> _resolveWritePermission(Room room) async {
+    final returned = room.userHasWrite;
+    if (returned != null) {
+      _mayWriteRoom.value = returned;
+      return;
+    }
+    final isAdmin = await _adminStatus.read();
+    if (_isDisposed) return;
+    _mayWriteRoom.value = isAdmin ?? false;
   }
 
   ThreadViewState? get activeThreadView => _activeThreadView;

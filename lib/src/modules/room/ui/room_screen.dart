@@ -2227,7 +2227,7 @@ class _RoomScreenState extends State<RoomScreen> {
           roomStatus,
           theme,
           onDelete: (room?.acceptsRoomUploads ?? false) &&
-                  room?.userHasWrite == true
+                  _state.mayWriteRoom.watch(context)
               ? (filename) => unawaited(
                   tracker.deleteRoomUpload(roomId: roomId, filename: filename))
               : null,
