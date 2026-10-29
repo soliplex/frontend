@@ -124,9 +124,9 @@ class WorkspaceFilesSection extends StatelessWidget {
         for (var i = 0; i < files.length; i++)
           WorkdirFileRow(
             // A row holds its download's state, which belongs to the file:
-            // keyed by it, the state follows the file wherever the list
-            // places it, and a file of another thread (another URL) starts
-            // fresh.
+            // keyed by it, the state follows the file as its group's list
+            // reorders, and a file of another thread starts fresh (the
+            // server's URL for it names the thread).
             key: ValueKey(files[i]),
             file: files[i],
             directory:
