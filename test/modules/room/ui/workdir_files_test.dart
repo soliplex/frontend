@@ -247,6 +247,78 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  group('a download under way stays with its file', () {
+    // Its state lives in the row, so the row must follow the file, not the
+    // position the file happens to hold in the list.
+    Future<void> pumpFiles(
+      WidgetTester tester,
+      List<WorkdirFile> files,
+      Future<DownloadOutcome> Function(WorkdirFile) onDownload,
+    ) =>
+        tester.pumpWidget(_wrap(_workspace(
+          status: WorkdirFilesLoaded(files),
+          onRetry: () {},
+          onFetchBytes: (_) async => _tinyPng,
+          onDownload: onDownload,
+        )));
+
+    Finder rowOf(String name) => find.ancestor(
+          of: find.bySemanticsLabel(name),
+          matching: find.byType(WorkdirFileRow),
+        );
+
+    testWidgets('when a file sorting before it appears', (tester) async {
+      final download = Completer<DownloadOutcome>();
+      await pumpFiles(tester, [_file('b.pdf')], (_) => download.future);
+      await tester.tap(find.byIcon(Icons.download_outlined));
+      await tester.pump();
+
+      await pumpFiles(
+        tester,
+        [_file('a.pdf'), _file('b.pdf')],
+        (_) => download.future,
+      );
+
+      expect(
+        find.descendant(
+          of: rowOf('b.pdf'),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: rowOf('a.pdf'),
+          matching: find.byIcon(Icons.download_outlined),
+        ),
+        findsOneWidget,
+      );
+
+      download.complete(DownloadOutcome.success);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets("not to the same name in another thread's list",
+        (tester) async {
+      final download = Completer<DownloadOutcome>();
+      WorkdirFile inThread(String thread) => WorkdirFile(
+            filename: 'a.pdf',
+            url: Uri.parse('https://example.test/$thread/a.pdf'),
+          );
+      await pumpFiles(tester, [inThread('t1')], (_) => download.future);
+      await tester.tap(find.byIcon(Icons.download_outlined));
+      await tester.pump();
+
+      await pumpFiles(tester, [inThread('t2')], (_) => download.future);
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+
+      download.complete(DownloadOutcome.success);
+      await tester.pumpAndSettle();
+    });
+  });
+
   testWidgets('a download under way spins in place of its button',
       (tester) async {
     final semantics = tester.ensureSemantics();
