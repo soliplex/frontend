@@ -174,10 +174,10 @@ through `HttpTransport._serverReason` alone; its doc comment says what it
 takes and what it strips. Without it a refused run reads only "HTTP 403:
 Forbidden". The reason is included on trust, because the client cannot tell
 a secret from prose: the backend's error strings are its own words about the
-failure and must never quote request content or a secret, and a backend
-string that does is the bug to fix. The diagnostics screen's requests pane
-is different: it shows request and response bodies, user prompts included,
-redacted by `HttpRedactor`.
+failure and must never quote a secret, and a backend string that does is the
+bug to fix. The diagnostics screen's requests pane shows request and response
+bodies, user prompts included, after `HttpRedactor` removes credentials and
+client addresses from their headers, query parameters and JSON fields.
 
 Network failures need no reduction. A `SocketException` renders as a host
 and an OS error, and this codebase already logs hostnames as attributes
