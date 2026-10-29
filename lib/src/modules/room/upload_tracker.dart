@@ -560,7 +560,7 @@ class UploadTracker {
   static const int _maxAuthRetries = 1;
 
   /// Progress emissions are coalesced to one signal update per
-  /// 50 ms (≈20 Hz) per upload. Final emission (`sent == total`)
+  /// 50 ms (≈20 Hz) per upload. A final emission (`sent >= total`)
   /// always fires regardless of throttle.
   static const Duration _progressEmitInterval = Duration(milliseconds: 50);
 
@@ -595,7 +595,8 @@ class UploadTracker {
     // path) and the web FormData path both feed this. Throttle state
     // is per upload — captured by closure. On retry, the wrapper is
     // re-invoked but the throttle continues from where it was; the
-    // worst case is one missed emission per retry, negligible.
+    // worst case is one missed emission per retry, negligible, since the
+    // retry's record restarts at nothing sent.
     DateTime? lastEmit;
     void emitProgress(int sent, int total) {
       if (_isDisposed) return;
@@ -942,8 +943,10 @@ class UploadTracker {
       if (statusCode != null) 'statusCode': statusCode,
     };
     if (error is SoliplexException) {
-      // Attached whole: what a client exception carries is the server's
-      // written reason, a host or URL, a file name and a status, none secret.
+      // Attached whole: a status error carries the server's written reason
+      // and its status; a network error, the request's host and URL and the
+      // platform's error text. None holds a credential: the request carries
+      // its token in a header, which no exception renders.
       _logger.warning(
         'Room upload delete failed',
         error: error,

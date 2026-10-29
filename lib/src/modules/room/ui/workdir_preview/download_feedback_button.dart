@@ -15,8 +15,8 @@ enum DownloadFeedbackState { idle, downloading, success, error }
 
 /// Shared icon + label for each [DownloadFeedbackState]. Every download
 /// affordance (file row tooltip, fallback button labels) renders the
-/// same words/icons; centralizing the mapping here keeps them from
-/// drifting apart.
+/// same words and, where an icon shows, the same icon; centralizing the
+/// mapping here keeps them from drifting apart.
 extension DownloadFeedbackAffordance on DownloadFeedbackState {
   (IconData icon, String label) get affordance => switch (this) {
         DownloadFeedbackState.idle => (Icons.download_outlined, 'Download'),
@@ -35,7 +35,8 @@ extension DownloadFeedbackAffordance on DownloadFeedbackState {
 ///
 /// The visual is supplied by [builder]; this widget only orchestrates
 /// the state. [onTap] is null in every state but
-/// [DownloadFeedbackState.idle], so a download runs once at a time.
+/// [DownloadFeedbackState.idle], so this affordance starts no second download
+/// while one runs or its outcome shows.
 class DownloadFeedbackButton extends StatefulWidget {
   const DownloadFeedbackButton({
     super.key,

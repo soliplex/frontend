@@ -89,7 +89,7 @@ class FileRowAction extends StatelessWidget {
   final IconData icon;
   final String tooltip;
 
-  /// Null disables the action, as a download in flight does.
+  /// Null disables the action, as a download's outcome does while it shows.
   final VoidCallback? onTap;
 
   /// Defaults to the muted `onSurfaceVariant`.
