@@ -95,6 +95,9 @@ class WorkdirFileRow extends StatelessWidget {
                   ),
                 ),
                 if (canPreview) ...[
+                  // The eye has no padding of its own, as the download
+                  // button has, to keep a cut name off it.
+                  const SizedBox(width: SoliplexSpacing.s1),
                   PreviewIconButton(onTap: onOpenPreview),
                   const SizedBox(width: SoliplexSpacing.s2),
                 ],

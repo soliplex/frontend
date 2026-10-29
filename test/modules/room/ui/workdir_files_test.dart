@@ -9,6 +9,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
@@ -1341,6 +1342,18 @@ void main() {
       expect(isCut(tester, find.text('customer')), isTrue);
       expect(isCut(tester, find.text('.py')), isFalse);
       expect(tester.getSize(find.text('backend/models/')).width, 0);
+    });
+
+    testWidgets('a cut name stops short of the preview button', (tester) async {
+      // The eye has no padding of its own, unlike the download button.
+      await pumpRow(tester, width: 180);
+
+      final extension = tester.getRect(find.text('.py'));
+      final eye = tester.getRect(find.byIcon(Icons.visibility_outlined));
+      expect(
+        eye.left - extension.right,
+        greaterThanOrEqualTo(SoliplexSpacing.s1),
+      );
     });
 
     testWidgets('a row at a large text size stays within its slot',
