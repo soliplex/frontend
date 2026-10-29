@@ -164,4 +164,16 @@ void main() {
       semantics.dispose();
     }
   });
+
+  testWidgets('a stored file shows the icon for its type', (tester) async {
+    await pumpRow(
+      tester,
+      PersistedUpload(
+        filename: 'figures.csv',
+        url: Uri.parse('https://example.com/figures.csv'),
+      ),
+    );
+
+    expect(find.byIcon(Icons.table_chart_outlined), findsOneWidget);
+  });
 }
