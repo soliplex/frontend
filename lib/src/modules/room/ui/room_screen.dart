@@ -61,7 +61,6 @@ import 'chat_ai_disclaimer.dart';
 import 'chat_classification.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
-import 'copy_button.dart';
 import 'document_picker.dart';
 import 'error_retry_panel.dart';
 import 'feedback_reason_dialog.dart';
@@ -70,6 +69,7 @@ import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_rail.dart';
 import 'room_welcome.dart';
+import 'send_error_banner.dart';
 import 'thread_sidebar.dart';
 import 'thread_state_warning_banner.dart';
 import 'upload_entry_row.dart';
@@ -2372,7 +2372,7 @@ class _RoomScreenState extends State<RoomScreen> {
           ),
         ),
         if (roomError != null)
-          _SendErrorBanner(
+          SendErrorBanner(
             error: roomError,
             onDismiss: _state.clearError,
           ),
@@ -2513,7 +2513,7 @@ class _RoomScreenState extends State<RoomScreen> {
               ),
             ),
             if (sendError != null)
-              _SendErrorBanner(
+              SendErrorBanner(
                 error: sendError,
                 onDismiss: () => threadView.clearSendError(),
               ),
@@ -2733,56 +2733,6 @@ class _ContextWarningBanner extends StatelessWidget {
                 color: context.onWarningContainer,
               ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 16),
-            onPressed: onDismiss,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SendErrorBanner extends StatelessWidget {
-  const _SendErrorBanner({required this.error, required this.onDismiss});
-
-  final SendError error;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final errorText = error.error.toString();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
-      color: theme.colorScheme.errorContainer,
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Expanded(
-            child: SelectableContent(
-              child: Text(
-                errorText,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onErrorContainer,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          // Two lines rarely hold a whole exception, and a drag can only select
-          // the glyphs that were painted. This copies the untruncated text.
-          CopyButton(
-            text: errorText,
-            tooltip: 'Copy error',
-            iconSize: 16,
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 16),
