@@ -108,7 +108,7 @@ included/excluded by presence in the flavor — no enum or toggle framework. See
 
 ## Logging
 
-### Hard rule — never log a credential, and include every other detail available
+### Hard rule — never put a credential in a log or an exception message, and include every other detail available
 
 A log record, and the `message:` of any exception you throw, should carry
 everything that diagnoses a failure: status codes, reason phrases, hosts,
@@ -151,19 +151,23 @@ window travels inside it. Interpolating an identifier (`serverId`, `roomId`) or 
 type names alone: a cast failure still says what shape actually arrived, which
 is what names a proxy or portal page answering in the backend's place. An
 `ArgumentError` — and a `RangeError`, which extends it — keeps the name of the
-parameter it rejected, but never the value. Everything else is reduced to a
-type name, `StateError` and `UnsupportedError` included, because their text is
-supplied by whoever threw them.
+parameter it rejected, but never the value. A `FormatException` keeps its
+message and offset but never its source: the SDK parsers draw the message from
+a fixed vocabulary, while a hand-thrown one's message is kept whole, values
+included. Everything else is reduced to a type name, `StateError`
+and `UnsupportedError` included, because their text is supplied by whoever
+threw them.
 
 Keep `error:` when nothing the catch can see is a credential — hosts, public
 URLs (a discovery document's endpoints), paths and file names, status codes,
 and error codes — and say in one comment at the catch which values it can
-carry and why none is one. `connection_probe.dart` is one
-such site: it logs `input`, `inputLength`, `candidates` and `hosts` as
-attributes, because a typed address with a stray character is a reported
-failure mode and the address is not a secret, so forwarding the `Uri.parse`
-failure beside them adds the offset of the offending character and no new
-value. `ServerSignOutControl`, the caller of `logoutServer`, is another: what
+carry and why none is one. `connection_probe.dart` is one such site: a
+typed address with a stray character is a reported failure mode and the
+address is not a secret, so its `Uri.parse` failure is forwarded beside the
+`input` and `inputLength` attributes, which adds the offset of the offending
+character and no new value; and when every candidate fails, its record
+forwards the last network error beside the `candidates` and `hosts` it
+tried. `ServerSignOutControl`, the caller of `logoutServer`, is another: what
 it catches is the discovery errors (hosts, public URLs, status codes) and the
 fixed-text `AuthException` that `NativeAuthFlow.endSession` throws in place of
 a platform failure — AppAuth on iOS and macOS can put the end-session URL,
@@ -178,17 +182,19 @@ Forbidden". The reason is included on trust, because the client cannot tell
 a secret from prose: the backend's error strings are its own words about the
 failure and must never quote a secret, and a backend string that does is the
 bug to fix. The diagnostics screen's requests pane shows request and response
-bodies, user prompts included. `HttpRedactor` replaces first the values whose
-header, query-parameter, JSON-field or form-field name marks them as a
-credential, the `X-Forwarded-For` and `X-Real-IP` headers, and the whole body
-of an auth endpoint; a credential under any other name is not caught.
+bodies, user prompts included. Before they show, `HttpRedactor` replaces the
+values whose header, query-parameter, JSON-field or form-field name marks them
+as a credential, the `X-Forwarded-For` and `X-Real-IP` headers, and the whole
+body of a path it takes for an auth endpoint; a credential under any other
+name is not caught.
 
-Network failures need no reduction. One reaches a log as the platform's error
-text, a `SocketException` or our clients' `NetworkException` wrapping its
-message, which names the host for a failed lookup, and this codebase already
-logs hostnames as attributes (`discoveryUrl`). A `catch` that can only see those should keep `error:` —
-routing it through `describeFailure` would drop the failed host lookup that is
-the whole diagnosis.
+Network failures need no reduction. One reaches a log as a `SocketException`
+or as our clients' `NetworkException`, which wraps the platform's error text.
+On `dart:io` clients (Android, Linux, Windows) that text names the host for a
+failed lookup; on iOS, macOS and the web it does not, and this codebase
+already logs hostnames as attributes (`discoveryUrl`). A `catch` that can only
+see those should keep `error:` — routing it through `describeFailure` would
+drop the failed host lookup that is the whole diagnosis.
 
 ## Design system
 
