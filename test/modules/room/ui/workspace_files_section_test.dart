@@ -246,7 +246,7 @@ void main() {
       await tester.tap(findFileName('d.txt'));
       await tester.pumpAndSettle();
 
-      expect(find.text('2 / 3 · reports'), findsOneWidget);
+      expect(find.text('2 / 3 · reports/'), findsOneWidget);
     });
 
     testWidgets('the preview pages through the root files only',

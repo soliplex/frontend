@@ -1414,14 +1414,14 @@ void main() {
       testWidgets('puts the directory after the position', (tester) async {
         await openPreview(tester, ['reports/a.md', 'notes.md']);
 
-        expect(find.text('1 / 2 · reports'), findsOneWidget);
+        expect(find.text('1 / 2 · reports/'), findsOneWidget);
       });
 
       testWidgets('shows the directory alone for a single nested file',
           (tester) async {
         await openPreview(tester, ['reports/a.md']);
 
-        expect(_inPreview(find.text('reports')), findsOneWidget);
+        expect(_inPreview(find.text('reports/')), findsOneWidget);
       });
 
       testWidgets('keeps the extension of a long basename', (tester) async {

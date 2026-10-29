@@ -508,7 +508,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     final subtitle = [
       if (widget.files.length > 1)
         '${_currentIndex + 1} / ${widget.files.length}',
-      if (file.directory case final directory?) directory,
+      if (file.directory case final directory?) '$directory/',
     ].join(' · ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(
