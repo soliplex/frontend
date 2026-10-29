@@ -79,7 +79,7 @@ class SoliplexButton extends StatelessWidget {
 
   /// Optional icon. Sits before the label by default; pass
   /// [iconAlignment] to move it after. If [isLoading] is true the icon
-  /// slot becomes the spinner and the label fades.
+  /// slot becomes the spinner and the label is hidden.
   final Widget? icon;
 
   /// Which side of the label the [icon] sits on. Ignored when [icon] is
@@ -204,8 +204,8 @@ class SoliplexButton extends StatelessWidget {
   /// The label, possibly stacked under a centered spinner.
   ///
   /// When [icon] is non-null, the icon slot carries the spinner and the
-  /// label only fades — so we don't need a Stack here. When [icon] is
-  /// null, we Stack the spinner over the label. Either way the faded label
+  /// label is only hidden — so we don't need a Stack here. When [icon] is
+  /// null, we Stack the spinner over the label. Either way the hidden label
   /// still names the button to a screen reader.
   Widget _label(Color foregroundColor) {
     if (!isLoading) return child;

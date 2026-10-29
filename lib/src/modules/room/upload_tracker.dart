@@ -597,8 +597,9 @@ class UploadTracker {
     // path) and the web FormData path both feed this. Throttle state
     // is per upload — captured by closure. On retry, the wrapper is
     // re-invoked but the throttle continues from where it was; the
-    // worst case is one missed emission per retry, negligible, since the
-    // retry's record restarts at nothing sent.
+    // worst case is the retry's first count arriving one interval late, by
+    // when its record already reads nothing sent, and a final count always
+    // fires.
     DateTime? lastEmit;
     void emitProgress(int sent, int total) {
       if (_isDisposed) return;
@@ -670,10 +671,11 @@ class UploadTracker {
   /// Replaces the `_Pending` record at [id] with an updated [sentBytes]
   /// count, then emits the signal. Silent no-op if the record is gone
   /// (already Posted/Failed) or the tracker is disposed.
-  /// Records an attempt's count. A count from a refused attempt's retry
-  /// ([restart]) starts again from nothing sent, so the retry offers Cancel
-  /// until its own body is sent; an empty file's zero would otherwise read
-  /// as sent at once.
+  ///
+  /// [restart] marks the reset after a refused attempt: the record goes back
+  /// to nothing sent, its body unsent, so the retry offers Cancel until its
+  /// own body is sent. Without it an empty file's zero would read as sent at
+  /// once.
   void _updateProgress(
     _ScopeState scope,
     String id,
@@ -938,18 +940,17 @@ class UploadTracker {
       AuthException(:final statusCode) => statusCode,
       _ => null,
     };
-    // The status is kept, because the type alone cannot tell a server fault
-    // from an installation without an upload path.
+    // The status as its own attribute too, so records can be filtered by it.
     final attributes = {
       'roomId': roomId,
       'filename': filename,
       if (statusCode != null) 'statusCode': statusCode,
     };
     if (error is SoliplexException) {
-      // Attached whole: a status error carries the server's written reason
-      // and its status; a network error, the request's host and URL and the
-      // platform's error text. None holds a credential: the request carries
-      // its token in a header, which no exception renders.
+      // Attached whole: a status error renders its status and the server's
+      // written reason; a network error, the platform's error text, which
+      // can name the host. None holds a credential: the token travels only
+      // in the Authorization header, which no exception renders.
       _logger.warning(
         'Room upload delete failed',
         error: error,
