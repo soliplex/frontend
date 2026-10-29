@@ -2273,13 +2273,13 @@ class _RoomScreenState extends State<RoomScreen> {
             maxHeight: MediaQuery.of(context).size.height * 0.4,
           ),
           // Right padding reserves space for the overlay scrollbar so
-          // it doesn't sit on top of trailing close buttons (cancel /
-          // dismiss) on file rows.
+          // it doesn't sit on top of the file rows' trailing actions.
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(right: SoliplexSpacing.s3),
-            // One area over the panel covers the filenames and each row's
-            // upload error; sitting above the rows' own handlers leaves their
-            // taps intact.
+            // One area over the panel lets a reader select a failed upload's
+            // reason or a section's load error; file names opt out of it
+            // (see FullNameTooltip). Sitting above the rows' own handlers
+            // leaves their taps intact.
             child: SelectableContent(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
