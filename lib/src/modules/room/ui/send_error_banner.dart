@@ -53,6 +53,7 @@ class SendErrorBanner extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 16),
+            tooltip: 'Dismiss',
             onPressed: onDismiss,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
