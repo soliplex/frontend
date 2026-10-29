@@ -2058,35 +2058,28 @@ void main() {
       await pending;
     });
 
-    test('a failed delete logs the room and never the filename', () async {
+    test('a failed delete logs the room, the file and the error', () async {
       final sink = MemorySink();
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
       await loadTwoFiles();
-      stubDelete((_) async {
-        throw const ApiException(
-          message: 'HTTP 500: secret-name.pdf exploded',
-          statusCode: 500,
-        );
-      });
-
-      await tracker.deleteRoomUpload(
-        roomId: 'room-1',
-        filename: 'secret-name.pdf',
+      const error = ApiException(
+        message: 'HTTP 500: report.pdf is locked',
+        statusCode: 500,
       );
+      stubDelete((_) async => throw error);
+
+      await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'report.pdf');
 
       final record = sink.records.singleWhere(
         (r) => r.message.contains('delete'),
       );
       expect(record.attributes['roomId'], 'room-1');
+      expect(record.attributes['filename'], 'report.pdf');
       // The status tells a server fault from a refusal the type cannot.
       expect(record.attributes['statusCode'], 500);
-      expect(record.message, isNot(contains('secret-name')));
-      for (final value in record.attributes.values) {
-        expect('$value', isNot(contains('secret-name')));
-      }
-      // The exception carries the server's text, which can name the file.
-      expect(record.error, isNull);
+      // The server's reason, which says why, travels with the exception.
+      expect(record.error, error);
     });
   });
 

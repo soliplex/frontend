@@ -1376,10 +1376,10 @@ void main() {
         for (final filename in ['a/b.pdf', '.', '..']) {
           expect(
             () => api.deleteRoomUpload('room-1', filename),
-            // The name is user content, so it must not travel inside.
+            // The rejected name is what says which file was refused.
             throwsA(
               isA<ArgumentError>()
-                  .having((e) => e.invalidValue, 'invalidValue', isNull),
+                  .having((e) => e.invalidValue, 'invalidValue', filename),
             ),
             reason: filename,
           );
