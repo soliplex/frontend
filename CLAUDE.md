@@ -108,14 +108,14 @@ included/excluded by presence in the flavor — no enum or toggle framework. See
 
 ## Logging
 
-### Hard rule — never expose anything sensitive, and include every other detail available
+### Hard rule — never log a credential, and include every other detail available
 
 A log record, and the `message:` of any exception you throw, should carry
 everything that diagnoses a failure: status codes, reason phrases, hosts,
 public URLs, paths and identifiers, content types, sizes, type names, and a
 server's written reason for an error (included on trust; see below). Never
 include a credential (a token, password, cookie, auth code or callback query),
-or an echo of input that could be one. When a value might be sensitive, keep
+or an echo of input that could be one. When a value might be a credential, keep
 its shape and drop its text: its type, its length, or the name of the field it
 came from.
 
@@ -123,7 +123,9 @@ came from.
 
 `error:` puts the exception object on the `LogRecord`, and `toString()`
 renders it into the in-memory buffer the diagnostics screen displays and can
-export to a file. Some exceptions carry the input they failed on:
+export to a file. Some exceptions carry the input they failed on, which matters
+when that input could hold a credential (a token response, a callback URL, a
+stored secret):
 
 | Thrown by | What travels with it |
 | --------- | -------------------- |
@@ -133,16 +135,16 @@ export to a file. Some exceptions carry the input they failed on:
 `utf8.decode` is the exception: its `FormatException.source` is a byte list,
 so `toString()` prints no window.
 
-When a `catch` can see one of those — directly, or through a function it calls
-— pass `attributes: {'failure': describeFailure(e)}` (from `soliplex_logging`)
+When a `catch` can see one of those over such input — directly, or through a
+function it calls — pass `attributes: {'failure': describeFailure(e)}` (from `soliplex_logging`)
 instead of `error: e`. Keep `stackTrace:`; a stack trace carries frames, not
 values, and it is what says where the failure happened. This applies equally to
 a `.catchError(...)` or `onError:` callback, which is the same forward without
 the `catch` keyword to make it visible.
 
-The same applies to strings: never interpolate a caught exception into a log
-message, or into the `message:` of an exception you throw — the source window
-travels inside it. Interpolating an identifier (`serverId`, `roomId`) or a
+The same applies to strings: never interpolate such a caught exception into a
+log message, or into the `message:` of an exception you throw — the source
+window travels inside it. Interpolating an identifier (`serverId`, `roomId`) or a
 `runtimeType` is fine, and is what makes a record actionable.
 
 `describeFailure` keeps a `TypeError` whole, because the runtime builds it from
@@ -153,10 +155,10 @@ parameter it rejected, but never the value. Everything else is reduced to a
 type name, `StateError` and `UnsupportedError` included, because their text is
 supplied by whoever threw them.
 
-Keep `error:` when every value the catch can see is non-secret and is what
-makes the record actionable — hosts, public URLs (a discovery document's
-endpoints), status codes, and error codes — and say in one comment at the catch
-which values it can carry and why they are safe. `connection_probe.dart` is one
+Keep `error:` when nothing the catch can see is a credential — hosts, public
+URLs (a discovery document's endpoints), paths and file names, status codes,
+and error codes — and say in one comment at the catch which values it can
+carry and why none is one. `connection_probe.dart` is one
 such site: it logs `input`, `inputLength`, `candidates` and `hosts` as
 attributes, because a typed address with a stray character is a reported
 failure mode and the address is not a secret, so forwarding the `Uri.parse`
@@ -176,12 +178,15 @@ Forbidden". The reason is included on trust, because the client cannot tell
 a secret from prose: the backend's error strings are its own words about the
 failure and must never quote a secret, and a backend string that does is the
 bug to fix. The diagnostics screen's requests pane shows request and response
-bodies, user prompts included, after `HttpRedactor` removes credentials and
-client addresses from their headers, query parameters and JSON fields.
+bodies, user prompts included. `HttpRedactor` replaces first the values whose
+header, query-parameter, JSON-field or form-field name marks them as a
+credential, the `X-Forwarded-For` and `X-Real-IP` headers, and the whole body
+of an auth endpoint; a credential under any other name is not caught.
 
-Network failures need no reduction. A `SocketException` renders as a host
-and an OS error, and this codebase already logs hostnames as attributes
-(`discoveryUrl`). A `catch` that can only see those should keep `error:` —
+Network failures need no reduction. One reaches a log as the platform's error
+text, a `SocketException` or our clients' `NetworkException` wrapping its
+message, which names the host for a failed lookup, and this codebase already
+logs hostnames as attributes (`discoveryUrl`). A `catch` that can only see those should keep `error:` —
 routing it through `describeFailure` would drop the failed host lookup that is
 the whole diagnosis.
 
