@@ -759,7 +759,7 @@ class _CannotPreview extends StatelessWidget {
             onDownload: onDownload,
             logTag: 'preview-fallback download callback threw',
             builder: (context, state, onTap) {
-              final (btnIcon, label) = state.affordance;
+              final (btnIcon, label) = state.buttonAffordance;
               return SoliplexButton.filled(
                 onPressed: onTap,
                 isLoading: state == DownloadFeedbackState.downloading,
