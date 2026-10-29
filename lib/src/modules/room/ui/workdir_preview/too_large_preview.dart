@@ -55,6 +55,7 @@ class TooLargePreview extends StatelessWidget {
               final (icon, label) = state.affordance;
               return SoliplexButton.filled(
                 onPressed: onTap,
+                isLoading: state == DownloadFeedbackState.downloading,
                 icon: Icon(icon),
                 child: Text(label),
               );

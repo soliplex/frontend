@@ -234,11 +234,12 @@ void main() {
     )));
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.download_outlined));
+    final button = tester.getCenter(find.byIcon(Icons.download_outlined));
+    await tester.tapAt(button);
     await tester.pump();
     expect(calls, 1);
 
-    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.tapAt(button);
     await tester.pump();
     expect(calls, 1);
 
@@ -246,38 +247,39 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets(
-      'download InkWell is wired with a null onTap while a download is in flight',
+  testWidgets('a download under way spins in place of its button',
       (tester) async {
-    // A bare _handleTap early-return would also drop a second tap, so
-    // the no-op test above does not prove the disabled state. This
-    // asserts build() actively wires onTap to null mid-flight, which
-    // is what gives the user the disabled InkWell ripple / a11y state.
-    final completer = Completer<DownloadOutcome>();
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('report.pdf')]),
-      onRetry: () {},
-      onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) => completer.future,
-    )));
-    await tester.pump();
+    final semantics = tester.ensureSemantics();
+    try {
+      final completer = Completer<DownloadOutcome>();
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('report.pdf')]),
+        onRetry: () {},
+        onFetchBytes: (_) async => _tinyPng,
+        onDownload: (_) => completer.future,
+      )));
+      await tester.pump();
+      final button = tester.getRect(find.byIcon(Icons.download_outlined));
 
-    final downloadIcon = find.byIcon(Icons.download_outlined);
-    final inkWellBeforeTap = tester.widget<InkWell>(
-      find.ancestor(of: downloadIcon, matching: find.byType(InkWell)).first,
-    );
-    expect(inkWellBeforeTap.onTap, isNotNull);
+      await tester.tap(find.byIcon(Icons.download_outlined));
+      await tester.pump();
 
-    await tester.tap(downloadIcon);
-    await tester.pump();
+      expect(find.byIcon(Icons.download_outlined), findsNothing);
+      final ring = find.byType(CircularProgressIndicator);
+      expect(tester.getRect(ring).center, button.center);
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('Downloading'))
+            .getSemanticsData()
+            .role,
+        SemanticsRole.status,
+      );
 
-    final inkWellDuringFlight = tester.widget<InkWell>(
-      find.ancestor(of: downloadIcon, matching: find.byType(InkWell)).first,
-    );
-    expect(inkWellDuringFlight.onTap, isNull);
-
-    completer.complete(DownloadOutcome.success);
-    await tester.pumpAndSettle();
+      completer.complete(DownloadOutcome.success);
+      await tester.pumpAndSettle();
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('preview eye icon shown only for previewable files',
@@ -1106,6 +1108,31 @@ void main() {
     // _CannotPreview, giving us a clean way to drive the shared
     // download-feedback state machine end-to-end through the preview
     // page.
+
+    testWidgets('a download under way says so on the button', (tester) async {
+      final completer = Completer<DownloadOutcome>();
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('plot.png')]),
+        onRetry: () {},
+        onDownload: (_) => completer.future,
+        onFetchBytes: (_) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+
+      final button = find.ancestor(
+        of: find.text('Downloading'),
+        matching: find.byType(SoliplexButton),
+      );
+      expect(tester.widget<SoliplexButton>(button).isLoading, isTrue);
+
+      completer.complete(DownloadOutcome.success);
+      await tester.pumpAndSettle();
+    });
 
     testWidgets('successful download flips Download → Saved, reverts after 2s',
         (tester) async {

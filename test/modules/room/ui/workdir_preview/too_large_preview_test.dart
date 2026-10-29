@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/download_outcome.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/too_large_preview.dart';
@@ -131,9 +132,9 @@ void main() {
     await tester.pump();
     expect(calls, 1);
 
-    // The button is disabled while in-flight; tap is still attempted
-    // but the handler short-circuits via _inFlight.
-    await tester.tap(find.text('Download'), warnIfMissed: false);
+    // The button is disabled while the download runs; a tap on it is still
+    // attempted and must start nothing.
+    await tester.tap(find.byType(SoliplexButton), warnIfMissed: false);
     await tester.pump();
     expect(calls, 1);
 

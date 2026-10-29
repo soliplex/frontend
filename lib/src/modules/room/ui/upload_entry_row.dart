@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 
 import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
@@ -39,7 +38,7 @@ class UploadEntryRow extends StatelessWidget {
           null,
         ),
       PendingUpload(:final progress) => (
-          _Ring(label: 'Uploading', value: progress),
+          ProgressRing(label: 'Uploading', value: progress),
           null,
         ),
       FailedUpload(message: final m) => (
@@ -99,10 +98,7 @@ class UploadEntryRow extends StatelessWidget {
         if (entry case PersistedUpload(:final filename, :final isDeleting)
             when onDelete != null)
           isDeleting
-              ? const SizedBox.square(
-                  dimension: FileRowAction.extent,
-                  child: Center(child: _Ring(label: 'Deleting')),
-                )
+              ? const FileRowActionProgress(label: 'Deleting')
               : FileRowAction(
                   icon: Icons.delete_outline,
                   tooltip: 'Delete',
@@ -123,44 +119,5 @@ class UploadEntryRow extends StatelessWidget {
       isDestructive: true,
     );
     if (confirmed) onDelete?.call(filename);
-  }
-}
-
-/// A progress ring in a 16 px icon slot, drawn the size of an icon's shape
-/// rather than its box, so it weighs as much as the icons beside it, and
-/// named by [label] to a screen reader. Indeterminate when [value] is null.
-class _Ring extends StatelessWidget {
-  const _Ring({required this.label, this.value});
-
-  final String label;
-  final double? value;
-
-  @override
-  Widget build(BuildContext context) {
-    final value = this.value;
-    final ring = SizedBox.square(
-      dimension: 16,
-      child: Center(
-        child: SizedBox.square(
-          dimension: 12,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            value: value,
-            semanticsLabel: label,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-    if (value != null) return ring;
-    // A status, which a browser announces; a spinner's own role carries the
-    // label to no reader there.
-    return Semantics(
-      container: true,
-      role: SemanticsRole.status,
-      label: label,
-      excludeSemantics: true,
-      child: ring,
-    );
   }
 }
