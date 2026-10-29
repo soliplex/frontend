@@ -1375,9 +1375,11 @@ class SoliplexApi {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(filename, 'filename');
     if (filename.contains('/') || filename == '.' || filename == '..') {
-      // Not ArgumentError.value: the name is user content, and the value
-      // would travel inside the exception.
-      throw ArgumentError('must be one path segment', 'filename');
+      throw ArgumentError.value(
+        filename,
+        'filename',
+        'must be one path segment',
+      );
     }
 
     await _transport.request<void>(

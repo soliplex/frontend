@@ -905,27 +905,33 @@ class UploadTracker {
     Object error,
     StackTrace stackTrace,
   ) {
-    // The failure is described, not attached: a network error's text can
-    // carry the request address, which names the file, user content. The
-    // status is kept, because the type alone cannot tell a server fault from
-    // an installation without an upload path.
     final statusCode = switch (error) {
       ApiException(:final statusCode) => statusCode,
       PermissionDeniedException(:final statusCode) => statusCode,
       AuthException(:final statusCode) => statusCode,
       _ => null,
     };
+    // The status is kept, because the type alone cannot tell a server fault
+    // from an installation without an upload path.
     final attributes = {
       'roomId': roomId,
-      'failure': describeFailure(error),
+      'filename': filename,
       if (statusCode != null) 'statusCode': statusCode,
     };
     if (error is SoliplexException) {
-      _logger.warning('Room upload delete failed', attributes: attributes);
+      // Attached whole: what a client exception carries is the server's
+      // written reason, a host or URL, a file name and a status, none secret.
+      _logger.warning(
+        'Room upload delete failed',
+        error: error,
+        attributes: attributes,
+      );
     } else {
+      // Described, not attached: an unexpected error's text is whatever its
+      // thrower put there.
       _logger.error(
         'Unexpected error during a room upload delete',
-        attributes: attributes,
+        attributes: {...attributes, 'failure': describeFailure(error)},
         stackTrace: stackTrace,
       );
     }

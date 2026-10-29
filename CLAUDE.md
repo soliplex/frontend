@@ -116,7 +116,8 @@ public URLs, paths and identifiers, content types, sizes, type names, and a
 server's written reason for an error (included on trust; see below). Never
 include a credential (a token,
 password, cookie, auth code or callback query), the user's content (a message,
-prompt, document or file), or an echo of input that could be either. When a
+prompt, or what a document or file holds; a file's name is user content too,
+but not sensitive, so log it), or an echo of input that could be either. When a
 value might be sensitive, keep its shape and drop its text: its type, its
 length, or the name of the field it came from.
 
