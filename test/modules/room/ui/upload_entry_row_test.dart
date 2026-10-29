@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
@@ -119,7 +120,15 @@ void main() {
       await pumpRow(tester, stored(isDeleting: true), canDelete: true);
 
       expect(find.byTooltip('Delete'), findsNothing);
-      expect(find.bySemanticsLabel('Deleting'), findsOneWidget);
+      // A status, because a browser exposes a label on a node with no role
+      // to nothing that reads it.
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('Deleting'))
+            .getSemanticsData()
+            .role,
+        SemanticsRole.status,
+      );
     } finally {
       semantics.dispose();
     }
