@@ -140,7 +140,17 @@ void main() {
         _grouped(['notes.txt', 'reports/a.csv', 'reports/sub/b.csv']),
       );
 
-      expect(find.text('2'), findsOneWidget);
+      expect(find.text('2 files'), findsOneWidget);
+    });
+
+    testWidgets('a folder says its count beside its name', (tester) async {
+      // Not in the trailing column, which holds only the file rows' actions:
+      // a number there sits out of line with their icons and reads as one.
+      await tester.pumpWidget(_grouped(['reports/a.csv', 'reports/b.csv']));
+
+      final name = tester.getRect(find.text('reports'));
+      final count = tester.getRect(find.text('2 files'));
+      expect(count.left - name.right, lessThanOrEqualTo(SoliplexSpacing.s2));
     });
 
     testWidgets('tapping a folder closes it, and tapping again opens it',

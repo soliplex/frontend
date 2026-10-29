@@ -156,13 +156,14 @@ class _FolderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
+    final countLabel = '$count ${count == 1 ? 'file' : 'files'}';
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(context.radii.sm),
       child: Semantics(
         button: true,
         expanded: expanded,
-        label: '$name, $count ${count == 1 ? 'file' : 'files'}',
+        label: '$name, $countLabel',
         child: ExcludeSemantics(
           child: Padding(
             padding: const EdgeInsets.all(SoliplexSpacing.s1),
@@ -181,7 +182,10 @@ class _FolderRow extends StatelessWidget {
                   color: muted,
                 ),
                 const SizedBox(width: SoliplexSpacing.s2),
-                Expanded(
+                // The name gives way first; the count, after it in muted
+                // text as a file row's directory is, stays whole and keeps
+                // the trailing column to the file rows' actions.
+                Flexible(
                   child: Text(
                     name,
                     style: theme.textTheme.bodySmall,
@@ -190,14 +194,10 @@ class _FolderRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: SoliplexSpacing.s1,
-                  ),
-                  child: Text(
-                    '$count',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
+                const SizedBox(width: SoliplexSpacing.s2),
+                Text(
+                  countLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
               ],
             ),
