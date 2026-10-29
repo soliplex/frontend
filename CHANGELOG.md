@@ -118,9 +118,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   workspace path with an empty, `.` or `..` segment, is also named by its
   file name, and a malformed URL is reported with the URL and the reason.
 - A workspace download that fails to fetch logs the status code and the
-  server's reason, as a preview does; one that fails to save still logs only
-  a reduced description of the failure, since its text can hold a local
-  path.
+  server's reason, as a preview does; one that fails to save logs the
+  platform's error, the local path it could not write included.
 
 ## [0.113.0+100] - 2026-10-26
 

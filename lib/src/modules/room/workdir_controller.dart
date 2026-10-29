@@ -238,14 +238,14 @@ class WorkdirController {
       }
       return DownloadOutcome.success;
     } catch (e, st) {
-      // Save-step failures carry the local save path; logs can ship off-device.
+      // Attached whole: a save failure's text is the platform's, naming the
+      // local path it could not write, which says where it failed and holds
+      // no credential.
       _logger.warning(
         'workdir download save failed threadId=$threadId',
+        error: e,
         stackTrace: st,
-        attributes: {
-          'failure': describeFailure(e),
-          'filename': file.filename,
-        },
+        attributes: {'filename': file.filename},
       );
       return DownloadOutcome.failed;
     }

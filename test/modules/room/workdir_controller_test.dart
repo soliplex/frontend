@@ -416,21 +416,21 @@ void main() {
         expect(warning().error, isA<NotFoundException>());
       });
 
-      test('a failed save as a warning without the failure text', () async {
+      test('a failed save as a warning with what failed and where', () async {
         when(() => api.getThreadWorkdirFile(any(), any(), any()))
             .thenAnswer((_) async => Uint8List(1));
+        final failure = Exception('cannot write /Users/me/Desktop/output.csv');
         final controller = build(
           saveFile: ({required String fileName, required Uint8List bytes}) {
-            throw Exception('cannot write /Users/me/Desktop/output.csv');
+            throw failure;
           },
         );
 
         await controller.downloadFile('t', _file('dir/output.csv'));
 
         final record = warning();
-        expect(record.error, isNull);
-        expect(record.attributes['failure'], '_Exception');
-        expect(record.toString(), isNot(contains('/Users/me')));
+        // The local path says where the save failed; it is not a secret.
+        expect(record.error, failure);
         expect(record.attributes['filename'], 'dir/output.csv');
       });
     });
