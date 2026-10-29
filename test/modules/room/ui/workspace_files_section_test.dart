@@ -146,9 +146,18 @@ void main() {
 
     testWidgets('a folder says its count beside its name', (tester) async {
       // Not in the trailing column, which holds only the file rows' actions:
-      // a number there sits out of line with their icons and reads as one.
+      // a number there sits out of line with their icons and reads as an
+      // action.
       await tester.pumpWidget(_grouped(['reports/a.csv', 'reports/b.csv']));
 
+      // The name's box hugs its text, so the gap below is measured from the
+      // painted name rather than from a box stretched to the row's end.
+      final nameText =
+          tester.renderObject<RenderParagraph>(find.text('reports'));
+      expect(
+        nameText.size.width,
+        nameText.getMaxIntrinsicWidth(double.infinity),
+      );
       final name = tester.getRect(find.text('reports'));
       final count = tester.getRect(find.text('2 files'));
       expect(count.left - name.right, lessThanOrEqualTo(SoliplexSpacing.s2));

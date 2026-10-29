@@ -174,6 +174,10 @@ void main() {
       ),
     );
 
-    expect(find.byIcon(Icons.table_chart_outlined), findsOneWidget);
+    final icon = tester.widget<Icon>(find.byIcon(Icons.table_chart_outlined));
+    final scheme =
+        Theme.of(tester.element(find.byType(UploadEntryRow))).colorScheme;
+    expect(icon.color, scheme.onSurfaceVariant,
+        reason: 'a stored file is not a success to report');
   });
 }
