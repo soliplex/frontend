@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
@@ -107,8 +108,13 @@ class UploadEntryRow extends StatelessWidget {
           if (entry case PersistedUpload(:final filename, :final isDeleting)
               when onDelete != null)
             isDeleting
+                // A status, which a browser announces; a spinner's own role
+                // carries the label to no reader there.
                 ? Semantics(
+                    container: true,
+                    role: SemanticsRole.status,
                     label: 'Deleting',
+                    excludeSemantics: true,
                     child: const Padding(
                       padding: EdgeInsets.all(SoliplexSpacing.s1),
                       child: SizedBox(
