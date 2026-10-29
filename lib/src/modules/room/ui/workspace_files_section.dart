@@ -191,11 +191,8 @@ class _FolderRow extends StatelessWidget {
             content: Row(
               children: [
                 Flexible(
-                  // The full name, which a cut name hides. On touch its long
-                  // press shows the name rather than selecting a word of it.
-                  child: Tooltip(
-                    message: name,
-                    waitDuration: const Duration(milliseconds: 500),
+                  child: FullNameTooltip(
+                    name: name,
                     child: Text(
                       name,
                       style: theme.textTheme.bodySmall,

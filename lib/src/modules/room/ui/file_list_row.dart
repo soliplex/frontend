@@ -112,3 +112,26 @@ class FileRowAction extends StatelessWidget {
     );
   }
 }
+
+/// A file's name, as a file manager shows one: it labels the file rather
+/// than being text to select, and its full name, which a cut name hides,
+/// shows on hover or, on touch, a long press.
+///
+/// The tooltip is left out of semantics: what it wraps already reads the
+/// name.
+class FullNameTooltip extends StatelessWidget {
+  const FullNameTooltip({super.key, required this.name, required this.child});
+
+  final String name;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: name,
+      waitDuration: const Duration(milliseconds: 500),
+      excludeFromSemantics: true,
+      child: SelectionContainer.disabled(child: child),
+    );
+  }
+}
