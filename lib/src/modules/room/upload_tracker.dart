@@ -74,9 +74,16 @@ class PendingUpload extends DisplayUpload {
   /// (the server's answer and the list refresh) has no measure, and a full
   /// ring would read as done.
   double? get progress {
-    if (totalBytes <= 0 || sentBytes >= totalBytes) return null;
+    if (totalBytes <= 0 || allBytesSent) return null;
     return sentBytes / totalBytes;
   }
+
+  /// Whether every byte has gone out, leaving the server's answer. False for
+  /// an unknown length, where nothing says so.
+  ///
+  /// The server keeps an upload whose request is aborted from here on, so a
+  /// cancel can no longer stop the file landing.
+  bool get allBytesSent => totalBytes > 0 && sentBytes >= totalBytes;
 }
 
 class FailedUpload extends DisplayUpload {
