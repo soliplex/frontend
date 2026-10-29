@@ -1308,20 +1308,21 @@ void main() {
     bool isCut(WidgetTester tester, Finder text) =>
         tester.renderObject<RenderParagraph>(text).didExceedMaxLines;
 
-    testWidgets('a row shows the basename, then the directory muted',
+    testWidgets(
+        'a row shows the basename, then the directory muted with a slash',
         (tester) async {
       await pumpRow(tester, width: 800);
 
       expect(find.text(path), findsNothing);
       expect(find.text('customer'), findsOneWidget);
       expect(find.text('.py'), findsOneWidget);
-      expect(find.text('backend/models'), findsOneWidget);
+      expect(find.text('backend/models/'), findsOneWidget);
       Color? painted(String text) => tester
           .renderObject<RenderParagraph>(find.text(text))
           .text
           .style
           ?.color;
-      expect(painted('backend/models'), isNot(painted('customer')));
+      expect(painted('backend/models/'), isNot(painted('customer')));
     });
 
     testWidgets('a narrow row cuts the directory, never the basename',
@@ -1329,7 +1330,7 @@ void main() {
       await pumpRow(tester, width: 320);
 
       expect(isCut(tester, find.text('customer')), isFalse);
-      expect(isCut(tester, find.text('backend/models')), isTrue);
+      expect(isCut(tester, find.text('backend/models/')), isTrue);
     });
 
     testWidgets(
@@ -1339,7 +1340,7 @@ void main() {
 
       expect(isCut(tester, find.text('customer')), isTrue);
       expect(isCut(tester, find.text('.py')), isFalse);
-      expect(tester.getSize(find.text('backend/models')).width, 0);
+      expect(tester.getSize(find.text('backend/models/')).width, 0);
     });
 
     testWidgets('a row at a large text size stays within its slot',
