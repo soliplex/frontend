@@ -8,8 +8,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- A user with a room's write permission can delete a room upload: a delete
+  button on each stored file in the file panel's Room section and on the
+  room info screen's uploaded files. It asks first, naming the file and
+  saying it is deleted for everyone in the room, and shows a spinner while
+  the delete is under way. When the delete fails, the file stays listed
+  and a row below it says why, with a dismiss button. Thread uploads have
+  no delete.
+- **Library consumers:** `SoliplexApi.deleteRoomUpload` deletes one file
+  from a room's uploads. It throws `ArgumentError` for an empty argument or
+  for a filename that is not one path segment (one holding `/`, or `.` or
+  `..`), which would address another path.
+
 ### Changed
 
+- On the room info screen a failed upload's reason sits below its name, and
+  an upload in progress shows its spinner in the primary colour, as in the
+  file panel.
 - **Library consumers (breaking):** `WorkdirFile.filename` is the file's
   path relative to the workspace root and can contain `/` (`dir/file.txt`);
   `WorkdirFile.basename` and `WorkdirFile.directory` split it.
