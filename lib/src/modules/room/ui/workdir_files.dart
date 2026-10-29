@@ -139,13 +139,10 @@ class _NameAndDirectory extends StatelessWidget {
         // and directory and appears near the cursor.
         return Align(
           alignment: Alignment.centerLeft,
-          child: Tooltip(
-            message: file.filename,
-            waitDuration: const Duration(milliseconds: 500),
-            // The label announces the full path once: the tooltip would
-            // announce it a second time, and the texts would read the
-            // basename, then the directory apart from it.
-            excludeFromSemantics: true,
+          child: FullNameTooltip(
+            name: file.filename,
+            // The label announces the full path once: the texts would read
+            // the basename, then the directory apart from it.
             child: Semantics(
               label: file.filename,
               child: ExcludeSemantics(
@@ -515,13 +512,10 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             // cursor.
             child: Align(
               alignment: Alignment.centerLeft,
-              // The full path, which a cut name and directory hide. Left out
-              // of semantics: the name and the line below it already read
-              // the path.
-              child: Tooltip(
-                message: file.filename,
-                waitDuration: const Duration(milliseconds: 500),
-                excludeFromSemantics: true,
+              // The full path, which a cut name and directory hide; the name
+              // and the line below it read the path.
+              child: FullNameTooltip(
+                name: file.filename,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,

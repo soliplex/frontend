@@ -42,9 +42,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Once every byte of an upload is sent, its row no longer offers Cancel:
   the server keeps a file whose upload is stopped then, so the cancel
   reported a file that still arrived.
-- On touch, a long press on the name of an upload or a Workspace folder
-  shows its full name, as a Workspace file's does, rather than selecting a
-  word of it. A failed upload's reason can still be selected.
+- A file's name in the file panel and on the room info screen can no
+  longer be selected, on any platform. Hovering over it or, on touch, a
+  long press shows its full name, for uploads and Workspace folders as for
+  Workspace files. A failed upload's reason can still be selected.
 - **Library consumers (breaking):** `WorkdirFile.filename` is the file's
   path relative to the workspace root and can contain `/` (`dir/file.txt`);
   `WorkdirFile.basename` and `WorkdirFile.directory` split it.
