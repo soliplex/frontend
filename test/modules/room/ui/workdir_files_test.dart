@@ -1181,7 +1181,10 @@ void main() {
     // download-feedback state machine end-to-end through the preview
     // page.
 
-    testWidgets('a download under way says so on the button', (tester) async {
+    testWidgets('a download under way loads the button at its size',
+        (tester) async {
+      // A loading button keeps its label, hidden, so it keeps its size: the
+      // spinner says what is happening, and the label still names it.
       final completer = Completer<DownloadOutcome>();
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
@@ -1192,15 +1195,14 @@ void main() {
       await tester.pump();
       await tester.tap(find.byIcon(Icons.visibility_outlined));
       await tester.pumpAndSettle();
+      final button = find.byType(SoliplexButton);
+      final idle = tester.getSize(button);
 
       await tester.tap(find.text('Download'));
       await tester.pump();
 
-      final button = find.ancestor(
-        of: find.text('Downloading'),
-        matching: find.byType(SoliplexButton),
-      );
       expect(tester.widget<SoliplexButton>(button).isLoading, isTrue);
+      expect(tester.getSize(button), idle);
 
       completer.complete(DownloadOutcome.success);
       await tester.pumpAndSettle();

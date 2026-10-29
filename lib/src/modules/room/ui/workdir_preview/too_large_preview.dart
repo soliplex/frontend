@@ -52,7 +52,7 @@ class TooLargePreview extends StatelessWidget {
             logTag: 'too-large download callback threw',
             extraLogAttributes: {'byteSize': byteSize},
             builder: (context, state, onTap) {
-              final (icon, label) = state.affordance;
+              final (icon, label) = state.buttonAffordance;
               return SoliplexButton.filled(
                 onPressed: onTap,
                 isLoading: state == DownloadFeedbackState.downloading,

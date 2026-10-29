@@ -27,6 +27,15 @@ extension DownloadFeedbackAffordance on DownloadFeedbackState {
         DownloadFeedbackState.success => (Icons.check, 'Saved'),
         DownloadFeedbackState.error => (Icons.error_outline, "Couldn't save"),
       };
+
+  /// [affordance] for a button, which shows a download under way by loading:
+  /// it keeps the idle words, hidden, so it keeps its size while its spinner
+  /// says what is happening.
+  (IconData icon, String label) get buttonAffordance =>
+      (this == DownloadFeedbackState.downloading
+              ? DownloadFeedbackState.idle
+              : this)
+          .affordance;
 }
 
 /// Owns the download-feedback state machine so every download affordance
