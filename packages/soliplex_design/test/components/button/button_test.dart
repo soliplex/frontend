@@ -115,6 +115,25 @@ void main() {
       });
     }
 
+    testWidgets('icon + isLoading keeps the button its size', (tester) async {
+      // The spinner takes the icon's slot, so the button does not jump
+      // between idle and loading.
+      Widget button({required bool isLoading}) => _harness(
+            SoliplexButton.filled(
+              onPressed: () {},
+              icon: const Icon(Icons.download_outlined),
+              isLoading: isLoading,
+              child: const Text('Download'),
+            ),
+          );
+      await tester.pumpWidget(button(isLoading: false));
+      final idle = tester.getSize(find.byType(FilledButton));
+
+      await tester.pumpWidget(button(isLoading: true));
+
+      expect(tester.getSize(find.byType(FilledButton)), idle);
+    });
+
     testWidgets('iconAlignment.end renders the icon after the label', (
       tester,
     ) async {
