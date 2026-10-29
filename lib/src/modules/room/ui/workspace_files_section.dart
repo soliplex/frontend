@@ -191,12 +191,18 @@ class _FolderRow extends StatelessWidget {
             content: Row(
               children: [
                 Flexible(
-                  child: Text(
-                    name,
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.ellipsis,
+                  // The full name, which a cut name hides. On touch its long
+                  // press shows the name rather than selecting a word of it.
+                  child: Tooltip(
+                    message: name,
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: Text(
+                      name,
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
                 const SizedBox(width: SoliplexSpacing.s2),
