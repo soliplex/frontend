@@ -6,6 +6,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../workdir_files_status.dart';
 import '../workspace_groups.dart';
+import 'file_list_row.dart';
 import 'workdir_files.dart';
 
 /// A section heading in the room's files panel.
@@ -165,9 +166,9 @@ class _FolderRow extends StatelessWidget {
         expanded: expanded,
         label: '$name, $countLabel',
         child: ExcludeSemantics(
-          child: Padding(
-            padding: const EdgeInsets.all(SoliplexSpacing.s1),
-            child: Row(
+          child: FileListRow(
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   expanded ? Icons.expand_more : Icons.chevron_right,
@@ -181,10 +182,14 @@ class _FolderRow extends StatelessWidget {
                   size: 16,
                   color: muted,
                 ),
-                const SizedBox(width: SoliplexSpacing.s2),
-                // The name gives way first; the count, after it in muted
-                // text as a file row's directory is, stays whole and keeps
-                // the trailing column to the file rows' actions.
+              ],
+            ),
+            // The name gives way first; the muted count stays whole. It
+            // follows the name rather than sitting at the row's end, where
+            // it would line up with the file rows' action icons and read as
+            // an action.
+            content: Row(
+              children: [
                 Flexible(
                   child: Text(
                     name,

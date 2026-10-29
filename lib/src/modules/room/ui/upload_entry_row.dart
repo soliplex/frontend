@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/preview_kind.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 
@@ -29,115 +29,105 @@ class UploadEntryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isFailed = entry is FailedUpload;
-    final (icon, color, errorMessage) = switch (entry) {
+    final (leading, errorMessage) = switch (entry) {
       PersistedUpload(:final filename) => (
-          PreviewKind.from(filename).rowIcon,
-          theme.colorScheme.onSurfaceVariant,
+          Icon(
+            PreviewKind.from(filename).rowIcon,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           null,
         ),
-      PendingUpload() => (null, theme.colorScheme.primary, null),
+      PendingUpload(:final progress) => (
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: theme.colorScheme.primary,
+              value: progress,
+            ),
+          ),
+          null,
+        ),
       FailedUpload(message: final m) => (
-          Icons.error_outline,
-          theme.colorScheme.onErrorContainer,
+          Icon(
+            Icons.error_outline,
+            size: 16,
+            color: theme.colorScheme.onErrorContainer,
+          ),
           m,
         ),
     };
 
-    final (closeTooltip, closeAction) = switch (entry) {
-      PendingUpload(:final id) => ('Cancel upload', () => onCancel(id)),
-      FailedUpload(:final id) => ('Dismiss', () => onDismiss(id)),
-      _ => (null, null),
+    final close = switch (entry) {
+      PendingUpload(:final id) => FileRowAction(
+          icon: Icons.close,
+          tooltip: 'Cancel upload',
+          onTap: () => onCancel(id),
+        ),
+      FailedUpload(:final id) => FileRowAction(
+          icon: Icons.close,
+          tooltip: 'Dismiss',
+          onTap: () => onDismiss(id),
+          color: theme.colorScheme.onErrorContainer,
+        ),
+      PersistedUpload() => null,
     };
-    final closeColor = isFailed
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.outline;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-      padding: isFailed
-          ? const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1)
-          : const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
-      decoration: isFailed
-          ? BoxDecoration(
-              color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(context.radii.sm),
-            )
-          : null,
-      child: Row(
+    return FileListRow(
+      isFailed: isFailed,
+      leading: leading,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (icon != null)
-            Icon(icon, size: 16, color: color)
-          else
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: color,
-                value: switch (entry) {
-                  PendingUpload(:final progress) => progress,
-                  _ => null,
-                },
-              ),
+          Text(
+            entry.filename,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: isFailed ? theme.colorScheme.onErrorContainer : null,
             ),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.filename,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isFailed ? theme.colorScheme.onErrorContainer : null,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (errorMessage != null)
-                  Text(
-                    errorMessage,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onErrorContainer,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
+            overflow: TextOverflow.ellipsis,
           ),
-          if (entry case PersistedUpload(:final filename, :final isDeleting)
-              when onDelete != null)
-            isDeleting
-                // A status, which a browser announces; a spinner's own role
-                // carries the label to no reader there.
-                ? Semantics(
-                    container: true,
-                    role: SemanticsRole.status,
-                    label: 'Deleting',
-                    excludeSemantics: true,
-                    child: const Padding(
-                      padding: EdgeInsets.all(SoliplexSpacing.s1),
+          if (errorMessage != null)
+            Text(
+              errorMessage,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+        ],
+      ),
+      actions: [
+        if (entry case PersistedUpload(:final filename, :final isDeleting)
+            when onDelete != null)
+          isDeleting
+              // A status, which a browser announces; a spinner's own role
+              // carries the label to no reader there.
+              ? Semantics(
+                  container: true,
+                  role: SemanticsRole.status,
+                  label: 'Deleting',
+                  excludeSemantics: true,
+                  child: const SizedBox.square(
+                    dimension: FileRowAction.extent,
+                    child: Center(
                       child: SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ),
-                  )
-                : _DeleteButton(onTap: () => _confirmDelete(context, filename)),
-          if (closeAction != null)
-            IconButton(
-              icon: const Icon(Icons.close, size: 14),
-              color: closeColor,
-              tooltip: closeTooltip,
-              onPressed: closeAction,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              visualDensity: VisualDensity.compact,
-            ),
-        ],
-      ),
+                  ),
+                )
+              : FileRowAction(
+                  icon: Icons.delete_outline,
+                  tooltip: 'Delete',
+                  onTap: () => _confirmDelete(context, filename),
+                ),
+        if (close != null) close,
+      ],
     );
   }
 
@@ -151,40 +141,5 @@ class UploadEntryRow extends StatelessWidget {
       isDestructive: true,
     );
     if (confirmed) onDelete?.call(filename);
-  }
-}
-
-/// Drawn like the workspace rows' trailing actions, and named once: the
-/// tooltip is left out of semantics so the label is not read twice. Its own
-/// semantics node, so a card that merges its children's semantics does not
-/// absorb it and become a button itself.
-class _DeleteButton extends StatelessWidget {
-  const _DeleteButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      button: true,
-      label: 'Delete',
-      child: Tooltip(
-        message: 'Delete',
-        excludeFromSemantics: true,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(context.radii.sm),
-          child: Padding(
-            padding: const EdgeInsets.all(SoliplexSpacing.s1),
-            child: Icon(
-              Icons.delete_outline,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
