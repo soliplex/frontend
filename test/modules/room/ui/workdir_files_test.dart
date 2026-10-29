@@ -1437,6 +1437,33 @@ void main() {
         expect(_inPreview(find.text('reports/')), findsOneWidget);
       });
 
+      testWidgets("the title's tooltip names the shown file's full path",
+          (tester) async {
+        await openPreview(tester, ['reports/a.md', 'reports/b.md'], index: 1);
+
+        // The page dots carry tooltips too; this is the one over the name.
+        final title = find.ancestor(
+          of: _inPreview(find.byType(FileName)),
+          matching: find.byType(Tooltip),
+        );
+        expect(tester.widget<Tooltip>(title).message, 'reports/b.md');
+      });
+
+      testWidgets("a screen reader hears the title's name once",
+          (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          await openPreview(tester, ['reports/a.md']);
+
+          final data = tester
+              .getSemantics(_inPreview(find.byType(FileName)))
+              .getSemanticsData();
+          expect(data.tooltip, isEmpty, reason: 'the label already names it');
+        } finally {
+          semantics.dispose();
+        }
+      });
+
       testWidgets('keeps the extension of a long basename', (tester) async {
         usePhoneWidth(tester);
 

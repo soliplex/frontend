@@ -523,22 +523,29 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
       child: Row(
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FileName(file.basename, style: theme.textTheme.titleMedium),
-                if (subtitle.isNotEmpty)
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+            // The full path, which a cut name and directory hide. Left out of
+            // semantics: the name's label already announces it.
+            child: Tooltip(
+              message: file.filename,
+              waitDuration: const Duration(milliseconds: 500),
+              excludeFromSemantics: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FileName(file.basename, style: theme.textTheme.titleMedium),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           IconButton(
