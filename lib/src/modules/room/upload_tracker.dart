@@ -107,6 +107,8 @@ class FailedUpload extends DisplayUpload {
   final String message;
 }
 
+const _sessionExpiredMessage = 'Session expired. Please sign in again.';
+
 /// Formats an error for user display without leaking raw exception
 /// internals (stack frames, request URLs, auth headers). Maps a few
 /// upload-specific failure modes to friendlier messages before falling
@@ -148,7 +150,7 @@ String uploadErrorMessage(Object error) {
   }
 
   if (error is AuthException && error.statusCode == 401) {
-    return 'Session expired. Please sign in again.';
+    return _sessionExpiredMessage;
   }
 
   if (error is PermissionDeniedException) {
@@ -723,8 +725,9 @@ class UploadTracker {
         unawaited(refresh());
         return;
       } on CancelledException {
-        // Tracker is being disposed or upload was cancelled externally.
-        // No Failed row needed; the dispose path tears the scope down.
+        // Every cancel has already settled the row: dispose tears the scope
+        // down, and [cancelUpload] and the session's end fail the row before
+        // they cancel.
         return;
       } on AuthException catch (error) {
         if (_isDisposed) return;
@@ -1058,15 +1061,36 @@ class UploadTracker {
   void _onAuthChanged(SessionState state) {
     if (_isDisposed) return;
     if (state is ActiveSession) return;
+    var stopped = 0;
     for (final scope in _scopes.values) {
-      for (final record in scope.pending) {
-        if (record is _Pending) {
-          record.cancelToken.cancel('auth expired');
-        }
+      // Each upload the session's end stops is failed before its token is
+      // cancelled, as [cancelUpload] does: the cancel ends the upload with
+      // nothing more said, so a row left pending would never leave.
+      final stopping = <_Pending>[];
+      for (var i = 0; i < scope.pending.length; i++) {
+        final record = scope.pending[i];
+        if (record is! _Pending) continue;
+        scope.pending[i] = _Failed(
+          id: record.id,
+          filename: record.filename,
+          message: _sessionExpiredMessage,
+        );
+        stopping.add(record);
       }
+      if (stopping.isNotEmpty) _emit(scope);
+      for (final record in stopping) {
+        record.cancelToken.cancel('auth expired');
+      }
+      stopped += stopping.length;
       for (final token in scope.deleting.values) {
         token.cancel('auth expired');
       }
+    }
+    if (stopped > 0) {
+      _logger.info(
+        'Uploads stopped by the session ending',
+        attributes: {'count': stopped},
+      );
     }
   }
 }

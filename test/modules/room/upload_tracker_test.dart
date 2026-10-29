@@ -1435,12 +1435,20 @@ void main() {
           if (capturedToken.isCancelled) throw const CancelledException();
         });
 
-        tracker.uploadToRoom(
-          roomId: 'room-1',
-          filename: 'slow.pdf',
-          openStream: () => Stream<List<int>>.value(const [1]),
-          contentLength: 1,
-        );
+        tracker
+          ..uploadToRoom(
+            roomId: 'room-1',
+            filename: 'slow.pdf',
+            openStream: () => Stream<List<int>>.value(const [1]),
+            contentLength: 1,
+          )
+          // Queued behind it, never started.
+          ..uploadToRoom(
+            roomId: 'room-1',
+            filename: 'queued.pdf',
+            openStream: () => Stream<List<int>>.value(const [2]),
+            contentLength: 1,
+          );
         await _pump();
 
         // Sanity: the upload's token is alive while POST is in flight.
@@ -1454,6 +1462,22 @@ void main() {
         // Let the staged POST observe the cancel and unblock.
         postCompleter.complete();
         await _pump();
+
+        // Each upload the session's end stopped says so, and can be
+        // dismissed: none is left pending with nothing to end it.
+        final uploads =
+            (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+        expect(uploads.whereType<PendingUpload>(), isEmpty);
+        expect(
+          {
+            for (final u in uploads.whereType<FailedUpload>())
+              u.filename: u.message,
+          },
+          {
+            'slow.pdf': 'Session expired. Please sign in again.',
+            'queued.pdf': 'Session expired. Please sign in again.',
+          },
+        );
       },
     );
 
