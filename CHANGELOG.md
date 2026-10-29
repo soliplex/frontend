@@ -70,6 +70,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   which its background had covered.
 - A button that is loading keeps its label for a screen reader, which
   heard an unnamed button while the spinner showed.
+- An upload the session's end stops, in flight or waiting its turn, fails
+  with "Session expired. Please sign in again." and can be dismissed; it
+  stayed pending, with nothing left to end it.
 - A screen reader names the room's menu button and the dismiss on its
   send-error, context-warning and reconnect banners and its upload and
   workspace notices, which it read as unnamed buttons.
