@@ -247,7 +247,11 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
     setState(() => _unknownLabels = unknown);
     if (unknown.isNotEmpty) return;
 
-    widget.state.setFilter(labelIds: resolved, query: query.text);
+    widget.state.setFilter(
+      labelIds: resolved,
+      unlabeled: query.unlabeled,
+      query: query.text,
+    );
   }
 
   @override

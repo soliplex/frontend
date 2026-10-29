@@ -1,5 +1,17 @@
 import 'package:flutter/foundation.dart';
 
+/// The name `@no-label` reads as: threads carrying no label at all,
+/// rather than a label of that name.
+///
+/// Reserved for that reason — a label taking it could never be searched
+/// for — so the label editor refuses it.
+const String noLabelToken = 'no-label';
+
+/// Whether [name] is the reserved [noLabelToken], ignoring case and
+/// surrounding whitespace as label names do.
+bool isReservedLabelName(String name) =>
+    name.trim().toLowerCase() == noLabelToken;
+
 /// A thread search split into its two independent halves.
 ///
 /// The search box takes both at once — `Osprey Manual @manuals` — and
@@ -9,7 +21,11 @@ import 'package:flutter/foundation.dart';
 @immutable
 class ThreadQuery {
   /// Creates a parsed query.
-  const ThreadQuery({required this.text, required this.labelNames});
+  const ThreadQuery({
+    required this.text,
+    required this.labelNames,
+    this.unlabeled = false,
+  });
 
   /// An empty query, matching everything.
   static const empty = ThreadQuery(text: '', labelNames: []);
@@ -26,14 +42,21 @@ class ThreadQuery {
   /// silently matching nothing.
   final List<String> labelNames;
 
+  /// Whether `@no-label` was typed: threads carrying no label pass too.
+  ///
+  /// Another alternative beside [labelNames], as the server reads it, so
+  /// `@no-label @urgent` means "unlabeled, or labelled urgent".
+  final bool unlabeled;
+
   /// Whether this query filters anything at all.
-  bool get isEmpty => text.isEmpty && labelNames.isEmpty;
+  bool get isEmpty => text.isEmpty && labelNames.isEmpty && !unlabeled;
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     if (other is! ThreadQuery) return false;
     if (other.text != text) return false;
+    if (other.unlabeled != unlabeled) return false;
     if (other.labelNames.length != labelNames.length) return false;
     for (var i = 0; i < labelNames.length; i++) {
       if (other.labelNames[i] != labelNames[i]) return false;
@@ -42,10 +65,11 @@ class ThreadQuery {
   }
 
   @override
-  int get hashCode => Object.hash(text, Object.hashAll(labelNames));
+  int get hashCode => Object.hash(text, Object.hashAll(labelNames), unlabeled);
 
   @override
-  String toString() => 'ThreadQuery(text: "$text", labels: $labelNames)';
+  String toString() => 'ThreadQuery(text: "$text", labels: $labelNames, '
+      'unlabeled: $unlabeled)';
 }
 
 /// An `@label` token: either `@name` or `@"name with spaces"`.
@@ -72,6 +96,7 @@ String formatLabelToken(String name) =>
 /// "Osprey Manual"             -> text only
 /// "@manuals @v22osprey"       -> labels only
 /// "Osprey @manuals"           -> both
+/// "@no-label"                 -> threads without labels
 /// ```
 ///
 /// A bare `@` is not a token — it is what the user has typed so far
@@ -85,6 +110,7 @@ String formatLabelToken(String name) =>
 ThreadQuery parseThreadQuery(String raw) {
   final labelNames = <String>[];
   final seen = <String>{};
+  var unlabeled = false;
 
   final text = raw.replaceAllMapped(_labelToken, (match) {
     // Group 1 is the quoted form, group 2 the bare one; exactly one
@@ -92,7 +118,11 @@ ThreadQuery parseThreadQuery(String raw) {
     final name = (match.group(1) ?? match.group(2)!).toLowerCase();
     // An empty quoted token ('@""') names nothing; dropping it beats
     // filtering on a label that cannot exist.
-    if (name.isNotEmpty && seen.add(name)) labelNames.add(name);
+    if (name == noLabelToken) {
+      unlabeled = true;
+    } else if (name.isNotEmpty && seen.add(name)) {
+      labelNames.add(name);
+    }
     // Replaced with a space, not with nothing: removing the token
     // outright would weld its neighbours together, turning
     // "Osprey @manuals Manual" into "Osprey Manual" with no gap.
@@ -102,6 +132,7 @@ ThreadQuery parseThreadQuery(String raw) {
   return ThreadQuery(
     text: _collapseWhitespace(text),
     labelNames: List.unmodifiable(labelNames),
+    unlabeled: unlabeled,
   );
 }
 

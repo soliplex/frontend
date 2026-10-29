@@ -25,11 +25,18 @@ ServerManager _createManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-ThreadInfo _thread(String id, String roomId, {String? name}) => ThreadInfo(
+ThreadInfo _thread(
+  String id,
+  String roomId, {
+  String? name,
+  List<ThreadLabel> labels = const [],
+}) =>
+    ThreadInfo(
       id: id,
       roomId: roomId,
       name: name ?? id,
       createdAt: DateTime.utc(2026),
+      labels: labels,
     );
 
 Widget _buildApp(
@@ -448,6 +455,43 @@ void main() {
       expect(api.allThreadsCalls.last.labelIds, equals([7]));
       // The menu closes once a choice is made.
       expect(find.widgetWithText(LabelChip, 'Manuals'), findsNothing);
+    });
+
+    testWidgets('@no-label asks for threads without labels', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [
+          _thread('t1', 'r1', name: 'Alpha'),
+          _thread(
+            't2',
+            'r1',
+            name: 'Beta',
+            labels: const [
+              ThreadLabel(id: 7, name: 'Manuals', color: '#42D76D'),
+            ],
+          ),
+        ],
+        labels: const [
+          ThreadLabel(id: 7, name: 'Manuals', color: '#42D76D'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, '@no');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('No label'));
+      await tester.pumpAndSettle();
+
+      expect(api.allThreadsCalls.last.unlabeled, isTrue);
+      expect(api.allThreadsCalls.last.labelIds, isEmpty);
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.text('Beta'), findsNothing);
+
+      // Once in the query, it is not offered again.
+      await tester.enterText(find.byType(TextField).last, '@no-label @');
+      await tester.pumpAndSettle();
+      expect(find.text('No label'), findsNothing);
     });
 
     testWidgets('the field keeps focus while the menu is used', (tester) async {
