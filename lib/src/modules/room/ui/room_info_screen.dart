@@ -438,7 +438,8 @@ class _UploadedFilesCard extends StatefulWidget {
   State<_UploadedFilesCard> createState() => _UploadedFilesCardState();
 }
 
-/// What is known about whether the signed-in user may upload to this room.
+/// What is known about whether the signed-in user may add files to this room
+/// or delete them: one answer, because the two need the same permission.
 ///
 /// Five states rather than a `bool?`, because a question that was *not
 /// answered* is not the same as one answered "no", and the two must not render
@@ -524,7 +525,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   /// administrator holds that permission implicitly, and being one is a fact
   /// about the user rather than the room, so it arrives separately from the
   /// room itself. A user who is not an administrator is not offered the
-  /// controls, whether or not they hold the permission.
+  /// upload or delete controls, whether or not they hold the permission.
   ///
   /// `AdminStatus.read` never completes with an error, so nothing here needs a
   /// guard beyond [mounted].
@@ -565,7 +566,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     // first is about this screen.
     _logger.warning(
       'Could not confirm whether the user is an administrator; withholding the '
-      'room upload controls',
+      'room upload and delete controls',
       attributes: {
         'roomId': widget.roomId,
         'reason': timedOut ? 'queued' : 'unanswered',
@@ -586,7 +587,8 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   ///
   /// Recorded at `info`, below the release log floor, because neither outcome
   /// is a fault — but which one it was is the first question asked of a user
-  /// who says the controls are missing, or present when they should not be.
+  /// who says the upload or delete controls are missing, or present when they
+  /// should not be.
   /// Without it a diagnostics export cannot tell "the administrator check said
   /// yes" from "it never ran". When the server returns the write permission
   /// this check does not run and nothing is recorded here. The client's
