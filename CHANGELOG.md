@@ -39,10 +39,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - An upload's progress ring spins once every byte is sent, while the
   server answers and the list catches up, rather than standing full as if
   done. It and a delete's spinner are drawn muted, about the size of the
-  icons beside them.
+  icons beside them. A screen reader hears an upload's ring as Uploading,
+  with how far it has got while that is known.
 - Once every byte of a non-empty upload is sent, its row no longer offers
-  Cancel: the server keeps a file whose upload is stopped then, so the
-  cancel reported a file that still arrived.
+  Cancel: the server can keep a file whose upload is stopped then, so
+  Cancel said "Upload cancelled." for a file that still arrived.
 - A file's or folder's name, and a Workspace file's directory, in the file
   panel and on the room info screen can no longer be selected, on any
   platform. Hovering over a name or, on touch, a long press shows the full
@@ -60,6 +61,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- The file panel's buttons show their hover, focus and press highlights,
+  which its background had covered.
 - A user with a room's write permission who is not an administrator gets the
   room info screen's upload controls; before, only administrators did. A
   user without it reads "You can't add files to this room." When the server

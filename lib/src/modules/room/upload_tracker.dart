@@ -60,9 +60,12 @@ class PendingUpload extends DisplayUpload {
   });
   final String id;
 
-  /// Bytes the current attempt has counted as sent (see [allBytesSent]).
-  /// Equals [totalBytes] from that attempt's last byte until the next upload
-  /// list to load drops the row; a retry after a 401 counts again from zero.
+  /// Bytes the current attempt has counted as sent: file bytes on native,
+  /// request-body bytes on the web, so it can pass [totalBytes] there. Holds
+  /// at [totalBytes] or more from the attempt's last byte until the row
+  /// leaves pending, dropped by the next upload list or replaced by a
+  /// failure. A retry after a 401 counts again from zero once its first
+  /// chunk is counted.
   final int sentBytes;
 
   /// Declared content length of the upload, used to compute progress.
@@ -70,22 +73,23 @@ class PendingUpload extends DisplayUpload {
   final int totalBytes;
 
   /// Progress in `[0, 1)`, or `null` for indeterminate: an empty file, an
-  /// unknown length, or every byte sent. Once every byte is sent, what remains
-  /// (the server's answer and the next list) has no measure, and a full ring
-  /// would read as done.
+  /// unknown length, or every byte sent, which also covers a web count past
+  /// [totalBytes]. Once every byte is sent, what remains (the server's answer
+  /// and the next list) has no measure, and a full ring would read as done.
   double? get progress {
     if (totalBytes <= 0 || allBytesSent) return null;
     return sentBytes / totalBytes;
   }
 
-  /// Whether every byte is counted as sent: on the web, sent by the browser;
-  /// on native, handed to the request's encoder, which can run ahead of the
-  /// network. False for an empty file or an unknown length, which have no
-  /// last byte to count.
+  /// Whether the count has reached [totalBytes]: on the web, request-body
+  /// bytes the browser has sent, which reach the file's size a little before
+  /// the body ends; on native, file bytes handed to the request's encoder,
+  /// which can run ahead of the network. False for an empty file or an
+  /// unknown length, which have no last byte to count.
   ///
-  /// A room upload whose whole body reached the server is kept even when its
-  /// request is then aborted, so a cancel from here on may not stop the file
-  /// landing.
+  /// An upload whose whole body reached the server is kept even when its
+  /// request is then aborted (observed for room uploads; thread uploads take
+  /// the same path), so a cancel from here on may not stop the file landing.
   bool get allBytesSent => totalBytes > 0 && sentBytes >= totalBytes;
 }
 

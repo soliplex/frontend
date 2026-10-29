@@ -121,9 +121,9 @@ class FileRowAction extends StatelessWidget {
   }
 }
 
-/// A file's name, as a file manager shows one: it labels the file rather
-/// than being text to select, and its full name, which a cut name hides,
-/// shows on hover or, on touch, a long press.
+/// A file's or folder's name, as a file manager shows one: it labels the
+/// entry rather than being text to select, and its full name, which a cut
+/// name hides, shows on hover or, on touch, a long press.
 ///
 /// The tooltip is left out of semantics: the name is already read, by what
 /// it wraps or by the row that holds it.
