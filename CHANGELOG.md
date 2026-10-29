@@ -42,9 +42,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   icons beside them. A screen reader hears an upload's ring as Uploading,
   with how far it has got while that is known.
 - While a Workspace file downloads, its row's download button gives way to
-  a spinning ring, named Downloading to a screen reader, and the preview's
-  download button shows it is loading; before, both looked ready and
-  ignored taps.
+  a spinning ring, named Downloading to a screen reader, where it looked
+  ready and ignored taps, and the preview's download button shows it is
+  loading, where it only greyed out.
 - Once an upload's file is sent, its row no longer offers Cancel: the
   server can keep a file whose upload is stopped then, so Cancel said
   "Upload cancelled." for a file that still arrived. An empty file keeps
@@ -68,6 +68,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - The file panel's buttons show their hover, focus and press highlights,
   which its background had covered.
+- A button that is loading keeps its label for a screen reader, which
+  heard an unnamed button while the spinner showed.
 - A screen reader names the room's menu button and the dismiss on its
   send-error, context-warning and reconnect banners, which it read as
   unnamed buttons.

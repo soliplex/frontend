@@ -89,6 +89,32 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
+    for (final icon in [null, const Icon(Icons.add)]) {
+      testWidgets(
+          'a loading button is still named by its label '
+          '(${icon == null ? 'no icon' : 'icon'})', (tester) async {
+        // The label is hidden while the spinner shows, but a screen reader
+        // must still hear what the button is.
+        final semantics = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(
+            _harness(
+              SoliplexButton.filled(
+                onPressed: () {},
+                icon: icon,
+                isLoading: true,
+                child: const Text('Downloading'),
+              ),
+            ),
+          );
+
+          expect(find.bySemanticsLabel('Downloading'), findsOneWidget);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+
     testWidgets('iconAlignment.end renders the icon after the label', (
       tester,
     ) async {
