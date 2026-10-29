@@ -90,6 +90,7 @@ class NoticePill extends StatelessWidget {
           const SizedBox(width: SoliplexSpacing.s1),
           IconButton(
             icon: const Icon(Icons.close, size: 14),
+            tooltip: 'Dismiss',
             color: foreground,
             onPressed: onDismiss,
             padding: EdgeInsets.zero,

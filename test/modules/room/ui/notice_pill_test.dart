@@ -22,6 +22,18 @@ void main() {
     expect(find.byType(SoliplexButton), findsNothing);
   });
 
+  testWidgets('names its dismiss to a screen reader', (tester) async {
+    await tester.pumpWidget(_wrap(NoticePill(
+      icon: Icons.check_circle_outline,
+      background: Colors.white,
+      foreground: Colors.black,
+      message: 'Uploaded a.csv',
+      onDismiss: () {},
+    )));
+
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
+  });
+
   testWidgets('the action label takes the pill foreground, not primary',
       (tester) async {
     // A brand accent as primary can fail contrast on the pill's container;

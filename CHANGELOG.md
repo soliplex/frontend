@@ -71,8 +71,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A button that is loading keeps its label for a screen reader, which
   heard an unnamed button while the spinner showed.
 - A screen reader names the room's menu button and the dismiss on its
-  send-error, context-warning and reconnect banners, which it read as
-  unnamed buttons.
+  send-error, context-warning and reconnect banners and its upload and
+  workspace notices, which it read as unnamed buttons.
 - A user with a room's write permission who is not an administrator gets the
   room info screen's upload controls; before, only administrators did. A
   user without it reads "You can't add files to this room." When the server
