@@ -113,8 +113,9 @@ class WorkdirFileRow extends StatelessWidget {
 ///
 /// The basename is what a reader scans the list for, so the directory gives
 /// way first: it is end-ellipsized into whatever width the basename leaves,
-/// and gets none once the basename fills the row. Wraps in a [Tooltip] so the
-/// full path is reachable on hover / long-press.
+/// and gets none once the basename fills the row. Wraps in a
+/// [FullNameTooltip], so the full path shows on hover or long press and the
+/// text is not selectable.
 class _NameAndDirectory extends StatelessWidget {
   const _NameAndDirectory({
     required this.file,
