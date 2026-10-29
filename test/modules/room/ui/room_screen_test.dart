@@ -108,6 +108,21 @@ class _ScriptedAgUiStreamClient extends FakeAgUiStreamClient {
       events.stream.map((event) => DecodedEvent(event, const {}));
 }
 
+/// A scripted stream client whose every run reports a reconnect under way.
+class _ReconnectingAgUiStreamClient extends _ScriptedAgUiStreamClient {
+  @override
+  Stream<DecodeOutcome> runAgent(
+    String endpoint,
+    SimpleRunAgentInput input, {
+    CancelToken? cancelToken,
+    ResumePolicy? resumePolicy,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) {
+    onReconnectStatus?.call(const Reconnecting(attempt: 1));
+    return super.runAgent(endpoint, input, cancelToken: cancelToken);
+  }
+}
+
 /// The room module's route shape: sibling routes whose unkeyed pages update
 /// one another in place, so one [RoomScreen] follows a change of thread
 /// through `didUpdateWidget` — the auto-selected thread, or a direct switch.
@@ -611,6 +626,43 @@ void main() {
           find.text('This conversation is using 82% of the model\'s context. '
               'Starting a new thread keeps answers complete.'),
           findsOneWidget);
+    });
+
+    testWidgets('names its dismiss to a screen reader', (tester) async {
+      measure(window: 32768, tokens: 27000);
+
+      await openThread(tester);
+
+      expect(find.byTooltip('Dismiss'), findsOneWidget);
+    });
+
+    testWidgets("a reconnect banner names its dismiss to a screen reader",
+        (tester) async {
+      final stream = _ReconnectingAgUiStreamClient();
+      addTearDown(stream.events.close);
+      entry = createTestServerEntry(api: api, agUiStreamClient: stream);
+      measure(window: 32768, tokens: 1000);
+      api.nextCreateRun = RunInfo(
+        id: 'run-2',
+        threadId: 'thread-1',
+        createdAt: DateTime(2026, 3, 1, 0, 2),
+      );
+      await openThread(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'A question',
+      );
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Reconnecting… (attempt 1)'), findsOneWidget);
+      expect(find.byTooltip('Dismiss'), findsOneWidget);
     });
 
     testWidgets('never reads 100% before the window is exceeded',
@@ -1220,6 +1272,13 @@ void main() {
 
     expect(find.byType(AppBar), findsOneWidget);
     expect(find.byIcon(Icons.menu), findsOneWidget);
+    expect(
+      find.byTooltip(
+        MaterialLocalizations.of(tester.element(find.byType(AppBar)))
+            .openAppDrawerTooltip,
+      ),
+      findsOneWidget,
+    );
   });
 
   group('server label in header', () {

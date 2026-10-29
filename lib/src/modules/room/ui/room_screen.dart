@@ -1741,6 +1741,8 @@ class _RoomScreenState extends State<RoomScreen> {
               leading: Builder(
                 builder: (context) => IconButton(
                   icon: const Icon(Icons.menu),
+                  tooltip:
+                      MaterialLocalizations.of(context).openAppDrawerTooltip,
                   onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
               ),
@@ -2742,6 +2744,7 @@ class _ContextWarningBanner extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 16),
+            tooltip: 'Dismiss',
             onPressed: onDismiss,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -2841,6 +2844,7 @@ class _ReconnectBannerState extends State<_ReconnectBanner> {
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 16),
+            tooltip: 'Dismiss',
             onPressed: widget.onDismiss,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

@@ -35,4 +35,17 @@ void main() {
         ..rrect(color: theme.focusColor),
     );
   });
+
+  testWidgets('names its dismiss to a screen reader', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SendErrorBanner(
+          error: const SendError('Not permitted to run in this room'),
+          onDismiss: () {},
+        ),
+      ),
+    ));
+
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
+  });
 }
