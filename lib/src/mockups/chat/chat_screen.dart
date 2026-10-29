@@ -72,6 +72,7 @@ import '../../modules/room/ui/async_action_dialog.dart';
 import '../../modules/room/ui/room_rail.dart';
 import '../../modules/room/ui/room_welcome.dart';
 import '../../modules/room/ui/thread_sidebar.dart';
+import '../../modules/room/ui/upload_entry_row.dart';
 import '../../modules/room/ui/upload_event_banner.dart';
 import '../../modules/room/upload_tracker.dart';
 import '../../modules/room/upload_tracker_registry.dart';
@@ -2147,8 +2148,7 @@ class _RoomScreenState extends State<RoomScreen> {
             maxHeight: MediaQuery.of(context).size.height * 0.4,
           ),
           // Right padding reserves space for the overlay scrollbar so
-          // it doesn't sit on top of trailing close buttons (cancel /
-          // dismiss) on file rows.
+          // it doesn't sit on top of the file rows' trailing actions.
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(right: SoliplexSpacing.s3),
             // One area over the panel covers the filenames and each row's
@@ -2200,7 +2200,12 @@ class _RoomScreenState extends State<RoomScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _sectionLabel(label, theme),
-            for (final entry in list) _buildFileRow(entry),
+            for (final entry in list)
+              UploadEntryRow(
+                entry: entry,
+                onCancel: _state.uploadTracker.cancelUpload,
+                onDismiss: _state.uploadTracker.dismissFailed,
+              ),
           ],
         ),
       UploadsFailed(error: final error) => Row(
@@ -2228,107 +2233,6 @@ class _RoomScreenState extends State<RoomScreen> {
       style: theme.textTheme.labelSmall?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.5,
-      ),
-    );
-  }
-
-  Widget _buildFileRow(DisplayUpload entry) {
-    final theme = Theme.of(context);
-    final isFailed = entry is FailedUpload;
-    final (icon, color, errorMessage) = switch (entry) {
-      PersistedUpload() => (
-          Icons.check_circle_outline,
-          context.success,
-          null,
-        ),
-      PendingUpload() => (null, theme.colorScheme.primary, null),
-      FailedUpload(message: final m) => (
-          Icons.error_outline,
-          theme.colorScheme.onErrorContainer,
-          m,
-        ),
-    };
-
-    final (closeTooltip, closeAction) = switch (entry) {
-      PendingUpload(:final id) => (
-          'Cancel upload',
-          () => _state.uploadTracker.cancelUpload(id)
-        ),
-      FailedUpload(:final id) => (
-          'Dismiss',
-          () => _state.uploadTracker.dismissFailed(id)
-        ),
-      _ => (null, null),
-    };
-    final closeColor = isFailed
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.outline;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-      padding: isFailed
-          ? const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1)
-          : const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
-      decoration: isFailed
-          ? BoxDecoration(
-              color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(context.radii.sm),
-            )
-          : null,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(icon, size: 16, color: color)
-          else
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: color,
-                value: switch (entry) {
-                  PendingUpload(:final progress) => progress,
-                  _ => null,
-                },
-              ),
-            ),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.filename,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isFailed ? theme.colorScheme.onErrorContainer : null,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (errorMessage != null)
-                  Text(
-                    errorMessage,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onErrorContainer,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-          if (closeAction != null)
-            IconButton(
-              icon: const Icon(Icons.close, size: 14),
-              color: closeColor,
-              tooltip: closeTooltip,
-              onPressed: closeAction,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              visualDensity: VisualDensity.compact,
-            ),
-        ],
       ),
     );
   }
