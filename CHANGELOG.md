@@ -53,7 +53,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Files the agent writes into subdirectories of a thread's sandbox
   workspace (`dir/file.png`, `dir/sub/file.py`) appear in the Workspace file
   list. The files at the workspace root come first, then one row per
-  first-level folder, with its file count, that opens and closes the
+  first-level folder, its file count beside its name, that opens and closes the
   folder's files. A first-level folder named `.git` or `__pycache__` starts
   closed and is listed after the others. Each folder stays as the reader
   left it in that thread until they leave the room. Each file is named by
