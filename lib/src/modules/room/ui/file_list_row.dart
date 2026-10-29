@@ -8,6 +8,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 /// the same height with or without actions, and an action's touch target
 /// spans it. A failed entry, two lines tall, is tinted, and keeps the same
 /// side padding so its icons stay in the columns of its neighbours.
+///
+/// The tint and the actions' highlights are drawn on the nearest [Material],
+/// so place the row on one with nothing opaque between them, inside any
+/// scroll view the row is in: the file panel and room info's card do.
 class FileListRow extends StatelessWidget {
   const FileListRow({
     super.key,
