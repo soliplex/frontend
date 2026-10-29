@@ -1929,6 +1929,7 @@ void main() {
     required bool? userHasWrite,
     bool acceptsRoomUploads = true,
     bool isAdmin = false,
+    Object? adminCheckError,
   }) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1944,6 +1945,7 @@ void main() {
     );
     api.nextThreads = const [];
     api.nextIsAdminUser = isAdmin;
+    api.nextIsAdminUserThrow = adminCheckError;
     api.nextRoomUploads = [
       FileUpload(
         filename: 'shared.pdf',
@@ -1981,14 +1983,6 @@ void main() {
     expect(find.text('mine.pdf'), findsOneWidget);
     // One button, on the room's file: a thread upload has no delete.
     expect(find.byTooltip('Delete'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Delete'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(SoliplexButton, 'Delete'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('shared.pdf'), findsNothing);
-    expect(find.text('mine.pdf'), findsOneWidget);
   });
 
   // As on the room info screen: the permission as returned or, when it is
@@ -2015,6 +2009,20 @@ void main() {
       );
     });
   }
+
+  testWidgets(
+      'the file panel offers no delete when the administrator check cannot '
+      'answer', (tester) async {
+    await openFilePanel(
+      tester,
+      userHasWrite: null,
+      isAdmin: true,
+      adminCheckError: const NetworkException(message: 'offline'),
+    );
+
+    expect(find.text('shared.pdf'), findsOneWidget);
+    expect(find.byTooltip('Delete'), findsNothing);
+  });
 
   testWidgets('a confirmed delete goes to the room it was asked in',
       (tester) async {

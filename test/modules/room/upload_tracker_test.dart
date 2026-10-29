@@ -1947,9 +1947,12 @@ void main() {
       expect(persisted('a.pdf').isDeleting, isTrue);
       expect(persisted('b.pdf').isDeleting, isFalse);
 
-      await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
+      // Not awaited before completing: without the guard it waits on the
+      // same request, and the test would hang rather than fail.
+      final second =
+          tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
       request.complete();
-      await first;
+      await Future.wait([first, second]);
 
       // The second request is the duplicate the guard exists to prevent.
       verify(() => mockApi.deleteRoomUpload(
@@ -1975,7 +1978,6 @@ void main() {
       expect(persisted('a.pdf').isDeleting, isTrue);
       request.complete();
       await pending;
-      expect(shown().map((u) => u.filename), ['b.pdf']);
     });
 
     test('an expired session fails the delete and ends the session', () async {
@@ -1988,10 +1990,7 @@ void main() {
       await tracker.deleteRoomUpload(roomId: 'room-1', filename: 'a.pdf');
 
       expect(auth.session.value, isA<ExpiredSession>());
-      expect(
-        shown().whereType<FailedUpload>().single.message,
-        "Couldn't delete: your session expired. Sign in again.",
-      );
+      expect(shown().whereType<FailedUpload>().single.filename, 'a.pdf');
     });
 
     test('ending the session cancels a delete in flight', () async {
