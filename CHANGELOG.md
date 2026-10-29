@@ -36,6 +36,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   Their buttons, an upload's cancel and dismiss included, are drawn at one
   size in one column, and a failed upload's icons line up with the rows
   around it.
+- An upload's progress ring spins once every byte is sent, while the
+  server has yet to answer, rather than standing full as if done. It and a
+  delete's spinner are drawn muted, at the size of the icons beside them.
 - **Library consumers (breaking):** `WorkdirFile.filename` is the file's
   path relative to the workspace root and can contain `/` (`dir/file.txt`);
   `WorkdirFile.basename` and `WorkdirFile.directory` split it.

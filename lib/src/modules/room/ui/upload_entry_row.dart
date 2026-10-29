@@ -38,18 +38,7 @@ class UploadEntryRow extends StatelessWidget {
           ),
           null,
         ),
-      PendingUpload(:final progress) => (
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: theme.colorScheme.primary,
-              value: progress,
-            ),
-          ),
-          null,
-        ),
+      PendingUpload(:final progress) => (_Ring(value: progress), null),
       FailedUpload(message: final m) => (
           Icon(
             Icons.error_outline,
@@ -112,13 +101,7 @@ class UploadEntryRow extends StatelessWidget {
                   excludeSemantics: true,
                   child: const SizedBox.square(
                     dimension: FileRowAction.extent,
-                    child: Center(
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
+                    child: Center(child: _Ring()),
                   ),
                 )
               : FileRowAction(
@@ -141,5 +124,31 @@ class UploadEntryRow extends StatelessWidget {
       isDestructive: true,
     );
     if (confirmed) onDelete?.call(filename);
+  }
+}
+
+/// A progress ring in a 16 px icon slot, drawn the size of an icon's shape
+/// rather than its box, so it weighs as much as the icons beside it.
+/// Indeterminate when [value] is null.
+class _Ring extends StatelessWidget {
+  const _Ring({this.value});
+
+  final double? value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 16,
+      child: Center(
+        child: SizedBox.square(
+          dimension: 12,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            value: value,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
   }
 }
