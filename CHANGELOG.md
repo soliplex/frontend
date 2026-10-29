@@ -62,10 +62,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   hidden once the name fills the row; the tooltip holds the full path. The
   preview pages through the files of the tapped file's group, and titles a
   file by its name, with its directory, ending in `/`, on the line below,
-  after the position when there are several files. The workspace notice
-  names an added file by its name, and leaves out files under a `.git` or
-  `__pycache__` directory at any depth; its Show opens the folders that
-  hold the files it names.
+  after the position when there are several files. The title's tooltip
+  holds the full path. The workspace notice names an added file by its
+  name, and leaves out files under a `.git` or `__pycache__` directory at
+  any depth; its Show opens the folders that hold the files it names.
   Nested files preview and download like top-level files, and a download
   is saved under the file's own name. The listing skips an entry with an
   empty, `.` or `..` segment, or a NUL byte.
