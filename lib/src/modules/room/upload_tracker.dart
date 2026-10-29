@@ -196,9 +196,8 @@ class _Pending extends _PendingRecord {
 }
 
 /// Server-confirmed via POST but not yet observed in the persisted
-/// list. A concurrent refresh may cancel the one that would have
-/// cleaned this record up; the next refresh whose response contains
-/// the filename finally drops it.
+/// list. The next refresh to land drops it, whether or not the list
+/// holds the file; see `_fetch` for why that list can be trusted.
 class _Posted extends _PendingRecord {
   const _Posted({
     required super.id,
@@ -369,14 +368,13 @@ class UploadTracker {
       scope.fetchToken = null;
       scope.persisted = list;
 
-      // Clean up posted records once their filename lands in the
-      // server list. Handled here rather than in `_runUpload` so a
-      // refresh cancelled by a concurrent one doesn't strand the
-      // posted record.
-      final names = list.map((f) => f.filename).toSet();
-      scope.pending.removeWhere(
-        (r) => r is _Posted && names.contains(r.filename),
-      );
+      // Every posted record goes, listed or not. A record becomes posted
+      // in the same synchronous step that starts a refresh, and starting
+      // one cancels every refresh before it, so a list that lands here
+      // was asked for after each POST it could describe had finished:
+      // a posted file it leaves out is gone, deleted here or elsewhere.
+      // Waiting for the name instead strands the row at 100% for good.
+      scope.pending.removeWhere((r) => r is _Posted);
 
       _emit(scope);
     } on CancelledException {
@@ -670,8 +668,8 @@ class UploadTracker {
         if (_isDisposed) return;
 
         // Replace _Pending with _Posted at the same index. The actual
-        // removal happens in `_fetch` once the filename appears in the
-        // server list.
+        // removal happens in `_fetch`, when the refresh started below, or
+        // a later one, lands.
         final idx = scope.pending.indexWhere((r) => r.id == id);
         if (idx < 0) return; // Dismissed during POST.
         final record = scope.pending[idx];

@@ -769,6 +769,28 @@ void main() {
       );
     });
 
+    test('a posted upload whose file the next list leaves out is not stuck',
+        () async {
+      // Deleted between the POST and the refresh that follows it, here or by
+      // another client: the server confirmed the upload, and the newer list
+      // is the truth about what exists now.
+      stubGetRoomUploads([]);
+      await tracker.refreshRoom('room-1');
+      stubUploadToRoomSuccess();
+
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'gone.pdf',
+        openStream: () => Stream<List<int>>.value(const [1]),
+        contentLength: 1,
+      );
+      await _pump();
+      await _pump();
+
+      final status = tracker.roomUploads('room-1').value as UploadsLoaded;
+      expect(status.uploads, isEmpty);
+    });
+
     test('late response from a cancelled fetch does not overwrite state',
         () async {
       final first = Completer<List<FileUpload>>();
@@ -1476,9 +1498,20 @@ void main() {
       );
       await _pump();
 
-      // No refresh queued — leave the upload stuck in _Posted.
+      // The refresh that follows the POST never answers, which holds the
+      // upload in _Posted: any refresh that lands drops it. Another row
+      // changing meanwhile is what redraws the list with it.
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) => Completer<List<FileUpload>>().future);
       uploadCompleter.complete();
       await _pump();
+      tracker.recordClientError(
+        roomId: 'room-1',
+        filename: 'other.bin',
+        message: 'Could not read file from disk.',
+      );
 
       final pending = (tracker.roomUploads('room-1').value as UploadsLoaded)
           .uploads
