@@ -166,6 +166,56 @@ void main() {
     }
   });
 
+  testWidgets('an upload waiting on the server says it is uploading',
+      (tester) async {
+    // Every byte is sent, so the ring spins and Cancel is gone: without a
+    // status the row would read like a stored file.
+    final semantics = tester.ensureSemantics();
+    try {
+      await pumpRow(
+        tester,
+        const PendingUpload(
+          id: 'p1',
+          filename: 'report.pdf',
+          sentBytes: 10,
+          totalBytes: 10,
+        ),
+      );
+
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('Uploading'))
+            .getSemanticsData()
+            .role,
+        SemanticsRole.status,
+      );
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('an upload under way says how far it has got', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      await pumpRow(
+        tester,
+        const PendingUpload(
+          id: 'p1',
+          filename: 'report.pdf',
+          sentBytes: 5,
+          totalBytes: 10,
+        ),
+      );
+
+      final data = tester
+          .getSemantics(find.bySemanticsLabel('Uploading'))
+          .getSemanticsData();
+      expect(data.value, isNotEmpty);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('only a stored file offers delete', (tester) async {
     await pumpRow(
       tester,
