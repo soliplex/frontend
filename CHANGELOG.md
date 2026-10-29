@@ -28,6 +28,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - On the room info screen a failed upload's reason sits below its name, as
   in the file panel.
+- A stored upload's row, in the file panel and on the room info screen,
+  leads with the icon for its file type rather than a check.
 - **Library consumers (breaking):** `WorkdirFile.filename` is the file's
   path relative to the workspace root and can contain `/` (`dir/file.txt`);
   `WorkdirFile.basename` and `WorkdirFile.directory` split it.

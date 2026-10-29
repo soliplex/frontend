@@ -3,10 +3,11 @@ import 'package:flutter/semantics.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/preview_kind.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 
-/// One row of an upload list: the file's state, its name, why it failed, and
-/// the action its state allows.
+/// One row of an upload list: the file's state or type, its name, why it
+/// failed, and the action its state allows.
 class UploadEntryRow extends StatelessWidget {
   const UploadEntryRow({
     super.key,
@@ -29,9 +30,9 @@ class UploadEntryRow extends StatelessWidget {
     final theme = Theme.of(context);
     final isFailed = entry is FailedUpload;
     final (icon, color, errorMessage) = switch (entry) {
-      PersistedUpload() => (
-          Icons.check_circle_outline,
-          context.success,
+      PersistedUpload(:final filename) => (
+          PreviewKind.from(filename).rowIcon,
+          theme.colorScheme.onSurfaceVariant,
           null,
         ),
       PendingUpload() => (null, theme.colorScheme.primary, null),
