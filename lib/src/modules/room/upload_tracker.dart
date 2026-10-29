@@ -203,14 +203,14 @@ class _Pending extends _PendingRecord {
     this.bodySent = false,
   });
 
-  /// Cancellation handle for the in-flight POST. [UploadTracker.dispose]
-  /// cancels every active token so background uploads on detached
-  /// trackers don't keep running.
+  /// Cancellation handle for the POST, queued or in flight. [cancelUpload]
+  /// and the session's end cancel it after failing the row, and
+  /// [UploadTracker.dispose] cancels every active token so background uploads
+  /// on detached trackers don't keep running.
   final CancelToken cancelToken;
 
-  /// Bytes the source stream has yielded so far. Updated as the wrapped
-  /// `openStream` factory observes chunks flowing into the multipart
-  /// encoder.
+  /// Bytes the current attempt has counted as sent; see
+  /// [PendingUpload.sentBytes].
   final int sentBytes;
 
   /// Declared content length of the upload (multipart preamble and
@@ -729,7 +729,8 @@ class UploadTracker {
       } on CancelledException {
         // Every cancel has already settled the row: dispose tears the scope
         // down, and [cancelUpload] and the session's end fail the row before
-        // they cancel.
+        // they cancel. Closing the HTTP client, which throws this too, happens
+        // only alongside this tracker's disposal.
         return;
       } on AuthException catch (error) {
         if (_isDisposed) return;
@@ -951,9 +952,9 @@ class UploadTracker {
     };
     if (error is SoliplexException) {
       // Attached whole: a status error renders its status and the server's
-      // written reason; a network error, the platform's error text, which
-      // can name the host. None holds a credential: the token travels only
-      // in the Authorization header, which no exception renders.
+      // written reason; a network error, the platform's text or a wrapped
+      // error's, which can name the host. None holds a credential: the token
+      // travels only in the Authorization header, which no exception renders.
       _logger.warning(
         'Room upload delete failed',
         error: error,
