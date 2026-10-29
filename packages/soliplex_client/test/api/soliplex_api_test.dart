@@ -1012,6 +1012,16 @@ void main() {
 
         expect(capturedUri?.queryParameters.containsKey('label_ids'), isFalse);
         expect(capturedUri?.queryParameters.containsKey('q'), isFalse);
+        expect(capturedUri?.queryParameters.containsKey('unlabeled'), isFalse);
+      });
+
+      test('asks for unlabeled threads beside the labels', () async {
+        final uri = await captureUri(
+          () => api.getAllThreads(labelIds: [3], unlabeled: true),
+        );
+
+        expect(uri?.queryParametersAll['label_ids'], equals(['3']));
+        expect(uri?.queryParameters['unlabeled'], equals('true'));
       });
 
       test('rejects a non-positive limit', () {

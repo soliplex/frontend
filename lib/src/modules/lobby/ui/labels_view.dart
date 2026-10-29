@@ -5,6 +5,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/label_chip.dart';
 import '../../../stores/labels_state.dart';
+import '../thread_query.dart';
 
 /// The swatches offered by the colour editor.
 ///
@@ -273,7 +274,11 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
 
   void _onNameChanged() => setState(() {});
 
-  bool get _canSubmit => _name.text.trim().isNotEmpty && !_busy;
+  bool get _canSubmit => _name.text.trim().isNotEmpty && !_reserved && !_busy;
+
+  /// Whether the name is the one `@no-label` searches by, which a label
+  /// cannot take or it could never be searched for.
+  bool get _reserved => isReservedLabelName(_name.text);
 
   Future<void> _submit() async {
     setState(() {
@@ -318,6 +323,9 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
               label: 'Name',
               controller: _name,
               autofocus: true,
+              errorText: _reserved
+                  ? '"$noLabelToken" is reserved for threads with no label'
+                  : null,
               onSubmitted: _canSubmit ? (_) => _submit() : null,
             ),
             const SizedBox(height: SoliplexSpacing.s4),

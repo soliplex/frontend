@@ -377,9 +377,12 @@ class SoliplexApi {
   /// - [labelIds]: keep only threads carrying *any* of these labels. An
   ///   empty or null list means no label filter — clearing the last chip
   ///   must widen the listing, not empty it.
+  /// - [unlabeled]: also keep threads carrying no label at all. One more
+  ///   alternative beside [labelIds], not a further condition: passing
+  ///   both keeps threads carrying any of the labels *or* none.
   /// - [query]: keep only threads whose name contains this, ignoring
-  ///   case. Combines with [labelIds]: passing both narrows to threads
-  ///   matching the name *and* carrying one of the labels.
+  ///   case. Combines with the label filters: passing both narrows to
+  ///   threads matching the name *and* passing the label filter.
   ///
   /// Throws:
   /// - [ArgumentError] if [limit] is not positive
@@ -394,6 +397,7 @@ class SoliplexApi {
     int limit = 50,
     String? cursor,
     List<int>? labelIds,
+    bool unlabeled = false,
     String? query,
     CancelToken? cancelToken,
   }) async {
@@ -415,6 +419,7 @@ class SoliplexApi {
           // leaving it out keeps the URL honest about what was asked.
           if (labelIds != null && labelIds.isNotEmpty)
             'label_ids': labelIds.map((id) => '$id').toList(growable: false),
+          if (unlabeled) 'unlabeled': 'true',
           if (trimmedQuery.isNotEmpty) 'q': trimmedQuery,
         },
       ),

@@ -32,6 +32,21 @@ void main() {
       expect(query.labelNames, equals(['manuals']));
     });
 
+    test('reads @no-label as unlabeled rather than as a label', () {
+      final query = parseThreadQuery('Manual @No-Label @urgent');
+
+      expect(query.text, equals('Manual'));
+      expect(query.labelNames, equals(['urgent']));
+      expect(query.unlabeled, isTrue);
+      expect(query.isEmpty, isFalse);
+      expect(query, isNot(equals(parseThreadQuery('Manual @urgent'))));
+    });
+
+    test('reserves the no-label name whatever its case', () {
+      expect(isReservedLabelName(' No-Label '), isTrue);
+      expect(isReservedLabelName('no labels'), isFalse);
+    });
+
     test('handles a token in the middle without welding words together', () {
       // Removing the token outright would produce "OspreyManual".
       final query = parseThreadQuery('Osprey @manuals Manual');

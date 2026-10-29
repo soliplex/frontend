@@ -89,13 +89,15 @@ class GlobalThreadsState {
   /// The active filter, applied to every page including [loadMore]'s —
   /// paging a filtered listing has to stay filtered.
   List<int> _labelIds = const [];
+  bool _unlabeled = false;
   String _query = '';
 
   /// Whether the listing is currently narrowed by a search.
   ///
   /// Lets the view tell "you have no threads" from "nothing matched",
   /// which want different empty states.
-  bool get isFiltered => _labelIds.isNotEmpty || _query.isNotEmpty;
+  bool get isFiltered =>
+      _labelIds.isNotEmpty || _unlabeled || _query.isNotEmpty;
 
   /// Cancels the in-flight request, if any. Also the guard against
   /// overlapping pages: a non-null token means a fetch is already running,
@@ -133,13 +135,19 @@ class GlobalThreadsState {
   ///
   /// [labelIds] is an "any of" match; empty means no label filter, so
   /// clearing the last chip widens the listing rather than emptying it.
+  /// [unlabeled] adds threads carrying no label as one more alternative.
   /// [query] matches thread names, ignoring case.
   ///
   /// A no-op when neither has changed, so a rebuild that re-emits the
   /// current filter does not restart paging from zero.
-  void setFilter({List<int> labelIds = const [], String query = ''}) {
-    if (_sameFilter(labelIds, query)) return;
+  void setFilter({
+    List<int> labelIds = const [],
+    bool unlabeled = false,
+    String query = '',
+  }) {
+    if (_sameFilter(labelIds, unlabeled, query)) return;
     _labelIds = List.unmodifiable(labelIds);
+    _unlabeled = unlabeled;
     _query = query;
 
     if (_serverId == null) return;
@@ -148,8 +156,8 @@ class GlobalThreadsState {
     unawaited(_fetch(cursor: null));
   }
 
-  bool _sameFilter(List<int> labelIds, String query) {
-    if (query != _query) return false;
+  bool _sameFilter(List<int> labelIds, bool unlabeled, String query) {
+    if (query != _query || unlabeled != _unlabeled) return false;
     if (labelIds.length != _labelIds.length) return false;
     for (var i = 0; i < labelIds.length; i++) {
       if (labelIds[i] != _labelIds[i]) return false;
@@ -204,6 +212,7 @@ class GlobalThreadsState {
         limit: pageSize,
         cursor: cursor,
         labelIds: _labelIds,
+        unlabeled: _unlabeled,
         query: _query,
         cancelToken: token,
       );

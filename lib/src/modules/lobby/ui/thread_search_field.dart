@@ -20,7 +20,8 @@ const Duration kThreadSearchDebounce = Duration(milliseconds: 300);
 /// `Osprey Manual @manuals` narrows by name and by label at once; either
 /// half works alone. Typing `@` opens a menu of matching labels, which
 /// only ever *selects* — a user cannot coin a label from here, because
-/// only administrators may create one.
+/// only administrators may create one. The menu leads with `@no-label`,
+/// for the threads nobody has labelled yet.
 class ThreadSearchField extends StatefulWidget {
   const ThreadSearchField({
     super.key,
@@ -56,7 +57,8 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   Timer? _debounce;
 
   /// Labels matching the `@` token being typed, or empty when none is.
-  List<ThreadLabel> _suggestions = const [];
+  /// Null stands for `@no-label`.
+  List<ThreadLabel?> _suggestions = const [];
 
   /// Which suggestion the keyboard would take.
   int _highlighted = 0;
@@ -163,8 +165,10 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
       return;
     }
 
-    final already = parseThreadQuery(_controller.text).labelNames.toSet();
-    final matches = [
+    final query = parseThreadQuery(_controller.text);
+    final already = query.labelNames.toSet();
+    final matches = <ThreadLabel?>[
+      if (!query.unlabeled && noLabelToken.contains(token)) null,
       for (final label in widget.labels)
         // Case-folded on both sides, because label names ignore case —
         // matching literally would make '@Urgent' suggest nothing.
@@ -190,7 +194,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
     if (_overlay.isShowing) _overlay.hide();
   }
 
-  void _complete(ThreadLabel label) {
+  void _complete(ThreadLabel? label) {
     final selection = _controller.selection;
     final cursor = selection.isValid && selection.isCollapsed
         ? selection.baseOffset
@@ -199,7 +203,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
     final completed = completeLabelToken(
       _controller.text,
       cursor,
-      label.name.toLowerCase(),
+      label?.name.toLowerCase() ?? noLabelToken,
     );
     if (completed == null) return;
 
@@ -308,7 +312,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   }
 }
 
-/// One suggestion in the `@label` menu.
+/// One suggestion in the `@label` menu; a null [label] is `@no-label`.
 class _SuggestionRow extends StatelessWidget {
   const _SuggestionRow({
     required this.label,
@@ -317,7 +321,7 @@ class _SuggestionRow extends StatelessWidget {
     required this.onHover,
   });
 
-  final ThreadLabel label;
+  final ThreadLabel? label;
 
   /// Whether Enter or Tab would take this one.
   final bool highlighted;
@@ -328,6 +332,8 @@ class _SuggestionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final label = this.label;
+    final muted = theme.colorScheme.onSurfaceVariant;
     return MouseRegion(
       onEnter: (_) => onHover(),
       child: InkWell(
@@ -342,17 +348,22 @@ class _SuggestionRow extends StatelessWidget {
             vertical: SoliplexSpacing.s2,
           ),
           child: Row(
-            children: [
-              LabelChip(label: label),
-              const Spacer(),
-              if (label.usageCount != null)
-                Text(
-                  '${label.usageCount}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-            ],
+            children: label == null
+                ? [
+                    Icon(Icons.label_off_outlined, size: 18, color: muted),
+                    const SizedBox(width: SoliplexSpacing.s2),
+                    const Text('No label'),
+                  ]
+                : [
+                    LabelChip(label: label),
+                    const Spacer(),
+                    if (label.usageCount != null)
+                      Text(
+                        '${label.usageCount}',
+                        style:
+                            theme.textTheme.bodySmall?.copyWith(color: muted),
+                      ),
+                  ],
           ),
         ),
       ),
