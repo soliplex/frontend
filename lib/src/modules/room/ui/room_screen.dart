@@ -2276,21 +2276,27 @@ class _RoomScreenState extends State<RoomScreen> {
           // it doesn't sit on top of the file rows' trailing actions.
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(right: SoliplexSpacing.s3),
-            // One area over the panel lets a reader select a failed upload's
-            // reason or a section's load error; file names opt out of it
-            // (see FullNameTooltip). Sitting above the rows' own handlers
-            // leaves their taps intact.
-            child: SelectableContent(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // A divider sits between each pair of visible sections.
-                  for (var i = 0; i < sections.length; i++) ...[
-                    if (i > 0) const Divider(height: 12),
-                    sections[i],
+            // The rows draw their tints and their actions' highlights on
+            // the nearest Material. This one sits above the panel's
+            // background, and scrolls and clips with the rows.
+            child: Material(
+              type: MaterialType.transparency,
+              // One area over the panel lets a reader select a failed
+              // upload's reason or a section's load error; file names opt
+              // out of it (see FullNameTooltip). Sitting above the rows' own
+              // handlers leaves their taps intact.
+              child: SelectableContent(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // A divider sits between each pair of visible sections.
+                    for (var i = 0; i < sections.length; i++) ...[
+                      if (i > 0) const Divider(height: 12),
+                      sections[i],
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

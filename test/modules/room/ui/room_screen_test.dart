@@ -29,6 +29,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
@@ -2223,6 +2224,72 @@ void main() {
 
       expect(find.text('notes.pdf'), findsOneWidget);
       expect(find.text('Could not read the file.'), findsOneWidget);
+    });
+
+    testWidgets("a failed row's tint shows in the panel", (tester) async {
+      // The panel's background sits over whatever is drawn on a Material
+      // beneath it, so a tint drawn there is hidden; the rendered pixels are
+      // what tell.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Plain',
+        acceptsThreadUploads: true,
+      );
+      api.nextThreads = const [];
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      uploadRegistry
+          .trackerFor(entry: entry, roomId: 'room-1')
+          .recordClientError(
+            roomId: 'room-1',
+            filename: 'notes.pdf',
+            message: 'Could not read the file.',
+          );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.error_outline));
+      await tester.pumpAndSettle();
+
+      final row = tester.getRect(
+        find.ancestor(
+          of: find.text('notes.pdf'),
+          matching: find.byType(UploadEntryRow),
+        ),
+      );
+      // Clear of the row's text and icons.
+      final spot = Offset(row.left + row.width * 0.6, row.center.dy);
+      final tint = Theme.of(tester.element(find.text('notes.pdf')))
+          .colorScheme
+          .errorContainer;
+
+      final pixel = await tester.runAsync(() async {
+        final image =
+            await captureImage(tester.element(find.byType(RoomScreen)));
+        final bytes = await image.toByteData();
+        final i = (spot.dy.round() * image.width + spot.dx.round()) * 4;
+        return Color.fromARGB(
+          bytes!.getUint8(i + 3),
+          bytes.getUint8(i),
+          bytes.getUint8(i + 1),
+          bytes.getUint8(i + 2),
+        );
+      });
+
+      expect(pixel, tint);
     });
 
     testWidgets('the attached-files panel closes with its last row',
