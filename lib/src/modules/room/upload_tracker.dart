@@ -60,9 +60,9 @@ class PendingUpload extends DisplayUpload {
   });
   final String id;
 
-  /// Bytes successfully sent for the in-flight POST. Equals [totalBytes]
-  /// from the last byte sent until the persisted list refresh observes the
-  /// upload, through the server's answer.
+  /// Bytes the current attempt has counted as sent (see [allBytesSent]).
+  /// Equals [totalBytes] from that attempt's last byte until the next upload
+  /// list to load drops the row; a retry after a 401 counts again from zero.
   final int sentBytes;
 
   /// Declared content length of the upload, used to compute progress.
@@ -71,18 +71,21 @@ class PendingUpload extends DisplayUpload {
 
   /// Progress in `[0, 1)`, or `null` for indeterminate: an empty file, an
   /// unknown length, or every byte sent. Once every byte is sent, what remains
-  /// (the server's answer and the list refresh) has no measure, and a full
-  /// ring would read as done.
+  /// (the server's answer and the next list) has no measure, and a full ring
+  /// would read as done.
   double? get progress {
     if (totalBytes <= 0 || allBytesSent) return null;
     return sentBytes / totalBytes;
   }
 
-  /// Whether every byte has gone out, leaving the server's answer. False for
-  /// an unknown length, where nothing says so.
+  /// Whether every byte is counted as sent: on the web, sent by the browser;
+  /// on native, handed to the request's encoder, which can run ahead of the
+  /// network. False for an empty file or an unknown length, which have no
+  /// last byte to count.
   ///
-  /// The server keeps an upload whose request is aborted from here on, so a
-  /// cancel can no longer stop the file landing.
+  /// A room upload whose whole body reached the server is kept even when its
+  /// request is then aborted, so a cancel from here on may not stop the file
+  /// landing.
   bool get allBytesSent => totalBytes > 0 && sentBytes >= totalBytes;
 }
 
@@ -214,8 +217,8 @@ class _Posted extends _PendingRecord {
     required this.totalBytes,
   });
 
-  /// Carried forward from `_Pending` so the row still reports 100%
-  /// while waiting for the refresh that drops it.
+  /// Carried forward from `_Pending` so the row still counts every byte as
+  /// sent until the refresh that drops it.
   final int totalBytes;
 }
 
@@ -382,7 +385,7 @@ class UploadTracker {
       // one cancels every refresh before it, so a list that lands here
       // was asked for after each POST it could describe had finished:
       // a posted file it leaves out is gone, deleted here or elsewhere.
-      // Waiting for its name would strand that row at 100%.
+      // Waiting for its name would strand that row, spinning.
       scope.pending.removeWhere((r) => r is _Posted);
 
       _emit(scope);

@@ -4,10 +4,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 /// The frame every entry of a file list shares: uploads, workspace files and
 /// workspace folders.
 ///
-/// Every entry is one [FileRowAction] tall, with or without actions, so a
-/// list of mixed entries keeps one rhythm and an action's touch target spans
-/// its row. A failed entry is tinted, and keeps the same side padding so its
-/// icons stay in the columns of its neighbours.
+/// Every entry is at least one [FileRowAction] tall, so a one-line entry is
+/// the same height with or without actions, and an action's touch target
+/// spans it. A failed entry, two lines tall, is tinted, and keeps the same
+/// side padding so its icons stay in the columns of its neighbours.
 class FileListRow extends StatelessWidget {
   const FileListRow({
     super.key,
@@ -62,7 +62,7 @@ class FileListRow extends StatelessWidget {
 }
 
 /// A trailing action of a [FileListRow]: a small icon in a touch target as
-/// tall as the row, named once to a screen reader. Neighbouring targets
+/// tall as a one-line row, named once to a screen reader. Neighbouring targets
 /// touch; their padding keeps the icons apart.
 ///
 /// Its own semantics node, so a card that merges its children's semantics
@@ -121,8 +121,8 @@ class FileRowAction extends StatelessWidget {
 /// than being text to select, and its full name, which a cut name hides,
 /// shows on hover or, on touch, a long press.
 ///
-/// The tooltip is left out of semantics: what it wraps already reads the
-/// name.
+/// The tooltip is left out of semantics: the name is already read, by what
+/// it wraps or by the row that holds it.
 class FullNameTooltip extends StatelessWidget {
   const FullNameTooltip({super.key, required this.name, required this.child});
 
