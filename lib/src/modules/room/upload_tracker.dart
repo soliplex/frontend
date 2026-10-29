@@ -147,7 +147,7 @@ String deleteErrorMessage(Object error) {
       "$failed you don't have permission to delete files here.",
     ApiException(statusCode: 405) =>
       "$failed file uploads aren't configured on this server.",
-    NetworkException() => "$failed couldn't reach the server. Try again.",
+    NetworkException() => "$failed the server can't be reached. Try again.",
     AuthException() => '$failed your session expired. Sign in again.',
     SoliplexException(:final message) => '$failed $message',
     _ => "Couldn't delete this file. Try again.",
@@ -272,6 +272,9 @@ class _QueuedJob {
 /// queue: one job is in flight at a time. The user sees a Pending row
 /// for every enqueued upload immediately, regardless of where it sits
 /// in the queue.
+///
+/// Deleting a room upload does not use that queue: a delete is sent at
+/// once, at most one per file at a time.
 class UploadTracker {
   UploadTracker({required SoliplexApi api, required AuthSession auth})
       : _api = api,
@@ -833,9 +836,9 @@ class UploadTracker {
   /// error.
   ///
   /// The file shows as deleting until the server answers, and a second
-  /// delete of it meanwhile is ignored. A 404 counts as deleted, because the
-  /// file is gone either way; a deleted file leaves the list at once and a
-  /// refresh follows. Any other failure keeps the file listed and adds a
+  /// delete of it meanwhile is ignored. A 404 counts as deleted: the server
+  /// answers a delete with it only when the room has no upload by that
+  /// name. A deleted file leaves the list at once and a refresh follows. Any other failure keeps the file listed and adds a
   /// failed row saying why. A delete cancelled by [dispose] or by the
   /// session ending says nothing.
   Future<void> deleteRoomUpload({
@@ -887,9 +890,21 @@ class UploadTracker {
     Object error,
     StackTrace stackTrace,
   ) {
-    // The failure is described, not attached: a server's text can name the
-    // file, which is user content.
-    final attributes = {'roomId': roomId, 'failure': describeFailure(error)};
+    // The failure is described, not attached: a server's text, or a network
+    // error's request address, can name the file, which is user content. The
+    // status is kept, because the type alone cannot tell a server fault from
+    // an installation without an upload path.
+    final statusCode = switch (error) {
+      ApiException(:final statusCode) => statusCode,
+      PermissionDeniedException(:final statusCode) => statusCode,
+      AuthException(:final statusCode) => statusCode,
+      _ => null,
+    };
+    final attributes = {
+      'roomId': roomId,
+      'failure': describeFailure(error),
+      if (statusCode != null) 'statusCode': statusCode,
+    };
     if (error is SoliplexException) {
       _logger.warning('Room upload delete failed', attributes: attributes);
     } else {
@@ -981,10 +996,10 @@ class UploadTracker {
     _scopes.clear();
   }
 
-  /// Cancels all in-flight and queued uploads when the auth session
-  /// leaves [ActiveSession]. The route guard navigates the user away;
-  /// this stops the upload's HTTP work so it doesn't reconnect-loop
-  /// against a dead token.
+  /// Cancels all in-flight and queued uploads, and every delete in
+  /// flight, when the auth session leaves [ActiveSession]. The route
+  /// guard navigates the user away; this stops their HTTP work so it
+  /// doesn't reconnect-loop against a dead token.
   ///
   /// Walking `scope.pending` covers both states because each queued
   /// job's [_QueuedJob.token] is the same [CancelToken] instance as the

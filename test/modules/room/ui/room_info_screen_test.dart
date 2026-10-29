@@ -205,18 +205,21 @@ void main() {
           ];
 
         final semantics = tester.ensureSemantics();
-        await pumpAs(
-          tester,
-          api,
-          room: _testRoom.copyWith(userHasWrite: true),
-        );
-        // Its own control: merged into the card, it would turn the whole card
-        // into one button and its name into part of the card's.
-        expect(
-          tester.getSemantics(find.bySemanticsLabel('Delete')),
-          isSemantics(label: 'Delete', isButton: true),
-        );
-        semantics.dispose();
+        try {
+          await pumpAs(
+            tester,
+            api,
+            room: _testRoom.copyWith(userHasWrite: true),
+          );
+          // Its own control: merged into the card, it would turn the whole
+          // card into one button and its name into part of the card's.
+          expect(
+            tester.getSemantics(find.bySemanticsLabel('Delete')),
+            isSemantics(label: 'Delete', isButton: true),
+          );
+        } finally {
+          semantics.dispose();
+        }
         await tester.tap(find.byTooltip('Delete'));
         await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(SoliplexButton, 'Delete'));

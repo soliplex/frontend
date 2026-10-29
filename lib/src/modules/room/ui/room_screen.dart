@@ -2213,6 +2213,10 @@ class _RoomScreenState extends State<RoomScreen> {
     String? threadId,
   ) {
     final theme = Theme.of(context);
+    // Read now, not when a delete is confirmed: the screen can move to
+    // another room while the confirmation is open.
+    final roomId = widget.roomId;
+    final tracker = _state.uploadTracker;
     // A section is visible when its status renders a row: an upload scope
     // while Loading or Failed or with at least one file, the workspace list
     // when Failed or with at least one file.
@@ -2224,11 +2228,11 @@ class _RoomScreenState extends State<RoomScreen> {
           theme,
           onDelete: (room?.acceptsRoomUploads ?? false) &&
                   room?.userHasWrite == true
-              ? (filename) => unawaited(_state.uploadTracker
-                  .deleteRoomUpload(roomId: widget.roomId, filename: filename))
+              ? (filename) => unawaited(
+                  tracker.deleteRoomUpload(roomId: roomId, filename: filename))
               : null,
         ),
-      // The server has no delete for a thread's uploads.
+      // SoliplexApi has no delete for a thread's uploads.
       if (_scopeRendersContent(threadStatus))
         _buildScopeSection('Thread', threadStatus, theme, onDelete: null),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))

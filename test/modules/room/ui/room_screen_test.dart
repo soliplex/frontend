@@ -1927,6 +1927,7 @@ void main() {
   Future<void> openFilePanel(
     WidgetTester tester, {
     required bool? userHasWrite,
+    bool acceptsRoomUploads = true,
   }) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1936,7 +1937,7 @@ void main() {
     api.nextRoom = Room(
       id: 'room-1',
       name: 'Attachable',
-      acceptsRoomUploads: true,
+      acceptsRoomUploads: acceptsRoomUploads,
       acceptsThreadUploads: true,
       userHasWrite: userHasWrite,
     );
@@ -1992,6 +1993,43 @@ void main() {
       'the file panel offers no delete without the write permission '
       'returned as held', (tester) async {
     await openFilePanel(tester, userHasWrite: null);
+
+    expect(find.text('shared.pdf'), findsOneWidget);
+    expect(find.byTooltip('Delete'), findsNothing);
+  });
+
+  testWidgets('a confirmed delete goes to the room it was asked in',
+      (tester) async {
+    await openFilePanel(tester, userHasWrite: true);
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+
+    // The route moves to another room while the confirmation is open.
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: entry,
+        roomId: 'room-2',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.tap(find.widgetWithText(SoliplexButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(api.deletedRoomUploadRoomIds, ['room-1']);
+  });
+
+  testWidgets('the file panel offers no delete in a room without room uploads',
+      (tester) async {
+    await openFilePanel(
+      tester,
+      userHasWrite: true,
+      acceptsRoomUploads: false,
+    );
 
     expect(find.text('shared.pdf'), findsOneWidget);
     expect(find.byTooltip('Delete'), findsNothing);
