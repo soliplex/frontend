@@ -38,7 +38,10 @@ class UploadEntryRow extends StatelessWidget {
           ),
           null,
         ),
-      PendingUpload(:final progress) => (_Ring(value: progress), null),
+      PendingUpload(:final progress) => (
+          _Ring(label: 'Uploading', value: progress),
+          null,
+        ),
       FailedUpload(message: final m) => (
           Icon(
             Icons.error_outline,
@@ -96,17 +99,9 @@ class UploadEntryRow extends StatelessWidget {
         if (entry case PersistedUpload(:final filename, :final isDeleting)
             when onDelete != null)
           isDeleting
-              // A status, which a browser announces; a spinner's own role
-              // carries the label to no reader there.
-              ? Semantics(
-                  container: true,
-                  role: SemanticsRole.status,
-                  label: 'Deleting',
-                  excludeSemantics: true,
-                  child: const SizedBox.square(
-                    dimension: FileRowAction.extent,
-                    child: Center(child: _Ring()),
-                  ),
+              ? const SizedBox.square(
+                  dimension: FileRowAction.extent,
+                  child: Center(child: _Ring(label: 'Deleting')),
                 )
               : FileRowAction(
                   icon: Icons.delete_outline,
@@ -132,16 +127,18 @@ class UploadEntryRow extends StatelessWidget {
 }
 
 /// A progress ring in a 16 px icon slot, drawn the size of an icon's shape
-/// rather than its box, so it weighs as much as the icons beside it.
-/// Indeterminate when [value] is null.
+/// rather than its box, so it weighs as much as the icons beside it, and
+/// named by [label] to a screen reader. Indeterminate when [value] is null.
 class _Ring extends StatelessWidget {
-  const _Ring({this.value});
+  const _Ring({required this.label, this.value});
 
+  final String label;
   final double? value;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
+    final value = this.value;
+    final ring = SizedBox.square(
       dimension: 16,
       child: Center(
         child: SizedBox.square(
@@ -149,10 +146,21 @@ class _Ring extends StatelessWidget {
           child: CircularProgressIndicator(
             strokeWidth: 2,
             value: value,
+            semanticsLabel: label,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ),
+    );
+    if (value != null) return ring;
+    // A status, which a browser announces; a spinner's own role carries the
+    // label to no reader there.
+    return Semantics(
+      container: true,
+      role: SemanticsRole.status,
+      label: label,
+      excludeSemantics: true,
+      child: ring,
     );
   }
 }
