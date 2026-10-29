@@ -57,6 +57,7 @@ class PendingUpload extends DisplayUpload {
     required super.filename,
     required this.sentBytes,
     required this.totalBytes,
+    this.allBytesSent = false,
   });
   final String id;
 
@@ -72,25 +73,27 @@ class PendingUpload extends DisplayUpload {
   /// Equal to the file size for single-file uploads.
   final int totalBytes;
 
-  /// Progress in `[0, 1)`, or `null` for indeterminate: an empty file, an
-  /// unknown length, or every byte sent, which also covers a web count past
-  /// [totalBytes]. Once every byte is sent, what remains (the server's answer
-  /// and the next list) has no measure, and a full ring would read as done.
-  double? get progress {
-    if (totalBytes <= 0 || allBytesSent) return null;
-    return sentBytes / totalBytes;
-  }
-
-  /// Whether the count has reached [totalBytes]: on the web, request-body
-  /// bytes the browser has sent, which reach the file's size a little before
-  /// the body ends; on native, file bytes handed to the request's encoder,
-  /// which can run ahead of the network. False for an empty file or an
-  /// unknown length, which have no last byte to count.
+  /// Whether the body is sent, as the tracker saw it go: on native, the file
+  /// stream handed its last byte to the request's encoder, which can run
+  /// ahead of the network, or ended, for an empty file; on the web, the
+  /// browser reported the body sent up to the file's size, a little before it
+  /// ends. True once the server has answered; false while the upload waits
+  /// its turn.
   ///
   /// An upload whose whole body reached the server is kept even when its
   /// request is then aborted (observed for room uploads; thread uploads take
   /// the same path), so a cancel from here on may not stop the file landing.
-  bool get allBytesSent => totalBytes > 0 && sentBytes >= totalBytes;
+  final bool allBytesSent;
+
+  /// Progress in `[0, 1)`, or `null` for indeterminate: an empty file, which
+  /// has no bytes to measure, or every byte sent, which also covers a web
+  /// count past [totalBytes]. Once every byte is sent, what remains (the
+  /// server's answer and the next list) has no measure, and a full ring would
+  /// read as done.
+  double? get progress {
+    if (totalBytes <= 0 || allBytesSent) return null;
+    return sentBytes / totalBytes;
+  }
 }
 
 class FailedUpload extends DisplayUpload {
@@ -194,6 +197,7 @@ class _Pending extends _PendingRecord {
     required this.cancelToken,
     required this.sentBytes,
     required this.totalBytes,
+    this.bodySent = false,
   });
 
   /// Cancellation handle for the in-flight POST. [UploadTracker.dispose]
@@ -209,6 +213,10 @@ class _Pending extends _PendingRecord {
   /// Declared content length of the upload (multipart preamble and
   /// footer are NOT included — this is the file body length).
   final int totalBytes;
+
+  /// Whether the counted body has reached [totalBytes]; see
+  /// [PendingUpload.allBytesSent].
+  final bool bodySent;
 }
 
 /// Server-confirmed via POST but not yet observed in the persisted
@@ -612,6 +620,9 @@ class UploadTracker {
         sent += chunk.length;
         emitProgress(sent, contentLength);
       }
+      // An empty file yields no chunk to count; its body is sent when its
+      // stream ends.
+      if (contentLength == 0) emitProgress(0, 0);
     }
 
     _enqueue(
@@ -667,6 +678,7 @@ class UploadTracker {
       cancelToken: record.cancelToken,
       sentBytes: sentBytes,
       totalBytes: record.totalBytes,
+      bodySent: sentBytes >= record.totalBytes,
     );
     _emit(scope);
   }
@@ -965,12 +977,14 @@ class UploadTracker {
             :final filename,
             :final sentBytes,
             :final totalBytes,
+            :final bodySent,
           ) =>
             PendingUpload(
               id: id,
               filename: filename,
               sentBytes: sentBytes,
               totalBytes: totalBytes,
+              allBytesSent: bodySent,
             ),
           _Posted(:final id, :final filename, :final totalBytes) =>
             PendingUpload(
@@ -978,6 +992,7 @@ class UploadTracker {
               filename: filename,
               sentBytes: totalBytes,
               totalBytes: totalBytes,
+              allBytesSent: true,
             ),
           _Failed(:final id, :final filename, :final message) =>
             FailedUpload(id: id, filename: filename, message: message),

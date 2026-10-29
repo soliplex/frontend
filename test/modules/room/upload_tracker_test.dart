@@ -1538,6 +1538,7 @@ void main() {
         filename: 'sent.bin',
         sentBytes: 4,
         totalBytes: 4,
+        allBytesSent: true,
       );
       expect(upload.progress, isNull);
     });
@@ -1688,6 +1689,89 @@ void main() {
 
       final status = tracker.roomUploads('room-1').value as UploadsLoaded;
       expect(status.uploads.whereType<FailedUpload>(), isEmpty);
+    });
+  });
+
+  group('an empty file', () {
+    // Its body has no bytes to count, so the count cannot say whether it has
+    // gone: Cancel still stops it while it waits its turn, and stops nothing
+    // once its request is under way.
+    final posts = <Completer<void>>[];
+
+    void stubRoomPosts() {
+      posts.clear();
+      when(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            openStream: any(named: 'openStream'),
+            contentLength: any(named: 'contentLength'),
+            mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((invocation) async {
+        final post = Completer<void>();
+        posts.add(post);
+        // Sends the body as an HTTP client does, then waits for the answer.
+        final openStream = invocation.namedArguments[#openStream]
+            as Stream<List<int>> Function()?;
+        if (openStream != null) await openStream().drain<void>();
+        await post.future;
+      });
+    }
+
+    PendingUpload pendingNamed(String filename) =>
+        (tracker.roomUploads('room-1').value as UploadsLoaded)
+            .uploads
+            .whereType<PendingUpload>()
+            .singleWhere((u) => u.filename == filename);
+
+    void uploadEmpty() => tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'empty.txt',
+          openStream: () => const Stream<List<int>>.empty(),
+          contentLength: 0,
+        );
+
+    setUp(() async {
+      stubGetRoomUploads([]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+      stubRoomPosts();
+    });
+
+    test('waiting behind another upload, still has its body to send', () async {
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'big.bin',
+        openStream: () => Stream<List<int>>.value(const [1, 2, 3]),
+        contentLength: 3,
+      );
+      uploadEmpty();
+      await _pump();
+
+      expect(pendingNamed('empty.txt').allBytesSent, isFalse);
+    });
+
+    test('once its request is under way, has every byte sent', () async {
+      uploadEmpty();
+      await _pump();
+
+      expect(pendingNamed('empty.txt').allBytesSent, isTrue);
+    });
+
+    test('answered by the server, has every byte sent', () async {
+      uploadEmpty();
+      await _pump();
+      // The refresh after the POST never answers, holding the posted row.
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) => Completer<List<FileUpload>>().future);
+      posts.single.complete();
+      await _pump();
+
+      expect(pendingNamed('empty.txt').allBytesSent, isTrue);
     });
   });
 

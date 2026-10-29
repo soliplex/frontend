@@ -69,20 +69,23 @@ void main() {
         filename: 'report.pdf',
         sentBytes: 10,
         totalBytes: 10,
+        allBytesSent: true,
       ),
     );
 
     expect(find.byTooltip('Cancel upload'), findsNothing);
   });
 
-  testWidgets('an upload of unknown length can be cancelled', (tester) async {
-    // With no length, nothing says every byte is sent.
+  testWidgets('an empty file waiting its turn can be cancelled',
+      (tester) async {
+    // Equal counts alone do not say its body is sent: an empty file has
+    // them before its request starts.
     await pumpRow(
       tester,
       const PendingUpload(
         id: 'p1',
-        filename: 'report.pdf',
-        sentBytes: 10,
+        filename: 'empty.txt',
+        sentBytes: 0,
         totalBytes: 0,
       ),
     );
@@ -179,6 +182,7 @@ void main() {
           filename: 'report.pdf',
           sentBytes: 10,
           totalBytes: 10,
+          allBytesSent: true,
         ),
       );
 
