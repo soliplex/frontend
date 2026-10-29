@@ -205,16 +205,20 @@ class SoliplexButton extends StatelessWidget {
   ///
   /// When [icon] is non-null, the icon slot carries the spinner and the
   /// label only fades — so we don't need a Stack here. When [icon] is
-  /// null, we Stack the spinner over the label.
+  /// null, we Stack the spinner over the label. Either way the faded label
+  /// still names the button to a screen reader.
   Widget _label(Color foregroundColor) {
     if (!isLoading) return child;
-    if (icon != null) {
-      return Opacity(opacity: 0, child: child);
-    }
+    final hidden = Opacity(
+      opacity: 0,
+      alwaysIncludeSemantics: true,
+      child: child,
+    );
+    if (icon != null) return hidden;
     return Stack(
       alignment: Alignment.center,
       children: [
-        Opacity(opacity: 0, child: child),
+        hidden,
         ButtonLoadingIndicator(foregroundColor: foregroundColor),
       ],
     );
