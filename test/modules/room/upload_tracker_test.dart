@@ -1481,6 +1481,103 @@ void main() {
       },
     );
 
+    group("the session's end", () {
+      // Stages uploads under an active session; the first one's POST
+      // (optionally after sending its whole body) waits on [post].
+      Future<CancelToken> stage(
+        Completer<void> post, {
+        required bool sendsBody,
+      }) async {
+        stubGetRoomUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        await _pump();
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+        late CancelToken token;
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((invocation) async {
+          token = invocation.namedArguments[#cancelToken] as CancelToken;
+          if (sendsBody) {
+            final openStream = invocation.namedArguments[#openStream]
+                as Stream<List<int>> Function();
+            await openStream().drain<void>();
+          }
+          await post.future;
+          if (token.isCancelled) throw const CancelledException();
+        });
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'a.pdf',
+          openStream: () => Stream<List<int>>.value(const [1]),
+          contentLength: 1,
+        );
+        await _pump();
+        return token;
+      }
+
+      List<DisplayUpload> uploads() =>
+          (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+
+      test('a sign-out stops an upload with its own words', () async {
+        final post = Completer<void>();
+        await stage(post, sendsBody: false);
+
+        auth.logout();
+        post.complete();
+        await _pump();
+
+        expect(
+          uploads().whereType<FailedUpload>().single.message,
+          'Upload stopped: signed out.',
+        );
+      });
+
+      test('an upload whose body is sent is left to the server\'s answer',
+          () async {
+        // Its body may already be stored: failing it would claim what only
+        // the server knows, so it is neither failed nor cancelled.
+        final post = Completer<void>();
+        final token = await stage(post, sendsBody: true);
+
+        auth.markSessionExpired();
+        await _pump();
+
+        expect(token.isCancelled, isFalse);
+        expect(uploads().whereType<FailedUpload>(), isEmpty);
+        expect(
+            uploads().whereType<PendingUpload>().single.allBytesSent, isTrue);
+
+        // The server keeps it; the next list shows it stored.
+        stubGetRoomUploads([_fileUpload('a.pdf')]);
+        post.complete();
+        await _pump();
+        await _pump();
+
+        expect(uploads().whereType<PendingUpload>(), isEmpty);
+        expect(
+          uploads().whereType<PersistedUpload>().map((u) => u.filename),
+          ['a.pdf'],
+        );
+      });
+    });
+
     test(
       'progress emissions update PendingUpload.sentBytes as chunks flow',
       () async {
