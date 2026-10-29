@@ -1928,6 +1928,7 @@ void main() {
     WidgetTester tester, {
     required bool? userHasWrite,
     bool acceptsRoomUploads = true,
+    bool isAdmin = false,
   }) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1942,6 +1943,7 @@ void main() {
       userHasWrite: userHasWrite,
     );
     api.nextThreads = const [];
+    api.nextIsAdminUser = isAdmin;
     api.nextRoomUploads = [
       FileUpload(
         filename: 'shared.pdf',
@@ -1989,14 +1991,30 @@ void main() {
     expect(find.text('mine.pdf'), findsOneWidget);
   });
 
-  testWidgets(
-      'the file panel offers no delete without the write permission '
-      'returned as held', (tester) async {
-    await openFilePanel(tester, userHasWrite: null);
+  // As on the room info screen: the permission as returned or, when it is
+  // not, the administrator check.
+  for (final (userHasWrite, isAdmin, offered) in [
+    (false, true, false),
+    (null, true, true),
+    (null, false, false),
+  ]) {
+    testWidgets(
+        'the file panel ${offered ? 'offers' : 'offers no'} delete when the '
+        'permission is $userHasWrite and the user is '
+        '${isAdmin ? '' : 'not '}an administrator', (tester) async {
+      await openFilePanel(
+        tester,
+        userHasWrite: userHasWrite,
+        isAdmin: isAdmin,
+      );
 
-    expect(find.text('shared.pdf'), findsOneWidget);
-    expect(find.byTooltip('Delete'), findsNothing);
-  });
+      expect(find.text('shared.pdf'), findsOneWidget);
+      expect(
+        find.byTooltip('Delete'),
+        offered ? findsOneWidget : findsNothing,
+      );
+    });
+  }
 
   testWidgets('a confirmed delete goes to the room it was asked in',
       (tester) async {

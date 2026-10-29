@@ -228,13 +228,19 @@ void main() {
         expect(find.text('shared.pdf'), findsNothing);
       });
 
-      // Not the administrator check: it stands in only for the upload
-      // controls, and this administrator is offered them.
-      for (final userHasWrite in [false, null]) {
-        testWidgets('no delete when the write permission is $userHasWrite',
-            (tester) async {
+      // Delete shares the upload controls' answer: the permission as
+      // returned or, when it is not, the administrator check.
+      for (final (userHasWrite, isAdmin, offered) in [
+        (false, true, false),
+        (null, true, true),
+        (null, false, false),
+      ]) {
+        testWidgets(
+            'delete is ${offered ? '' : 'not '}offered when the permission '
+            'is $userHasWrite and the user is ${isAdmin ? '' : 'not '}an '
+            'administrator', (tester) async {
           final api = FakeSoliplexApi()
-            ..nextIsAdminUser = true
+            ..nextIsAdminUser = isAdmin
             ..nextRoomUploads = [
               FileUpload(
                 filename: 'shared.pdf',
@@ -254,7 +260,10 @@ void main() {
           );
 
           expect(find.text('shared.pdf'), findsOneWidget);
-          expect(find.byTooltip('Delete'), findsNothing);
+          expect(
+            find.byTooltip('Delete'),
+            offered ? findsOneWidget : findsNothing,
+          );
         });
       }
 
