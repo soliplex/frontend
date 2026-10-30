@@ -12,6 +12,7 @@ import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/thread_page.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
 import 'package:soliplex_client/src/utils/source_url.dart';
@@ -704,6 +705,26 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
     createdAt: createdAt,
     metadata: metadata,
     lastActivity: lastActivity,
+  );
+}
+
+/// Creates a [ThreadPage] from JSON.
+///
+/// Throws [FormatException] if `threads` is absent or not a list, or if
+/// any thread on the page is malformed — a corrupt page cannot be partially
+/// rendered without silently losing rows, and the next page would then
+/// resume past threads the user never saw.
+ThreadPage threadPageFromJson(Map<String, dynamic> json) {
+  final rawThreads = json['threads'];
+  if (rawThreads is! List) {
+    throw const FormatException('Thread page missing required "threads"');
+  }
+
+  return ThreadPage(
+    threads: rawThreads
+        .map((entry) => threadInfoFromJson(entry as Map<String, dynamic>))
+        .toList(growable: false),
+    nextCursor: json['next_cursor'] as String?,
   );
 }
 

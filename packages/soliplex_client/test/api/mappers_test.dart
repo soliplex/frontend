@@ -879,6 +879,118 @@ void main() {
         expect(thread.description, equals('Top level description'));
       });
     });
+
+    group('threadPageFromJson', () {
+      Map<String, dynamic> threadJson(String id, {required String roomId}) =>
+          <String, dynamic>{
+            'id': id,
+            'room_id': roomId,
+            'created': '2025-01-15T10:30:00.000',
+          };
+
+      test('parses threads and the next cursor', () {
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': [
+            threadJson('thread-1', roomId: 'room-1'),
+            threadJson('thread-2', roomId: 'room-2'),
+          ],
+          'next_cursor': 'opaque',
+        });
+
+        expect(page.threads.map((t) => t.id), equals(['thread-1', 'thread-2']));
+        expect(page.nextCursor, equals('opaque'));
+        expect(page.hasMore, isTrue);
+      });
+
+      test('preserves the backend ordering rather than re-sorting', () {
+        // Most recently active first, across rooms; the client must not
+        // regroup or re-sort what the cursor pages over.
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': [
+            threadJson('z-thread', roomId: 'room-1'),
+            threadJson('a-thread', roomId: 'room-2'),
+            threadJson('m-thread', roomId: 'room-1'),
+          ],
+        });
+
+        expect(
+          page.threads.map((t) => t.id),
+          equals(['z-thread', 'a-thread', 'm-thread']),
+        );
+      });
+
+      test('reads an absent or null cursor as the last page', () {
+        for (final json in [
+          <String, dynamic>{'threads': <dynamic>[]},
+          <String, dynamic>{'threads': <dynamic>[], 'next_cursor': null},
+        ]) {
+          final page = threadPageFromJson(json);
+          expect(page.threads, isEmpty);
+          expect(page.hasMore, isFalse);
+        }
+      });
+
+      test('throws FormatException when "threads" is absent', () {
+        expect(
+          () => threadPageFromJson(<String, dynamic>{'total': 0}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when "threads" is not a list', () {
+        expect(
+          () => threadPageFromJson(<String, dynamic>{'threads': 'nope'}),
+          throwsFormatException,
+        );
+      });
+
+      test('parses a payload captured from a live backend', () {
+        // Verbatim from GET /api/v1/agui/threads?limit=2, keeping the
+        // first of its two threads. Pins the details that differ from the
+        // convenient shape: the id arrives as 'thread_id', the name is
+        // nested in metadata, 'runs' is null, 'created' carries no zone
+        // while 'last_activity' does, and 'next_cursor' is padded base64.
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': [
+            <String, dynamic>{
+              'room_id': 'faux',
+              'thread_id': '8d192479-b547-41e4-90d1-c95454485260',
+              'runs': null,
+              'created': '2026-10-22T18:25:46.340749',
+              'metadata': <String, dynamic>{
+                'name': 'Thread in faux',
+                'description': null,
+              },
+              'last_activity': '2026-10-22T18:25:46.352874Z',
+            },
+          ],
+          'next_cursor':
+              'WyIyMDI2LTEwLTIyVDE4OjI1OjQ2LjMyMjI1NCswMDowMCIsICJlZG'
+                  'NhOTE4OS1lZjE2LTRjNDEtYjhmOC01ZWQwMDA5MDVhYTIiXQ==',
+        });
+
+        final thread = page.threads.single;
+        expect(thread.id, equals('8d192479-b547-41e4-90d1-c95454485260'));
+        expect(thread.roomId, equals('faux'));
+        expect(thread.name, equals('Thread in faux'));
+        expect(thread.description, equals(''));
+        expect(thread.lastActivity?.isUtc, isTrue);
+        expect(page.hasMore, isTrue);
+      });
+
+      test('propagates a malformed thread rather than dropping it', () {
+        // Silently skipping a bad row would hide a thread the cursor has
+        // already paged past.
+        expect(
+          () => threadPageFromJson(<String, dynamic>{
+            'threads': [
+              <String, dynamic>{'id': 'thread-1', 'room_id': 'room-1'},
+            ],
+          }),
+          throwsFormatException,
+        );
+      });
+    });
   });
 
   group('RunInfo mappers', () {

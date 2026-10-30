@@ -18,6 +18,7 @@ import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/sse_delivery_profile.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/thread_page.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
@@ -355,6 +356,61 @@ class SoliplexApi {
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
         message: 'getThreads: malformed thread entry: '
+            '${describeFailure(error)}',
+        originalError: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Lists one page of the user's threads across every room they can see.
+  ///
+  /// Unlike [getThreads], which is scoped to a single room, this spans the
+  /// whole server so a client can show one aggregated list. Threads come
+  /// back most recently active first.
+  ///
+  /// Parameters:
+  /// - [limit]: page size (must be positive)
+  /// - [cursor]: the previous page's [ThreadPage.nextCursor], or `null`
+  ///   for the first page
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [limit] is not positive
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NotFoundException] if the endpoint is absent (pre-paging backend,
+  ///   404) — callers should treat this as "this server cannot aggregate
+  ///   threads" rather than as a transport failure
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<ThreadPage> getAllThreads({
+    int limit = 50,
+    String? cursor,
+    CancelToken? cancelToken,
+  }) async {
+    if (limit <= 0) {
+      throw ArgumentError.value(limit, 'limit', 'must be positive');
+    }
+
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['agui', 'threads'],
+        queryParameters: {
+          'limit': '$limit',
+          if (cursor != null) 'cursor': cursor,
+        },
+      ),
+      cancelToken: cancelToken,
+    );
+
+    try {
+      return threadPageFromJson(response);
+    } on SoliplexException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      throw MalformedResponseException(
+        message: 'getAllThreads: malformed thread page: '
             '${describeFailure(error)}',
         originalError: error,
         stackTrace: stackTrace,
