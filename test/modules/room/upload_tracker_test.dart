@@ -817,12 +817,17 @@ void main() {
   });
 
   group('cancelUpload', () {
-    test('a late error leaves a cancelled row as it is', () async {
+    test('a late error leaves a cancelled row as it is, and is logged',
+        () async {
       // A client can answer a cancel with an error other than
       // CancelledException; the row already says how the upload ended.
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
       stubGetRoomUploads([]);
       unawaited(tracker.refreshRoom('room-1'));
       await _pump();
+      const lateError = NetworkException(message: 'Client error: aborted');
       final post = Completer<void>();
       when(() => mockApi.uploadFileToRoom(
             any(),
@@ -835,7 +840,7 @@ void main() {
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) async {
         await post.future;
-        throw const NetworkException(message: 'Client error: aborted');
+        throw lateError;
       });
       tracker.uploadToRoom(
         roomId: 'room-1',
@@ -862,6 +867,12 @@ void main() {
             .message,
         'Upload cancelled.',
       );
+      final record = sink.records.singleWhere(
+        (r) => r.message.contains('after its row was settled'),
+      );
+      expect(record.attributes['uploadId'], id);
+      expect(record.attributes['row'], 'failed');
+      expect(record.error, lateError);
     });
 
     test(

@@ -746,7 +746,7 @@ class UploadTracker {
         // the refusal fails the row in the session's end's words.
         final ended = _sessionEndMessage(_auth.session.value);
         if (ended != null) {
-          _markFailed(scope, id, ended);
+          _markFailed(scope, id, ended, error);
           return;
         }
         if (retries < _maxAuthRetries) {
@@ -763,7 +763,7 @@ class UploadTracker {
         // Retries exhausted: commit the failed row first so the
         // tracker state is consistent before any auth-change listener
         // observes the flip and reacts.
-        _markFailed(scope, id, uploadErrorMessage(error));
+        _markFailed(scope, id, uploadErrorMessage(error), error);
         _auth.markSessionExpired();
         return;
       } on Object catch (error, stackTrace) {
@@ -778,18 +778,38 @@ class UploadTracker {
             stackTrace: stackTrace,
           );
         }
-        _markFailed(scope, id, uploadErrorMessage(error));
+        _markFailed(scope, id, uploadErrorMessage(error), error);
         return;
       }
     }
   }
 
-  void _markFailed(_ScopeState scope, String id, String message) {
+  void _markFailed(
+    _ScopeState scope,
+    String id,
+    String message,
+    Object error,
+  ) {
     final idx = scope.pending.indexWhere((r) => r.id == id);
     // A row a cancel or the session's end already settled keeps its words,
     // or stays dismissed: a client can answer that cancel with an error of
-    // its own.
-    if (idx < 0 || scope.pending[idx] is! _Pending) return;
+    // its own. The error is still recorded, since the server may have
+    // answered it.
+    if (idx < 0 || scope.pending[idx] is! _Pending) {
+      // A status error renders its status and the server's written reason; a
+      // network error, the platform's text. Anything else is described, as
+      // its text is whatever its thrower put there.
+      _logger.info(
+        'Upload ended in an error after its row was settled',
+        error: error is SoliplexException ? error : null,
+        attributes: {
+          'uploadId': id,
+          'row': idx < 0 ? 'dismissed' : 'failed',
+          if (error is! SoliplexException) 'failure': describeFailure(error),
+        },
+      );
+      return;
+    }
     scope.pending[idx] = _Failed(
       id: id,
       filename: scope.pending[idx].filename,
