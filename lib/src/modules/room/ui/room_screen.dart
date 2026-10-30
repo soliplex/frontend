@@ -2122,9 +2122,13 @@ class _RoomScreenState extends State<RoomScreen> {
 
     final Widget icon;
     if (anyLoading || anyPending) {
-      icon = const SizedBox.square(
-        dimension: 18,
-        child: CircularProgressIndicator(strokeWidth: 2),
+      // Without ExcludeSemantics the spinner's loading-spinner role merges
+      // into the button, and the web announces it in place of the button's.
+      icon = const ExcludeSemantics(
+        child: SizedBox.square(
+          dimension: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
       );
     } else if (isError) {
       icon = Icon(Icons.error_outline, color: theme.colorScheme.error);

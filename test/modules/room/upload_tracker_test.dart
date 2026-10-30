@@ -45,6 +45,18 @@ void main() {
     reset(mockApi);
   });
 
+  void signIn() => auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+
   // Default: upload methods succeed; override per test as needed.
   void stubUploadToRoomSuccess() {
     when(() => mockApi.uploadFileToRoom(
@@ -277,17 +289,7 @@ void main() {
 
     test('AuthException from refreshRoom funnels via markSessionExpired',
         () async {
-      auth.login(
-        provider: const OidcProvider(
-          discoveryUrl: 'https://sso/.well-known/openid-configuration',
-          clientId: 'c',
-        ),
-        tokens: AuthTokens(
-          accessToken: 'a',
-          refreshToken: 'r',
-          expiresAt: DateTime.now().add(const Duration(hours: 1)),
-        ),
-      );
+      signIn();
 
       when(() => mockApi.getRoomUploads(
             any(),
@@ -310,17 +312,7 @@ void main() {
 
     test('AuthException from refreshThread funnels via markSessionExpired',
         () async {
-      auth.login(
-        provider: const OidcProvider(
-          discoveryUrl: 'https://sso/.well-known/openid-configuration',
-          clientId: 'c',
-        ),
-        tokens: AuthTokens(
-          accessToken: 'a',
-          refreshToken: 'r',
-          expiresAt: DateTime.now().add(const Duration(hours: 1)),
-        ),
-      );
+      signIn();
 
       when(() => mockApi.getThreadUploads(
             any(),
@@ -348,17 +340,7 @@ void main() {
       await tracker.refreshRoom('room-1');
       expect(tracker.roomUploads('room-1').value, isA<UploadsLoaded>());
 
-      auth.login(
-        provider: const OidcProvider(
-          discoveryUrl: 'https://sso/.well-known/openid-configuration',
-          clientId: 'c',
-        ),
-        tokens: AuthTokens(
-          accessToken: 'a',
-          refreshToken: 'r',
-          expiresAt: DateTime.now().add(const Duration(hours: 1)),
-        ),
-      );
+      signIn();
 
       when(() => mockApi.getRoomUploads(
             any(),
@@ -1028,6 +1010,48 @@ void main() {
             ));
       },
     );
+
+    test('a dismissed cancel whose POST lands anyway shows the stored file',
+        () async {
+      stubGetRoomUploads([]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      // The client lets the POST finish despite the cancel.
+      final post = Completer<void>();
+      when(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            openStream: any(named: 'openStream'),
+            contentLength: any(named: 'contentLength'),
+            mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) => post.future);
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'a.pdf',
+        openStream: () => Stream<List<int>>.value(const [1]),
+        contentLength: 1,
+      );
+      await _pump();
+
+      List<DisplayUpload> uploads() =>
+          (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+      tracker.cancelUpload(uploads().whereType<PendingUpload>().single.id);
+      tracker.dismissFailed(uploads().whereType<FailedUpload>().single.id);
+
+      stubGetRoomUploads([_fileUpload('a.pdf')]);
+      post.complete();
+      await _pump();
+      await _pump();
+
+      expect(
+        uploads().whereType<PersistedUpload>().map((u) => u.filename),
+        ['a.pdf'],
+      );
+    });
   });
 
   group('dismissFailed', () {
@@ -1285,6 +1309,8 @@ void main() {
   });
 
   group('auth retry', () {
+    setUp(signIn);
+
     test('AuthException triggers one retry with a fresh openStream call',
         () async {
       stubGetRoomUploads([]);
@@ -1393,18 +1419,6 @@ void main() {
       unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
-      auth.login(
-        provider: const OidcProvider(
-          discoveryUrl: 'https://sso/.well-known/openid-configuration',
-          clientId: 'c',
-        ),
-        tokens: AuthTokens(
-          accessToken: 'a',
-          refreshToken: 'r',
-          expiresAt: DateTime.now().add(const Duration(hours: 1)),
-        ),
-      );
-
       var callCount = 0;
       when(() => mockApi.uploadFileToRoom(
             any(),
@@ -1450,18 +1464,6 @@ void main() {
         stubGetRoomUploads([]);
         unawaited(tracker.refreshRoom('room-1'));
         await _pump();
-
-        auth.login(
-          provider: const OidcProvider(
-            discoveryUrl: 'https://sso/.well-known/openid-configuration',
-            clientId: 'c',
-          ),
-          tokens: AuthTokens(
-            accessToken: 'a',
-            refreshToken: 'r',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        );
 
         // Stage an upload whose POST blocks until we tell it to.
         final postCompleter = Completer<void>();
@@ -1538,17 +1540,6 @@ void main() {
         stubGetRoomUploads([]);
         unawaited(tracker.refreshRoom('room-1'));
         await _pump();
-        auth.login(
-          provider: const OidcProvider(
-            discoveryUrl: 'https://sso/.well-known/openid-configuration',
-            clientId: 'c',
-          ),
-          tokens: AuthTokens(
-            accessToken: 'a',
-            refreshToken: 'r',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        );
         late CancelToken token;
         when(() => mockApi.uploadFileToRoom(
               any(),
@@ -1623,6 +1614,41 @@ void main() {
           ['a.pdf'],
         );
       });
+
+      // With no session to send it under, a refused body is not sent again.
+      for (final (name, endSession, message) in [
+        ('a sign-out', () => auth.logout(), 'Upload stopped: signed out.'),
+        (
+          'an expiry',
+          () => auth.markSessionExpired(),
+          'Session expired. Please sign in again.',
+        ),
+      ]) {
+        test('a sent upload refused after $name fails without a resend',
+            () async {
+          final post = Completer<void>();
+          await stage(post, sendsBody: true);
+
+          endSession();
+          post.completeError(
+            const AuthException(statusCode: 401, message: 'token expired'),
+          );
+          await _pump();
+          await _pump();
+
+          verify(() => mockApi.uploadFileToRoom(
+                any(),
+                filename: any(named: 'filename'),
+                openStream: any(named: 'openStream'),
+                contentLength: any(named: 'contentLength'),
+                mimeType: any(named: 'mimeType'),
+                webFileBlob: any(named: 'webFileBlob'),
+                onProgress: any(named: 'onProgress'),
+                cancelToken: any(named: 'cancelToken'),
+              )).called(1);
+          expect(uploads().whereType<FailedUpload>().single.message, message);
+        });
+      }
     });
 
     test(
@@ -2197,18 +2223,6 @@ void main() {
 
     List<DisplayUpload> shown() =>
         (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
-
-    void signIn() => auth.login(
-          provider: const OidcProvider(
-            discoveryUrl: 'https://sso/.well-known/openid-configuration',
-            clientId: 'c',
-          ),
-          tokens: AuthTokens(
-            accessToken: 'a',
-            refreshToken: 'r',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        );
 
     PersistedUpload persisted(String filename) => shown()
         .whereType<PersistedUpload>()

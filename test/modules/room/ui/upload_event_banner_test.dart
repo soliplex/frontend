@@ -150,6 +150,64 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
 
+  testWidgets('dismissing a failed row drops it from the failure pill',
+      (tester) async {
+    when(
+      () => api.uploadFileToThread(
+        any(),
+        any(),
+        filename: any(named: 'filename'),
+        openStream: any(named: 'openStream'),
+        contentLength: any(named: 'contentLength'),
+        mimeType: any(named: 'mimeType'),
+        webFileBlob: any(named: 'webFileBlob'),
+        onProgress: any(named: 'onProgress'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenThrow(const NetworkException(message: 'wifi down'));
+
+    await tester.pumpWidget(frame('room-1', 'thread-1'));
+    unawaited(tracker.refreshThread('room-1', 'thread-1'));
+    await tester.pump();
+    await tester.pump();
+
+    for (final name in ['b.pdf', 'c.pdf']) {
+      tracker.uploadToThread(
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        filename: name,
+        openStream: () => Stream<List<int>>.value(const [1, 2, 3]),
+        contentLength: 3,
+      );
+    }
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Failed to upload 2 files'), findsOneWidget);
+
+    String failedId(String filename) {
+      final status =
+          tracker.threadUploads('room-1', 'thread-1').value as UploadsLoaded;
+      return status.uploads
+          .whereType<FailedUpload>()
+          .firstWhere((e) => e.filename == filename)
+          .id;
+    }
+
+    tracker.dismissFailed(failedId('b.pdf'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Failed to upload 2 files'), findsNothing);
+    expect(find.textContaining('Failed to upload c.pdf'), findsOneWidget);
+
+    tracker.dismissFailed(failedId('c.pdf'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.textContaining('Failed to upload'), findsNothing);
+  });
+
   testWidgets('success pill auto-dismisses after 4s', (tester) async {
     await tester.pumpWidget(frame('room-1', 'thread-1'));
     unawaited(tracker.refreshThread('room-1', 'thread-1'));

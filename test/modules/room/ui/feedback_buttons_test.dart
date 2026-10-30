@@ -6,6 +6,31 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/feedback_buttons.dart';
 
 void main() {
+  testWidgets('each thumb names itself once to a screen reader',
+      (tester) async {
+    // The web joins a node's label and tooltip into one name, so carrying
+    // the text in both reads it twice.
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FeedbackButtons(onFeedbackSubmit: (_, __) {}),
+          ),
+        ),
+      );
+
+      for (final name in ['Thumbs up', 'Thumbs down']) {
+        final data =
+            tester.getSemantics(find.bySemanticsLabel(name)).getSemanticsData();
+        expect(data.label, name);
+        expect(data.tooltip, isEmpty, reason: name);
+      }
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('tapping thumb up starts countdown and auto-submits',
       (tester) async {
     FeedbackType? submittedType;

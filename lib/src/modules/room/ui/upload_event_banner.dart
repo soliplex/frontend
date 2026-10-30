@@ -11,7 +11,8 @@ import 'notice_pill.dart';
 ///
 /// Derives events by diffing `UploadsStatus` snapshots for the current
 /// room scope and (when set) thread scope. Successes aggregate and
-/// auto-dismiss after 4 seconds; failures stay sticky until dismissed.
+/// auto-dismiss after 4 seconds; failures stay until dismissed here, and
+/// each leaves the pill when its failed row is dismissed.
 /// Pre-existing state on scope entry does not fire a pill — the chip
 /// and file panel already communicate it.
 class UploadEventBanner extends StatefulWidget {
@@ -93,15 +94,24 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
     final current = status is UploadsLoaded ? status.uploads : null;
     if (current == null) return;
     final prev = isRoom ? _prevRoom : _prevThread;
-    final events = _diff(prev, current);
+    final events = _diff(prev, current, isRoom: isRoom);
     if (isRoom) {
       _prevRoom = current;
     } else {
       _prevThread = current;
     }
-    if (events.isEmpty) return;
+    // A failure whose row has left this scope (the user dismissed it) is no
+    // longer one the pill should count.
+    final failedIds = {
+      for (final e in current)
+        if (e is FailedUpload) e.id,
+    };
+    bool isGone(_FailureEvent f) =>
+        f.isRoom == isRoom && !failedIds.contains(f.id);
+    if (events.isEmpty && !_failures.any(isGone)) return;
 
     setState(() {
+      _failures.removeWhere(isGone);
       for (final event in events) {
         switch (event) {
           case _CompletedEvent(:final filename):
@@ -119,7 +129,11 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
 
   /// Returns the list of transition events between [prev] and [current].
   /// Null [prev] means this is the baseline snapshot — no events.
-  List<_Event> _diff(List<DisplayUpload>? prev, List<DisplayUpload> current) {
+  List<_Event> _diff(
+    List<DisplayUpload>? prev,
+    List<DisplayUpload> current, {
+    required bool isRoom,
+  }) {
     if (prev == null) return const [];
     final events = <_Event>[];
     final currentById = {
@@ -134,7 +148,12 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
       if (entry is! PendingUpload) continue;
       final match = currentById[entry.id];
       if (match is FailedUpload) {
-        events.add(_FailureEvent(entry.filename, match.message));
+        events.add(_FailureEvent(
+          id: match.id,
+          isRoom: isRoom,
+          filename: entry.filename,
+          message: match.message,
+        ));
       } else if (match == null && persistedNames.contains(entry.filename)) {
         events.add(_CompletedEvent(entry.filename));
       }
@@ -225,7 +244,16 @@ class _CompletedEvent extends _Event {
 }
 
 class _FailureEvent extends _Event {
-  const _FailureEvent(this.filename, this.message);
+  const _FailureEvent({
+    required this.id,
+    required this.isRoom,
+    required this.filename,
+    required this.message,
+  });
+
+  /// The failed row's id, which leaves its scope when the row is dismissed.
+  final String id;
+  final bool isRoom;
   final String filename;
   final String message;
 }

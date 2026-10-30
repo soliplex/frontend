@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -109,6 +110,34 @@ void main() {
           );
 
           expect(find.bySemanticsLabel('Downloading'), findsOneWidget);
+        } finally {
+          semantics.dispose();
+        }
+      });
+
+      testWidgets(
+          'a loading button is still a button to a screen reader '
+          '(${icon == null ? 'no icon' : 'icon'})', (tester) async {
+        // The spinner's loading-spinner role must not merge into the button,
+        // where the web would announce it in place of the button role.
+        final semantics = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(
+            _harness(
+              SoliplexButton.filled(
+                onPressed: () {},
+                icon: icon,
+                isLoading: true,
+                child: const Text('Download'),
+              ),
+            ),
+          );
+
+          final data = tester
+              .getSemantics(find.bySemanticsLabel('Download'))
+              .getSemanticsData();
+          expect(data.flagsCollection.isButton, isTrue);
+          expect(data.role, SemanticsRole.none);
         } finally {
           semantics.dispose();
         }

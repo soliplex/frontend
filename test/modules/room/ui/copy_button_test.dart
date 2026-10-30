@@ -16,6 +16,29 @@ void main() {
     expect(find.byIcon(Icons.check), findsNothing);
   });
 
+  testWidgets('names itself once to a screen reader', (tester) async {
+    // The web joins a node's label and tooltip into one name, so carrying
+    // the text in both reads it twice.
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CopyButton(text: 'hello', tooltip: 'Copy error'),
+          ),
+        ),
+      );
+
+      final data = tester
+          .getSemantics(find.bySemanticsLabel('Copy error'))
+          .getSemanticsData();
+      expect(data.label, 'Copy error');
+      expect(data.tooltip, isEmpty);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('swaps to check icon after tap then reverts', (tester) async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {

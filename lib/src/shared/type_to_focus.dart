@@ -16,9 +16,10 @@ final _modifierKeys = <LogicalKeyboardKey>{
 };
 
 /// Whether a key press should pull focus into a text field ("type to focus").
-/// Only real typing does - never a bare modifier, and never while a shortcut
-/// modifier is held, so shortcuts like copy and select-all leave the surrounding
-/// selection intact instead of clearing it by moving focus.
+/// Only real typing does - never a bare modifier, never Tab (keyboard traversal
+/// must move on from where focus is, not from the field), and never while a
+/// shortcut modifier is held, so shortcuts like copy and select-all leave the
+/// surrounding selection intact instead of clearing it by moving focus.
 ///
 /// Control *combined with* alt is treated as typing, not a shortcut: Windows
 /// synthesizes AltGr as Ctrl+Alt to compose special characters (`@`, `\u20ac`,
@@ -34,6 +35,7 @@ bool shouldFocusInputOnKey(
 }) {
   if (event is! KeyDownEvent) return false;
   if (_modifierKeys.contains(event.logicalKey)) return false;
+  if (event.logicalKey == LogicalKeyboardKey.tab) return false;
   final shortcutModifierActive =
       isMetaPressed || (isControlPressed && !isAltPressed);
   return !shortcutModifierActive;

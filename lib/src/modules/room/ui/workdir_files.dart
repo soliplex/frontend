@@ -820,10 +820,15 @@ class WorkdirErrorRow extends StatelessWidget {
           ),
           IconButton(
             onPressed: isRetrying ? null : onRetry,
+            // Without ExcludeSemantics the spinner's loading-spinner role
+            // merges into the button, and the web announces it in place of
+            // the button's.
             icon: isRetrying
-                ? const SizedBox.square(
-                    dimension: retryGlyphSize,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                ? const ExcludeSemantics(
+                    child: SizedBox.square(
+                      dimension: retryGlyphSize,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
                 : const Icon(Icons.refresh),
             iconSize: retryGlyphSize,

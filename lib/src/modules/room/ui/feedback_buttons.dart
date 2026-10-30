@@ -212,6 +212,9 @@ class _ThumbButton extends StatelessWidget {
       label: tooltip,
       child: Tooltip(
         message: tooltip,
+        // The Semantics above names the button; the web would read a
+        // tooltip in semantics as a second copy of that name.
+        excludeFromSemantics: true,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(context.radii.sm),
