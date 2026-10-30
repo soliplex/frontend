@@ -162,8 +162,7 @@ const double _maxContentWidth = SoliplexBreakpoints.desktop;
 const Key filePanelKey = Key('room-attached-files-panel');
 
 /// Builds the files button's tooltip from each section's count, e.g.
-/// `1 room · 1 thread · 3 in workspace`. `Files` when nothing is counted,
-/// e.g. when the only content is a failed list.
+/// `1 room · 1 thread · 3 in workspace`. `Files` when nothing is counted.
 String filesButtonLabel({
   required int roomCount,
   required int threadCount,
@@ -176,6 +175,14 @@ String filesButtonLabel({
   ];
   return parts.isEmpty ? 'Files' : parts.join(' \u00b7 ');
 }
+
+/// The files button's visible text in a wide header, e.g. `3 files`. `Files`
+/// while the count is unknown because a section is loading or failed.
+String filesButtonText(int? count) => switch (count) {
+      null => 'Files',
+      1 => '1 file',
+      _ => '$count files',
+    };
 
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
@@ -1939,11 +1946,14 @@ class _RoomScreenState extends State<RoomScreen> {
           _capWidth(ChatAiDisclaimer(appName: widget.appName)),
         ],
       ),
+      // Shown only in the narrow layout's AppBar, narrower than
+      // SoliplexBreakpoints.tablet and so always compact.
       headerActions: _buildRoomHeaderActions(
         roomStatus,
         threadStatus,
         workspaceStatus,
         Theme.of(context),
+        compact: true,
       ),
     );
   }
@@ -1967,24 +1977,30 @@ class _RoomScreenState extends State<RoomScreen> {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s4, vertical: SoliplexSpacing.s2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Expanded (not Flexible + Spacer): the title eats the leading
-          // space and pins the trailing buttons to the right edge. A Flexible
-          // beside a Spacer would split the free space and leave the buttons
-          // stranded mid-row.
-          Expanded(child: _roomTitle(roomName)),
-          ..._buildRoomHeaderActions(
-            roomStatus,
-            threadStatus,
-            workspaceStatus,
-            theme,
-          ),
-        ],
+    // Measures the pane, not the row inside its padding, so the header goes
+    // compact at the same width as the composer. The sidebars can leave the
+    // pane narrower than a phone even in a wide window.
+    return LayoutBuilder(
+      builder: (context, constraints) => Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s4, vertical: SoliplexSpacing.s2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Expanded (not Flexible + Spacer): the title eats the leading
+            // space and pins the trailing buttons to the right edge. A
+            // Flexible beside a Spacer would split the free space and leave
+            // the buttons stranded mid-row.
+            Expanded(child: _roomTitle(roomName)),
+            ..._buildRoomHeaderActions(
+              roomStatus,
+              threadStatus,
+              workspaceStatus,
+              theme,
+              compact: constraints.maxWidth < SoliplexBreakpoints.tablet,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1995,13 +2011,15 @@ class _RoomScreenState extends State<RoomScreen> {
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
     WorkdirFilesStatus workspaceStatus,
-    ThemeData theme,
-  ) {
+    ThemeData theme, {
+    required bool compact,
+  }) {
     final documentsButton = _buildDocumentsButton(
       roomStatus,
       threadStatus,
       workspaceStatus,
       theme,
+      compact: compact,
     );
     return [
       if (documentsButton != null) documentsButton,
@@ -2089,17 +2107,24 @@ class _RoomScreenState extends State<RoomScreen> {
     return needed > kToolbarHeight ? needed : kToolbarHeight;
   }
 
-  /// The top-right documents button: a simple icon toggle for the files
-  /// panel. Returns null to hide it when none of the panel's three sections
-  /// has anything to show. The icon reflects upload state (spinner while in
-  /// flight, error glyph on any section's failure); the per-section counts
-  /// appear in the tooltip once both upload scopes load.
+  /// The top-right documents button: the toggle for the files panel. Returns
+  /// null to hide it when none of the panel's three sections has anything to
+  /// show. The icon reflects state: a spinner while an upload list loads or an
+  /// upload is in flight, an error glyph on a failed list or upload, else a
+  /// folder that opens with the panel.
+  ///
+  /// The total count, every file the panel's three sections list (failed and
+  /// in-flight uploads included), is what makes the files noticeable: spelled
+  /// out beside the icon, or as a badge on it when [compact]. Neither the
+  /// count nor the tooltip's per-section breakdown shows until every section
+  /// has loaded, so a partial total never reads as complete.
   Widget? _buildDocumentsButton(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
     WorkdirFilesStatus workspaceStatus,
-    ThemeData theme,
-  ) {
+    ThemeData theme, {
+    required bool compact,
+  }) {
     final roomFiles = _uploadsOrNull(roomStatus);
     final threadFiles = _uploadsOrNull(threadStatus);
 
@@ -2117,8 +2142,6 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyUploadFailed = all.any((e) => e is FailedUpload);
     final isError =
         anyFailed || anyUploadFailed || workspaceStatus is WorkdirFilesFailed;
-    final workspace =
-        workspaceStatus is WorkdirFilesLoaded ? workspaceStatus : null;
 
     final Widget icon;
     if (anyLoading || anyPending) {
@@ -2133,19 +2156,31 @@ class _RoomScreenState extends State<RoomScreen> {
     } else if (isError) {
       icon = Icon(Icons.error_outline, color: theme.colorScheme.error);
     } else {
-      icon = const Icon(Icons.folder_outlined);
+      icon = Icon(_filesExpanded ? Icons.folder_open : Icons.folder);
     }
 
-    final label = (roomFiles != null && threadFiles != null)
-        ? filesButtonLabel(
-            roomCount: roomFiles.length,
-            threadCount: threadFiles.length,
-            workspaceCount: workspace?.files.length ?? 0,
-          )
-        : 'Files';
+    final (label, count) = switch ((roomFiles, threadFiles, workspaceStatus)) {
+      (final room?, final thread?, WorkdirFilesLoaded(:final files)) => (
+          filesButtonLabel(
+            roomCount: room.length,
+            threadCount: thread.length,
+            workspaceCount: files.length,
+          ),
+          room.length + thread.length + files.length,
+        ),
+      _ => ('Files', null),
+    };
 
+    final scheme = theme.colorScheme;
+    // One IconButton for both forms, so either keeps its tooltip and selected
+    // state inside the button's semantics node.
     return IconButton(
-      icon: icon,
+      style: IconButton.styleFrom(
+        foregroundColor: scheme.primary,
+        backgroundColor: _filesExpanded ? scheme.surfaceContainerHighest : null,
+      ),
+      // Matches the room-info button beside it.
+      visualDensity: VisualDensity.compact,
       isSelected: _filesExpanded,
       tooltip: label,
       onPressed: () {
@@ -2154,6 +2189,30 @@ class _RoomScreenState extends State<RoomScreen> {
         );
         setState(() => _filesExpanded = !_filesExpanded);
       },
+      icon: compact
+          ? Badge.count(
+              count: count ?? 0,
+              isLabelVisible: count != null,
+              // Primary, not Badge's default colorScheme.error: that colour
+              // marks this button's error glyph, which the badge can sit on.
+              backgroundColor: scheme.primary,
+              textColor: scheme.onPrimary,
+              child: icon,
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                icon,
+                const SizedBox(width: SoliplexSpacing.s2),
+                Text(
+                  filesButtonText(count),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 

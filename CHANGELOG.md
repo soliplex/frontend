@@ -31,6 +31,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The room header's files button shows how many files the room, the thread
+  and its workspace hold: "3 files" beside a folder in the brand's primary
+  color, or the count on the folder where the header is narrower than a
+  tablet, which a wide window's sidebars can make it. The count appears once
+  every list has loaded. While the file panel is open the folder shows open
+  on a shaded button.
 - On the room info screen a failed upload's reason sits below its name, as
   in the file panel.
 - A stored upload's row, in the file panel and on the room info screen,
