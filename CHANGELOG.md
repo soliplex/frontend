@@ -66,8 +66,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
-- The file panel's buttons show their hover, focus and press highlights,
-  which its background had covered.
+- The file panel's buttons, and the copy and dismiss on a message's
+  send-error banner, show their hover, focus and press highlights, which
+  their background had covered.
 - A button that is loading keeps its label for a screen reader, which
   heard an unnamed button while the spinner showed, and a button with an
   icon keeps its width, which its smaller spinner narrowed.
@@ -75,10 +76,26 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   its file or waiting its turn fails, with "Session expired. Please sign in
   again." or "Upload stopped: signed out.", and can be dismissed; it stayed
   pending, with nothing left to end it. One whose file is already sent is
-  left to the server's answer.
+  left to the server's answer, and fails in the same words if the server
+  refuses it.
+- A cancelled upload whose row is dismissed before the server finishes
+  storing it anyway shows in the list once stored; it stayed missing until
+  the list next loaded.
 - A screen reader names the room's menu button and the dismiss on its
   send-error, context-warning and reconnect banners and its upload and
   workspace notices, which it read as unnamed buttons.
+- Tab and Shift+Tab move from control to control in the room and on the
+  connect screen. Each press outside the message box (or the server address
+  field) pulled focus into that field first, so traversal skipped controls,
+  left the page or stopped at the button beside the field.
+- A button showing a spinner stays a button to a screen reader on the web,
+  which announced it as a loading spinner: a loading button, the room's
+  files button while a list loads or an upload is under way, and the
+  Workspace retry while it retries.
+- A screen reader names the copy buttons, a citation's preview button and
+  the thumbs up and down once each, where it read each name twice.
+- Dismissing a failed upload's row takes it out of the failure notice, which
+  went on counting it.
 - A user with a room's write permission who is not an administrator gets the
   room info screen's upload controls; before, only administrators did. A
   user without it reads "You can't add files to this room." When the server

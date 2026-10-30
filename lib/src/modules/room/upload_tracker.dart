@@ -109,6 +109,14 @@ class FailedUpload extends DisplayUpload {
 
 const _sessionExpiredMessage = 'Session expired. Please sign in again.';
 
+/// The words for an upload the session's end stops, or null while the session
+/// is active.
+String? _sessionEndMessage(SessionState state) => switch (state) {
+      ActiveSession() => null,
+      ExpiredSession() => _sessionExpiredMessage,
+      NoSession() => 'Upload stopped: signed out.',
+    };
+
 /// Formats an error for user display without leaking raw exception
 /// internals (stack frames, request URLs, auth headers). Maps a few
 /// upload-specific failure modes to friendlier messages before falling
@@ -597,9 +605,9 @@ class UploadTracker {
     // path) and the web FormData path both feed this. Throttle state
     // is per upload — captured by closure. On retry, the wrapper is
     // re-invoked but the throttle continues from where it was; the
-    // worst case is the retry's first count arriving one interval late, by
-    // when its record already reads nothing sent, and a final count always
-    // fires.
+    // worst case drops the retry's counts within one interval of the refused
+    // attempt's last, while its record already reads nothing sent, and a
+    // final count always fires.
     DateTime? lastEmit;
     void emitProgress(int sent, int total) {
       if (_isDisposed) return;
@@ -712,10 +720,10 @@ class UploadTracker {
 
         // Replace _Pending with _Posted at the same index. The actual
         // removal happens in `_fetch`, when the refresh started below, or
-        // a later one, lands.
+        // a later one, lands. A row settled or dismissed during the POST
+        // still gets the refresh, which shows the file the server stored.
         final idx = scope.pending.indexWhere((r) => r.id == id);
-        if (idx < 0) return; // Dismissed during POST.
-        final record = scope.pending[idx];
+        final record = idx < 0 ? null : scope.pending[idx];
         if (record is _Pending) {
           scope.pending[idx] = _Posted(
             id: id,
@@ -734,6 +742,13 @@ class UploadTracker {
         return;
       } on AuthException catch (error) {
         if (_isDisposed) return;
+        // With the session ended, nothing can send the body again under it:
+        // the refusal fails the row in the session's end's words.
+        final ended = _sessionEndMessage(_auth.session.value);
+        if (ended != null) {
+          _markFailed(scope, id, ended);
+          return;
+        }
         if (retries < _maxAuthRetries) {
           // The next attempt re-invokes openStream() (via runPost) and
           // re-enters the auth-aware HTTP stack, which gets a fresh
@@ -748,7 +763,7 @@ class UploadTracker {
         // Retries exhausted: commit the failed row first so the
         // tracker state is consistent before any auth-change listener
         // observes the flip and reacts.
-        _markFailed(scope, id, error);
+        _markFailed(scope, id, uploadErrorMessage(error));
         _auth.markSessionExpired();
         return;
       } on Object catch (error, stackTrace) {
@@ -763,31 +778,22 @@ class UploadTracker {
             stackTrace: stackTrace,
           );
         }
-        _markFailed(scope, id, error);
+        _markFailed(scope, id, uploadErrorMessage(error));
         return;
       }
     }
   }
 
-  void _markFailed(_ScopeState scope, String id, Object error) {
+  void _markFailed(_ScopeState scope, String id, String message) {
     final idx = scope.pending.indexWhere((r) => r.id == id);
-    if (idx < 0) {
-      // The dismiss path shouldn't be reachable (UI dismisses only
-      // Failed rows); log loudly if it ever fires so the swallowed
-      // exception is investigated.
-      _logger.error(
-        'Upload completed after its pending record was removed',
-        error: error,
-      );
-      return;
-    }
-    // A row a cancel or the session's end already settled keeps its
-    // words: a client can answer that cancel with an error of its own.
-    if (scope.pending[idx] is! _Pending) return;
+    // A row a cancel or the session's end already settled keeps its words,
+    // or stays dismissed: a client can answer that cancel with an error of
+    // its own.
+    if (idx < 0 || scope.pending[idx] is! _Pending) return;
     scope.pending[idx] = _Failed(
       id: id,
       filename: scope.pending[idx].filename,
-      message: uploadErrorMessage(error),
+      message: message,
     );
     _emit(scope);
   }
@@ -822,11 +828,10 @@ class UploadTracker {
   /// User-initiated cancel of an in-flight or queued Pending upload.
   ///
   /// Flips the matching `_Pending` row to a `_Failed` row carrying
-  /// `'Upload cancelled.'`, then cancels its token. Order matters: by
-  /// the time the in-flight POST aborts with `CancelledException`,
-  /// `_runUpload`'s existing silent-exit-on-cancel path observes the
-  /// record is no longer `_Pending` and won't overwrite the Failed
-  /// row. Queued-but-not-started jobs are skipped naturally by the
+  /// `'Upload cancelled.'`, then cancels its token. Order matters: a POST
+  /// that ends in `CancelledException` says nothing more, so the row must
+  /// already be Failed, and one that ends in another error finds it settled
+  /// and leaves it. Queued-but-not-started jobs are skipped by the
   /// drainer's `if (job.token.isCancelled) continue;` check, and the
   /// Failed row is already in place.
   ///
@@ -1062,7 +1067,8 @@ class UploadTracker {
   /// An upload whose body is already sent is left to the server's answer:
   /// the server may already be storing it, so a failed row would claim what
   /// only the server knows, and a cancel could not stop it landing. Its
-  /// answer settles the row as any other's does.
+  /// answer settles the row; a refusal fails it in this state's words rather
+  /// than sending it again.
   ///
   /// Walking `scope.pending` covers both queued and in-flight uploads
   /// because each queued job's [_QueuedJob.token] is the same [CancelToken]
@@ -1070,11 +1076,7 @@ class UploadTracker {
   /// queued jobs whose token is cancelled (`_drain`'s `isCancelled` check).
   void _onAuthChanged(SessionState state) {
     if (_isDisposed) return;
-    final message = switch (state) {
-      ActiveSession() => null,
-      ExpiredSession() => _sessionExpiredMessage,
-      NoSession() => 'Upload stopped: signed out.',
-    };
+    final message = _sessionEndMessage(state);
     if (message == null) return;
     var uploadsStopped = 0;
     var deletesStopped = 0;

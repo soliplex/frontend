@@ -48,4 +48,21 @@ void main() {
 
     handle.dispose();
   });
+
+  testWidgets('names itself once to a screen reader', (tester) async {
+    // The web joins a node's label and tooltip into one name, so carrying
+    // the text in both reads it twice.
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(_wrap(PreviewIconButton(onTap: () {})));
+
+      final data = tester
+          .getSemantics(find.byType(PreviewIconButton))
+          .getSemanticsData();
+      expect(data.label, 'Preview');
+      expect(data.tooltip, isEmpty);
+    } finally {
+      semantics.dispose();
+    }
+  });
 }

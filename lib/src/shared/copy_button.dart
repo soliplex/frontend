@@ -75,6 +75,9 @@ class _CopyButtonState extends State<CopyButton> {
       label: widget.tooltip,
       child: Tooltip(
         message: widget.tooltip,
+        // The Semantics above names the button; the web would read a
+        // tooltip in semantics as a second copy of that name.
+        excludeFromSemantics: true,
         child: InkWell(
           onTap: _feedback == _CopyFeedback.idle ? _copy : null,
           borderRadius: BorderRadius.circular(context.radii.sm),

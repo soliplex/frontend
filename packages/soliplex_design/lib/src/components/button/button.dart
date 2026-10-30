@@ -207,7 +207,9 @@ class SoliplexButton extends StatelessWidget {
   /// When [icon] is non-null, the icon slot carries the spinner and the
   /// label is only hidden — so we don't need a Stack here. When [icon] is
   /// null, we Stack the spinner over the label. Either way the hidden label
-  /// still names the button to a screen reader.
+  /// still names the button to a screen reader. The spinner's own semantics
+  /// are excluded: its loading-spinner role would merge into the button,
+  /// and the web announces that role in place of the button's.
   Widget _label(Color foregroundColor) {
     if (!isLoading) return child;
     final hidden = Opacity(
@@ -220,7 +222,9 @@ class SoliplexButton extends StatelessWidget {
       alignment: Alignment.center,
       children: [
         hidden,
-        ButtonLoadingIndicator(foregroundColor: foregroundColor),
+        ExcludeSemantics(
+          child: ButtonLoadingIndicator(foregroundColor: foregroundColor),
+        ),
       ],
     );
   }
@@ -238,9 +242,11 @@ class SoliplexButton extends StatelessWidget {
         return SizedBox.square(
           dimension: slot,
           child: Center(
-            child: ButtonLoadingIndicator(
-              foregroundColor: foregroundColor,
-              maxSize: slot,
+            child: ExcludeSemantics(
+              child: ButtonLoadingIndicator(
+                foregroundColor: foregroundColor,
+                maxSize: slot,
+              ),
             ),
           ),
         );

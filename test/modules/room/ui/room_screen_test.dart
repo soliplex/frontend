@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsRole;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,6 +60,18 @@ class _BlockingThreadsApi extends FakeSoliplexApi {
     CancelToken? cancelToken,
   }) =>
       _completer.future;
+}
+
+/// Holds every room-upload listing open, so the files button stays loading.
+class _BlockingRoomUploadsApi extends FakeSoliplexApi {
+  final _never = Completer<List<FileUpload>>();
+
+  @override
+  Future<List<FileUpload>> getRoomUploads(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) =>
+      _never.future;
 }
 
 /// Holds `room-1`'s document fetch open until [firstRoomDocuments] is
@@ -266,6 +279,12 @@ void main() {
 
     test('a plain alt/option character focuses the composer', () {
       expect(shouldFocus(down(LogicalKeyboardKey.keyE), alt: true), isTrue);
+    });
+
+    test('Tab and Shift+Tab do not steal focus', () {
+      // Keyboard traversal must move focus where it goes, not into the
+      // composer first.
+      expect(shouldFocus(down(LogicalKeyboardKey.tab)), isFalse);
     });
 
     test('a bare modifier key does not steal focus', () {
@@ -2160,6 +2179,54 @@ void main() {
     expect(find.byTooltip('1 room'), findsOneWidget);
   });
 
+  testWidgets('Shift+Tab walks back from the composer past its buttons',
+      (tester) async {
+    // A key that moves focus must not pull it into the composer first, or
+    // traversal from the composer can never get past its nearest button.
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    api.nextRoom = const Room(
+      id: 'room-1',
+      name: 'Attachable',
+      acceptsRoomUploads: true,
+      acceptsThreadUploads: true,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    String? focusedTooltip() => FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<Tooltip>()
+        ?.message;
+    Future<void> shiftTab() async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+      await tester.pump();
+    }
+
+    await tester.tap(find.byType(TextField).last);
+    await tester.pump();
+
+    await shiftTab();
+    expect(focusedTooltip(), 'Upload to thread');
+    await shiftTab();
+    expect(focusedTooltip(), 'Add image');
+  });
+
   testWidgets('chip shows error_outline when room uploads refresh fails',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -2194,6 +2261,55 @@ void main() {
     // The chip leading icon should be error_outline (not the attach
     // icon) when the scope is UploadsFailed.
     expect(find.byIcon(Icons.error_outline), findsWidgets);
+  });
+
+  testWidgets('the files button is still a button while it spins',
+      (tester) async {
+    // The spinner's loading-spinner role must not merge into the button,
+    // where the web would announce it in place of the button role.
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final blockingApi = _BlockingRoomUploadsApi()
+      ..nextRooms = [Room(id: 'room-1', name: 'Test Room')]
+      ..nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        acceptsRoomUploads: true,
+        acceptsThreadUploads: true,
+      )
+      ..nextThreads = const [];
+
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: createTestServerEntry(api: blockingApi),
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      final button = find.byTooltip('Files');
+      expect(
+        find.descendant(
+            of: button, matching: find.byType(CircularProgressIndicator)),
+        findsOneWidget,
+      );
+      final data = tester.getSemantics(button).getSemanticsData();
+      expect(data.flagsCollection.isButton, isTrue);
+      expect(data.role, SemanticsRole.none);
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('ChatInput is disabled during MessagesLoading', (tester) async {

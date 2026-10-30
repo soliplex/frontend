@@ -101,6 +101,24 @@ void main() {
         reason: 'the disabled button still names itself to screen readers');
   });
 
+  testWidgets('Retrying is still a button to a screen reader', (tester) async {
+    // The spinner's loading-spinner role must not merge into the button,
+    // where the web would announce it in place of the button role.
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(_section(
+        const WorkdirFilesFailed('boom', retrying: true),
+      ));
+
+      final data =
+          tester.getSemantics(find.byTooltip('Retrying')).getSemanticsData();
+      expect(data.flagsCollection.isButton, isTrue);
+      expect(data.role, SemanticsRole.none);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('the error row keeps its height while a retry is in flight',
       (tester) async {
     Widget row({required bool isRetrying}) => MaterialApp(

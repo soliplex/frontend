@@ -239,8 +239,9 @@ class WorkdirController {
       return DownloadOutcome.success;
     } catch (e, st) {
       // Attached whole: a save failure is the platform's, the save dialog's
-      // error or, when writing the file failed, one naming the local path it
-      // could not write. Neither holds a credential.
+      // error, the web saver's fixed-text refusal of an empty file or a name
+      // with no extension or, when writing the file failed, one naming the
+      // local path it could not write. None holds a credential.
       _logger.warning(
         'workdir download save failed threadId=$threadId',
         error: e,

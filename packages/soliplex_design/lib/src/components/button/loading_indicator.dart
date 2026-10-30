@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// A spinner the size of the button's text, and no larger than [maxSize].
+/// A spinner the size of the surrounding text, and no larger than [maxSize].
+///
+/// The loading slot of inputs, dropdowns and pickers uses it too.
 ///
 /// `SoliplexButton` keeps the button's size around it, so the button does not
 /// jump between idle and loading: with no icon it stacks the spinner over the
