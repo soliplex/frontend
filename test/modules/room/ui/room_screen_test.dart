@@ -1530,14 +1530,14 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(AppBar),
-          matching: find.byIcon(Icons.folder_outlined),
+          matching: find.byIcon(Icons.folder),
         ),
         findsOneWidget,
       );
 
       // The toggle sits in the AppBar while the panel it opens renders in the
       // body column, so the tap has to carry across subtrees.
-      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.tap(find.byIcon(Icons.folder));
       await tester.pumpAndSettle();
 
       expect(find.text('shared.pdf'), findsOneWidget);
@@ -1921,7 +1921,8 @@ void main() {
     blockingApi.completeThreads(const []);
   });
 
-  testWidgets('hides file chip when both room and thread scopes are empty',
+  testWidgets(
+      'hides the files button when both room and thread scopes are empty',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1935,8 +1936,8 @@ void main() {
       acceptsThreadUploads: true,
     );
     api.nextThreads = const [];
-    // nextRoomUploads / nextThreadUploads default to empty → the chip
-    // must not render when both scopes are Loaded([]).
+    // nextRoomUploads / nextThreadUploads default to empty → the files
+    // button must not render when both scopes are Loaded([]).
 
     await tester.pumpWidget(MaterialApp(
       home: RoomScreen(
@@ -1952,9 +1953,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The documents toggle only appears when a scope has files; its
-    // absence confirms the empty-scope case hides it.
-    expect(find.byIcon(Icons.folder_outlined), findsNothing);
+    // The files button appears only when a section has something to show;
+    // its absence confirms the empty-scope case hides it.
+    expect(find.byIcon(Icons.folder), findsNothing);
   });
 
   testWidgets(
@@ -1994,7 +1995,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap the documents button to expand the file panel.
-    await tester.tap(find.byIcon(Icons.folder_outlined));
+    await tester.tap(find.byIcon(Icons.folder));
     await tester.pumpAndSettle();
 
     expect(find.text('ROOM'), findsOneWidget);
@@ -2051,7 +2052,7 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.folder_outlined));
+    await tester.tap(find.byIcon(Icons.folder));
     await tester.pumpAndSettle();
   }
 
@@ -2140,7 +2141,7 @@ void main() {
     expect(find.byTooltip('Delete'), findsNothing);
   });
 
-  testWidgets('shows file chip when room has uploads', (tester) async {
+  testWidgets('shows the files button when room has uploads', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -2174,9 +2175,125 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
-    // The count moved from a chip label to the button's tooltip.
+    expect(find.byIcon(Icons.folder), findsOneWidget);
+    // The tooltip breaks the count down by section.
     expect(find.byTooltip('1 room'), findsOneWidget);
+  });
+
+  group('files button tiers', () {
+    Future<void> pumpRoomWithFiles(WidgetTester tester, Size window) async {
+      tester.view.physicalSize = window;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        acceptsRoomUploads: true,
+        acceptsThreadUploads: true,
+      );
+      api.nextThreads = const [];
+      // Gives the composer a collapse of its own to compare the header with.
+      api.nextDocuments = const [RagDocument(id: '1', title: 'Report.pdf')];
+      api.nextRoomUploads = [
+        for (final name in ['a.pdf', 'b.pdf'])
+          FileUpload(
+            filename: name,
+            url: Uri.parse('https://example.com/$name'),
+          ),
+      ];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          enableDocumentFilter: true,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    Finder filesButton() => find.byTooltip('2 room');
+
+    testWidgets('a wide pane labels the folder with the file count',
+        (tester) async {
+      await pumpRoomWithFiles(tester, const Size(1200, 800));
+
+      expect(
+        find.descendant(of: filesButton(), matching: find.text('2 files')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: filesButton(), matching: find.byType(Badge)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('a narrow window badges the folder with the file count',
+        (tester) async {
+      await pumpRoomWithFiles(tester, const Size(400, 800));
+
+      expect(find.byType(AppBar), findsOneWidget, reason: 'precondition');
+      expect(
+        find.descendant(of: filesButton(), matching: find.byType(Badge)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: filesButton(), matching: find.text('2')),
+        findsOneWidget,
+      );
+      expect(find.text('2 files'), findsNothing);
+    });
+
+    testWidgets('the header goes compact at the same width as the composer',
+        (tester) async {
+      // Windows wide enough for the sidebar layout, whose sidebars leave the
+      // chat pane on either side of SoliplexBreakpoints.tablet.
+      await pumpRoomWithFiles(tester, const Size(900, 800));
+      expect(find.byType(AppBar), findsNothing, reason: 'precondition');
+
+      final seen = <bool>{};
+      for (var width = 900.0; width <= 1060; width += 8) {
+        tester.view.physicalSize = Size(width, 800);
+        await tester.pumpAndSettle();
+        final headerCompact = find
+            .descendant(of: filesButton(), matching: find.byType(Badge))
+            .evaluate()
+            .isNotEmpty;
+        final composerCollapsed =
+            find.byTooltip('More actions').evaluate().isNotEmpty;
+        expect(headerCompact, composerCollapsed, reason: 'at $width wide');
+        seen.add(headerCompact);
+      }
+      expect(seen, {true, false}, reason: 'the sweep crosses the threshold');
+    });
+
+    testWidgets('an open panel shows the open folder', (tester) async {
+      await pumpRoomWithFiles(tester, const Size(1200, 800));
+
+      expect(
+        find.descendant(of: filesButton(), matching: find.byIcon(Icons.folder)),
+        findsOneWidget,
+      );
+
+      await tester.tap(filesButton());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: filesButton(),
+          matching: find.byIcon(Icons.folder_open),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets('Shift+Tab walks back from the composer past its buttons',
@@ -2227,7 +2344,7 @@ void main() {
     expect(focusedTooltip(), 'Add image');
   });
 
-  testWidgets('chip shows error_outline when room uploads refresh fails',
+  testWidgets('the files button shows error_outline when room uploads fail',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -2258,9 +2375,15 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The chip leading icon should be error_outline (not the attach
-    // icon) when the scope is UploadsFailed.
-    expect(find.byIcon(Icons.error_outline), findsWidgets);
+    // The files button shows error_outline in place of the folder when the
+    // room scope is UploadsFailed.
+    expect(
+      find.descendant(
+        of: find.byTooltip('Files'),
+        matching: find.byIcon(Icons.error_outline),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the files button is still a button while it spins',
@@ -2302,6 +2425,10 @@ void main() {
       expect(
         find.descendant(
             of: button, matching: find.byType(CircularProgressIndicator)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: button, matching: find.text('Files')),
         findsOneWidget,
       );
       final data = tester.getSemantics(button).getSemanticsData();
@@ -2864,11 +2991,57 @@ void main() {
 
       expect(find.byTooltip('1 in workspace'), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.tap(find.byIcon(Icons.folder));
       await tester.pumpAndSettle();
 
       expect(find.text('WORKSPACE'), findsOneWidget);
       expect(findFileName('report.csv'), findsOneWidget);
+    });
+
+    testWidgets('the files button counts nothing until every section loads',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      api
+        ..nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          acceptsRoomUploads: true,
+          acceptsThreadUploads: true,
+        )
+        ..nextRoomUploads = [
+          FileUpload(filename: 'a.pdf', url: Uri.parse('https://x/a.pdf')),
+        ]
+        ..nextThreadUploads = [
+          FileUpload(filename: 'b.pdf', url: Uri.parse('https://x/b.pdf')),
+        ]
+        ..nextWorkdirFiles = [file('c.csv')];
+      final gate = api.workdirFilesGate = Completer<void>();
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+
+      // Both upload lists have loaded; a total without the workspace would
+      // read as complete. The compact form's only text is the badge's count.
+      final pending = find.byTooltip('Files');
+      expect(pending, findsOneWidget);
+      expect(
+        find.descendant(of: pending, matching: find.byType(Text)),
+        findsNothing,
+      );
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byTooltip('1 room · 1 thread · 1 in workspace'),
+          matching: find.text('3'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a folder toggle rebuilds the files section, not the room',

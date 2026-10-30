@@ -32,11 +32,24 @@ void main() {
     });
 
     test('is "Files" when nothing is counted', () {
-      // The label when the only content is a failed workspace list.
       expect(
         filesButtonLabel(roomCount: 0, threadCount: 0, workspaceCount: 0),
         'Files',
       );
+    });
+  });
+
+  group('filesButtonText', () {
+    test('is "Files" until the count is known', () {
+      expect(filesButtonText(null), 'Files');
+    });
+
+    test('is singular for one file', () {
+      expect(filesButtonText(1), '1 file');
+    });
+
+    test('is plural for several files', () {
+      expect(filesButtonText(22), '22 files');
     });
   });
 }
