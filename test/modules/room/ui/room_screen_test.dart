@@ -2294,6 +2294,13 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('the room title tooltip names the room and its server',
+        (tester) async {
+      await pumpRoomWithFiles(tester, const Size(400, 800));
+
+      expect(find.byTooltip('Attachable\n${entry.listLabel}'), findsOneWidget);
+    });
   });
 
   testWidgets('Shift+Tab walks back from the composer past its buttons',

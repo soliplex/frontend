@@ -23,6 +23,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   from a room's uploads. It throws `ArgumentError` for an empty argument or
   for a filename that is not one path segment (one holding `/`, or `.` or
   `..`), which would address another path.
+- Hovering the room title, or long-pressing it, shows the full room name
+  and server address, which a narrow header cuts short.
 - **Library consumers:** `FileUpload.modifiedAt`, `FileUpload.sizeBytes`,
   `WorkdirFile.modifiedAt` and `WorkdirFile.sizeBytes` carry each listed
   file's last-modified time (UTC) and size in bytes, null when the backend
