@@ -117,6 +117,27 @@ void main() {
       expect(uploads.map((u) => u.filename), ['a.pdf', 'b.txt']);
     });
 
+    test('a persisted upload carries the listing\'s modifiedAt and sizeBytes',
+        () async {
+      stubGetRoomUploads([
+        FileUpload(
+          filename: 'a.pdf',
+          url: Uri.parse('https://example.com/a.pdf'),
+          modifiedAt: DateTime.utc(2026, 10, 29, 8, 15, 30),
+          sizeBytes: 1234,
+        ),
+      ]);
+
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      final uploads =
+          (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+      final persisted = uploads.single as PersistedUpload;
+      expect(persisted.modifiedAt, DateTime.utc(2026, 10, 29, 8, 15, 30));
+      expect(persisted.sizeBytes, 1234);
+    });
+
     test('emits Loaded with empty list when server returns empty', () async {
       stubGetRoomUploads([]);
 

@@ -126,7 +126,9 @@ class WorkspaceFilesSection extends StatelessWidget {
             // A row holds its download's state, which belongs to the file:
             // keyed by it, the state follows the file as its group's list
             // reorders, and a file of another thread starts fresh (the
-            // server's URL for it names the thread).
+            // server's URL for it names the thread). A file the listing reports
+            // with a different modified time or size starts fresh too, since
+            // those are part of its equality.
             key: ValueKey(files[i]),
             file: files[i],
             directory:

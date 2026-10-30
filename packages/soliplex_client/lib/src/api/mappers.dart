@@ -262,9 +262,11 @@ Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
 /// Parses a timestamp string, returning null on failure.
 ///
 /// [raw] must be a timestamp field the backend stamps: a malformed one is
-/// logged whole. [subsystem] attributes that log to the calling subsystem.
+/// logged whole. [field] names the JSON field it was read from and
+/// [subsystem] attributes the log to the calling subsystem.
 DateTime? _tryParseTimestamp(
   String? raw, {
+  required String field,
   String subsystem = 'soliplex_client.document',
 }) {
   if (raw == null) return null;
@@ -278,7 +280,7 @@ DateTime? _tryParseTimestamp(
       'Malformed timestamp ignored',
       error: e,
       stackTrace: stackTrace,
-      attributes: {'subsystem': subsystem},
+      attributes: {'field': field, 'subsystem': subsystem},
     );
     return null;
   }
@@ -518,8 +520,8 @@ RagDocument ragDocumentFromJson(Map<String, dynamic> json) {
     title: json['title'] as String?,
     uri: uri,
     metadata: metadata,
-    createdAt: _tryParseTimestamp(createdRaw),
-    updatedAt: _tryParseTimestamp(updatedRaw),
+    createdAt: _tryParseTimestamp(createdRaw, field: 'created_at'),
+    updatedAt: _tryParseTimestamp(updatedRaw, field: 'updated_at'),
   );
 }
 
@@ -539,15 +541,30 @@ Map<String, dynamic> ragDocumentToJson(RagDocument doc) {
 // FileUpload mappers
 // ============================================================
 
+/// Reads a listed file's `modified_at`.
+///
+/// Absent, null, non-string and malformed values all give null, so one bad
+/// field never drops the entry. A non-string is logged by field and type,
+/// never its value; a malformed string is logged whole with its field.
+DateTime? _listedFileModifiedAt(Map<String, dynamic> json) =>
+    _tryParseTimestamp(
+      stringOrNull(json['modified_at'], 'modified_at'),
+      field: 'modified_at',
+      subsystem: 'soliplex_client.api',
+    );
+
 /// Creates a [FileUpload] from JSON.
 ///
 /// Throws [FormatException] if `filename` or `url` is missing or
-/// malformed.
+/// malformed. An absent, null or wrong-typed `modified_at` or `size_bytes`,
+/// or a malformed `modified_at`, yields null instead.
 FileUpload fileUploadFromJson(Map<String, dynamic> json) {
   final filename = _requireString(json, 'filename', 'file upload');
   return FileUpload(
     filename: filename,
     url: _requireUrl(json, 'url', 'file upload "$filename"'),
+    modifiedAt: _listedFileModifiedAt(json),
+    sizeBytes: intOrNull(json['size_bytes'], 'size_bytes'),
   );
 }
 
@@ -571,7 +588,8 @@ bool isWorkspaceFilePath(String path) => path.split('/').every(
 /// Throws [FormatException] if `filename` is missing, empty, contains a NUL
 /// byte, or has a segment that is empty (a leading, trailing or doubled
 /// `/`), `.` or `..` (see [isWorkspaceFilePath]); or if `url` is missing or
-/// malformed.
+/// malformed. An absent, null or wrong-typed `modified_at` or `size_bytes`,
+/// or a malformed `modified_at`, yields null instead.
 WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
   final filename = _requireString(json, 'filename', 'workdir file');
   if (filename.isEmpty) {
@@ -590,6 +608,8 @@ WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
   return WorkdirFile(
     filename: filename,
     url: _requireUrl(json, 'url', 'workdir file "$filename"'),
+    modifiedAt: _listedFileModifiedAt(json),
+    sizeBytes: intOrNull(json['size_bytes'], 'size_bytes'),
   );
 }
 
@@ -614,7 +634,11 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
   }
   return RoomStats(
     lastActivity: rawActivity is String
-        ? _tryParseTimestamp(rawActivity, subsystem: 'soliplex_client.api')
+        ? _tryParseTimestamp(
+            rawActivity,
+            field: 'last_activity',
+            subsystem: 'soliplex_client.api',
+          )
         : null,
   );
 }
@@ -665,7 +689,11 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
   // listing (mirrors roomStatsFromJson).
   final rawActivity = json['last_activity'];
   final lastActivity = rawActivity is String
-      ? _tryParseTimestamp(rawActivity, subsystem: 'soliplex_client.api')
+      ? _tryParseTimestamp(
+          rawActivity,
+          field: 'last_activity',
+          subsystem: 'soliplex_client.api',
+        )
       : null;
 
   return ThreadInfo(

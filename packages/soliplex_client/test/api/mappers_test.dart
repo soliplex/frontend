@@ -2198,6 +2198,15 @@ void main() {
 
   group('FileUpload mappers', () {
     group('fileUploadFromJson', () {
+      _listedFileTimeAndSizeTests((json) {
+        final f = fileUploadFromJson(json);
+        return (
+          filename: f.filename,
+          modifiedAt: f.modifiedAt,
+          sizeBytes: f.sizeBytes,
+        );
+      });
+
       test('parses correctly with all fields', () {
         final result = fileUploadFromJson({
           'filename': 'report.pdf',
@@ -2294,6 +2303,15 @@ void main() {
 
   group('WorkdirFile mappers', () {
     group('workdirFileFromJson', () {
+      _listedFileTimeAndSizeTests((json) {
+        final f = workdirFileFromJson(json);
+        return (
+          filename: f.filename,
+          modifiedAt: f.modifiedAt,
+          sizeBytes: f.sizeBytes,
+        );
+      });
+
       test('parses filename and url', () {
         final result = workdirFileFromJson({
           'filename': 'output.csv',
@@ -2431,15 +2449,8 @@ void main() {
   // not carry the backend-supplied block it failed on. `dart:developer` goes
   // to DevTools only, which is neither.
   group('malformed room config reporting', () {
-    _RecordingSink attach() {
-      final sink = _RecordingSink(forLoggerName: 'soliplex_client.mappers');
-      LogManager.instance.addSink(sink);
-      addTearDown(() => LogManager.instance.removeSink(sink));
-      return sink;
-    }
-
     test('a malformed agent is reported without the agent block', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2461,7 +2472,7 @@ void main() {
     });
 
     test('an agent matching no known shape is reported by id', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2477,7 +2488,7 @@ void main() {
     });
 
     test('a malformed quiz is reported by key, without its block', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2493,7 +2504,7 @@ void main() {
     });
 
     test('a malformed suggestions block is reported without its content', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2507,7 +2518,7 @@ void main() {
     });
 
     test('a non-map agent is reported without its content', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2521,7 +2532,7 @@ void main() {
     });
 
     test('a malformed skill is reported by key, without its block', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2537,7 +2548,7 @@ void main() {
     });
 
     test('a malformed tool is reported by key, without its block', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2552,7 +2563,7 @@ void main() {
     });
 
     test('a malformed MCP toolset is reported by key, without its block', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2569,7 +2580,7 @@ void main() {
     });
 
     test('a non-string suggestion is reported by type, not by value', () {
-      final sink = attach();
+      final sink = _attach();
 
       roomFromJson(<String, dynamic>{
         'id': 'room-1',
@@ -2587,7 +2598,7 @@ void main() {
     });
 
     test('a non-string last_activity is reported by type, not by value', () {
-      final sink = attach();
+      final sink = _attach();
 
       // Must not be a String: a String is a legitimate type here and would
       // fall through to the timestamp parse, whose record would then be the
@@ -2606,7 +2617,7 @@ void main() {
     test('a malformed timestamp is reported with the parse failure', () {
       // A timestamp is no secret, and the string that failed to parse is
       // what makes the record actionable.
-      final sink = attach();
+      final sink = _attach();
 
       ragDocumentFromJson(<String, dynamic>{
         'id': 'doc-1',
@@ -2617,6 +2628,7 @@ void main() {
       final record = sink.records.single;
       expect(record.message, 'Malformed timestamp ignored');
       expect(record.attributes['subsystem'], 'soliplex_client.document');
+      expect(record.attributes['field'], 'created_at');
       expect(
         record.error,
         isA<FormatException>()
@@ -2624,6 +2636,104 @@ void main() {
       );
       expect(record.stackTrace, isNotNull);
     });
+  });
+}
+
+/// Records [loggerName]'s records, or every logger's when it is null.
+_RecordingSink _attach({String? loggerName = 'soliplex_client.mappers'}) {
+  final sink = _RecordingSink(forLoggerName: loggerName);
+  LogManager.instance.addSink(sink);
+  addTearDown(() => LogManager.instance.removeSink(sink));
+  return sink;
+}
+
+/// Tests the `modified_at` and `size_bytes` reading both listed-file mappers
+/// share. [parse] reads a listing entry that already has a valid `filename`
+/// and `url`.
+void _listedFileTimeAndSizeTests(
+  ({String filename, DateTime? modifiedAt, int? sizeBytes}) Function(
+    Map<String, dynamic> json,
+  ) parse,
+) {
+  Map<String, dynamic> entry([Map<String, dynamic> extra = const {}]) => {
+        'filename': 'a.pdf',
+        'url': 'https://e.x/a',
+        ...extra,
+      };
+
+  test('reads modified_at as UTC and size_bytes', () {
+    final f = parse(
+      entry({'modified_at': '2026-10-29T08:15:30.5Z', 'size_bytes': 1234}),
+    );
+    expect(f.modifiedAt, DateTime.utc(2026, 10, 29, 8, 15, 30, 500));
+    expect(f.modifiedAt!.isUtc, isTrue);
+    expect(f.sizeBytes, 1234);
+  });
+
+  test('reads microsecond precision', () {
+    final f = parse(entry({'modified_at': '2026-10-29T08:15:30.500123Z'}));
+    expect(f.modifiedAt, DateTime.utc(2026, 10, 29, 8, 15, 30, 500, 123));
+  });
+
+  test('absent or null fields are null and nothing is logged', () {
+    final sink = _attach(loggerName: null);
+    for (final json in [
+      entry(),
+      entry({'modified_at': null, 'size_bytes': null}),
+    ]) {
+      final f = parse(json);
+      expect(f.modifiedAt, isNull);
+      expect(f.sizeBytes, isNull);
+    }
+    expect(sink.records, isEmpty);
+  });
+
+  test('a malformed modified_at is null, logged by field, and the file kept',
+      () {
+    final sink = _attach();
+    final f = parse(entry({'modified_at': 'yesterday', 'size_bytes': 7}));
+    expect(f.filename, 'a.pdf');
+    expect(f.modifiedAt, isNull);
+    expect(f.sizeBytes, 7);
+    final record = sink.records.single;
+    expect(record.level, LogLevel.warning);
+    expect(record.message, 'Malformed timestamp ignored');
+    expect(record.attributes['subsystem'], 'soliplex_client.api');
+    expect(record.attributes['field'], 'modified_at');
+  });
+
+  test('a non-string modified_at is null and logged without its value', () {
+    final sink = _attach(loggerName: 'soliplex_client.parse_utils');
+    final f = parse(
+      entry({
+        'modified_at': [_canary],
+        'size_bytes': 7,
+      }),
+    );
+    expect(f.filename, 'a.pdf');
+    expect(f.modifiedAt, isNull);
+    expect(f.sizeBytes, 7);
+    final record = sink.records.single;
+    expect(record.level, LogLevel.warning);
+    expect(record.message, allOf(contains('modified_at'), contains('List')));
+    expect(_render(record), isNot(contains(_canary)));
+  });
+
+  test('a non-int size_bytes is null and logged without its value', () {
+    final sink = _attach(loggerName: 'soliplex_client.parse_utils');
+    final f = parse(
+      entry({
+        'modified_at': '2026-10-29T08:15:30Z',
+        'size_bytes': _canary,
+      }),
+    );
+    expect(f.filename, 'a.pdf');
+    expect(f.modifiedAt, DateTime.utc(2026, 10, 29, 8, 15, 30));
+    expect(f.sizeBytes, isNull);
+    final record = sink.records.single;
+    expect(record.level, LogLevel.warning);
+    expect(record.message, allOf(contains('size_bytes'), contains('String')));
+    expect(_render(record), isNot(contains(_canary)));
   });
 }
 
@@ -2640,13 +2750,16 @@ class _RecordingSink implements LogSink {
   _RecordingSink({required this.forLoggerName});
 
   /// Only records from this logger are captured, so assertions stay strict
-  /// without coupling to the rest of the codebase's log traffic.
-  final String forLoggerName;
+  /// without coupling to the rest of the codebase's log traffic. Null
+  /// captures every logger.
+  final String? forLoggerName;
   final List<LogRecord> records = [];
 
   @override
   void write(LogRecord record) {
-    if (record.loggerName == forLoggerName) records.add(record);
+    if (forLoggerName == null || record.loggerName == forLoggerName) {
+      records.add(record);
+    }
   }
 
   @override
