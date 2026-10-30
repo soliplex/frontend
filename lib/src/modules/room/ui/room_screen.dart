@@ -2037,40 +2037,51 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _roomTitle(String roomName) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          roomName,
-          style: theme.textTheme.titleMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Row(
+    // Either line can ellipsize, most often in a narrow header, so the tooltip
+    // carries both in full. Aligned so the tooltip anchors to the text, not
+    // the width the title stretches across; excluded from semantics because
+    // screen readers already read the text.
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Tooltip(
+        message: '$roomName\n$_serverLabel',
+        excludeFromSemantics: true,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // A link glyph replaces the noisy `https://` scheme as the "this is
-            // the server address" cue (issue #485). Sized from the OS text
-            // scale rather than fixed, so it does not shrink to a dot beside
-            // enlarged text.
-            Icon(
-              Icons.link,
-              size: MediaQuery.textScalerOf(context).scale(14),
-              color: muted,
+            Text(
+              roomName,
+              style: theme.textTheme.titleMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(width: SoliplexSpacing.s1),
-            Flexible(
-              child: Text(
-                _serverLabel,
-                style: theme.textTheme.labelSmall?.copyWith(color: muted),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // A link glyph replaces the noisy `https://` scheme as the
+                // "this is the server address" cue (issue #485). Sized from the
+                // OS text scale rather than fixed, so it does not shrink to a
+                // dot beside enlarged text.
+                Icon(
+                  Icons.link,
+                  size: MediaQuery.textScalerOf(context).scale(14),
+                  color: muted,
+                ),
+                const SizedBox(width: SoliplexSpacing.s1),
+                Flexible(
+                  child: Text(
+                    _serverLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 
