@@ -225,6 +225,25 @@ void main() {
       expect(find.widgetWithText(LabelChip, 'Manuals'), findsOneWidget);
     });
 
+    testWidgets('warns about revealing names when creating and editing',
+        (tester) async {
+      // Label names are what every user on the server can read, and the
+      // assistant applies them on its own, so the dialog says so before a
+      // name is typed — in both modes, since renaming exposes as much.
+      await _pumpLobby(tester, labels: [_label(1, 'Manuals')]);
+      await _openLabelsTab(tester);
+
+      await tester.tap(find.text('New label'));
+      await tester.pumpAndSettle();
+      expect(find.text(labelNameNotice), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      expect(find.text(labelNameNotice), findsOneWidget);
+    });
+
     testWidgets('offers the neutral grey back when editing', (tester) async {
       // The grey a label is created with has to be reachable in the
       // picker, or the editor cannot show an uncoloured label as it is —
