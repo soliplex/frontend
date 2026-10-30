@@ -8,7 +8,12 @@ import 'package:meta/meta.dart';
 @immutable
 class WorkdirFile {
   /// Creates a workdir file entry.
-  const WorkdirFile({required this.filename, required this.url});
+  const WorkdirFile({
+    required this.filename,
+    required this.url,
+    this.modifiedAt,
+    this.sizeBytes,
+  });
 
   /// The file's path relative to the workspace root, as written by the agent
   /// (`notes.txt`, `dir/file.txt`).
@@ -28,17 +33,28 @@ class WorkdirFile {
   /// URL for downloading the file.
   final Uri url;
 
+  /// When the file was last modified, in UTC, or `null` when the backend did
+  /// not report a usable value.
+  final DateTime? modifiedAt;
+
+  /// The file's size in bytes, or `null` when the backend did not report a
+  /// usable value.
+  final int? sizeBytes;
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is WorkdirFile &&
         other.filename == filename &&
-        other.url == url;
+        other.url == url &&
+        other.modifiedAt == modifiedAt &&
+        other.sizeBytes == sizeBytes;
   }
 
   @override
-  int get hashCode => Object.hash(filename, url);
+  int get hashCode => Object.hash(filename, url, modifiedAt, sizeBytes);
 
   @override
-  String toString() => 'WorkdirFile(filename: $filename, url: $url)';
+  String toString() => 'WorkdirFile(filename: $filename, url: $url, '
+      'modifiedAt: $modifiedAt, sizeBytes: $sizeBytes)';
 }

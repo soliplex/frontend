@@ -18,6 +18,37 @@ void main() {
 
     final url = Uri.parse('https://example.test/x');
 
+    test('value-equality includes modifiedAt and sizeBytes', () {
+      final a = WorkdirFile(
+        filename: 'a.txt',
+        url: url,
+        modifiedAt: DateTime.utc(2026, 10, 29),
+        sizeBytes: 1,
+      );
+      final same = WorkdirFile(
+        filename: 'a.txt',
+        url: url,
+        modifiedAt: DateTime.utc(2026, 10, 29),
+        sizeBytes: 1,
+      );
+      final laterTime = WorkdirFile(
+        filename: 'a.txt',
+        url: url,
+        modifiedAt: DateTime.utc(2026, 10, 30),
+        sizeBytes: 1,
+      );
+      final otherSize = WorkdirFile(
+        filename: 'a.txt',
+        url: url,
+        modifiedAt: DateTime.utc(2026, 10, 29),
+        sizeBytes: 2,
+      );
+      expect(a, equals(same));
+      expect(a.hashCode, equals(same.hashCode));
+      expect(a, isNot(equals(laterTime)));
+      expect(a, isNot(equals(otherSize)));
+    });
+
     test('a nested file splits into its directory and basename', () {
       final file = WorkdirFile(filename: 'dir/sub/file.txt', url: url);
       expect(file.basename, 'file.txt');
