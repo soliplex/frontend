@@ -9,6 +9,7 @@ import '../../../shared/failed_image.dart';
 import '../../../shared/preview_icon_button.dart';
 import '../../../shared/zoomable_image.dart';
 import '../../../shared/zoomable_view.dart';
+import '../citation_markers.dart';
 import '../document_browser_url.dart';
 import 'document_label.dart';
 import 'document_metadata_line.dart';
@@ -83,15 +84,41 @@ List<CitationGroup> groupCitationsByDatabase(List<SourceReference> refs) {
   ];
 }
 
+/// Asks a [CitationsSection] to bring one of its sources into view, for a
+/// citation marker tapped in the answer above it.
+///
+/// Owned by whoever builds the section, as a `ScrollController` is.
+class CitationsController extends ChangeNotifier {
+  int? _pending;
+
+  /// Opens the section and the source at [position] in its list, and scrolls
+  /// that source into view.
+  void reveal(int position) {
+    _pending = position;
+    notifyListeners();
+  }
+
+  int? _take() {
+    final position = _pending;
+    _pending = null;
+    return position;
+  }
+}
+
 class CitationsSection extends StatefulWidget {
   const CitationsSection({
     super.key,
     required this.sourceReferences,
     this.onShowChunkVisualization,
+    this.controller,
   });
 
   final List<SourceReference> sourceReferences;
   final void Function(SourceReference)? onShowChunkVisualization;
+
+  /// Reveals a source on request. Optional: a section nothing points into
+  /// needs none.
+  final CitationsController? controller;
 
   @override
   State<CitationsSection> createState() => _CitationsSectionState();
@@ -104,6 +131,53 @@ class _CitationsSectionState extends State<CitationsSection> {
   // single passage's full text on demand.
   bool _sectionExpanded = true;
   final Set<int> _expandedIndices = {};
+
+  /// One key per row, by position, for scrolling a revealed row into view.
+  final Map<int, GlobalKey> _rowKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?.addListener(_onReveal);
+  }
+
+  @override
+  void didUpdateWidget(CitationsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_onReveal);
+      widget.controller?.addListener(_onReveal);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.removeListener(_onReveal);
+    super.dispose();
+  }
+
+  void _onReveal() {
+    final position = widget.controller?._take();
+    if (position == null ||
+        position < 0 ||
+        position >= widget.sourceReferences.length) {
+      return;
+    }
+    setState(() {
+      _sectionExpanded = true;
+      _expandedIndices.add(position);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final row = _rowKeys[position]?.currentContext;
+      if (row == null || !row.mounted) return;
+      Scrollable.ensureVisible(
+        row,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,8 +262,9 @@ class _CitationsSectionState extends State<CitationsSection> {
         if (headed) _DatabaseHeading(database: group.database),
         for (final (:index, :ref) in group.entries)
           _SourceReferenceRow(
+            key: _rowKeys.putIfAbsent(index, GlobalKey.new),
             sourceReference: ref,
-            badgeNumber: ref.index ?? (index + 1),
+            badgeNumber: citationBadgeNumber(ref, index),
             isExpanded: _expandedIndices.contains(index),
             onToggle: () => setState(() {
               if (_expandedIndices.contains(index)) {
@@ -249,6 +324,7 @@ class _DatabaseHeading extends StatelessWidget {
 
 class _SourceReferenceRow extends StatelessWidget {
   const _SourceReferenceRow({
+    super.key,
     required this.sourceReference,
     required this.badgeNumber,
     required this.isExpanded,

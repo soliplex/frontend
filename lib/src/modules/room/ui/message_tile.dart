@@ -18,6 +18,7 @@ class MessageTile extends StatelessWidget {
     required this.message,
     this.runId,
     this.sourceReferences,
+    this.citationNumbers = const {},
     this.onFeedbackSubmit,
     this.onReportRun,
     required this.besideReply,
@@ -32,6 +33,9 @@ class MessageTile extends StatelessWidget {
   final ChatMessage message;
   final String? runId;
   final List<SourceReference>? sourceReferences;
+
+  /// Every chunk id cited in the thread, mapped to its number.
+  final Map<String, int> citationNumbers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
   final void Function(String runId)? onReportRun;
@@ -56,6 +60,7 @@ class MessageTile extends StatelessWidget {
             roomId: roomId,
             message: m,
             sourceReferences: sourceReferences,
+            citationNumbers: citationNumbers,
             onFeedbackSubmit: onFeedbackSubmit != null && runId != null
                 ? (feedback, reason) =>
                     onFeedbackSubmit!(runId!, feedback, reason)
