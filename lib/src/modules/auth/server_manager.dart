@@ -7,7 +7,9 @@ import '../../interfaces/auth_state.dart';
 import 'admin_status.dart';
 import 'auth_session.dart';
 import 'auth_tokens.dart';
+import 'server_aliases.dart';
 import 'server_entry.dart';
+import 'server_persistence.dart';
 import 'server_storage.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.server_manager');
@@ -23,6 +25,9 @@ typedef ServerRemovedListener = void Function(String serverId);
 
 /// Owns the collection of per-server resources and shared infrastructure.
 /// Keeps [ServerRegistry] in sync internally.
+///
+/// Orchestration only: alias uniqueness lives in [ServerAliases], and stored
+/// records in [ServerPersistence].
 class ServerManager {
   ServerManager({
     required AuthSessionFactory authFactory,
@@ -30,11 +35,12 @@ class ServerManager {
     required ServerStorage storage,
   })  : _authFactory = authFactory,
         _clientFactory = clientFactory,
-        _storage = storage;
+        _persistence = ServerPersistence(storage);
 
   final AuthSessionFactory _authFactory;
   final HttpClientFactory _clientFactory;
-  final ServerStorage _storage;
+  final ServerPersistence _persistence;
+  final ServerAliases _aliases = ServerAliases();
 
   final Signal<Map<String, ServerEntry>> _servers =
       Signal<Map<String, ServerEntry>>({});
@@ -44,12 +50,6 @@ class ServerManager {
 
   /// Tracks signal subscription disposers per server for cleanup.
   final Map<String, void Function()> _subscriptions = {};
-
-  /// Serializes persistence operations per server to prevent race conditions.
-  final Map<String, Future<void>> _persistQueue = {};
-
-  /// Tracks in-use aliases to ensure uniqueness.
-  final Set<String> _aliases = {};
 
   /// Listeners notified when a server is permanently removed via
   /// [removeServer]. Carries the removal *intent* the [servers] signal cannot:
@@ -77,15 +77,6 @@ class ServerManager {
             for (final entry in _servers.value.values) entry.auth.session.value,
           ]);
 
-  String _uniqueAlias(Uri serverUrl) {
-    final base = aliasFromUrl(serverUrl);
-    if (_aliases.add(base)) return base;
-    for (var i = 2;; i++) {
-      final candidate = '$base-$i';
-      if (_aliases.add(candidate)) return candidate;
-    }
-  }
-
   ServerEntry? entryByAlias(String alias) {
     for (final entry in _servers.value.values) {
       if (entry.alias == alias) return entry;
@@ -104,17 +95,12 @@ class ServerManager {
     final existing = _servers.value[serverId];
     if (existing != null) return existing;
 
-    final String resolvedAlias;
-    if (alias != null && _aliases.add(alias)) {
-      resolvedAlias = alias;
-    } else {
-      resolvedAlias = _uniqueAlias(serverUrl);
-      if (alias != null) {
-        _logger.warning(
-          'Alias "$alias" for $serverId collides with an existing alias; '
-          'using "$resolvedAlias" instead',
-        );
-      }
+    final resolvedAlias = _aliases.claim(serverUrl, preferred: alias);
+    if (alias != null && resolvedAlias != alias) {
+      _logger.warning(
+        'Alias "$alias" for $serverId collides with an existing alias; '
+        'using "$resolvedAlias" instead',
+      );
     }
 
     final auth = _authFactory();
@@ -147,7 +133,7 @@ class ServerManager {
     _servers.value = {..._servers.value, serverId: entry};
 
     _subscriptions[serverId] = auth.session.subscribe((_) {
-      _onSessionChanged(serverId, entry);
+      _onSessionChanged(entry);
     });
 
     return entry;
@@ -188,7 +174,7 @@ class ServerManager {
         'session': entry.auth.session.value.runtimeType.toString(),
       },
     );
-    _aliases.remove(entry.alias);
+    _aliases.release(entry.alias);
     _subscriptions.remove(serverId)?.call();
 
     entry.connection.close();
@@ -215,31 +201,18 @@ class ServerManager {
       }
     }
 
-    _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
-        .then((_) => _storage.delete(serverId))
-        .catchError((Object e, StackTrace st) {
-      _logger.error(
-        'Failed to delete stored session for $serverId',
-        error: e,
-        stackTrace: st,
-      );
-    });
+    _persistence.delete(serverId);
   }
 
   /// Completes when every save or delete queued so far for [serverId] has
   /// settled. A failed write is logged by the queue and still completes it.
   Future<void> whenPersisted(String serverId) =>
-      _persistQueue[serverId] ?? Future.value();
+      _persistence.whenPersisted(serverId);
 
   /// Restores servers from persistent storage.
   Future<void> restoreServers() async {
-    final Map<String, PersistedServer> stored;
-    try {
-      stored = await _storage.loadAll();
-    } catch (e, st) {
-      _logger.error('Failed to load stored servers', error: e, stackTrace: st);
-      return;
-    }
+    final stored = await _persistence.loadAll();
+    if (stored == null) return;
     _restoring = true;
     try {
       for (final entry in stored.entries) {
@@ -267,6 +240,10 @@ class ServerManager {
     } finally {
       _restoring = false;
     }
+    _logRestored();
+  }
+
+  void _logRestored() {
     _logger.info(
       'Restored ${_servers.value.length} server(s)',
       attributes: {
@@ -316,7 +293,7 @@ class ServerManager {
     _servers.value = {};
   }
 
-  void _onSessionChanged(String serverId, ServerEntry entry) {
+  void _onSessionChanged(ServerEntry entry) {
     // A refresh and an expiry keep the same user, so neither invalidates the
     // answer. Signing out does not tear this entry down, so without this the
     // next user on this device would read the previous one's answer. This is
@@ -324,45 +301,6 @@ class ServerManager {
     // signed-out state, and `UserSwitchTeardown` catches that wherever the
     // token carries an identity to compare.
     if (entry.auth.session.value is NoSession) entry.adminStatus.clear();
-    if (_restoring) return;
-    Future<void> persist() async {
-      switch (entry.auth.session.value) {
-        case ActiveSession(:final provider, :final tokens):
-        case ExpiredSession(:final provider, :final tokens):
-          await _storage.save(
-            serverId,
-            AuthenticatedServer(
-              serverUrl: entry.serverUrl,
-              alias: entry.alias,
-              requiresAuth: entry.requiresAuth,
-              name: entry.name,
-              description: entry.description,
-              provider: provider,
-              tokens: tokens,
-            ),
-          );
-        case NoSession():
-          await _storage.save(
-            serverId,
-            KnownServer(
-              serverUrl: entry.serverUrl,
-              alias: entry.alias,
-              requiresAuth: entry.requiresAuth,
-              name: entry.name,
-              description: entry.description,
-            ),
-          );
-      }
-    }
-
-    _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
-        .then((_) => persist())
-        .catchError((Object e, StackTrace st) {
-      _logger.error(
-        'Failed to persist session for $serverId',
-        error: e,
-        stackTrace: st,
-      );
-    });
+    if (!_restoring) _persistence.save(entry);
   }
 }

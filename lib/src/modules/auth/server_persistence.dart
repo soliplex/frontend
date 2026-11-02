@@ -1,0 +1,87 @@
+import 'dart:async';
+
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+import 'auth_tokens.dart';
+import 'server_entry.dart';
+import 'server_storage.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.server_persistence');
+
+/// Writes each server's stored record, one operation at a time per server.
+///
+/// Writes are fire-and-forget: a failure is logged and the queue moves on, so
+/// a caller never sees one. [whenPersisted] is how a caller waits for them.
+class ServerPersistence {
+  ServerPersistence(this._storage);
+
+  final ServerStorage _storage;
+
+  /// Serializes operations per server so a later write never lands first.
+  final Map<String, Future<void>> _queue = {};
+
+  /// Every stored record, or null when the storage cannot be read.
+  Future<Map<String, PersistedServer>?> loadAll() async {
+    try {
+      return await _storage.loadAll();
+    } catch (e, st) {
+      _logger.error('Failed to load stored servers', error: e, stackTrace: st);
+      return null;
+    }
+  }
+
+  /// Queues a write of [entry] as its session stands when the write runs:
+  /// with its provider and tokens while it has any, an expired session
+  /// included, and as a known server once signed out.
+  void save(ServerEntry entry) => _enqueue(
+        entry.serverId,
+        () => _storage.save(entry.serverId, _record(entry)),
+        'Failed to persist session for ${entry.serverId}',
+      );
+
+  /// Queues the deletion of [serverId]'s record, after any write before it.
+  void delete(String serverId) => _enqueue(
+        serverId,
+        () => _storage.delete(serverId),
+        'Failed to delete stored session for $serverId',
+      );
+
+  /// Completes when every operation queued so far for [serverId] has settled.
+  Future<void> whenPersisted(String serverId) =>
+      _queue[serverId] ?? Future.value();
+
+  void _enqueue(
+    String serverId,
+    Future<void> Function() operation,
+    String failureMessage,
+  ) {
+    _queue[serverId] = (_queue[serverId] ?? Future.value())
+        .then((_) => operation())
+        .catchError((Object e, StackTrace st) {
+      _logger.error(failureMessage, error: e, stackTrace: st);
+    });
+  }
+
+  static PersistedServer _record(ServerEntry entry) =>
+      switch (entry.auth.session.value) {
+        ActiveSession(:final provider, :final tokens) ||
+        ExpiredSession(:final provider, :final tokens) =>
+          AuthenticatedServer(
+            serverUrl: entry.serverUrl,
+            alias: entry.alias,
+            requiresAuth: entry.requiresAuth,
+            name: entry.name,
+            description: entry.description,
+            provider: provider,
+            tokens: tokens,
+          ),
+        NoSession() => KnownServer(
+            serverUrl: entry.serverUrl,
+            alias: entry.alias,
+            requiresAuth: entry.requiresAuth,
+            name: entry.name,
+            description: entry.description,
+          ),
+      };
+}
