@@ -9,10 +9,11 @@ import 'server_storage.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.server_persistence');
 
-/// Writes each server's stored record, one operation at a time per server.
+/// Reads and writes the servers' stored records.
 ///
-/// Writes are fire-and-forget: a failure is logged and the queue moves on, so
-/// a caller never sees one. [whenPersisted] is how a caller waits for them.
+/// Saves and deletes run one at a time per server and are fire-and-forget: a
+/// failure is logged and the queue moves on, so a caller never sees one.
+/// [whenPersisted] is how a caller waits for them.
 class ServerPersistence {
   ServerPersistence(this._storage);
 
@@ -21,7 +22,8 @@ class ServerPersistence {
   /// Serializes operations per server so a later write never lands first.
   final Map<String, Future<void>> _queue = {};
 
-  /// Every stored record, or null when the storage cannot be read.
+  /// The records [ServerStorage.loadAll] returns, or null, after logging the
+  /// failure, when it throws.
   Future<Map<String, PersistedServer>?> loadAll() async {
     try {
       return await _storage.loadAll();
