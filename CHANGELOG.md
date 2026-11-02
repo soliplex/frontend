@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- **Library consumers:** `SourceReference.chunkIds` carries every chunk id a
+  merged citation covers, empty when the backend sends none.
+
+### Changed
+
+- An answer names the sources it cites by the numbers on their badges in its
+  source list, "[2]", where it showed the chunk id the model wrote, a UUID.
+  Tapping a number opens the source list, expands that source and scrolls to
+  it. A source cited in an earlier answer of the thread and not again shows
+  its number without a link, its passage being in that answer's list. Copying
+  an answer copies the numbers. While an answer streams its ids show as
+  written, until its sources arrive; an id the answer's sources do not hold,
+  and text in code, are left as written.
+
 ## [0.114.0+101] - 2026-10-30
 
 ### Added
