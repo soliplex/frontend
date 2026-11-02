@@ -17,6 +17,7 @@ ServerEntry createTestServerEntry({
   FakeHttpClient? httpClient,
   FakeAgUiStreamClient? agUiStreamClient,
   String? name,
+  String? description,
 }) {
   final fakeApi = api ?? FakeSoliplexApi();
   return ServerEntry(
@@ -33,6 +34,7 @@ ServerEntry createTestServerEntry({
     adminStatus: AdminStatus(api: fakeApi, serverId: serverId),
     requiresAuth: requiresAuth,
     name: name,
+    description: description,
   );
 }
 

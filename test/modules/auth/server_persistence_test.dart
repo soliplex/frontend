@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_persistence.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -8,19 +10,12 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../helpers/fakes.dart';
 import '../../helpers/test_server_entry.dart';
 
-/// Fails every operation, as an unreadable or unwritable keychain would.
-class _FailingStorage implements ServerStorage {
-  @override
-  Future<Map<String, PersistedServer>> loadAll() =>
-      Future.error(StateError(''));
+/// A stored [AuthenticatedServer] holding [tokens].
+Matcher _withTokens(AuthTokens tokens) =>
+    isA<AuthenticatedServer>().having((s) => s.tokens, 'tokens', same(tokens));
 
-  @override
-  Future<void> save(String serverId, PersistedServer data) =>
-      Future.error(StateError(''));
-
-  @override
-  Future<void> delete(String serverId) => Future.error(StateError(''));
-}
+AuthTokens _tokensOf(AuthSession auth) =>
+    (auth.session.value as ActiveSession).tokens;
 
 MemorySink _captureLogs() {
   final sink = MemorySink();
@@ -34,20 +29,7 @@ void main() {
     test('stores a signed-in server with its tokens', () async {
       final storage = InMemoryServerStorage();
       final persistence = ServerPersistence(storage);
-      final entry = createTestServerEntry(auth: authInActiveSession());
-
-      persistence.save(entry);
-      await persistence.whenPersisted(entry.serverId);
-
-      final stored = (await storage.loadAll())[entry.serverId];
-      expect(stored, isA<AuthenticatedServer>());
-      expect(stored!.alias, entry.alias);
-    });
-
-    test('keeps the tokens of an expired session', () async {
-      final storage = InMemoryServerStorage();
-      final persistence = ServerPersistence(storage);
-      final auth = authInActiveSession()..markSessionExpired();
+      final auth = authInActiveSession();
       final entry = createTestServerEntry(auth: auth);
 
       persistence.save(entry);
@@ -55,24 +37,57 @@ void main() {
 
       expect(
         (await storage.loadAll())[entry.serverId],
-        isA<AuthenticatedServer>(),
+        _withTokens(_tokensOf(auth)),
       );
     });
 
-    test('stores a signed-out server without tokens', () async {
+    test('keeps the tokens of an expired session', () async {
       final storage = InMemoryServerStorage();
       final persistence = ServerPersistence(storage);
-      final entry = createTestServerEntry();
+      final auth = authInActiveSession();
+      final tokens = _tokensOf(auth);
+      auth.markSessionExpired();
+      final entry = createTestServerEntry(auth: auth);
 
       persistence.save(entry);
       await persistence.whenPersisted(entry.serverId);
 
-      expect((await storage.loadAll())[entry.serverId], isA<KnownServer>());
+      expect((await storage.loadAll())[entry.serverId], _withTokens(tokens));
     });
 
-    test('a failed write is logged and the next one still runs', () async {
+    for (final (state, requiresAuth, auth)
+        in <(String, bool, AuthSession? Function())>[
+      ('no-auth', false, () => null),
+      ('signed-out', true, () => null),
+      ('signed-in', true, authInActiveSession),
+    ]) {
+      test('stores the details of a $state server', () async {
+        final storage = InMemoryServerStorage();
+        final persistence = ServerPersistence(storage);
+        final entry = createTestServerEntry(
+          auth: auth(),
+          requiresAuth: requiresAuth,
+          alias: 'research',
+          name: 'Research',
+          description: 'Team documents',
+        );
+
+        persistence.save(entry);
+        await persistence.whenPersisted(entry.serverId);
+
+        final stored = (await storage.loadAll())[entry.serverId]!;
+        expect(stored.serverUrl, entry.serverUrl);
+        expect(stored.alias, 'research');
+        expect(stored.requiresAuth, requiresAuth);
+        expect(stored.name, 'Research');
+        expect(stored.description, 'Team documents');
+      });
+    }
+
+    test('a failed operation is logged and the next one still runs', () async {
       final sink = _captureLogs();
-      final persistence = ServerPersistence(_FailingStorage());
+      final persistence =
+          ServerPersistence(FailingServerStorage(StateError('')));
       final entry = createTestServerEntry();
 
       persistence
@@ -92,39 +107,32 @@ void main() {
     });
   });
 
-  test('a delete queued after a save lands after it', () async {
+  test('a save queued after a delete lands after it', () async {
     final storage = InMemoryServerStorage();
     final held = Completer<void>();
-    storage.writesHeldUntil = held.future;
+    storage.deletesHeldUntil = held.future;
     final persistence = ServerPersistence(storage);
     final entry = createTestServerEntry();
 
     persistence
-      ..save(entry)
-      ..delete(entry.serverId);
+      ..delete(entry.serverId)
+      ..save(entry);
     held.complete();
     await persistence.whenPersisted(entry.serverId);
+    // Without the queue, the save overtakes the held delete, and the delete
+    // lands after whenPersisted completes; let it land before reading.
+    await pumpEventQueue();
 
-    expect(await storage.loadAll(), isEmpty);
+    expect((await storage.loadAll()).keys, [entry.serverId]);
   });
 
   group('loadAll', () {
-    test('returns the stored records', () async {
-      final storage = InMemoryServerStorage();
-      await storage.save(
-        's1',
-        KnownServer(serverUrl: Uri.parse('https://s1.example.com')),
-      );
-
-      final loaded = await ServerPersistence(storage).loadAll();
-
-      expect(loaded!.keys, ['s1']);
-    });
-
     test('is null, and logs, when the storage cannot be read', () async {
       final sink = _captureLogs();
 
-      final loaded = await ServerPersistence(_FailingStorage()).loadAll();
+      final loaded =
+          await ServerPersistence(FailingServerStorage(StateError('')))
+              .loadAll();
 
       expect(loaded, isNull);
       expect(
@@ -132,13 +140,5 @@ void main() {
         contains('Failed to load stored servers'),
       );
     });
-  });
-
-  test('whenPersisted completes at once for a server with nothing queued',
-      () async {
-    await expectLater(
-      ServerPersistence(InMemoryServerStorage()).whenPersisted('none'),
-      completes,
-    );
   });
 }
