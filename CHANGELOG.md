@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- When reading, saving or removing a server's stored sign-in fails, the
+  diagnostics log no longer shows the stored data the failure quoted,
+  tokens included. The record keeps the platform's error code instead.
+
 ## [0.114.0+101] - 2026-10-30
 
 ### Added
