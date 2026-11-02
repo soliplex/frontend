@@ -206,7 +206,8 @@ class ServerManager {
   }
 
   /// Completes when every save or delete queued so far for [serverId] has
-  /// settled. A failed write is logged by the queue and still completes it.
+  /// settled. [ServerPersistence] logs a failed save or delete, and the
+  /// returned future still completes.
   Future<void> whenPersisted(String serverId) =>
       _persistence.whenPersisted(serverId);
 
@@ -241,10 +242,6 @@ class ServerManager {
     } finally {
       _restoring = false;
     }
-    _logRestored();
-  }
-
-  void _logRestored() {
     _logger.info(
       'Restored ${_servers.value.length} server(s)',
       attributes: {
