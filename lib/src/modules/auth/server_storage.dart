@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -109,6 +110,19 @@ class KnownServer extends PersistedServer {
       };
 }
 
+/// Describes a [ServerStorage] failure for a log without the stored data its
+/// text can quote.
+///
+/// A [PlatformException] keeps its code, which names the error, and its
+/// details when they are an integer; its message and any other details are
+/// dropped. Anything else goes through [describeFailure].
+String describeStorageFailure(Object failure) => switch (failure) {
+      PlatformException(:final code, details: final int details) =>
+        'PlatformException($code, $details)',
+      PlatformException(:final code) => 'PlatformException($code)',
+      _ => describeFailure(failure),
+    };
+
 /// Abstraction for persisting server session data.
 abstract class ServerStorage {
   Future<void> save(String serverId, PersistedServer data);
@@ -132,9 +146,10 @@ Future<void> clearServersIfFreshInstall(ServerStorage storage) async {
       await storage.delete(serverId);
     }
   } catch (e, st) {
+    // A storage failure can quote the stored data it failed to parse.
     _logger.warning(
       'Failed to clear servers on fresh install',
-      error: e,
+      attributes: {'failure': describeStorageFailure(e)},
       stackTrace: st,
     );
   }
