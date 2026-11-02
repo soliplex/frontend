@@ -26,7 +26,12 @@ class ServerPersistence {
     try {
       return await _storage.loadAll();
     } catch (e, st) {
-      _logger.error('Failed to load stored servers', error: e, stackTrace: st);
+      // A storage failure can quote the stored data it failed to parse.
+      _logger.error(
+        'Failed to load stored servers',
+        attributes: {'failure': describeStorageFailure(e)},
+        stackTrace: st,
+      );
       return null;
     }
   }
@@ -59,7 +64,12 @@ class ServerPersistence {
     _queue[serverId] = (_queue[serverId] ?? Future.value())
         .then((_) => operation())
         .catchError((Object e, StackTrace st) {
-      _logger.error(failureMessage, error: e, stackTrace: st);
+      // A save or delete can fail the same way as [loadAll].
+      _logger.error(
+        failureMessage,
+        attributes: {'failure': describeStorageFailure(e)},
+        stackTrace: st,
+      );
     });
   }
 

@@ -1,7 +1,9 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -47,6 +49,25 @@ void main() {
 
       final entries = await storage.loadAll();
       expect(entries, hasLength(1));
+    });
+
+    test('logs a storage failure without the stored data', () async {
+      SharedPreferences.setMockInitialValues({});
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      await clearServersIfFreshInstall(
+        FailingServerStorage(
+          PlatformException(code: 'StorageError', message: 'refresh-secret'),
+        ),
+      );
+
+      final record = sink.records.singleWhere(
+        (r) => r.message == 'Failed to clear servers on fresh install',
+      );
+      expect(record.toString(), isNot(contains('refresh-secret')));
+      expect(record.toString(), contains('StorageError'));
     });
 
     test('sets flag after clearing', () async {
