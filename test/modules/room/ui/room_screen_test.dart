@@ -3609,38 +3609,73 @@ void main() {
       );
     });
 
-    testWidgets('the first message freezes the set, and the chips stay',
+    FilterChip chipFor(WidgetTester tester, String name) =>
+        tester.widget<FilterChip>(find.widgetWithText(FilterChip, name));
+
+    testWidgets('after the first message the set may grow but not shrink',
         (tester) async {
-      api.nextRoom = roomWith(['papers', 'wiki']);
+      api.nextRoom = roomWith(['papers', 'wiki', 'notes']);
 
       final stream = await pumpThread(tester);
 
-      // Open before the first message: the tap narrows the set.
+      // Open before the first message: taps narrow the set.
       await tester.tap(find.widgetWithText(FilterChip, 'wiki'));
       await tester.pumpAndSettle();
-      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilterChip, 'notes'));
+      await tester.pumpAndSettle();
+      expect(find.text('Searching 1 of 3 databases'), findsOneWidget);
 
       expect(
         await sendAndReadRag(tester, stream),
         containsPair('sources', ['papers']),
       );
 
-      // Frozen afterwards: the chips remain, disabled, still naming the set.
-      expect(find.widgetWithText(FilterChip, 'papers'), findsOneWidget);
-      expect(find.widgetWithText(FilterChip, 'wiki'), findsOneWidget);
-      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
-      for (final chip
-          in tester.widgetList<FilterChip>(find.byType(FilterChip))) {
-        expect(chip.onSelected, isNull, reason: 'renders as disabled');
-      }
+      // What the thread searched stays selected and disabled; the rest can
+      // still be added.
+      expect(chipFor(tester, 'papers').onSelected, isNull);
+      expect(chipFor(tester, 'wiki').onSelected, isNotNull);
+      expect(chipFor(tester, 'notes').onSelected, isNotNull);
 
-      // And a tap on one changes nothing.
+      // An addition not yet sent can be undone.
+      await tester.tap(find.widgetWithText(FilterChip, 'wiki'));
+      await tester.pumpAndSettle();
+      expect(find.text('Searching 2 of 3 databases'), findsOneWidget);
+      expect(chipFor(tester, 'wiki').onSelected, isNotNull);
+      await tester.tap(find.widgetWithText(FilterChip, 'wiki'));
+      await tester.pumpAndSettle();
+      expect(find.text('Searching 1 of 3 databases'), findsOneWidget);
+
+      // A tap on a searched database changes nothing.
       await tester.tap(find.widgetWithText(FilterChip, 'papers'));
       await tester.pumpAndSettle();
-      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+      expect(find.text('Searching 1 of 3 databases'), findsOneWidget);
+
+      // An addition that is sent joins what the thread searched.
+      await tester.tap(find.widgetWithText(FilterChip, 'wiki'));
+      await tester.pumpAndSettle();
+      api.nextCreateRun = RunInfo(
+        id: 'run-2',
+        threadId: 'thread-1',
+        createdAt: DateTime(2026, 3, 2),
+      );
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(ChatInput),
+          matching: find.byType(TextField),
+        ),
+        'And now?',
+      );
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+      final rag = (stream.inputs.last.state as Map<String, dynamic>)['rag']
+          as Map<String, dynamic>;
+      expect(rag, containsPair('sources', ['papers', 'wiki']));
+      expect(chipFor(tester, 'wiki').onSelected, isNull);
+      expect(chipFor(tester, 'notes').onSelected, isNotNull);
     });
 
-    testWidgets('a thread that already has messages opens frozen',
+    testWidgets('a thread with messages keeps what its history searched',
         (tester) async {
       api.nextRoom = roomWith(['papers', 'wiki']);
       api.nextThreadHistory = ThreadHistory(
@@ -3657,6 +3692,34 @@ void main() {
       await pumpRoom(tester, threadId: 'thread-1');
 
       expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+      expect(chipFor(tester, 'wiki').onSelected, isNull);
+
+      // The other can be added, and taken back out before it is sent.
+      await tester.tap(find.widgetWithText(FilterChip, 'papers'));
+      await tester.pumpAndSettle();
+      expect(find.text('Searching all 2 databases'), findsOneWidget);
+      expect(chipFor(tester, 'papers').onSelected, isNotNull);
+      await tester.tap(find.widgetWithText(FilterChip, 'papers'));
+      await tester.pumpAndSettle();
+      expect(find.text('Searching 1 of 2 databases'), findsOneWidget);
+    });
+
+    testWidgets('a thread that searched every database has nothing to add',
+        (tester) async {
+      api.nextRoom = roomWith(['papers', 'wiki']);
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          TextMessage.create(
+            id: 'u1',
+            user: ChatUser.user,
+            text: 'Earlier question',
+          ),
+        ],
+      );
+
+      await pumpRoom(tester, threadId: 'thread-1');
+
+      expect(find.text('Searching all 2 databases'), findsOneWidget);
       for (final chip
           in tester.widgetList<FilterChip>(find.byType(FilterChip))) {
         expect(chip.onSelected, isNull);

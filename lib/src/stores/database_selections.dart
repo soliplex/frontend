@@ -10,6 +10,7 @@
 /// level and injected via constructor.
 class DatabaseSelections {
   final _selections = <_Key, Set<String>>{};
+  final _searched = <_Key, Set<String>>{};
 
   /// The names selected for the thread, or empty for "every database".
   Set<String> get({
@@ -47,14 +48,50 @@ class DatabaseSelections {
     );
   }
 
+  /// The databases the thread has already searched, or null when none is
+  /// recorded. Empty means every database.
+  ///
+  /// A thread's set may grow after its first message but never shrink: a
+  /// database dropped from it would leave the earlier answers' citations
+  /// naming a database the thread no longer covers. The selection may differ
+  /// from this only by additions not yet sent, which can still be undone.
+  Set<String>? searched({
+    required String serverId,
+    required String roomId,
+    required String threadId,
+  }) =>
+      _searched[(serverId: serverId, roomId: roomId, threadId: threadId)];
+
+  /// Adds [names] — what a send carried, or what the thread's history says
+  /// its runs asked for — to what the thread has searched. Empty is every
+  /// database, which absorbs any list, so the record only ever grows: a send
+  /// and a history load can arrive in either order.
+  void recordSearched({
+    required String serverId,
+    required String roomId,
+    required String threadId,
+    required Set<String> names,
+  }) {
+    final key = (serverId: serverId, roomId: roomId, threadId: threadId);
+    final previous = _searched[key];
+    _searched[key] = Set.unmodifiable(
+      previous == null
+          ? names
+          : previous.isEmpty || names.isEmpty
+              ? const <String>{}
+              : {...previous, ...names},
+    );
+  }
+
   /// Drops the selection for a deleted thread.
   void clearThread({
     required String serverId,
     required String roomId,
     required String threadId,
   }) {
-    _selections
-        .remove((serverId: serverId, roomId: roomId, threadId: threadId));
+    final key = (serverId: serverId, roomId: roomId, threadId: threadId);
+    _selections.remove(key);
+    _searched.remove(key);
   }
 
   /// Drops every selection for [serverId], so a different user signing in on
@@ -62,6 +99,7 @@ class DatabaseSelections {
   /// other servers' selections intact.
   void clearServer(String serverId) {
     _selections.removeWhere((key, _) => key.serverId == serverId);
+    _searched.removeWhere((key, _) => key.serverId == serverId);
   }
 
   /// Moves the selection from the null-thread key to [threadId].

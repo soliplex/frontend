@@ -75,6 +75,40 @@ void main() {
     });
   });
 
+  group('searched', () {
+    Set<String>? read() =>
+        selections.searched(serverId: 's1', roomId: 'room-1', threadId: 't1');
+    void record(Set<String> names) => selections.recordSearched(
+        serverId: 's1', roomId: 'room-1', threadId: 't1', names: names);
+
+    test('is null until something is recorded', () {
+      expect(read(), isNull);
+    });
+
+    test('grows by each record', () {
+      record({'a'});
+      record({'b'});
+      expect(read(), {'a', 'b'});
+    });
+
+    test('every database absorbs any list, in either order', () {
+      record({'a'});
+      record(const {});
+      expect(read(), isEmpty);
+      record({'b'});
+      expect(read(), isEmpty);
+    });
+
+    test('is dropped with the thread and the server', () {
+      record({'a'});
+      selections.clearThread(serverId: 's1', roomId: 'room-1', threadId: 't1');
+      expect(read(), isNull);
+      record({'a'});
+      selections.clearServer('s1');
+      expect(read(), isNull);
+    });
+  });
+
   group('clearThread', () {
     test('drops the thread and leaves its siblings', () {
       selections
