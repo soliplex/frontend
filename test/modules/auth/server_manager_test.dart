@@ -106,6 +106,24 @@ void main() {
       expect(second.alias, 'example-com-2');
     });
 
+    test('a server that fails to add does not keep its alias', () {
+      final manager = _createManager();
+
+      expect(
+        () => manager.addServer(
+          serverId: '//example.com',
+          serverUrl: Uri.parse('//example.com'),
+        ),
+        throwsFormatException,
+      );
+      final added = manager.addServer(
+        serverId: 'http://example.com',
+        serverUrl: Uri.parse('http://example.com'),
+      );
+
+      expect(added.alias, 'example-com');
+    });
+
     test('entryByAlias returns matching entry', () {
       final manager = _createManager();
 
