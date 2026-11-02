@@ -3314,6 +3314,31 @@ void main() {
       expect(entry.sourceReferences[0].chunkId, 'chunk-1');
     });
 
+    test('resolves the citations a run made before it was cancelled', () async {
+      // Stopping a turn midway keeps the answer streamed so far, and that text
+      // can already name the chunks it cited: their sources must survive the
+      // cancel for the answer to show them as numbers.
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
+      citationEvents()
+          .where((e) => e is! TextMessageEndEvent && e is! RunFinishedEvent)
+          .forEach(controller.add);
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<RunningState>());
+
+      orchestrator.cancelRun();
+
+      final cancelled = orchestrator.currentState as CancelledState;
+      final entry = cancelled.conversation!.messageStates.values.single;
+      expect(entry.sourceReferences.single.chunkId, 'chunk-1');
+
+      await controller.close();
+    });
+
     test("credits citations from the run's terminal state snapshot", () async {
       // The backend carries a run's cited set in one StateSnapshotEvent
       // emitted just before RUN_FINISHED, with no deltas at all.

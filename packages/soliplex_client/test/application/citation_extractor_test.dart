@@ -113,6 +113,21 @@ void main() {
         expect(refs[0].index, 1);
       });
 
+      test("carries a merged citation's chunk ids as `chunkIds`", () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(chunkId: 'c1', chunkIds: ['c1', 'c2']),
+            'c3': createCitation(chunkId: 'c3'),
+          },
+          citations: ['c1', 'c3'],
+        );
+
+        final refs = extract(state);
+
+        expect(refs[0].chunkIds, ['c1', 'c2']);
+        expect(refs[1].chunkIds, isEmpty);
+      });
+
       test('carries the citation database name as `database`', () {
         final state = createState(
           citationIndex: {

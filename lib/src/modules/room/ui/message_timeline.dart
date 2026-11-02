@@ -5,6 +5,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/local_time_format.dart' show isSameCalendarDay;
 import '../lay_out_timeline.dart';
+import '../citation_markers.dart';
 import '../execution_tracker.dart';
 import '../message_timestamp_format.dart';
 
@@ -94,6 +95,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   static const _bottomStickThreshold = 100.0;
 
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
+  Map<String, int> _citationNumbers = const {};
 
   @override
   void initState() {
@@ -165,6 +167,9 @@ class _MessageTimelineState extends State<MessageTimeline> {
   void _recomputeMaps() {
     _sourceReferencesMap =
         buildSourceReferencesMap(widget.messages, widget.messageStates);
+    _citationNumbers = threadCitationNumbers(
+      widget.messageStates.values.map((state) => state.sourceReferences),
+    );
   }
 
   @override
@@ -476,6 +481,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           message: message,
                           runId: resolveRunId(message, widget.messageStates),
                           sourceReferences: _sourceReferencesMap[message.id],
+                          citationNumbers: _citationNumbers,
                           onFeedbackSubmit: widget.onFeedbackSubmit,
                           onReportRun: widget.onReportRun,
                           besideReply: entry.besideReply,

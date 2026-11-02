@@ -350,6 +350,71 @@ void main() {
     );
   });
 
+  group('CitationsController.reveal', () {
+    List<SourceReference> refs() => [
+          _ref(index: 1, fileName: 'One.txt', headings: ['First']),
+          _ref(index: 2, fileName: 'Two.txt', headings: ['Second']),
+        ];
+
+    testWidgets('reopens a collapsed section and expands only that row',
+        (tester) async {
+      final controller = CitationsController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_wrap(
+        CitationsSection(sourceReferences: refs(), controller: controller),
+      ));
+      await tester.tap(find.text('2 sources'));
+      await tester.pump();
+      expect(find.text('Two.txt'), findsNothing);
+
+      controller.reveal(1);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Two.txt'), findsOneWidget);
+      expect(find.text('Second'), findsOneWidget);
+      expect(find.text('First'), findsNothing);
+    });
+
+    testWidgets('scrolls the revealed row into view', (tester) async {
+      final controller = CitationsController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_wrap(
+        SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 2000),
+              CitationsSection(
+                sourceReferences: refs(),
+                controller: controller,
+              ),
+            ],
+          ),
+        ),
+      ));
+      expect(find.text('Two.txt').hitTestable(), findsNothing);
+
+      controller.reveal(1);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Two.txt').hitTestable(), findsOneWidget);
+      expect(find.text('Second'), findsOneWidget);
+    });
+
+    testWidgets('ignores a position outside the list', (tester) async {
+      final controller = CitationsController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_wrap(
+        CitationsSection(sourceReferences: refs(), controller: controller),
+      ));
+
+      controller.reveal(5);
+      await tester.pumpAndSettle();
+
+      expect(find.text('First'), findsNothing);
+      expect(find.text('Second'), findsNothing);
+    });
+  });
+
   testWidgets('expanded row shows the chunk id', (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(
