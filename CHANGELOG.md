@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Changed
+
+- A thread's databases can be added to after its first message: the chips of
+  the databases it has already searched stay selected and disabled, and the
+  others can be selected for the next answer. An addition can be taken back
+  until it is sent. Before, the whole set was fixed by the first message.
+  Removal stays refused because earlier answers cite those databases.
+
 ## [0.114.0+101] - 2026-10-30
 
 ### Added

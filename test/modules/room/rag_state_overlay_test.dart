@@ -29,17 +29,88 @@ void main() {
       );
     });
 
-    test('a thread with a message is frozen', () {
+    test('a thread with a message is open, to additions', () {
       expect(
         databaseSelectionIsOpen(threadExists: true, threadIsEmpty: false),
-        isFalse,
+        isTrue,
       );
     });
 
-    test('a thread whose history is still loading is frozen', () {
+    test('a thread whose history is still loading is closed', () {
       expect(
         databaseSelectionIsOpen(threadExists: true, threadIsEmpty: null),
         isFalse,
+      );
+    });
+  });
+
+  group('searchedDatabasesFor', () {
+    test('is null for a thread that does not exist yet', () {
+      expect(
+        searchedDatabasesFor(
+          threadExists: false,
+          threadIsEmpty: null,
+          recorded: const {'wiki'},
+          stored: const {'wiki'},
+        ),
+        isNull,
+      );
+    });
+
+    test('is what is on record', () {
+      expect(
+        searchedDatabasesFor(
+          threadExists: true,
+          threadIsEmpty: false,
+          recorded: const {'wiki'},
+          stored: const {'wiki', 'papers'},
+        ),
+        equals({'wiki'}),
+      );
+    });
+
+    test('is the stored selection for a thread with messages and no record',
+        () {
+      expect(
+        searchedDatabasesFor(
+          threadExists: true,
+          threadIsEmpty: false,
+          recorded: null,
+          stored: const {'papers'},
+        ),
+        equals({'papers'}),
+      );
+    });
+
+    test('is null for an empty thread with no record', () {
+      expect(
+        searchedDatabasesFor(
+          threadExists: true,
+          threadIsEmpty: true,
+          recorded: null,
+          stored: const {'papers'},
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('lockedDatabasesIn', () {
+    test('locks nothing when nothing was searched', () {
+      expect(lockedDatabasesIn(_scope(), null), isEmpty);
+    });
+
+    test('locks every database when every one was searched', () {
+      expect(
+        lockedDatabasesIn(_scope(), const {}),
+        equals({'papers', 'wiki', 'notes'}),
+      );
+    });
+
+    test('locks the searched ones the room still lists', () {
+      expect(
+        lockedDatabasesIn(_scope(), const {'wiki', 'gone'}),
+        equals({'wiki'}),
       );
     });
   });
@@ -250,6 +321,27 @@ void main() {
       expect(selectedDatabasesIn(const {'gone'}, _scope()), isEmpty);
     });
 
+    test('adds back what the thread searched', () {
+      expect(
+        selectedDatabasesIn(const {'papers'}, _scope(), searched: {'wiki'}),
+        equals({'papers', 'wiki'}),
+      );
+    });
+
+    test('reads a thread that searched every database as the default', () {
+      expect(
+        selectedDatabasesIn(const {'papers'}, _scope(), searched: const {}),
+        isEmpty,
+      );
+    });
+
+    test('keeps the default when the thread searched less', () {
+      expect(
+        selectedDatabasesIn(const {}, _scope(), searched: {'wiki'}),
+        isEmpty,
+      );
+    });
+
     test('reads a single-database room as the default', () {
       expect(
         selectedDatabasesIn(const {'only'}, _scope(names: const ['only'])),
@@ -282,6 +374,32 @@ void main() {
           selected: true,
         ),
         isEmpty,
+      );
+    });
+
+    test('a searched database cannot be deselected', () {
+      expect(
+        toggledDatabases(
+          _scope(),
+          const {'papers', 'wiki'},
+          'papers',
+          selected: false,
+          locked: {'papers'},
+        ),
+        isNull,
+      );
+    });
+
+    test('an addition not yet sent can be deselected', () {
+      expect(
+        toggledDatabases(
+          _scope(),
+          const {'papers', 'wiki'},
+          'wiki',
+          selected: false,
+          locked: {'papers'},
+        ),
+        equals({'papers'}),
       );
     });
 

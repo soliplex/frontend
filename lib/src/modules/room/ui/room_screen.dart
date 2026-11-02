@@ -380,19 +380,57 @@ class _RoomScreenState extends State<RoomScreen> {
         threadId: widget.threadId,
       );
 
+  /// Whether [status] is a loaded thread with no message yet; null while the
+  /// thread's history is still loading.
+  static bool? _threadIsEmpty(ThreadViewStatus? status) => switch (status) {
+        MessagesLoaded(:final messages) => messages.isEmpty,
+        _ => null,
+      };
+
+  /// What the open thread has already searched, through
+  /// [searchedDatabasesFor]: null for the welcome composer and for a thread
+  /// that has searched nothing yet.
+  Set<String>? get _searchedDatabases {
+    final threadView = _state.activeThreadView;
+    if (threadView == null) return null;
+    return searchedDatabasesFor(
+      threadExists: true,
+      threadIsEmpty: _threadIsEmpty(threadView.messages.peek()),
+      recorded: _databaseSelections.searched(
+        serverId: _serverId,
+        roomId: widget.roomId,
+        threadId: threadView.threadId,
+      ),
+      stored: _storedDatabases,
+    );
+  }
+
   void _toggleDatabase(
     RagDatabaseScope scope,
     String name, {
     required bool selected,
   }) {
+    final searched = _searchedDatabases;
     final next = toggledDatabases(
       scope,
-      selectedDatabasesIn(_storedDatabases, scope),
+      selectedDatabasesIn(_storedDatabases, scope, searched: searched),
       name,
       selected: selected,
+      locked: lockedDatabasesIn(scope, searched),
     );
     if (next == null) return;
+    final threadId = widget.threadId;
     setState(() {
+      // Put on record what [searchedDatabasesFor] inferred from the stored
+      // selection before the tap changes it, so the addition can be undone.
+      if (searched != null && threadId != null) {
+        _databaseSelections.recordSearched(
+          serverId: _serverId,
+          roomId: widget.roomId,
+          threadId: threadId,
+          names: searched,
+        );
+      }
       _databaseSelections.set(
         serverId: _serverId,
         roomId: widget.roomId,
@@ -891,7 +929,11 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onThreadHistoryLoaded(String threadId, ThreadHistory history) {
     if (!mounted) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
-    _applyHydratedDatabases(threadId, history.databaseSources);
+    _applyHydratedDatabases(
+      threadId,
+      history.databaseSources,
+      hasRuns: history.runs.isNotEmpty || history.messages.isNotEmpty,
+    );
     if (!_filterEnabled) return;
     _filterHydrator.setFilter(threadId, history.documentFilter);
   }
@@ -901,9 +943,26 @@ class _RoomScreenState extends State<RoomScreen> {
   /// the async load, a selection moved over from no thread, or one from an
   /// earlier visit — wins. A history whose [ThreadHistory.databaseSources] is
   /// null seeds nothing.
-  void _applyHydratedDatabases(String threadId, List<String>? sources) {
-    if (sources == null) return;
+  ///
+  /// A history with runs also puts on record what they searched — a null
+  /// [sources] there is every database — so a later tap can add to that set
+  /// but not drop from it.
+  void _applyHydratedDatabases(
+    String threadId,
+    List<String>? sources, {
+    required bool hasRuns,
+  }) {
+    if (sources == null && !hasRuns) return;
     setState(() {
+      if (hasRuns) {
+        _databaseSelections.recordSearched(
+          serverId: _serverId,
+          roomId: widget.roomId,
+          threadId: threadId,
+          names: sources?.toSet() ?? const {},
+        );
+      }
+      if (sources == null) return;
       _databaseSelections.seed(
         serverId: _serverId,
         roomId: widget.roomId,
@@ -941,13 +1000,31 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  /// The state overlay for a send, which also puts the databases it carries on
+  /// record as searched by the open thread. A send to a thread not yet created
+  /// records nothing: [searchedDatabasesFor] reads the selection the thread
+  /// takes over as what its first send carried.
   Map<String, dynamic>? _buildStateOverlay() {
     final scope = _databaseScope;
+    final selectedDatabases = selectedDatabasesIn(
+      _storedDatabases,
+      scope,
+      searched: _searchedDatabases,
+    );
+    final threadId = _state.activeThreadView?.threadId;
+    if (threadId != null) {
+      _databaseSelections.recordSearched(
+        serverId: _serverId,
+        roomId: widget.roomId,
+        threadId: threadId,
+        names: selectedDatabases,
+      );
+    }
     return buildRagStateOverlay(
       filterEnabled: _filterEnabled,
       selectedDocuments: _selectedDocuments,
       scope: scope,
-      selectedDatabases: selectedDatabasesIn(_storedDatabases, scope),
+      selectedDatabases: selectedDatabases,
       // A thread narrowed while its room offered a choice keeps that
       // `sources` in its cached state until a send overwrites it.
       clearsNarrowedSources: _storedDatabases.isNotEmpty,
@@ -2674,17 +2751,19 @@ class _RoomScreenState extends State<RoomScreen> {
     // signal, and the composer should follow the manifest reactively.
     final databaseScope =
         room == null ? RagDatabaseScope.none : RagDatabaseScope.of(room);
-    final selectedDatabases =
-        selectedDatabasesIn(_storedDatabases, databaseScope);
-    // The set is the conversation's, not the turn's: it is chosen before the
-    // first message and frozen by it. The chips stay, disabled, so the thread
-    // still says what it searches.
+    // The set is the conversation's, not the turn's: after the first message
+    // it may grow but not shrink, so a database the thread has searched keeps
+    // its chip selected and disabled, and only an addition not yet sent can
+    // be undone.
+    final searchedDatabases = _searchedDatabases;
+    final selectedDatabases = selectedDatabasesIn(
+      _storedDatabases,
+      databaseScope,
+      searched: searchedDatabases,
+    );
     final databasesOpen = databaseSelectionIsOpen(
       threadExists: threadView != null,
-      threadIsEmpty: switch (status) {
-        MessagesLoaded(:final messages) => messages.isEmpty,
-        _ => null,
-      },
+      threadIsEmpty: _threadIsEmpty(status),
     );
 
     return ChatInput(
@@ -2722,6 +2801,7 @@ class _RoomScreenState extends State<RoomScreen> {
       onFilterTap: _showDocumentFilter ? _openDocumentPicker : null,
       databaseNames: databaseScope.names,
       selectedDatabases: selectedDatabases,
+      lockedDatabases: lockedDatabasesIn(databaseScope, searchedDatabases),
       onDatabaseToggled: databasesOpen
           ? (name, {required selected}) =>
               _toggleDatabase(databaseScope, name, selected: selected)

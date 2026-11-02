@@ -61,6 +61,7 @@ class ChatInput extends StatefulWidget {
     this.onDocumentRemoved,
     this.databaseNames = const [],
     this.selectedDatabases = const {},
+    this.lockedDatabases = const {},
     this.onDatabaseToggled,
     this.onAttachFile,
     this.onAttachFolder,
@@ -91,6 +92,10 @@ class ChatInput extends StatefulWidget {
   /// The databases the thread's searches are narrowed to. Empty means every
   /// database — the backend's default — and paints every chip selected.
   final Set<String> selectedDatabases;
+
+  /// The databases the thread has already searched, whose chips are disabled:
+  /// a thread's set may grow after its first message but not shrink.
+  final Set<String> lockedDatabases;
 
   /// Called with the database's name and its new state when a chip is tapped.
   final void Function(String name, {required bool selected})? onDatabaseToggled;
@@ -551,6 +556,7 @@ class _ChatInputState extends State<ChatInput> {
               _DatabaseChips(
                 names: widget.databaseNames,
                 selected: widget.selectedDatabases,
+                locked: widget.lockedDatabases,
                 onToggled: disabled ? null : widget.onDatabaseToggled,
               ),
             if (widget.selectedDocuments.isNotEmpty)
@@ -753,16 +759,19 @@ class _ContextGaugeSlot extends StatelessWidget {
 ///
 /// An empty [selected] is the backend's "every database", so every chip is
 /// painted selected; the last selected chip stays put when tapped, which
-/// [onToggled] enforces — the chip merely reports the tap.
+/// [onToggled] enforces — the chip merely reports the tap. A [locked] chip,
+/// one the thread has already searched, is disabled.
 class _DatabaseChips extends StatelessWidget {
   const _DatabaseChips({
     required this.names,
     required this.selected,
+    required this.locked,
     required this.onToggled,
   });
 
   final List<String> names;
   final Set<String> selected;
+  final Set<String> locked;
   final void Function(String name, {required bool selected})? onToggled;
 
   @override
@@ -799,7 +808,7 @@ class _DatabaseChips extends StatelessWidget {
                   icon: const Icon(Icons.storage_outlined),
                   label: Text(name),
                   selected: all || selected.contains(name),
-                  onSelected: onToggled == null
+                  onSelected: onToggled == null || locked.contains(name)
                       ? null
                       : (value) => onToggled!(name, selected: value),
                 ),
