@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
@@ -16,6 +17,8 @@ Matcher _withTokens(AuthTokens tokens) =>
 
 AuthTokens _tokensOf(AuthSession auth) =>
     (auth.session.value as ActiveSession).tokens;
+
+const _secret = 'refresh-secret';
 
 MemorySink _captureLogs() {
   final sink = MemorySink();
@@ -141,4 +144,47 @@ void main() {
       );
     });
   });
+
+  for (final (label, failure, kept) in <(String, Object, List<String>)>[
+    (
+      'a parse failure',
+      const FormatException('Unexpected character', '{"t":"$_secret"', 14),
+      ['Unexpected character'],
+    ),
+    (
+      'a platform failure with text details',
+      PlatformException(
+        code: 'StorageError',
+        message: _secret,
+        details: 'at read($_secret)',
+      ),
+      ['StorageError'],
+    ),
+    (
+      'a platform failure with integer details',
+      PlatformException(
+          code: 'StorageError', message: _secret, details: -25308),
+      ['StorageError', '-25308'],
+    ),
+  ]) {
+    test('$label is logged without the stored data', () async {
+      final sink = _captureLogs();
+      final persistence = ServerPersistence(FailingServerStorage(failure));
+      final entry = createTestServerEntry();
+
+      await persistence.loadAll();
+      persistence.save(entry);
+      await persistence.whenPersisted(entry.serverId);
+
+      final records = sink.records
+          .where((r) => r.loggerName == 'soliplex.server_persistence');
+      expect(records, hasLength(2));
+      for (final record in records) {
+        expect(record.toString(), isNot(contains(_secret)));
+        for (final detail in kept) {
+          expect(record.toString(), contains(detail));
+        }
+      }
+    });
+  }
 }
