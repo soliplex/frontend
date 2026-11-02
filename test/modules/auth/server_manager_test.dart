@@ -738,7 +738,7 @@ void main() {
         KnownServer(
           serverUrl: Uri.parse('http://localhost:8000'),
           requiresAuth: false,
-          alias: 'localhost-8000',
+          alias: 'custom',
         ),
       );
 
@@ -746,7 +746,7 @@ void main() {
       await manager.restoreServers();
 
       final entry = manager.servers.value['http://localhost:8000']!;
-      expect(entry.alias, 'localhost-8000');
+      expect(entry.alias, 'custom');
     });
 
     test('generates alias when restoring legacy data without alias', () async {

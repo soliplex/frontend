@@ -881,6 +881,24 @@ class InMemoryPreAuthStateStorage implements PreAuthStateStorage {
   }
 }
 
+/// Fails every operation with [error], as unreadable or unwritable storage
+/// would.
+class FailingServerStorage implements ServerStorage {
+  FailingServerStorage(this.error);
+
+  final Object error;
+
+  @override
+  Future<Map<String, PersistedServer>> loadAll() => Future.error(error);
+
+  @override
+  Future<void> save(String serverId, PersistedServer data) =>
+      Future.error(error);
+
+  @override
+  Future<void> delete(String serverId) => Future.error(error);
+}
+
 class InMemoryServerStorage implements ServerStorage {
   final Map<String, PersistedServer> _store = {};
   int saveCount = 0;
