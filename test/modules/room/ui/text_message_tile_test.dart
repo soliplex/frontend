@@ -682,4 +682,119 @@ void main() {
       isEmpty,
     );
   });
+
+  group('citation markers', () {
+    const first = '0b1c9f4e-6a2d-4e8b-9a51-3f7d2c8e1a01';
+    const second = '7e3a2b10-5c4d-4f6e-8a9b-0c1d2e3f4a02';
+    const earlier = 'e1e2e3e4-1111-4222-8333-944455556604';
+
+    SourceReference ref(String chunkId, int index, String heading) =>
+        SourceReference(
+          documentId: 'doc-$index',
+          documentUri: 'file:///docs/doc-$index.txt',
+          content: 'Passage $index',
+          chunkId: chunkId,
+          headings: [heading],
+          index: index,
+        );
+
+    final refs = [ref(first, 4, 'Heading four'), ref(second, 2, 'Heading two')];
+
+    Widget tile(
+      String text, {
+      List<SourceReference>? sourceReferences,
+      Map<String, int> citationNumbers = const {},
+      ChatUser user = ChatUser.assistant,
+    }) =>
+        _wrap(
+          SingleChildScrollView(
+            child: TextMessageTile(
+              isStreaming: false,
+              roomId: 'r',
+              message: TextMessage(
+                id: 'cite-1',
+                user: user,
+                createdAt: DateTime(2026),
+                text: text,
+              ),
+              sourceReferences: sourceReferences,
+              citationNumbers: citationNumbers,
+            ),
+          ),
+        );
+
+    Finder rich(String text) => find.textContaining(text, findRichText: true);
+
+    String copied(WidgetTester tester) =>
+        tester.widget<CopyButton>(find.byType(CopyButton).first).text;
+
+    testWidgets('shows the badge numbers in place of chunk ids',
+        (tester) async {
+      await tester.pumpWidget(
+        tile('Boils [$first] and freezes [$second].', sourceReferences: refs),
+      );
+
+      expect(rich('Boils [4] and freezes [2].'), findsOneWidget);
+      expect(rich(first), findsNothing);
+    });
+
+    testWidgets('tapping a number opens its source below', (tester) async {
+      await tester.pumpWidget(
+        tile('Boils [$first] and freezes [$second].', sourceReferences: refs),
+      );
+      expect(find.text('Heading two'), findsNothing);
+
+      await tester.tapOnText(find.textRange.ofSubstring('[2]'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Heading two'), findsOneWidget);
+      expect(find.text('Heading four'), findsNothing);
+    });
+
+    testWidgets('copies the numbers, not the ids', (tester) async {
+      await tester.pumpWidget(
+        tile('Boils [$first, $second].', sourceReferences: refs),
+      );
+
+      expect(copied(tester), 'Boils [4][2].');
+    });
+
+    testWidgets('leaves the ids while the turn has no sources yet',
+        (tester) async {
+      await tester.pumpWidget(tile('Boils [$first].'));
+
+      expect(rich('[$first]'), findsOneWidget);
+      expect(copied(tester), 'Boils [$first].');
+    });
+
+    testWidgets("names an earlier turn's source by its number, unlinked",
+        (tester) async {
+      await tester.pumpWidget(
+        tile(
+          'As before [$earlier], boils [$first].',
+          sourceReferences: refs,
+          citationNumbers: {earlier: 7},
+        ),
+      );
+
+      expect(rich('As before [7], boils [4].'), findsOneWidget);
+      await tester.tapOnText(find.textRange.ofSubstring('[7]'));
+      await tester.pumpAndSettle();
+      expect(find.text('Heading four'), findsNothing);
+      expect(find.text('Heading two'), findsNothing);
+    });
+
+    testWidgets("never rewrites the user's own text", (tester) async {
+      await tester.pumpWidget(
+        tile(
+          'What is [$first]?',
+          user: ChatUser.user,
+          citationNumbers: {first: 4},
+        ),
+      );
+
+      expect(find.text('What is [$first]?'), findsOneWidget);
+      expect(copied(tester), 'What is [$first]?');
+    });
+  });
 }
