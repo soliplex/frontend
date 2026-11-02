@@ -6,6 +6,7 @@ import 'package:soliplex_frontend/src/mockups/datasets/datasets_mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup_app.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -290,11 +291,119 @@ void main() {
 
     await tester.tap(find.text('Holiday staffing memo'));
     await tester.pumpAndSettle();
+    // The conversations page: no room rail, and a sidebar of conversations
+    // outside rooms only.
     expect(find.text('Conversations'), findsOneWidget);
+    expect(find.byType(RoomRail), findsNothing);
     expect(find.byTooltip('Room info'), findsNothing);
+    expect(find.text('Seal kits for P-100 and P-200'), findsOneWidget);
+    expect(find.text('Pump pressure troubleshooting'), findsNothing);
     // No room, no ceiling: its one dataset sets the level.
     expect(find.text('Conversation level'), findsOneWidget);
     expect(band('CONFIDENTIAL'), findsOneWidget);
+
+    await tester.tap(find.text('Lobby'));
+    await tester.pumpAndSettle();
+    expect(find.text('Plant Maintenance'), findsOneWidget);
+  });
+
+  testWidgets(
+      'the threads tab narrows by scope and by in:room, groups by room, and '
+      'marks which threads live in a room', (tester) async {
+    await open(tester);
+    await tester.tap(find.text('Threads'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Not in a room'), findsNWidgets(3));
+    expect(find.byTooltip('In Plant Maintenance'), findsOneWidget);
+
+    await tester.tap(find.text('In rooms'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No room · '), findsNothing);
+    expect(find.textContaining('Plant Maintenance · '), findsOneWidget);
+
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search threads'),
+      'in:none ',
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No room · '), findsNWidgets(3));
+    expect(find.textContaining('Plant Maintenance · '), findsNothing);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search threads'),
+      'in:"plant maintenance" ',
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No room · '), findsNothing);
+    expect(find.textContaining('Plant Maintenance · '), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search threads'),
+      'in:nowhere ',
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing by that name'), findsOneWidget);
+
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Search threads'), '');
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Room'));
+    await tester.pumpAndSettle();
+    // Section headers name the room once; the rows drop it.
+    expect(find.text('No room'), findsWidgets);
+    expect(find.textContaining('No room · '), findsNothing);
+  });
+
+  testWidgets('a row shows its labels, and tapping one filters by it',
+      (tester) async {
+    await open(tester);
+    await tester.tap(find.text('Threads'));
+    await tester.pumpAndSettle();
+    expect(find.text('Vendors'), findsNWidgets(2));
+    expect(find.text('Seal kits for P-100 and P-200'), findsOneWidget);
+
+    await tester.tap(find.text('Drafts').first);
+    await tester.pumpAndSettle();
+    expect(find.text('@drafts '), findsOneWidget);
+    expect(find.text('Holiday staffing memo'), findsOneWidget);
+    expect(find.text('Reply to the bearing supplier'), findsOneWidget);
+    expect(find.text('Seal kits for P-100 and P-200'), findsNothing);
+
+    // Tapping it again does not add it twice.
+    await tester.tap(find.text('Drafts').first);
+    await tester.pumpAndSettle();
+    expect(find.text('@drafts '), findsOneWidget);
+  });
+
+  testWidgets('@no-label finds threads without labels, alone or beside one',
+      (tester) async {
+    await open(tester);
+    await tester.tap(find.text('Threads'));
+    await tester.pumpAndSettle();
+    final search = find.widgetWithText(TextField, 'Search threads');
+
+    await tester.enterText(search, '@no');
+    await tester.pumpAndSettle();
+    expect(find.text('No label'), findsOneWidget);
+    await tester.tap(find.text('No label'));
+    await tester.pumpAndSettle();
+    expect(find.text('@no-label '), findsOneWidget);
+    expect(find.text('Peak demand plan draft'), findsOneWidget);
+    expect(find.text('Holiday staffing memo'), findsNothing);
+
+    // Any-of, like every label filter: unlabeled, or labelled Drafts.
+    await tester.enterText(search, '@no-label @drafts ');
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Peak demand plan draft'), findsOneWidget);
+    expect(find.text('Holiday staffing memo'), findsOneWidget);
+    expect(find.text('Seal kits for P-100 and P-200'), findsNothing);
   });
 
   testWidgets(

@@ -188,6 +188,7 @@ class RoomScreen extends StatefulWidget {
     this.serverReadMarkers,
     this.datasets,
     this.conversationsRoomId,
+    this.conversationsLocation,
     this.startNew = false,
   });
 
@@ -219,9 +220,14 @@ class RoomScreen extends StatefulWidget {
   final ThreadDatasetsSeam? datasets;
 
   /// MOCKUP: the hidden room that holds conversations started outside any
-  /// room. It heads the rail, and offers no room info. Null keeps the chat
-  /// mockup as it was.
+  /// room. The rail leaves it out; showing it, the screen is the
+  /// conversations page: no rail and no room info. Null keeps the chat mockup
+  /// as it was.
   final String? conversationsRoomId;
+
+  /// MOCKUP: where the conversations page, or one of its threads, lives.
+  /// Required with [conversationsRoomId].
+  final String Function([String? threadId])? conversationsLocation;
 
   /// MOCKUP: with no thread in the URL, open on the welcome composer rather
   /// than the most recent thread, so a new conversation starts fresh.
@@ -1138,13 +1144,21 @@ class _RoomScreenState extends State<RoomScreen> {
     return tracker;
   }
 
+  /// MOCKUP: whether this is the conversations page rather than a room.
+  bool get _roomless => widget.roomId == widget.conversationsRoomId;
+
+  /// The location of [threadId] here, or of the page itself.
+  String _location(String? threadId) {
+    if (_roomless) return widget.conversationsLocation!(threadId);
+    final alias = widget.serverEntry.alias;
+    return threadId != null
+        ? AppRoutes.thread(alias, widget.roomId, threadId)
+        : AppRoutes.room(alias, widget.roomId);
+  }
+
   void _navigateToThread(String? threadId, {bool replace = false}) {
     if (!mounted) return;
-    final alias = widget.serverEntry.alias;
-    final roomId = widget.roomId;
-    final path = threadId != null
-        ? AppRoutes.thread(alias, roomId, threadId)
-        : AppRoutes.room(alias, roomId);
+    final path = _location(threadId);
     if (replace || widget.threadId == null) {
       context.replace(path);
     } else {
@@ -1421,12 +1435,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// current room/thread afterward. Reached only if an [AuthException]
   /// surfaces in an error panel despite the funnel-to-redirect path.
   void _onReauthenticate() {
-    final alias = widget.serverEntry.alias;
-    final roomId = widget.roomId;
-    final threadId = widget.threadId;
-    final returnTo = threadId != null
-        ? AppRoutes.thread(alias, roomId, threadId)
-        : AppRoutes.room(alias, roomId);
+    final returnTo = _location(widget.threadId);
     context.go(
       AppRoutes.homeWithUrl(
         widget.serverEntry.serverUrl.toString(),
@@ -1522,11 +1531,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _enqueueUploadsToThread(threadId, files);
   }
 
-  void _onThreadSelected(String threadId) {
-    context.go(
-      AppRoutes.thread(widget.serverEntry.alias, widget.roomId, threadId),
-    );
-  }
+  void _onThreadSelected(String threadId) => context.go(_location(threadId));
 
   void _onQuizTapped(String quizId) {
     context.go(
@@ -1632,9 +1637,14 @@ class _RoomScreenState extends State<RoomScreen> {
               body: SafeArea(
                 child: Row(
                   children: [
-                    SizedBox(width: RoomRail.width, child: _buildRail()),
-                    const VerticalDivider(width: 1),
-                    SizedBox(width: _sidebarWidth, child: sidebar),
+                    if (!_roomless) ...[
+                      SizedBox(width: RoomRail.width, child: _buildRail()),
+                      const VerticalDivider(width: 1),
+                    ],
+                    SizedBox(
+                      width: _sidebarWidth,
+                      child: _withLobbyLink(sidebar),
+                    ),
                     const VerticalDivider(width: 1),
                     Expanded(child: content),
                   ],
@@ -1667,15 +1677,17 @@ class _RoomScreenState extends State<RoomScreen> {
                   // rooms rail on the left, the thread list filling the rest.
                   child: Row(
                     children: [
-                      SizedBox(
-                        width: RoomRail.width,
-                        child: _buildRail(
-                          onNavigate: () => Navigator.pop(drawerContext),
+                      if (!_roomless) ...[
+                        SizedBox(
+                          width: RoomRail.width,
+                          child: _buildRail(
+                            onNavigate: () => Navigator.pop(drawerContext),
+                          ),
                         ),
-                      ),
-                      const VerticalDivider(width: 1),
+                        const VerticalDivider(width: 1),
+                      ],
                       Expanded(
-                        child: ThreadSidebar(
+                        child: _withLobbyLink(ThreadSidebar(
                           threadListStatus: threadListStatus,
                           selectedThreadId: selectedThreadId,
                           onThreadSelected: (threadId) {
@@ -1705,7 +1717,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             roomId: widget.roomId,
                             threadId: threadId,
                           )),
-                        ),
+                        )),
                       ),
                     ],
                   ),
@@ -1721,6 +1733,31 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  /// MOCKUP: [sidebar] under a link back to the lobby on the conversations
+  /// page, which has no rail to carry one; [sidebar] alone elsewhere.
+  Widget _withLobbyLink(Widget sidebar) {
+    if (!_roomless) return sidebar;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s2,
+            vertical: SoliplexSpacing.s1,
+          ),
+          child: SoliplexButton.text(
+            onPressed: _onBackToLobby,
+            icon: const Icon(Icons.arrow_back),
+            alignment: Alignment.centerLeft,
+            child: const Text('Lobby'),
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: sidebar),
+      ],
+    );
+  }
+
   /// Builds the always-visible rooms rail. [onNavigate] (the drawer pop) runs
   /// before any navigation when the rail lives inside the narrow drawer.
   Widget _buildRail({VoidCallback? onNavigate}) {
@@ -1733,20 +1770,16 @@ class _RoomScreenState extends State<RoomScreen> {
             _unreadRoomIds,
             selectedRoomId: widget.roomId,
           );
-    // MOCKUP: conversations outside any room head the rail, whatever their
-    // activity, so there is always one tap back to them.
+    // MOCKUP: the hidden room holding conversations outside rooms is no
+    // room to the user; the conversations page is reached from the lobby.
     var railRooms = order?.rooms;
     var dividerIndex = order?.dividerIndex;
-    final pinnedIndex =
+    final hiddenIndex =
         railRooms?.indexWhere((r) => r.id == widget.conversationsRoomId) ?? -1;
-    if (railRooms != null && pinnedIndex >= 0) {
-      railRooms = [
-        railRooms[pinnedIndex],
-        ...railRooms.take(pinnedIndex),
-        ...railRooms.skip(pinnedIndex + 1),
-      ];
-      if (dividerIndex != null && pinnedIndex >= dividerIndex) {
-        dividerIndex++;
+    if (railRooms != null && hiddenIndex >= 0) {
+      railRooms = [...railRooms]..removeAt(hiddenIndex);
+      if (dividerIndex != null && hiddenIndex < dividerIndex) {
+        dividerIndex--;
       }
     }
     return RoomRail(
