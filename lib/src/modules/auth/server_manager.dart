@@ -7,7 +7,6 @@ import '../../interfaces/auth_state.dart';
 import 'admin_status.dart';
 import 'auth_session.dart';
 import 'auth_tokens.dart';
-import 'server_aliases.dart';
 import 'server_entry.dart';
 import 'server_persistence.dart';
 import 'server_storage.dart';
@@ -26,8 +25,8 @@ typedef ServerRemovedListener = void Function(String serverId);
 /// Owns the collection of per-server resources and shared infrastructure.
 /// Keeps [ServerRegistry] in sync internally.
 ///
-/// Orchestration only: alias uniqueness lives in [ServerAliases], and stored
-/// records in [ServerPersistence].
+/// Delegates alias choice to [uniqueAlias] and stored records to
+/// [ServerPersistence].
 class ServerManager {
   ServerManager({
     required AuthSessionFactory authFactory,
@@ -40,7 +39,6 @@ class ServerManager {
   final AuthSessionFactory _authFactory;
   final HttpClientFactory _clientFactory;
   final ServerPersistence _persistence;
-  final ServerAliases _aliases = ServerAliases();
 
   final Signal<Map<String, ServerEntry>> _servers =
       Signal<Map<String, ServerEntry>>({});
@@ -95,7 +93,11 @@ class ServerManager {
     final existing = _servers.value[serverId];
     if (existing != null) return existing;
 
-    final resolvedAlias = _aliases.claim(serverUrl, preferred: alias);
+    final resolvedAlias = uniqueAlias(
+      serverUrl,
+      preferred: alias,
+      taken: {for (final entry in _servers.value.values) entry.alias},
+    );
     if (alias != null && resolvedAlias != alias) {
       _logger.warning(
         'Alias "$alias" for $serverId collides with an existing alias; '
@@ -174,7 +176,6 @@ class ServerManager {
         'session': entry.auth.session.value.runtimeType.toString(),
       },
     );
-    _aliases.release(entry.alias);
     _subscriptions.remove(serverId)?.call();
 
     entry.connection.close();
@@ -289,7 +290,6 @@ class ServerManager {
       entry.value.httpClient.close();
       registry.remove(entry.key);
     }
-    _aliases.clear();
     _servers.value = {};
   }
 

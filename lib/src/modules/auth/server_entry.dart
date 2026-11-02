@@ -16,6 +16,25 @@ String aliasFromUrl(Uri url) {
   return url.hasPort ? '$host-${url.port}' : host;
 }
 
+/// The alias a server goes by in routes: [preferred] when it is not [taken],
+/// and otherwise the first alias derived from [serverUrl] that is free: its
+/// base alias, then `base-2`, `base-3`, ….
+///
+/// A result different from a non-null [preferred] means it was taken.
+String uniqueAlias(
+  Uri serverUrl, {
+  required String? preferred,
+  required Set<String> taken,
+}) {
+  if (preferred != null && !taken.contains(preferred)) return preferred;
+  final base = aliasFromUrl(serverUrl);
+  if (!taken.contains(base)) return base;
+  for (var i = 2;; i++) {
+    final candidate = '$base-$i';
+    if (!taken.contains(candidate)) return candidate;
+  }
+}
+
 /// Formats a server URL for display: always includes scheme, omits unspecified port.
 String formatServerUrl(Uri url) {
   final port = url.hasPort ? ':${url.port}' : '';
