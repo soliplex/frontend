@@ -120,7 +120,7 @@ the routes below) to open straight on a screen.
 | `/datasets/<namespace>/<name>`     | A dataset's files and ingestion. Anyone with access uploads and marks files outdated; the owner shares and deprecates. |
 | `/datasets/<namespace>/<name>/upload` | Choose files, scan, review and commit.                              |
 | `/room/mock/<room>[/thread/<id>]`  | The chat mockup's room screen, its panel showing the thread's datasets. |
-| `/room/mock/conversations[?new]`   | Conversations outside any room; `?new` opens on a fresh one.           |
+| `/conversations[/thread/<id>][?new]` | Conversations outside any room, with no room rail; `?new` opens on a fresh one. |
 
 The rules it assumes:
 
@@ -159,10 +159,34 @@ mockup is unchanged.
 ### Conversations outside rooms
 
 The same mockup prototypes a conversation that belongs to no room. *New
-conversation* in the lobby opens one, and the lobby's Threads view lists them
-beside room threads, reading "No room" where a thread names its room. That
-view is the app's own cross-room listing (`GlobalThreadsView`), label search
-included, answered by the static backend.
+conversation* in the lobby opens one on the conversations page: the chat
+screen with no room rail, its sidebar listing only conversations outside
+rooms, and a link back to the lobby.
+
+The lobby's Threads view lists them beside room threads. It is a copy of the
+app's cross-room listing (`ui/threads/`) on the app's own
+`GlobalThreadsState`, adding what a listing of both kinds needs:
+
+- a trailing icon on each row, a door for a thread in a room and a bubble
+  for one outside;
+- a scope filter under *Show*: *All*, *In rooms*, *No room*, set apart by a
+  rule from *Group by*;
+- `in:room` in the search box beside `@label`, completed the same way, with
+  `in:none` for conversations outside rooms;
+- `@no-label` for threads carrying no label, alone or any-of beside other
+  labels;
+- label chips on each row, at most three and then "+N"; tapping one adds it
+  to the search;
+- *Group by: Room*, with section headers and conversations outside rooms
+  first. It groups only the pages already loaded, so a section can grow as
+  the list scrolls.
+
+The scope and `in:` filters need a `room_ids` parameter on
+`GET /v1/agui/threads`, any-of like `label_ids`. Under A the client sends the
+hidden room's id for "No room" and every other room's for "In rooms"; under B
+the parameter needs a value for no room, such as `room_ids=none`.
+`@no-label` is the app's own: `unlabeled=true`, OR-ed with `label_ids`. The
+mockup fakes the room filter with `StaticSoliplexApi.roomFilter`.
 
 What a conversation outside a room assumes:
 
@@ -172,8 +196,8 @@ What a conversation outside a room assumes:
 - **No ceiling.** Its level is that of the most restrictive dataset it uses,
   so it rises as datasets are added, and the band follows. It can never pass
   the user's own access, because the catalog lists nothing beyond it.
-- **Labels, not rooms, group it.** It is found through the Threads view and
-  its label search, and through a rail entry pinned above the rooms.
+- **Labels, not rooms, group it.** It is found through the conversations
+  page, and through the Threads view with its label and room filters.
 
 Two backend shapes could carry it, and the mockup follows the first:
 
@@ -183,7 +207,7 @@ Two backend shapes could carry it, and the mockup follows the first:
 | Routes | None new: every `/v1/rooms/{room_id}/…` route (runs, uploads, labels, feedback) works as is. | Roomless twins of the thread, run, upload and label routes. |
 | Thread listing | Unchanged; the client maps the hidden room's id to "No room". | `room_id: null` in `GET /v1/agui/threads`. |
 | Agent | The hidden room's agent config. | An installation-level default, such as a `default_agent_config_id`. |
-| Frontend | Two small affordances in the room screen: the room pinned in the rail, no room info. | A nullable room id through `ThreadInfo`, `ThreadKey`, `RoomState` and the routes. |
+| Frontend | The room screen without its rail as the conversations page; the rail and room list hide the room. | A nullable room id through `ThreadInfo`, `ThreadKey`, `RoomState` and the routes. |
 | Cost | A room that is not really a room: its stats and uploads mix every user's conversations. | A migration and a second set of routes. |
 
 A is the cheaper first step. B is cleaner if rooms later become folders that
@@ -195,5 +219,5 @@ Open questions:
   backend store it, so the thread listing and other clients can show it?
 - Can a conversation move into a room, or a room thread move out? A move would
   change its preset and its ceiling partway through.
-- Should the hidden room's sidebar list only conversations outside rooms, as
-  now, or every thread?
+- "In rooms" under A sends every room's id. With many rooms, an exclusion
+  parameter, or a `scope` parameter, would be shorter.

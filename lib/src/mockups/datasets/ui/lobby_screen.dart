@@ -8,14 +8,17 @@ import '../../../core/routes.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../modules/auth/server_entry.dart';
 import '../../../modules/lobby/global_threads_state.dart';
-import '../../../modules/lobby/ui/global_threads_view.dart';
+import '../../../modules/lobby/ui/global_threads_view.dart'
+    show ThreadRowAction;
 import '../../../modules/lobby/ui/room_grid_layout.dart';
 import '../../../shared/thread_properties_dialog.dart';
 import '../../../stores/labels_state.dart';
+import '../../chat/static_backend.dart';
 import '../model.dart';
 import '../store.dart';
 import 'catalog_view.dart';
 import 'common.dart';
+import 'threads/threads_view.dart';
 
 /// What the lobby shows; kept in the URL's `view` parameter, so coming back
 /// from a dataset or a thread lands where the user left.
@@ -75,7 +78,7 @@ class DatasetsLobbyScreen extends StatelessWidget {
         : (
             'New conversation',
             Icons.add_comment_outlined,
-            '${AppRoutes.room(entry.alias, conversationsRoomId)}?new',
+            '${conversationsLocation()}?new',
           );
     final create = narrow
         ? IconButton.filled(
@@ -137,8 +140,9 @@ class DatasetsLobbyScreen extends StatelessWidget {
 }
 
 /// Every thread the user has, in rooms or not: the app's own cross-room
-/// listing, with label search, on the static backend. A conversation outside
-/// any room reads "No room" where a thread names its room.
+/// listing state on the static backend, under a copy of its view that can
+/// tell the two apart. A conversation outside any room reads "No room"
+/// where a thread names its room.
 class _ThreadsView extends StatefulWidget {
   const _ThreadsView({required this.entry});
 
@@ -198,15 +202,19 @@ class _ThreadsViewState extends State<_ThreadsView> {
   @override
   Widget build(BuildContext context) {
     final store = DatasetsScope.of(context);
-    return GlobalThreadsView(
+    return ThreadsView(
       state: _threads,
       labels: _labels,
+      api: widget.entry.connection.api as StaticSoliplexApi,
       roomNames: {
         for (final p in store.presets.values) p.roomId: p.name,
-        conversationsRoomId: 'No room',
       },
-      onThreadTap: (roomId, threadId) =>
-          context.go(AppRoutes.thread(widget.entry.alias, roomId, threadId)),
+      roomlessId: conversationsRoomId,
+      onThreadTap: (roomId, threadId) => context.go(
+        roomId == conversationsRoomId
+            ? conversationsLocation(threadId)
+            : AppRoutes.thread(widget.entry.alias, roomId, threadId),
+      ),
       onThreadAction: _onAction,
     );
   }

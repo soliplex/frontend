@@ -80,11 +80,16 @@ class _DatasetsMockupState extends State<DatasetsMockup> {
         for (final path in const [
           '/room/:serverAlias/:roomId',
           '/room/:serverAlias/:roomId/thread/:threadId',
+          // Conversations outside rooms: the hidden room, on a page of its
+          // own with no room rail.
+          '/conversations',
+          '/conversations/thread/:threadId',
         ])
           GoRoute(
             path: path,
             pageBuilder: (context, state) {
-              final roomId = state.pathParameters['roomId']!;
+              final roomId =
+                  state.pathParameters['roomId'] ?? conversationsRoomId;
               final threadId = state.pathParameters['threadId'];
               return NoTransitionPage(
                 // A room's band shows its ceiling; outside any room, the
@@ -106,6 +111,7 @@ class _DatasetsMockupState extends State<DatasetsMockup> {
                     documentSelections: _documentSelections,
                     datasets: seam,
                     conversationsRoomId: conversationsRoomId,
+                    conversationsLocation: conversationsLocation,
                     startNew: state.uri.queryParameters.containsKey('new'),
                   ),
                 ),

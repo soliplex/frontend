@@ -106,6 +106,11 @@ class StaticSoliplexApi extends SoliplexApi {
   /// Thread id → its history.
   final Map<String, ThreadHistory> histories;
 
+  /// MOCKUP: the rooms [getAllThreads] keeps, or null for all of them. Set
+  /// by the datasets mockup's threads list ahead of a fetch; it stands in
+  /// for a `room_ids` query parameter the real endpoint does not have yet.
+  Set<String>? roomFilter;
+
   /// Room id → its RAG corpus.
   final Map<String, List<RagDocument>> documents;
 
@@ -332,16 +337,16 @@ class StaticSoliplexApi extends SoliplexApi {
     int limit = 50,
     String? cursor,
     List<int>? labelIds,
+    bool unlabeled = false,
     String? query,
     CancelToken? cancelToken,
   }) async {
     final needle = query?.trim().toLowerCase() ?? '';
     final all = [
-      for (final list in threads.values)
+      for (final MapEntry(key: roomId, value: list) in threads.entries)
         for (final t in list)
-          if ((labelIds ?? const []).every(
-                (id) => t.labels.any((l) => l.id == id),
-              ) &&
+          if ((roomFilter?.contains(roomId) ?? true) &&
+              _labelsMatch(t, labelIds ?? const [], unlabeled: unlabeled) &&
               t.name.toLowerCase().contains(needle))
             t,
     ]..sort((a, b) => (b.lastActivity ?? b.createdAt)
@@ -352,6 +357,18 @@ class StaticSoliplexApi extends SoliplexApi {
       threads: all.sublist(start, end),
       nextCursor: end < all.length ? '$end' : null,
     );
+  }
+
+  /// Any-of, like the real endpoint, with [unlabeled] one more
+  /// alternative: no filter passes everything.
+  bool _labelsMatch(
+    ThreadInfo thread,
+    List<int> labelIds, {
+    required bool unlabeled,
+  }) {
+    if (labelIds.isEmpty && !unlabeled) return true;
+    if (unlabeled && thread.labels.isEmpty) return true;
+    return thread.labels.any((l) => labelIds.contains(l.id));
   }
 
   @override

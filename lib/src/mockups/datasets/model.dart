@@ -294,6 +294,13 @@ bool isWithin(String level, String ceiling) =>
 /// preset: no ceiling and no default datasets.
 const conversationsRoomId = 'conversations';
 
+/// Where the conversations page lives, or one of its threads.
+///
+/// A page of its own rather than the hidden room's: the hidden room is a
+/// backend detail, and the page has no room rail to place it in.
+String conversationsLocation([String? threadId]) =>
+    threadId == null ? '/conversations' : '/conversations/thread/$threadId';
+
 /// The most restrictive of [levels], or the least restrictive level when
 /// there are none.
 String highestLevel(Iterable<String> levels) => levels.fold(
