@@ -122,6 +122,30 @@ void main() {
     });
   });
 
+  group('uniqueAlias', () {
+    final url = Uri.parse('https://api.example.com');
+    const base = 'api-example-com';
+
+    test('derives the alias from the URL', () {
+      expect(uniqueAlias(url, preferred: null, taken: {}), base);
+    });
+
+    test('suffixes a derived alias that is taken', () {
+      expect(
+        uniqueAlias(url, preferred: null, taken: {base, '$base-2'}),
+        '$base-3',
+      );
+    });
+
+    test('keeps a free preferred alias', () {
+      expect(uniqueAlias(url, preferred: 'mine', taken: {base}), 'mine');
+    });
+
+    test('derives one when the preferred alias is taken', () {
+      expect(uniqueAlias(url, preferred: 'mine', taken: {'mine'}), base);
+    });
+  });
+
   group('serversInDisplayOrder', () {
     ServerEntry authSignedIn(String name) => createTestServerEntry(
           serverId: 'https://$name.example.com',
