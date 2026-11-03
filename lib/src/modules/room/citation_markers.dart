@@ -1,9 +1,5 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-/// The scheme of the link a citation marker becomes, carrying the cited
-/// source's position in its answer's source list.
-const citationLinkScheme = 'soliplex-citation';
-
 /// The number a citation is shown under: the backend's `index`, which holds
 /// across the conversation, or its place in the list when the capability
 /// reports none.
@@ -39,14 +35,6 @@ Map<String, int> threadCitationNumbers(
   return numbers;
 }
 
-/// The source-list position a citation link's [href] points at, or null when
-/// [href] is not a citation link.
-int? citationPositionFromHref(String href) {
-  const prefix = '$citationLinkScheme:';
-  if (!href.startsWith(prefix)) return null;
-  return int.tryParse(href.substring(prefix.length));
-}
-
 /// A bracketed group the model may have cited with: `[a]`, `[a, b]`, `[a; b]`.
 /// One directly followed by `(` is a markdown link's text, and is left alone.
 final _marker = RegExp(r'\[([^\[\]\n]+)\](?!\()');
@@ -71,55 +59,46 @@ String _bracketed(int number) => '&#91;$number&#93;';
 /// [text] with each bracketed group of cited chunk ids replaced by the
 /// numbers the source list shows for them.
 ///
-/// [own] is this answer's source list. A group naming a source in it becomes a
-/// link to that source's row when [linkify] is set. [thread] is
-/// [threadCitationNumbers] over the whole thread: a source this answer did not
-/// cite again, cited in an earlier turn, is shown under its number without a
-/// link, its row being in another answer's list.
+/// [own] is this answer's source list, whose badges give the numbers. [thread]
+/// is [threadCitationNumbers] over the whole thread, naming a source this
+/// answer did not cite again, cited in an earlier turn.
+///
+/// The numbers are text, not links.
 ///
 /// A group is rewritten only when every id in it is known, so prose that
 /// happens to sit in brackets is left alone, as is an id the model damaged
 /// while copying it. Code blocks and code spans are never touched.
 ///
-/// With [linkify] unset the result is plain text, for the clipboard.
+/// With [markdown] set the brackets are written so the markdown renderer shows
+/// them as they are; unset, the result is plain text, for the clipboard.
 String labelCitationMarkers(
   String text, {
   required List<SourceReference> own,
   required Map<String, int> thread,
-  required bool linkify,
+  required bool markdown,
 }) {
   if ((own.isEmpty && thread.isEmpty) || !text.contains('[')) return text;
 
-  final positions = <String, int>{};
+  final numbers = <String, int>{};
   for (var position = 0; position < own.length; position++) {
+    final number = citationBadgeNumber(own[position], position);
     for (final key in _keysOf(own[position])) {
-      positions.putIfAbsent(key, () => position);
+      numbers.putIfAbsent(key, () => number);
     }
   }
 
   String label(Match match) {
     final ids = match[1]!.split(_separator).where((id) => id.isNotEmpty);
-    final labels = <int, String>{};
+    final labels = <int>{};
     for (final id in ids) {
-      final position = positions[id];
-      if (position != null) {
-        final number = citationBadgeNumber(own[position], position);
-        labels.putIfAbsent(
-          number,
-          () => linkify
-              ? '[${_bracketed(number)}]($citationLinkScheme:$position)'
-              : '[$number]',
-        );
-        continue;
-      }
-      final number = thread[id];
+      final number = numbers[id] ?? thread[id];
       if (number == null) return match[0]!;
-      labels.putIfAbsent(
-        number,
-        () => linkify ? _bracketed(number) : '[$number]',
-      );
+      labels.add(number);
     }
-    return labels.isEmpty ? match[0]! : labels.values.join();
+    if (labels.isEmpty) return match[0]!;
+    return labels
+        .map((number) => markdown ? _bracketed(number) : '[$number]')
+        .join();
   }
 
   String prose(String segment) {
