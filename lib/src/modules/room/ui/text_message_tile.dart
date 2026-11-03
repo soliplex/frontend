@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/failed_image.dart';
-import '../../../shared/markdown/launch_markdown_link.dart';
-import '../../../shared/markdown/markdown_renderer.dart';
 import '../../../shared/zoomable_image.dart';
 import '../../../shared/zoomable_view.dart';
 import '../citation_markers.dart';
@@ -50,7 +48,7 @@ const int _zoomDecodeExtent = 2560;
 
 const _imageUnavailableLabel = 'Attached image unavailable';
 
-class TextMessageTile extends StatefulWidget {
+class TextMessageTile extends StatelessWidget {
   const TextMessageTile({
     super.key,
     required this.roomId,
@@ -85,57 +83,21 @@ class TextMessageTile extends StatefulWidget {
   /// writing into any more.
   final bool isStreaming;
 
-  @override
-  State<TextMessageTile> createState() => _TextMessageTileState();
-}
-
-class _TextMessageTileState extends State<TextMessageTile> {
-  final _citations = CitationsController();
-
-  @override
-  void dispose() {
-    _citations.dispose();
-    super.dispose();
-  }
-
-  /// A tapped citation marker opens its source below; any other link opens
-  /// where it points.
-  void _onLinkTap(String href, String? title) {
-    final position = citationPositionFromHref(href);
-    if (position != null) {
-      _citations.reveal(position);
-    } else {
-      launchMarkdownLink(href);
-    }
-  }
-
   /// The message's text with cited chunk ids shown as the numbers the source
-  /// list gives them — linked to their rows when [linkify] is set, plain for
-  /// the clipboard. A user's own text is never rewritten.
-  String _labelled({required bool linkify}) {
-    final message = widget.message;
+  /// list gives them, as markdown for the bubble or plain for the clipboard. A
+  /// user's own text is never rewritten.
+  String _labelled({required bool markdown}) {
     if (message.user == ChatUser.user) return message.text;
     return labelCitationMarkers(
       message.text,
-      own: widget.sourceReferences ?? const [],
-      thread: widget.citationNumbers,
-      linkify: linkify,
+      own: sourceReferences ?? const [],
+      thread: citationNumbers,
+      markdown: markdown,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final TextMessageTile(
-      :roomId,
-      :message,
-      :sourceReferences,
-      :onFeedbackSubmit,
-      :onInspect,
-      :onShowChunkVisualization,
-      :executionTracker,
-      :streamingPhase,
-      :isStreaming,
-    ) = widget;
     final theme = Theme.of(context);
     final isUser = message.user == ChatUser.user;
     final showFeedback = !isUser && onFeedbackSubmit != null;
@@ -145,18 +107,18 @@ class _TextMessageTileState extends State<TextMessageTile> {
       crossAxisAlignment:
           isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        if (streamingPhase != null) PhaseIndicator(phase: streamingPhase),
+        if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
         if (hasTracker)
           ExecutionTimeline(
             roomId: roomId,
             messageId: message.id,
-            tracker: executionTracker,
+            tracker: executionTracker!,
           ),
         if (hasTracker)
           ExecutionThinkingBlock(
             roomId: roomId,
             messageId: message.id,
-            tracker: executionTracker,
+            tracker: executionTracker!,
           )
         else if (!isUser && message.hasThinkingText)
           StaticThinkingBlock(
@@ -173,8 +135,7 @@ class _TextMessageTileState extends State<TextMessageTile> {
         const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(
           message: message,
-          text: _labelled(linkify: true),
-          onLinkTap: _onLinkTap,
+          text: _labelled(markdown: true),
           isStreaming: isStreaming,
         ),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
@@ -182,7 +143,7 @@ class _TextMessageTileState extends State<TextMessageTile> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CopyButton(text: _labelled(linkify: false)),
+            CopyButton(text: _labelled(markdown: false)),
             if (isUser && onInspect != null) ...[
               const SizedBox(width: SoliplexSpacing.s1),
               Tooltip(
@@ -203,15 +164,14 @@ class _TextMessageTileState extends State<TextMessageTile> {
             ],
             if (showFeedback) ...[
               const SizedBox(width: SoliplexSpacing.s1),
-              FeedbackButtons(onFeedbackSubmit: onFeedbackSubmit),
+              FeedbackButtons(onFeedbackSubmit: onFeedbackSubmit!),
             ],
           ],
         ),
-        if (sourceReferences != null && sourceReferences.isNotEmpty)
+        if (sourceReferences != null && sourceReferences!.isNotEmpty)
           CitationsSection(
-            sourceReferences: sourceReferences,
+            sourceReferences: sourceReferences!,
             onShowChunkVisualization: onShowChunkVisualization,
-            controller: _citations,
           ),
       ],
     );
@@ -222,7 +182,6 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.text,
-    required this.onLinkTap,
     required this.isStreaming,
   });
 
@@ -232,7 +191,6 @@ class _MessageBubble extends StatelessWidget {
   /// markers labelled.
   final String text;
 
-  final MarkdownLinkHandler onLinkTap;
   final bool isStreaming;
 
   @override
@@ -280,7 +238,6 @@ class _MessageBubble extends StatelessWidget {
               : FlutterMarkdownPlusRenderer(
                   data: text,
                   selectable: false,
-                  onLinkTap: onLinkTap,
                 ),
     );
   }

@@ -17,10 +17,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - An answer names the sources it cites by the numbers on their badges in its
   source list, "[2]", where it showed the chunk id the model wrote, a UUID.
-  Tapping a number opens the source list, expands that source and scrolls to
-  it. A source cited in an earlier answer of the thread and not again shows
-  its number without a link, its passage being in that answer's list. Copying
-  an answer copies the numbers. While an answer streams its ids show as
+  A source cited in an earlier answer of the thread and not again shows the
+  number it has there. The numbers are text, not links. Copying an answer
+  copies the numbers. While an answer streams its ids show as
   written, until its sources arrive; an id the answer's sources do not hold,
   and text in code, are left as written.
 
