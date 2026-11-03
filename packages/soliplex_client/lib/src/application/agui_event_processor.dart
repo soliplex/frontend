@@ -24,8 +24,9 @@ import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-final Logger _logger =
-    LogManager.instance.getLogger('soliplex_client.event_processor');
+final Logger _logger = LogManager.instance.getLogger(
+  'soliplex_client.event_processor',
+);
 
 /// Result of processing an AG-UI event.
 ///
@@ -92,53 +93,51 @@ EventProcessingResult _processForDisplay(
   return switch (event) {
     // Run lifecycle events
     RunStartedEvent(:final runId) => EventProcessingResult(
-        conversation: conversation.withStatus(Running(runId: runId)),
-        streaming: streaming,
-      ),
+      conversation: conversation.withStatus(Running(runId: runId)),
+      streaming: streaming,
+    ),
     RunFinishedEvent(:final runId) => _processRunFinished(
-        conversation,
-        streaming,
-        runId,
-        createdAt: createdAt,
-      ),
+      conversation,
+      streaming,
+      runId,
+      createdAt: createdAt,
+    ),
     RunErrorEvent(:final message) => _processRunError(
-        conversation,
-        streaming,
-        message,
-        createdAt: createdAt,
-      ),
+      conversation,
+      streaming,
+      message,
+      createdAt: createdAt,
+    ),
 
     // Reasoning lifecycle — the outer (ReasoningStart/End) and message
     // (ReasoningMessageStart/End) boundaries route through the same idempotent
     // start and end handlers; ReasoningMessageContent appends to the thinking
     // text.
-    ReasoningStartEvent() ||
-    ReasoningMessageStartEvent() =>
-      _processThinkingStart(
-        conversation,
-        streaming,
-      ),
+    ReasoningStartEvent() || ReasoningMessageStartEvent() =>
+      _processThinkingStart(conversation, streaming),
     ReasoningEndEvent() ||
-    ReasoningMessageEndEvent() =>
-      _processThinkingEnd(conversation, streaming),
-    ReasoningMessageContentEvent(:final delta) =>
-      _processThinkingContent(conversation, streaming, delta),
+    ReasoningMessageEndEvent() => _processThinkingEnd(conversation, streaming),
+    ReasoningMessageContentEvent(:final delta) => _processThinkingContent(
+      conversation,
+      streaming,
+      delta,
+    ),
 
     // Text message streaming events
     TextMessageStartEvent(:final messageId, :final role) => _processTextStart(
-        conversation,
-        streaming,
-        messageId,
-        role,
-      ),
+      conversation,
+      streaming,
+      messageId,
+      role,
+    ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
     TextMessageEndEvent(:final messageId) => _processTextEnd(
-        conversation,
-        streaming,
-        messageId,
-        createdAt: createdAt,
-      ),
+      conversation,
+      streaming,
+      messageId,
+      createdAt: createdAt,
+    ),
 
     // Tool call events — accumulate tool names on start, args via deltas,
     // transition to pending on end (tool stays in conversation.toolCalls).
@@ -168,36 +167,45 @@ EventProcessingResult _processForDisplay(
         ),
       ),
     ToolCallArgsEvent(:final toolCallId, :final delta) => _processToolCallArgs(
-        conversation,
-        streaming,
-        toolCallId,
-        delta,
-      ),
+      conversation,
+      streaming,
+      toolCallId,
+      delta,
+    ),
     ToolCallEndEvent(:final toolCallId) => _processToolCallEnd(
-        conversation,
-        streaming,
-        toolCallId,
-      ),
+      conversation,
+      streaming,
+      toolCallId,
+    ),
     ToolCallResultEvent(:final toolCallId, :final content) =>
       _processToolCallResult(conversation, streaming, toolCallId, content),
 
     // State events - apply to conversation.aguiState
-    StateSnapshotEvent(:final snapshot) =>
-      _processStateSnapshot(conversation, streaming, snapshot),
+    StateSnapshotEvent(:final snapshot) => _processStateSnapshot(
+      conversation,
+      streaming,
+      snapshot,
+    ),
     StateDeltaEvent(:final delta) => _processStateDelta(
-        conversation,
-        streaming,
-        delta,
-      ),
+      conversation,
+      streaming,
+      delta,
+    ),
 
     // Activity snapshot events
-    ActivitySnapshotEvent() =>
-      _processActivitySnapshot(conversation, streaming, event),
+    ActivitySnapshotEvent() => _processActivitySnapshot(
+      conversation,
+      streaming,
+      event,
+    ),
 
     // JSON Patch against the prior ActivitySnapshot's content,
     // mirroring how StateDeltaEvent patches aguiState.
-    ActivityDeltaEvent() =>
-      _processActivityDelta(conversation, streaming, event),
+    ActivityDeltaEvent() => _processActivityDelta(
+      conversation,
+      streaming,
+      event,
+    ),
 
     // Unhandled event types — pass through unchanged.
     // Explicit cases ensure a compile error if ag_ui adds new event types.
@@ -225,11 +233,10 @@ EventProcessingResult _processForDisplay(
     // Nothing to display; the transcript step attaches it to the tool call
     // or tool result it names, or drops it.
     ReasoningEncryptedValueEvent() ||
-    MessagesSnapshotEvent() =>
-      EventProcessingResult(
-        conversation: conversation,
-        streaming: streaming,
-      ),
+    MessagesSnapshotEvent() => EventProcessingResult(
+      conversation: conversation,
+      streaming: streaming,
+    ),
   };
 }
 
@@ -315,8 +322,9 @@ EventProcessingResult _processTextStart(
   TextMessageRole role,
 ) {
   // Transfer any buffered thinking from AwaitingText to TextStreaming
-  final thinkingText =
-      streaming is AwaitingText ? streaming.bufferedThinkingText : '';
+  final thinkingText = streaming is AwaitingText
+      ? streaming.bufferedThinkingText
+      : '';
   final isThinkingStreaming =
       streaming is AwaitingText && streaming.isThinkingStreaming;
 
@@ -332,16 +340,27 @@ EventProcessingResult _processTextStart(
   );
 }
 
-/// Events for a stale or already-closed stream are ignored.
+/// Events for a stale or already-closed stream are ignored, and reported:
+/// one means the backend sent an orphan or out-of-order event, or the
+/// streaming state went wrong here.
 EventProcessingResult _onActiveTextStream(
   Conversation conversation,
   StreamingState streaming,
   String messageId,
+  String eventName,
   EventProcessingResult Function(TextStreaming active) onMatch,
 ) {
   if (streaming is TextStreaming && streaming.messageId == messageId) {
     return onMatch(streaming);
   }
+  _logger.warning(
+    '$eventName for a message not streaming; ignored',
+    attributes: {
+      'messageId': messageId,
+      'streaming': streaming.runtimeType.toString(),
+      if (streaming is TextStreaming) 'streamingMessageId': streaming.messageId,
+    },
+  );
   return EventProcessingResult(
     conversation: conversation,
     streaming: streaming,
@@ -353,16 +372,16 @@ EventProcessingResult _processTextContent(
   StreamingState streaming,
   String messageId,
   String delta,
-) =>
-    _onActiveTextStream(
-      conversation,
-      streaming,
-      messageId,
-      (active) => EventProcessingResult(
-        conversation: conversation,
-        streaming: active.appendDelta(delta),
-      ),
-    );
+) => _onActiveTextStream(
+  conversation,
+  streaming,
+  messageId,
+  'TextMessageContentEvent',
+  (active) => EventProcessingResult(
+    conversation: conversation,
+    streaming: active.appendDelta(delta),
+  ),
+);
 
 /// The run [conversation] is in, or null when it is in none.
 ///
@@ -379,40 +398,40 @@ EventProcessingResult _processTextEnd(
   StreamingState streaming,
   String messageId, {
   DateTime? createdAt,
-}) =>
-    _onActiveTextStream(
-      conversation,
-      streaming,
-      messageId,
-      (active) {
-        // Skip if a message with this ID already exists — idempotency guard
-        // against duplicate events (e.g. from history replay).
-        if (conversation.messages.any((m) => m.id == messageId)) {
-          _logger.info(
-            'Skipped duplicate message ID',
-            attributes: {'messageId': messageId},
-          );
-          return EventProcessingResult(
-            conversation: conversation,
-            streaming: const AwaitingText(),
-          );
-        }
+}) => _onActiveTextStream(
+  conversation,
+  streaming,
+  messageId,
+  'TextMessageEndEvent',
+  (active) {
+    // Skip if a message with this ID already exists — idempotency guard
+    // against duplicate events (e.g. from history replay).
+    if (conversation.messages.any((m) => m.id == messageId)) {
+      _logger.info(
+        'Skipped duplicate message ID',
+        attributes: {'messageId': messageId},
+      );
+      return EventProcessingResult(
+        conversation: conversation,
+        streaming: const AwaitingText(),
+      );
+    }
 
-        final newMessage = TextMessage.create(
-          id: messageId,
-          user: active.user,
-          text: active.text,
-          thinkingText: active.thinkingText,
-          createdAt: createdAt,
-          runId: _runInFlight(conversation),
-        );
-
-        return EventProcessingResult(
-          conversation: conversation.withAppendedMessage(newMessage),
-          streaming: const AwaitingText(),
-        );
-      },
+    final newMessage = TextMessage.create(
+      id: messageId,
+      user: active.user,
+      text: active.text,
+      thinkingText: active.thinkingText,
+      createdAt: createdAt,
+      runId: _runInFlight(conversation),
     );
+
+    return EventProcessingResult(
+      conversation: conversation.withAppendedMessage(newMessage),
+      streaming: const AwaitingText(),
+    );
+  },
+);
 
 /// Maps AG-UI TextMessageRole to domain ChatUser.
 ChatUser _mapRoleToChatUser(TextMessageRole role) {
@@ -519,7 +538,8 @@ EventProcessingResult _processActivitySnapshot(
   final content = event.content;
   if (content is! Map<String, dynamic>) {
     throw MalformedResponseException(
-      message: 'ActivitySnapshotEvent content must be a JSON object, got '
+      message:
+          'ActivitySnapshotEvent content must be a JSON object, got '
           '${content.runtimeType} (messageId: ${event.messageId}, '
           'activityType: ${event.activityType})',
     );
@@ -532,8 +552,8 @@ EventProcessingResult _processActivitySnapshot(
   );
   final updatedConversation =
       identical(updatedActivities, conversation.activities)
-          ? conversation
-          : conversation.copyWith(activities: updatedActivities);
+      ? conversation
+      : conversation.copyWith(activities: updatedActivities);
 
   // The streaming phase label is set by `TOOL_CALL_START`, not from here.
   // Content is opaque under AG-UI, so this layer must not attribute a phase
@@ -560,10 +580,10 @@ StreamingState _withToolCallPhase(
 
   final newPhase = switch (currentPhase) {
     ToolCallPhase() => currentPhase.withToolName(
-        toolName,
-        latestToolCallId: latestToolCallId,
-        timestamp: timestamp,
-      ),
+      toolName,
+      latestToolCallId: latestToolCallId,
+      timestamp: timestamp,
+    ),
     // Fresh-construction branch only: synthesize wall-clock when the
     // backend omitted a timestamp. The accumulation branch above
     // deliberately inherits the prior phase's timestamp via
@@ -572,10 +592,10 @@ StreamingState _withToolCallPhase(
     // break `identical()` short-circuits downstream. Mirrors the
     // same fresh-record fallback in `applyActivityEvent`.
     _ => ToolCallPhase.single(
-        toolName: toolName,
-        latestToolCallId: latestToolCallId,
-        timestamp: timestamp ?? DateTime.now().millisecondsSinceEpoch,
-      ),
+      toolName: toolName,
+      latestToolCallId: latestToolCallId,
+      timestamp: timestamp ?? DateTime.now().millisecondsSinceEpoch,
+    ),
   };
 
   return switch (streaming) {
@@ -673,14 +693,13 @@ EventProcessingResult _processRunError(
     // what else the thread has to show for that run — which is not knowable
     // here. The parked outcome carries the detail to whoever can tell.
     return EventProcessingResult(
-      conversation: withOutcome.withStatus(
-        Failed(error: message),
-      ),
+      conversation: withOutcome.withStatus(Failed(error: message)),
       streaming: const AwaitingText(),
     );
   }
-  final droppedThinkingChars =
-      streaming is AwaitingText ? streaming.bufferedThinkingText.length : 0;
+  final droppedThinkingChars = streaming is AwaitingText
+      ? streaming.bufferedThinkingText.length
+      : 0;
   final logAttributes = {
     'status': conversation.status.runtimeType.toString(),
     'streaming': streaming.runtimeType.toString(),
@@ -716,9 +735,9 @@ EventProcessingResult _processRunError(
   );
   final nextStatus = switch (conversation.status) {
     Completed() || Failed() || Cancelled() => conversation.status,
-    Idle() ||
-    Running() =>
-      throw StateError('Idle/Running unreachable in terminal-preserve branch'),
+    Idle() || Running() => throw StateError(
+      'Idle/Running unreachable in terminal-preserve branch',
+    ),
   };
   return EventProcessingResult(
     conversation: conversation.withStatus(nextStatus),
@@ -752,8 +771,11 @@ EventProcessingResult _processStateDelta(
   StreamingState streaming,
   List<dynamic> delta,
 ) {
-  final patched =
-      applyJsonPatch(conversation.aguiState, delta, logger: _logger);
+  final patched = applyJsonPatch(
+    conversation.aguiState,
+    delta,
+    logger: _logger,
+  );
   if (!patched.complete) {
     // applyJsonPatch logs each skip without its full path, thread or run; this
     // names the thread, and the run while one is open.
@@ -818,8 +840,9 @@ Conversation _nameToolCallParent(
   String? parentMessageId,
 ) {
   if (parentMessageId == null) return conversation;
-  if (streaming case TextStreaming(:final messageId)
-      when messageId == parentMessageId) {
+  if (streaming case TextStreaming(
+    :final messageId,
+  ) when messageId == parentMessageId) {
     _logger.warning(
       'A tool call names the message still streaming; the mark is lost, so '
       'if the message ends with no text it renders as having none.',
