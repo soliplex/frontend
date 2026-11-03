@@ -2,6 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/core/keyed_storage.dart';
 import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+/// The levels [logger] recorded into [sink], in order.
+List<LogLevel> levelsFrom(MemorySink sink, String logger) => [
+      for (final r in sink.records)
+        if (r.loggerName == logger) r.level,
+    ];
+
+MemorySink captureLogs() {
+  final sink = MemorySink();
+  LogManager.instance.addSink(sink);
+  addTearDown(() => LogManager.instance.removeSink(sink));
+  return sink;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -137,6 +151,42 @@ void main() {
           await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1);
       expect(loaded, hasLength(1));
       expect(loaded['r1'], DateTime.utc(2026, 6));
+    });
+
+    group('logs', () {
+      const logger = 'soliplex.lobby_read_markers';
+      Future<Map<String, DateTime>> load(String payload) {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_room_read_marker:${Uri.encodeComponent(s)}:'
+              '${Uri.encodeComponent(u1)}': payload,
+        });
+        return LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1);
+      }
+
+      test('an error when every entry is malformed', () async {
+        final sink = captureLogs();
+
+        expect(await load('{"r1":"not-a-date","r2":5}'), isEmpty);
+
+        expect(levelsFrom(sink, logger), [LogLevel.error]);
+      });
+
+      test('only a warning when some entries survive', () async {
+        final sink = captureLogs();
+
+        expect(
+            await load('{"r1":"2026-06-01T00:00:00Z","r2":5}'), hasLength(1));
+
+        expect(levelsFrom(sink, logger), [LogLevel.warning]);
+      });
+
+      test('an error for a payload that is not a JSON object', () async {
+        final sink = captureLogs();
+
+        expect(await load('["r1"]'), isEmpty);
+
+        expect(levelsFrom(sink, logger), [LogLevel.error]);
+      });
     });
   });
 }

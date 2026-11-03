@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -266,6 +267,49 @@ void main() {
       store.dispose(); // disposed while the load is in flight
       // The load must not write to the disposed signal; no throw is the assert.
       await loading;
+    });
+
+    group('a corrupt stored blob', () {
+      late MemorySink sink;
+      setUp(() {
+        sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+        SharedPreferences.setMockInitialValues({
+          'soliplex_room_read_marker:${Uri.encodeComponent(s)}:'
+              '${Uri.encodeComponent(u1)}': 'not json{',
+        });
+      });
+
+      test('loads as no markers, and says so at error level', () async {
+        final store = RoomReadMarkers();
+
+        await store.ensureLoaded(serverId: s, userId: u1);
+
+        expect(store.value, isEmpty);
+        expect(
+          [
+            for (final r in sink.records)
+              if (r.loggerName == 'soliplex.lobby_read_markers') r.level,
+          ],
+          [LogLevel.error],
+        );
+        store.dispose();
+      });
+
+      test('does not stop a later stamp from persisting', () async {
+        final store = RoomReadMarkers();
+        await store.ensureLoaded(serverId: s, userId: u1);
+
+        store.markRead(serverId: s, userId: u1, roomId: r, at: at);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1),
+          {r: at},
+        );
+        store.dispose();
+      });
     });
   });
 }
