@@ -8,9 +8,9 @@ Future<void> main() async {
   installLogSinks();
   // After the sinks, not before: without one, LogManager discards the record.
   installUncaughtErrorLogging();
-  final callbackParams = CallbackParamsCapture.captureNow();
+  final oauthCallback = CallbackParamsCapture.captureNow();
   clearCallbackUrl();
   // The builder runs inside runSoliplexShell so a configuration failure
   // reaches the screen rather than stalling the launch.
-  await runSoliplexShell(() => standard(callbackParams: callbackParams));
+  await runSoliplexShell(() => standard(callbackParams: oauthCallback));
 }
