@@ -738,16 +738,16 @@ void main() {
       expect(rich(first), findsNothing);
     });
 
-    testWidgets('tapping a number opens its source below', (tester) async {
+    testWidgets('a number is not a link: tapping it opens nothing',
+        (tester) async {
       await tester.pumpWidget(
         tile('Boils [$first] and freezes [$second].', sourceReferences: refs),
       );
-      expect(find.text('Heading two'), findsNothing);
 
       await tester.tapOnText(find.textRange.ofSubstring('[2]'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Heading two'), findsOneWidget);
+      expect(find.text('Heading two'), findsNothing);
       expect(find.text('Heading four'), findsNothing);
     });
 
@@ -767,8 +767,7 @@ void main() {
       expect(copied(tester), 'Boils [$first].');
     });
 
-    testWidgets("names an earlier turn's source by its number, unlinked",
-        (tester) async {
+    testWidgets("names an earlier turn's source by its number", (tester) async {
       await tester.pumpWidget(
         tile(
           'As before [$earlier], boils [$first].',
@@ -778,10 +777,6 @@ void main() {
       );
 
       expect(rich('As before [7], boils [4].'), findsOneWidget);
-      await tester.tapOnText(find.textRange.ofSubstring('[7]'));
-      await tester.pumpAndSettle();
-      expect(find.text('Heading four'), findsNothing);
-      expect(find.text('Heading two'), findsNothing);
     });
 
     testWidgets("never rewrites the user's own text", (tester) async {

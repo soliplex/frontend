@@ -22,22 +22,22 @@ SourceReference _ref(
       index: index,
     );
 
-String _linked(String text, List<SourceReference> own,
+String _markdown(String text, List<SourceReference> own,
         [Map<String, int> thread = const {}]) =>
-    labelCitationMarkers(text, own: own, thread: thread, linkify: true);
+    labelCitationMarkers(text, own: own, thread: thread, markdown: true);
 
 String _plain(String text, List<SourceReference> own,
         [Map<String, int> thread = const {}]) =>
-    labelCitationMarkers(text, own: own, thread: thread, linkify: false);
+    labelCitationMarkers(text, own: own, thread: thread, markdown: false);
 
 void main() {
   final own = [_ref(_a, index: 4), _ref(_b, index: 2)];
 
   group('labelCitationMarkers', () {
-    test('links a cited id to its position under its badge number', () {
+    test('shows a cited id as its badge number, without a link', () {
       expect(
-        _linked('Water boils at 100 °C [$_a].', own),
-        'Water boils at 100 °C [&#91;4&#93;](soliplex-citation:0).',
+        _markdown('Water boils at 100 °C [$_a].', own),
+        'Water boils at 100 °C &#91;4&#93;.',
       );
     });
 
@@ -48,8 +48,8 @@ void main() {
     test('splits a group separated by commas, semicolons or spaces', () {
       for (final group in ['$_a, $_b', '$_a; $_b', '$_a $_b']) {
         expect(
-          _linked('x [$group]', own),
-          'x [&#91;4&#93;](soliplex-citation:0)[&#91;2&#93;](soliplex-citation:1)',
+          _markdown('x [$group]', own),
+          'x &#91;4&#93;&#91;2&#93;',
           reason: group,
         );
         expect(_plain('x [$group]', own), 'x [4][2]', reason: group);
@@ -62,13 +62,13 @@ void main() {
 
     test('leaves a group alone when one id in it is unknown', () {
       final text = 'x [$_a, $_c]';
-      expect(_linked(text, own), text);
+      expect(_markdown(text, own), text);
     });
 
     test('leaves bracketed prose and damaged ids alone', () {
       final damaged = _a.substring(0, _a.length - 1);
       for (final text in ['see [the appendix]', 'x [$damaged]', '[ ]']) {
-        expect(_linked(text, own), text);
+        expect(_markdown(text, own), text);
       }
     });
 
@@ -90,29 +90,26 @@ void main() {
       expect(_plain('x [$_b]', [_ref(_a), _ref(_b)]), 'x [2]');
     });
 
-    test("names an earlier turn's source without linking it", () {
+    test("names an earlier turn's source by its number", () {
       final thread = {_earlier: 7};
-      expect(_linked('x [$_earlier]', own, thread), 'x &#91;7&#93;');
+      expect(_markdown('x [$_earlier]', own, thread), 'x &#91;7&#93;');
       expect(_plain('x [$_earlier]', own, thread), 'x [7]');
     });
 
-    test("prefers this answer's own row over the thread's number", () {
-      expect(
-        _linked('x [$_a]', own, {_a: 4}),
-        'x [&#91;4&#93;](soliplex-citation:0)',
-      );
+    test("prefers this answer's own badge over the thread's number", () {
+      expect(_plain('x [$_b]', [_ref(_a), _ref(_b)], {_b: 9}), 'x [2]');
     });
 
-    test('mixes linked and earlier-turn sources in one group', () {
+    test("mixes this answer's and earlier-turn sources in one group", () {
       expect(
-        _linked('x [$_a, $_earlier]', own, {_earlier: 7}),
-        'x [&#91;4&#93;](soliplex-citation:0)&#91;7&#93;',
+        _markdown('x [$_a, $_earlier]', own, {_earlier: 7}),
+        'x &#91;4&#93;&#91;7&#93;',
       );
     });
 
     test('leaves markdown link text alone', () {
       final text = '[$_a](https://example.test)';
-      expect(_linked(text, own), text);
+      expect(_markdown(text, own), text);
     });
 
     test('leaves inline code spans alone', () {
@@ -153,7 +150,7 @@ void main() {
 
     test('returns the text unchanged with nothing to label against', () {
       final text = 'x [$_a]';
-      expect(_linked(text, const []), text);
+      expect(_markdown(text, const []), text);
     });
   });
 
@@ -174,17 +171,6 @@ void main() {
         [_ref(_b, index: 2), _ref(_a, index: 1)],
       ]);
       expect(numbers[_a], 1);
-    });
-  });
-
-  group('citationPositionFromHref', () {
-    test('reads the position off a citation link', () {
-      expect(citationPositionFromHref('soliplex-citation:3'), 3);
-    });
-
-    test('is null for any other link', () {
-      expect(citationPositionFromHref('https://example.test'), isNull);
-      expect(citationPositionFromHref('soliplex-citation:x'), isNull);
     });
   });
 
