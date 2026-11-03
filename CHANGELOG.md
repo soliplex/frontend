@@ -8,26 +8,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
-### Added
-
-- **Library consumers:** `SourceReference.chunkIds` carries the ids of every
-  chunk merged into a citation, its `chunkId` included, empty when the backend
-  sends none.
-
 ### Changed
 
 - An answer names the sources it cites by the numbers on their badges in its
   source list, "[2]", where it showed the chunk id the model wrote, a UUID.
   A source the answer's own list does not hold, cited in another answer of the
   thread, shows the number it has there. The numbers are text, not links.
-  Copying an answer copies the numbers. While an answer streams, an id not yet
-  cited in the thread shows as written until the answer's sources arrive. A
-  bracketed group holding any id the thread's sources do not hold is left as
-  written, as are ids in code spans and fenced code blocks.
-- Known limits: a number directly after inline code or a backslash shows as
-  `&#91;2]`; an id in an indented code block, or in a fence after a nested
-  fence line such as ` ```python `, shows as `&#91;2&#93;`; and a lone backtick
-  can leave the ids up to the next backtick as written.
+  While an answer streams, an id not yet cited in the thread shows as written
+  until the answer's sources arrive. A bracketed group holding any id the
+  thread's sources do not hold is left as written, as are ids in code.
+  Copying an answer copies the numbers, an id in code included.
 
 ## [0.114.0+101] - 2026-10-30
 

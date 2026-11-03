@@ -31,6 +31,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     super.onImageTap,
     super.key,
     this.selectable = true,
+    this.inlineSyntaxes = const [],
   });
 
   /// Whether the markdown manages its own selection (via `SelectableText`).
@@ -38,6 +39,10 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   /// area handles selection — a self-selecting widget nested in a
   /// `SelectionArea` conflicts.
   final bool selectable;
+
+  /// Inline syntaxes the parser tries after its LaTeX one, ahead of the
+  /// built-in markdown syntaxes.
+  final List<md.InlineSyntax> inlineSyntaxes;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +61,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       ),
       extensionSet: md.ExtensionSet.gitHubFlavored,
       blockSyntaxes: [LatexBlockSyntax()],
-      inlineSyntaxes: [LatexInlineSyntax()],
+      inlineSyntaxes: [LatexInlineSyntax(), ...inlineSyntaxes],
       onTapLink: (_, href, title) {
         if (href == null) return;
         final handleTap = onLinkTap;

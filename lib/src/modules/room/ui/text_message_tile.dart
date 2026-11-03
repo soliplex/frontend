@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -83,23 +84,17 @@ class TextMessageTile extends StatelessWidget {
   /// writing into any more.
   final bool isStreaming;
 
-  /// The message's text with cited chunk ids shown as the numbers the source
-  /// list gives them, as markdown for the bubble or plain for the clipboard. A
-  /// user's own text is never rewritten.
-  String _labelled({required bool markdown}) {
-    if (message.user == ChatUser.user) return message.text;
-    return labelCitationMarkers(
-      message.text,
-      own: sourceReferences ?? const [],
-      thread: citationNumbers,
-      markdown: markdown,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isUser = message.user == ChatUser.user;
+    // A user's own text is never relabelled.
+    final numbers = isUser
+        ? const <String, int>{}
+        : answerCitationNumbers(
+            own: sourceReferences ?? const [],
+            thread: citationNumbers,
+          );
     final showFeedback = !isUser && onFeedbackSubmit != null;
     final hasTracker = executionTracker != null;
 
@@ -135,7 +130,7 @@ class TextMessageTile extends StatelessWidget {
         const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(
           message: message,
-          text: _labelled(markdown: true),
+          citationNumbers: numbers,
           isStreaming: isStreaming,
         ),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
@@ -143,7 +138,7 @@ class TextMessageTile extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CopyButton(text: _labelled(markdown: false)),
+            CopyButton(text: labelCitationMarkers(message.text, numbers)),
             if (isUser && onInspect != null) ...[
               const SizedBox(width: SoliplexSpacing.s1),
               Tooltip(
@@ -178,18 +173,34 @@ class TextMessageTile extends StatelessWidget {
   }
 }
 
+/// Equal when two maps hold the same numbers, so the bubble's renderer is
+/// replaced exactly when they change.
+class _CitationNumbersKey extends LocalKey {
+  const _CitationNumbersKey(this.numbers);
+
+  final Map<String, int> numbers;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CitationNumbersKey && mapEquals(numbers, other.numbers);
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+        numbers.entries.map((entry) => Object.hash(entry.key, entry.value)),
+      );
+}
+
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
-    required this.text,
+    required this.citationNumbers,
     required this.isStreaming,
   });
 
   final TextMessage message;
 
-  /// What the assistant's bubble renders: [message]'s text with its citation
-  /// markers labelled.
-  final String text;
+  /// The numbers the assistant's bubble shows its cited chunk ids as.
+  final Map<String, int> citationNumbers;
 
   final bool isStreaming;
 
@@ -236,8 +247,12 @@ class _MessageBubble extends StatelessWidget {
           : message.text.isEmpty
               ? const SoliplexShimmer(lineFractions: [1, 1, 0.55])
               : FlutterMarkdownPlusRenderer(
-                  data: text,
+                  // The renderer parses its markdown again only when the text
+                  // changes, so new numbers for the same text take a fresh one.
+                  key: _CitationNumbersKey(citationNumbers),
+                  data: message.text,
                   selectable: false,
+                  inlineSyntaxes: [CitationMarkerSyntax(citationNumbers)],
                 ),
     );
   }

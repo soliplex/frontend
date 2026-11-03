@@ -779,6 +779,77 @@ void main() {
       expect(rich('As before [7], boils [4].'), findsOneWidget);
     });
 
+    testWidgets('labels the streamed text once its sources arrive',
+        (tester) async {
+      const text = 'Boils [$first].';
+      await tester.pumpWidget(tile(text));
+      expect(rich('[$first]'), findsOneWidget);
+
+      await tester.pumpWidget(tile(text, sourceReferences: refs));
+
+      expect(rich('Boils [4].'), findsOneWidget);
+    });
+
+    testWidgets('shows a number right after inline code as the number',
+        (tester) async {
+      await tester.pumpWidget(
+        tile('set `timeout`[$first] here', sourceReferences: refs),
+      );
+
+      expect(rich('[4] here'), findsOneWidget);
+      expect(rich('&#'), findsNothing);
+    });
+
+    testWidgets('labels a marker whose bracket the model escaped',
+        (tester) async {
+      await tester.pumpWidget(
+        tile(r'see \[' '$first] here', sourceReferences: refs),
+      );
+
+      expect(rich('see [4] here'), findsOneWidget);
+    });
+
+    testWidgets('leaves an id in an indented code block as written',
+        (tester) async {
+      await tester.pumpWidget(
+        tile('Run this:\n\n    lookup [$first]', sourceReferences: refs),
+      );
+
+      expect(rich('lookup [$first]'), findsOneWidget);
+    });
+
+    testWidgets('a fence line with an info string does not close the fence',
+        (tester) async {
+      await tester.pumpWidget(
+        tile(
+          [
+            '```md',
+            '```python',
+            'print("[$first]")',
+            '```',
+            '',
+            'After the block [$second].',
+          ].join('\n'),
+          sourceReferences: refs,
+        ),
+      );
+
+      expect(rich('print("[$first]")'), findsOneWidget);
+      expect(rich('After the block [2].'), findsOneWidget);
+    });
+
+    testWidgets('a lone backtick does not hide later paragraphs from labelling',
+        (tester) async {
+      await tester.pumpWidget(
+        tile(
+          'Press the ` key.\n\nSee [$first].\n\nThen run `ls`.',
+          sourceReferences: refs,
+        ),
+      );
+
+      expect(rich('See [4].'), findsOneWidget);
+    });
+
     testWidgets("never rewrites the user's own text", (tester) async {
       await tester.pumpWidget(
         tile(

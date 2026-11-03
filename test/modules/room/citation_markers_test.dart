@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/citation_markers.dart';
@@ -8,161 +9,150 @@ const _b = '7e3a2b10-5c4d-4f6e-8a9b-0c1d2e3f4a02';
 const _c = 'c4d5e6f7-1a2b-4c3d-9e8f-7a6b5c4d3e03';
 const _earlier = 'e1e2e3e4-1111-4222-8333-944455556604';
 
-SourceReference _ref(
-  String chunkId, {
-  int? index,
-  List<String> chunkIds = const [],
-}) =>
-    SourceReference(
+SourceReference _ref(String chunkId, {int? index}) => SourceReference(
       documentId: 'doc-$chunkId',
       documentUri: 'file://$chunkId.pdf',
       content: 'Content of $chunkId',
       chunkId: chunkId,
-      chunkIds: chunkIds,
       index: index,
     );
 
-String _markdown(String text, List<SourceReference> own,
-        [Map<String, int> thread = const {}]) =>
-    labelCitationMarkers(text, own: own, thread: thread, markdown: true);
-
-String _plain(String text, List<SourceReference> own,
-        [Map<String, int> thread = const {}]) =>
-    labelCitationMarkers(text, own: own, thread: thread, markdown: false);
+/// [text] parsed the way the answer bubble parses it, rendered as HTML.
+String _render(String text, Map<String, int> numbers) => md.markdownToHtml(
+      text,
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      inlineSyntaxes: [CitationMarkerSyntax(numbers)],
+    );
 
 void main() {
-  final own = [_ref(_a, index: 4), _ref(_b, index: 2)];
+  const numbers = {_a: 4, _b: 2};
 
   group('labelCitationMarkers', () {
-    test('shows a cited id as its badge number, without a link', () {
+    test('shows a cited id as its number', () {
       expect(
-        _markdown('Water boils at 100 °C [$_a].', own),
-        'Water boils at 100 °C &#91;4&#93;.',
+        labelCitationMarkers('Boils at 100 °C [$_a].', numbers),
+        'Boils at 100 °C [4].',
       );
-    });
-
-    test('plain text for the clipboard', () {
-      expect(_plain('Boils [$_a].', own), 'Boils [4].');
     });
 
     test('splits a group separated by commas, semicolons or spaces', () {
       for (final group in ['$_a, $_b', '$_a; $_b', '$_a $_b']) {
         expect(
-          _markdown('x [$group]', own),
-          'x &#91;4&#93;&#91;2&#93;',
+          labelCitationMarkers('x [$group]', numbers),
+          'x [4][2]',
           reason: group,
         );
-        expect(_plain('x [$group]', own), 'x [4][2]', reason: group);
       }
     });
 
+    test('shows a number once when a group repeats a source', () {
+      expect(labelCitationMarkers('x [$_a, $_a]', numbers), 'x [4]');
+    });
+
     test('labels adjacent markers each', () {
-      expect(_plain('x [$_a][$_b]', own), 'x [4][2]');
+      expect(labelCitationMarkers('x [$_a][$_b]', numbers), 'x [4][2]');
+    });
+
+    test('labels a marker whose bracket is escaped', () {
+      expect(labelCitationMarkers(r'x \[' '$_a]', numbers), 'x [4]');
     });
 
     test('leaves a group alone when one id in it is unknown', () {
       final text = 'x [$_a, $_c]';
-      expect(_markdown(text, own), text);
+      expect(labelCitationMarkers(text, numbers), text);
     });
 
     test('leaves bracketed prose and damaged ids alone', () {
       final damaged = _a.substring(0, _a.length - 1);
       for (final text in ['see [the appendix]', 'x [$damaged]', '[ ]']) {
-        expect(_markdown(text, own), text);
+        expect(labelCitationMarkers(text, numbers), text);
       }
-    });
-
-    test('answers to any id a merged citation covers', () {
-      final merged = [
-        _ref(_a, index: 1, chunkIds: [_a, _c]),
-      ];
-      expect(_plain('x [$_c]', merged), 'x [1]');
-    });
-
-    test('shows one label for two ids of the same citation in a group', () {
-      final merged = [
-        _ref(_a, index: 1, chunkIds: [_a, _c]),
-      ];
-      expect(_plain('x [$_a, $_c]', merged), 'x [1]');
-    });
-
-    test('falls back to the list position when the index is missing', () {
-      expect(_plain('x [$_b]', [_ref(_a), _ref(_b)]), 'x [2]');
-    });
-
-    test("names an earlier turn's source by its number", () {
-      final thread = {_earlier: 7};
-      expect(_markdown('x [$_earlier]', own, thread), 'x &#91;7&#93;');
-      expect(_plain('x [$_earlier]', own, thread), 'x [7]');
-    });
-
-    test("prefers this answer's own badge over the thread's number", () {
-      expect(_plain('x [$_b]', [_ref(_a), _ref(_b)], {_b: 9}), 'x [2]');
-    });
-
-    test("mixes this answer's and earlier-turn sources in one group", () {
-      expect(
-        _markdown('x [$_a, $_earlier]', own, {_earlier: 7}),
-        'x &#91;4&#93;&#91;7&#93;',
-      );
     });
 
     test('leaves markdown link text alone', () {
       final text = '[$_a](https://example.test)';
-      expect(_markdown(text, own), text);
+      expect(labelCitationMarkers(text, numbers), text);
     });
 
-    test('leaves inline code spans alone', () {
-      final text = 'run `lookup [$_a]` then [$_a]';
+    test('labels every marker in the text, code included', () {
       expect(
-        _plain(text, own),
-        'run `lookup [$_a]` then [4]',
+        labelCitationMarkers('run `lookup [$_a]`', numbers),
+        'run `lookup [4]`',
+      );
+    });
+  });
+
+  group('CitationMarkerSyntax', () {
+    test('renders a cited id as its number, as plain text', () {
+      expect(_render('Boils [$_a, $_b].', numbers), '<p>Boils [4][2].</p>\n');
+    });
+
+    test('renders a number right after inline code', () {
+      expect(
+        _render('set `timeout`[$_a]', numbers),
+        '<p>set <code>timeout</code>[4]</p>\n',
       );
     });
 
-    test('leaves fenced code blocks alone', () {
-      final text = [
-        'before [$_a]',
-        '```json',
-        '{"ids": [$_a]}',
-        '```',
-        'after [$_b]',
-      ].join('\n');
-      expect(
-        _plain(text, own),
+    test('leaves ids in code spans and code blocks as written', () {
+      final html = _render(
         [
-          'before [4]',
-          '```json',
-          '{"ids": [$_a]}',
+          'run `lookup [$_a]`',
+          '',
+          '    indented [$_a]',
+          '',
+          '```md',
+          '```python',
+          '[$_a]',
           '```',
-          'after [2]',
         ].join('\n'),
+        numbers,
       );
+      expect(html, isNot(contains('[4]')));
+      expect('[$_a]'.allMatches(html), hasLength(3));
     });
 
-    test('keeps a tilde fence open past a backtick line', () {
-      final text = ['~~~', '```', '[$_a]', '~~~', '[$_a]'].join('\n');
+    test('leaves an unknown group to the rest of the parser', () {
       expect(
-        _plain(text, own),
-        ['~~~', '```', '[$_a]', '~~~', '[4]'].join('\n'),
+        _render('[$_c](https://example.test) and [prose]', numbers),
+        '<p><a href="https://example.test">$_c</a> and [prose]</p>\n',
+      );
+    });
+  });
+
+  group('answerCitationNumbers', () {
+    test("gives this answer's ids their badge numbers", () {
+      expect(
+        answerCitationNumbers(
+          own: [_ref(_a, index: 4), _ref(_b)],
+          thread: const {},
+        ),
+        {_a: 4, _b: 2},
       );
     });
 
-    test('returns the text unchanged with nothing to label against', () {
-      final text = 'x [$_a]';
-      expect(_markdown(text, const []), text);
+    test("names another answer's source by the thread's number", () {
+      expect(
+        answerCitationNumbers(own: [_ref(_a, index: 4)], thread: {_earlier: 7}),
+        {_a: 4, _earlier: 7},
+      );
+    });
+
+    test("prefers this answer's own badge over the thread's number", () {
+      expect(
+        answerCitationNumbers(own: [_ref(_a), _ref(_b)], thread: {_b: 9})[_b],
+        2,
+      );
     });
   });
 
   group('threadCitationNumbers', () {
-    test('maps every indexed id across turns, merged ids included', () {
+    test('maps every indexed id across turns', () {
       final numbers = threadCitationNumbers([
-        [
-          _ref(_a, index: 1, chunkIds: [_a, _c]),
-        ],
+        [_ref(_a, index: 1)],
         [_ref(_b, index: 2), _ref(_earlier)],
       ]);
-      expect(numbers, {_a: 1, _c: 1, _b: 2});
+      expect(numbers, {_a: 1, _b: 2});
     });
 
     test('a source cited again in a later turn keeps its number', () {

@@ -48,7 +48,6 @@ class SourceReference {
     required this.documentUri,
     required this.content,
     required this.chunkId,
-    this.chunkIds = const [],
     this.documentTitle,
     this.sourceUrl,
     this.headings = const [],
@@ -72,11 +71,6 @@ class SourceReference {
 
   /// Unique identifier for this chunk within the document.
   final String chunkId;
-
-  /// The ids of every chunk merged into the cited result, [chunkId] included,
-  /// as the backend reports them (`chunk_ids`). Empty when the backend reports
-  /// none.
-  final List<String> chunkIds;
 
   /// Human-readable document title, if available.
   final String? documentTitle;
@@ -217,7 +211,6 @@ class SourceReference {
         documentUri == other.documentUri &&
         content == other.content &&
         chunkId == other.chunkId &&
-        listEquals.equals(chunkIds, other.chunkIds) &&
         documentTitle == other.documentTitle &&
         sourceUrl == other.sourceUrl &&
         listEquals.equals(headings, other.headings) &&
@@ -236,7 +229,6 @@ class SourceReference {
         documentUri,
         content,
         chunkId,
-        const ListEquality<String>().hash(chunkIds),
         documentTitle,
         sourceUrl,
         const ListEquality<String>().hash(headings),
