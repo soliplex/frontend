@@ -73,9 +73,9 @@ class SourceReference {
   /// Unique identifier for this chunk within the document.
   final String chunkId;
 
-  /// Every chunk id a merged citation covers, as the backend reports them
-  /// (`chunk_ids`). The model is shown each of them, so its answer can name
-  /// the citation by any one. Empty for a citation that merged nothing.
+  /// The ids of every chunk merged into the cited result, [chunkId] included,
+  /// as the backend reports them (`chunk_ids`). Empty when the backend reports
+  /// none.
   final List<String> chunkIds;
 
   /// Human-readable document title, if available.

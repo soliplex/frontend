@@ -1,24 +1,26 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-/// The number a citation is shown under: the backend's `index`, which holds
-/// across the conversation, or its place in the list when the capability
-/// reports none.
+/// The number a citation is shown under: the backend's `index`, or its place
+/// in the list when the capability reports none.
 ///
 /// Shared by the source list's badge and the marker in the answer's text, so
 /// the two cannot disagree about which number names a source.
 int citationBadgeNumber(SourceReference ref, int position) =>
     ref.index ?? position + 1;
 
-/// The chunk ids a citation answers to: its own, and every id it merged. The
-/// model is shown each of them, so it can name the citation by any one.
+/// The chunk ids a citation answers to: its own, and every id merged into it.
+/// A marker naming any of them is labelled with the citation's number.
 Iterable<String> _keysOf(SourceReference ref) => {ref.chunkId, ...ref.chunkIds};
 
-/// Every chunk id cited anywhere in a thread, mapped to its number.
+/// Every chunk id cited anywhere in a thread by a citation carrying a backend
+/// `index`, mapped to that index. When two citations claim one id, the first
+/// met keeps it.
 ///
-/// Only citations carrying a backend `index` are taken: that number is assigned
-/// once per chunk id and kept for the conversation, so it names the same source
-/// whichever turn's text uses it. A positional fallback means nothing outside
-/// the list it was counted in.
+/// Only citations carrying a backend `index` are taken: the backend keeps each
+/// cited chunk's citation, `index` included, in a `citation_index` that spans
+/// the conversation, so the number names the same source whichever turn's text
+/// uses it. A positional fallback means nothing outside the list it was
+/// counted in.
 Map<String, int> threadCitationNumbers(
   Iterable<List<SourceReference>> turns,
 ) {
@@ -46,31 +48,42 @@ final _separator = RegExp(r'[,;\s]+');
 /// the same length.
 final _codeSpan = RegExp(r'(`+)[\s\S]*?(?<!`)\1(?!`)');
 
-/// The opening or closing line of a fenced code block.
+/// A line that opens or closes a fenced code block, indented at most three
+/// spaces. Any line starting with a fence run matches, info string or not.
 final _fence = RegExp(r'^ {0,3}(`{3,}|~{3,})');
 
-/// `[n]` written as markdown that renders as exactly that.
+/// `[n]` written as markdown that renders as exactly that, except directly
+/// after a backtick or a backslash: there the renderer leaves the opening
+/// entity undecoded, and shows `&#91;n]`.
 ///
-/// Entities rather than backslash escapes: `\[…\]` is display-math to the
-/// renderer's LaTeX syntax, which would eat the brackets. Entities are decoded
-/// after links are parsed, so `[2][3]` cannot read as a reference link either.
+/// Entities rather than backslash escapes: `\[…\]` can be display-math to the
+/// renderer's LaTeX syntax, which would eat the brackets. An entity decodes to
+/// plain text, never to a link delimiter, so `[2][3]` cannot read as a
+/// reference link either.
 String _bracketed(int number) => '&#91;$number&#93;';
 
 /// [text] with each bracketed group of cited chunk ids replaced by the
 /// numbers the source list shows for them.
 ///
 /// [own] is this answer's source list, whose badges give the numbers. [thread]
-/// is [threadCitationNumbers] over the whole thread, naming a source this
-/// answer did not cite again, cited in an earlier turn.
+/// is [threadCitationNumbers] over the whole thread, naming a source cited
+/// elsewhere in the thread that this answer's list does not hold.
 ///
 /// The numbers are text, not links.
 ///
 /// A group is rewritten only when every id in it is known, so prose that
 /// happens to sit in brackets is left alone, as is an id the model damaged
-/// while copying it. Code blocks and code spans are never touched.
+/// while copying it.
+///
+/// Code spans, and fenced code blocks indented at most three spaces, are left
+/// as written. An indented code block is rewritten, and a line inside a fence
+/// that starts with a fence run, info string or not, closes that fence. Code
+/// spans are matched across paragraphs, so a lone backtick can pair with one
+/// in a later paragraph and leave the markers between them as written.
 ///
 /// With [markdown] set the brackets are written so the markdown renderer shows
-/// them as they are; unset, the result is plain text, for the clipboard.
+/// them as they are; unset, the markers are written as literal `[n]`, for the
+/// clipboard.
 String labelCitationMarkers(
   String text, {
   required List<SourceReference> own,

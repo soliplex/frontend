@@ -34,7 +34,7 @@ class MessageTile extends StatelessWidget {
   final String? runId;
   final List<SourceReference>? sourceReferences;
 
-  /// Every chunk id cited in the thread, mapped to its number.
+  /// Every chunk id cited in the thread with a backend `index`, mapped to it.
   final Map<String, int> citationNumbers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
