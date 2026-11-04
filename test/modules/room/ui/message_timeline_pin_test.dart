@@ -87,9 +87,11 @@ List<ChatMessage> _slightlyTallFirst() => [
         ),
     ];
 
-/// Plays the web engine's part when the accessibility tree is on: it mirrors
-/// the scroll view in a DOM scroll container that cannot sit past the end, so
-/// a position reported past the end comes back as a scroll to the end.
+/// Stands in for the web engine when the accessibility tree is on,
+/// conservatively. The engine mirrors the scroll view in a DOM scroll
+/// container that cannot sit past the end; when the browser clamps it, the
+/// engine reports the clamped offset back as a scroll. This echoes that report
+/// after every frame that ends past the end.
 void _echoClampedPosition(WidgetTester tester) {
   final position = _timelinePosition(tester);
   if (position.pixels <= position.maxScrollExtent) return;
