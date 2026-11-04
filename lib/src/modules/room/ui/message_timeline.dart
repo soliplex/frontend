@@ -95,7 +95,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   static const _bottomStickThreshold = 100.0;
 
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
-  Map<String, int> _citationNumbers = const {};
+  Map<String, int> _threadCitationNumbers = const {};
 
   @override
   void initState() {
@@ -167,7 +167,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   void _recomputeMaps() {
     _sourceReferencesMap =
         buildSourceReferencesMap(widget.messages, widget.messageStates);
-    _citationNumbers = threadCitationNumbers(
+    _threadCitationNumbers = threadCitationNumbers(
       widget.messageStates.values.map((state) => state.sourceReferences),
     );
   }
@@ -481,7 +481,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           message: message,
                           runId: resolveRunId(message, widget.messageStates),
                           sourceReferences: _sourceReferencesMap[message.id],
-                          citationNumbers: _citationNumbers,
+                          threadCitationNumbers: _threadCitationNumbers,
                           onFeedbackSubmit: widget.onFeedbackSubmit,
                           onReportRun: widget.onReportRun,
                           besideReply: entry.besideReply,
