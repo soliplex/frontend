@@ -121,9 +121,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
       _needsInitialScroll = false;
       _pinMessageAtTop(lastUserMsg.id);
     }
-
-    final activeIds = widget.messages.map((m) => m.id).toSet();
-    _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
   }
 
   /// The tiles this thread shows, the band each one renders, and the bands
@@ -406,6 +403,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
     final (:tiles, :dropped) = _layOut();
     _reportNewDrops(dropped);
     final displayMessages = [for (final tile in tiles) tile.message];
+    // Pruned against the tiles shown rather than the committed messages: the
+    // streaming reply is shown before it commits, and dropping its key would
+    // remount its tile on every delta.
+    final shownIds = {for (final message in displayMessages) message.id};
+    _messageKeys.removeWhere((id, _) => !shownIds.contains(id));
 
     _evaluateUnread(displayMessages);
 
