@@ -32,12 +32,8 @@ void main() {
       test('RunStartedEvent sets status to Running', () {
         final event = RunStartedEvent(threadId: 'thread-1', runId: 'run-1');
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.status, isA<Running>());
         expect((result.conversation.status as Running).runId, equals('run-1'));
@@ -114,7 +110,8 @@ void main() {
         expect(committed.thinkingText, equals('reasoning'));
       });
 
-      test('RunErrorEvent on Completed conversation preserves the '
+      test(
+          'RunErrorEvent on Completed conversation preserves the '
           'terminal Completed status (no silent corruption)', () {
         final completedConversation = conversation.withStatus(
           const Completed(),
@@ -133,38 +130,32 @@ void main() {
       });
 
       test(
-        'RunErrorEvent on Idle conversation flips to Failed and appends '
-        'a stable-id ErrorMessage so the user sees a visible failure row',
-        () {
-          // Backend protocol violation: RunErrorEvent without a preceding
-          // RunStartedEvent. Status alone doesn't render in the messages
-          // list, so the user would otherwise see nothing.
-          const event = RunErrorEvent(message: 'pre-run error');
+          'RunErrorEvent on Idle conversation flips to Failed and appends '
+          'a stable-id ErrorMessage so the user sees a visible failure row',
+          () {
+        // Backend protocol violation: RunErrorEvent without a preceding
+        // RunStartedEvent. Status alone doesn't render in the messages
+        // list, so the user would otherwise see nothing.
+        const event = RunErrorEvent(message: 'pre-run error');
 
-          final result = processEvent(
-            conversation,
-            streaming,
-            event,
-            createdAt: null,
-          );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
-          expect(result.conversation.status, isA<Failed>());
-          expect(
-            (result.conversation.status as Failed).error,
-            equals('pre-run error'),
-          );
-          final surfaced = result.conversation.messages.last as ErrorMessage;
-          expect(
-            surfaced.id,
-            equals(
-              preRunErrorMessageId(conversation.threadId, 'pre-run error'),
-            ),
-          );
-          expect(surfaced.errorText, equals('pre-run error'));
-        },
-      );
+        expect(result.conversation.status, isA<Failed>());
+        expect(
+          (result.conversation.status as Failed).error,
+          equals('pre-run error'),
+        );
+        final surfaced = result.conversation.messages.last as ErrorMessage;
+        expect(
+          surfaced.id,
+          equals(preRunErrorMessageId(conversation.threadId, 'pre-run error')),
+        );
+        expect(surfaced.errorText, equals('pre-run error'));
+      });
 
-      test('RunErrorEvent with empty buffered thinking still records the '
+      test(
+          'RunErrorEvent with empty buffered thinking still records the '
           'failure', () {
         // Synthesis declines when there's nothing to preserve; without a
         // surfaced tile the user would have no signal that the run
@@ -190,7 +181,8 @@ void main() {
         );
       });
 
-      test('duplicate RunFinishedEvent on Completed conversation does NOT '
+      test(
+          'duplicate RunFinishedEvent on Completed conversation does NOT '
           'synthesize a second tile or alter status', () {
         // Out-of-order or duplicate terminal events from the backend must
         // not double-append a no-response tile.
@@ -210,7 +202,8 @@ void main() {
         expect(result.conversation.messages, isEmpty);
       });
 
-      test('duplicate RunFinishedEvent on Completed conversation with buffered '
+      test(
+          'duplicate RunFinishedEvent on Completed conversation with buffered '
           'thinking does NOT re-synthesize a NoResponseTile (status guard '
           'precedes synthesis decline)', () {
         // Without the status guard, buffered thinking would let synthesis
@@ -238,7 +231,8 @@ void main() {
         );
       });
 
-      test('RunFinishedEvent on Failed conversation preserves the prior '
+      test(
+          'RunFinishedEvent on Failed conversation preserves the prior '
           'terminal status and does not synthesize', () {
         final failedConversation = conversation.withStatus(
           const Failed(error: 'earlier failure'),
@@ -266,7 +260,8 @@ void main() {
         );
       });
 
-      test('RunFinishedEvent followed by RunErrorEvent preserves the first '
+      test(
+          'RunFinishedEvent followed by RunErrorEvent preserves the first '
           'terminal status (Completed wins)', () {
         // A late RunErrorEvent arriving after RunFinished must not flip
         // the conversation back to Failed and must not append a tile.
@@ -293,13 +288,15 @@ void main() {
         expect(afterErrored.conversation.messages, isEmpty);
       });
 
-      test('RunErrorEvent with an unresolved tool call still records the '
+      test(
+          'RunErrorEvent with an unresolved tool call still records the '
           'failure', () {
         // Tool-call synthesis declines (the tool call IS the response);
         // a real failure still needs to be visible to the user.
-        final runningConversation = conversation
-            .withStatus(const Running(runId: 'run-1'))
-            .withToolCall(const ToolCallInfo(id: 'tc1', name: 'search'));
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
+                  const ToolCallInfo(id: 'tc1', name: 'search'),
+                );
         const streamingWithThinking = app_streaming.AwaitingText(
           bufferedThinkingText: 'planning the call',
         );
@@ -317,9 +314,10 @@ void main() {
       });
 
       test('RunErrorEvent dates the parked failure at createdAt', () {
-        final runningConversation = conversation
-            .withStatus(const Running(runId: 'run-1'))
-            .withToolCall(const ToolCallInfo(id: 'tc1', name: 'search'));
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
+                  const ToolCallInfo(id: 'tc1', name: 'search'),
+                );
         const streamingWithThinking = app_streaming.AwaitingText(
           bufferedThinkingText: 'planning the call',
         );
@@ -341,9 +339,8 @@ void main() {
       });
 
       test('RunErrorEvent dates committed partial text at createdAt', () {
-        final runningConversation = conversation.withStatus(
-          const Running(runId: 'run-1'),
-        );
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1'));
         const streamingText = app_streaming.TextStreaming(
           messageId: 'msg-1',
           user: _defaultUser,
@@ -366,9 +363,8 @@ void main() {
       });
 
       test('RunFinishedEvent dates the parked outcome at createdAt', () {
-        final runningConversation = conversation.withStatus(
-          const Running(runId: 'run-1'),
-        );
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1'));
         const streamingWithThinking = app_streaming.AwaitingText(
           bufferedThinkingText: 'thought process',
         );
@@ -459,16 +455,11 @@ void main() {
         // run it could belong to.
         const event = RunErrorEvent(message: 'boom');
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
-        final error = result.conversation.messages
-            .whereType<ErrorMessage>()
-            .single;
+        final error =
+            result.conversation.messages.whereType<ErrorMessage>().single;
         expect(error.runId, isNull);
       });
     });
@@ -477,12 +468,8 @@ void main() {
       test('TextMessageStartEvent begins streaming', () {
         const event = TextMessageStartEvent(messageId: 'msg-1');
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.TextStreaming>());
         final streamingState = result.streaming as app_streaming.TextStreaming;
@@ -496,12 +483,8 @@ void main() {
           delta: 'Hello',
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.AwaitingText>());
         expect(result.conversation.messages, isEmpty);
@@ -518,12 +501,8 @@ void main() {
           delta: ' world',
         );
 
-        final result = processEvent(
-          conversation,
-          streamingState,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.TextStreaming>());
         final newStreaming = result.streaming as app_streaming.TextStreaming;
@@ -563,12 +542,8 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(
-          conversation,
-          streamingState,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
         expect(result.streaming, isA<app_streaming.AwaitingText>());
         expect(result.conversation.messages, hasLength(1));
@@ -619,29 +594,23 @@ void main() {
         expect(result.conversation.messages.first.runId, equals('run-1'));
       });
 
-      test(
-        'TextMessageEndEvent leaves runId null when no run is in flight',
-        () {
-          // A reply committed with the conversation in any other status has no
-          // run to name, and inventing one would group it with a run that did
-          // not produce it.
-          const streamingState = app_streaming.TextStreaming(
-            messageId: 'msg-1',
-            user: _defaultUser,
-            text: 'Hello world',
-          );
-          const event = TextMessageEndEvent(messageId: 'msg-1');
+      test('TextMessageEndEvent leaves runId null when no run is in flight',
+          () {
+        // A reply committed with the conversation in any other status has no
+        // run to name, and inventing one would group it with a run that did
+        // not produce it.
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello world',
+        );
+        const event = TextMessageEndEvent(messageId: 'msg-1');
 
-          final result = processEvent(
-            conversation,
-            streamingState,
-            event,
-            createdAt: null,
-          );
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
-          expect(result.conversation.messages.first.runId, isNull);
-        },
-      );
+        expect(result.conversation.messages.first.runId, isNull);
+      });
 
       test('TextMessageEndEvent preserves user role from streaming state', () {
         // Verify role propagation: user from streaming state goes into message
@@ -652,12 +621,8 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(
-          conversation,
-          streamingState,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streamingState, event, createdAt: null);
 
         final message = result.conversation.messages.first;
         expect(message.user, equals(ChatUser.user));
@@ -693,10 +658,10 @@ void main() {
           addTearDown(() => LogManager.instance.removeSink(sink));
         });
         Iterable<LogRecord> ignored() => sink.records.where(
-          (r) =>
-              r.loggerName == 'soliplex_client.event_processor' &&
-              r.message.contains('for a message not streaming'),
-        );
+              (r) =>
+                  r.loggerName == 'soliplex_client.event_processor' &&
+                  r.message.contains('for a message not streaming'),
+            );
         const active = app_streaming.TextStreaming(
           messageId: 'msg-1',
           user: _defaultUser,
@@ -795,12 +760,8 @@ void main() {
           role: TextMessageRole.user,
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final streamingState = result.streaming as app_streaming.TextStreaming;
         expect(streamingState.user, equals(ChatUser.user));
@@ -812,12 +773,8 @@ void main() {
           role: TextMessageRole.system,
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final streamingState = result.streaming as app_streaming.TextStreaming;
         expect(streamingState.user, equals(ChatUser.system));
@@ -829,12 +786,8 @@ void main() {
           role: TextMessageRole.developer,
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final streamingState = result.streaming as app_streaming.TextStreaming;
         expect(streamingState.user, equals(ChatUser.system));
@@ -849,12 +802,8 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(
-            conversation,
-            streaming,
-            event,
-            createdAt: null,
-          );
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
           expect(result.conversation.toolCalls, hasLength(1));
           final tc = result.conversation.toolCalls.first;
@@ -868,12 +817,8 @@ void main() {
             toolCallId: 'tc-1',
             toolCallName: 'search',
           );
-          final result1 = processEvent(
-            conversation,
-            streaming,
-            event1,
-            createdAt: null,
-          );
+          final result1 =
+              processEvent(conversation, streaming, event1, createdAt: null);
 
           const event2 = ToolCallStartEvent(
             toolCallId: 'tc-2',
@@ -1127,9 +1072,8 @@ void main() {
 
         test('does not change phase', () {
           final awaitingWithTool = app_streaming.AwaitingText(
-            currentPhase: app_streaming.ToolCallPhase.single(
-              toolName: 'search',
-            ),
+            currentPhase:
+                app_streaming.ToolCallPhase.single(toolName: 'search'),
           );
           final conversationWithTool = conversation.withToolCall(
             const ToolCallInfo(
@@ -1210,12 +1154,8 @@ void main() {
             toolCallId: 'tc-a',
             toolCallName: 'search',
           );
-          var result = processEvent(
-            conversation,
-            streaming,
-            startA,
-            createdAt: null,
-          );
+          var result =
+              processEvent(conversation, streaming, startA, createdAt: null);
 
           // Args for tool A
           const argsA = ToolCallArgsEvent(
@@ -1400,18 +1340,15 @@ void main() {
       });
 
       group('ToolCallPhase equality', () {
-        test('consecutive starts of same tool produce unequal activities '
+        test(
+            'consecutive starts of same tool produce unequal activities '
             '(different toolCallId)', () {
           const event1 = ToolCallStartEvent(
             toolCallId: 'tc-1',
             toolCallName: 'ask',
           );
-          final result1 = processEvent(
-            conversation,
-            streaming,
-            event1,
-            createdAt: null,
-          );
+          final result1 =
+              processEvent(conversation, streaming, event1, createdAt: null);
 
           const event2 = ToolCallStartEvent(
             toolCallId: 'tc-2',
@@ -1437,16 +1374,11 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(
-            conversation,
-            streaming,
-            event,
-            createdAt: null,
-          );
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
-          final phase =
-              (result.streaming as app_streaming.AwaitingText).currentPhase
-                  as app_streaming.ToolCallPhase;
+          final phase = (result.streaming as app_streaming.AwaitingText)
+              .currentPhase as app_streaming.ToolCallPhase;
           expect(phase.latestToolCallId, equals('tc-1'));
         });
 
@@ -1457,16 +1389,11 @@ void main() {
             timestamp: 1000,
           );
 
-          final result = processEvent(
-            conversation,
-            streaming,
-            event,
-            createdAt: null,
-          );
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
-          final phase =
-              (result.streaming as app_streaming.AwaitingText).currentPhase
-                  as app_streaming.ToolCallPhase;
+          final phase = (result.streaming as app_streaming.AwaitingText)
+              .currentPhase as app_streaming.ToolCallPhase;
           expect(phase.timestamp, equals(1000));
         });
 
@@ -1479,17 +1406,12 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(
-            conversation,
-            streaming,
-            event,
-            createdAt: null,
-          );
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
           final after = DateTime.now().millisecondsSinceEpoch;
 
-          final phase =
-              (result.streaming as app_streaming.AwaitingText).currentPhase
-                  as app_streaming.ToolCallPhase;
+          final phase = (result.streaming as app_streaming.AwaitingText)
+              .currentPhase as app_streaming.ToolCallPhase;
           expect(phase.timestamp, greaterThanOrEqualTo(before));
           expect(phase.timestamp, lessThanOrEqualTo(after));
         });
@@ -1502,12 +1424,8 @@ void main() {
             toolCallName: 'search',
           );
 
-          final result = processEvent(
-            conversation,
-            streaming,
-            event,
-            createdAt: null,
-          );
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
           final awaitingText = result.streaming as app_streaming.AwaitingText;
           final phase =
@@ -1518,12 +1436,8 @@ void main() {
         test('ToolCallStartEvent during TextStreaming sets phase', () {
           // Start streaming text
           const textStart = TextMessageStartEvent(messageId: 'msg-1');
-          var result = processEvent(
-            conversation,
-            streaming,
-            textStart,
-            createdAt: null,
-          );
+          var result =
+              processEvent(conversation, streaming, textStart, createdAt: null);
           expect(result.streaming, isA<app_streaming.TextStreaming>());
 
           // Tool call starts while text is streaming
@@ -1548,12 +1462,8 @@ void main() {
         test('text and tool calls coexist', () {
           // Start text
           const textStart = TextMessageStartEvent(messageId: 'msg-1');
-          var result = processEvent(
-            conversation,
-            streaming,
-            textStart,
-            createdAt: null,
-          );
+          var result =
+              processEvent(conversation, streaming, textStart, createdAt: null);
 
           // Stream text content
           const textContent = TextMessageContentEvent(
@@ -1630,15 +1540,14 @@ void main() {
           content: {'tool_name': 'search'},
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
-        expect(awaitingText.currentPhase, isA<app_streaming.ProcessingPhase>());
+        expect(
+          awaitingText.currentPhase,
+          isA<app_streaming.ProcessingPhase>(),
+        );
       });
 
       test('persists snapshot as ActivityRecord on conversation', () {
@@ -1649,12 +1558,8 @@ void main() {
           timestamp: 1234,
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         final record = result.conversation.activities.first;
@@ -1676,12 +1581,8 @@ void main() {
           timestamp: 10,
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.activityType, 'plan');
@@ -1705,12 +1606,8 @@ void main() {
           timestamp: 2,
         );
 
-        final afterFirst = processEvent(
-          conversation,
-          streaming,
-          first,
-          createdAt: null,
-        );
+        final afterFirst =
+            processEvent(conversation, streaming, first, createdAt: null);
         final afterSecond = processEvent(
           afterFirst.conversation,
           afterFirst.streaming,
@@ -1739,12 +1636,8 @@ void main() {
           timestamp: 2,
         );
 
-        final afterFirst = processEvent(
-          conversation,
-          streaming,
-          first,
-          createdAt: null,
-        );
+        final afterFirst =
+            processEvent(conversation, streaming, first, createdAt: null);
         final afterSecond = processEvent(
           afterFirst.conversation,
           afterFirst.streaming,
@@ -1767,12 +1660,8 @@ void main() {
           timestamp: 5,
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.messageId, 'rag:call_2');
@@ -1809,12 +1698,8 @@ void main() {
           timestamp: 9,
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.messageId, 'rag:call_x');
@@ -1917,12 +1802,8 @@ void main() {
           ],
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.activities, isEmpty);
         expect(result.streaming, equals(streaming));
@@ -1990,20 +1871,22 @@ void main() {
     });
 
     group('thinking events', () {
-      test('ReasoningMessageStartEvent sets isThinkingStreaming and phase', () {
-        const event = ReasoningMessageStartEvent(messageId: 'r1');
+      test(
+        'ReasoningMessageStartEvent sets isThinkingStreaming and phase',
+        () {
+          const event = ReasoningMessageStartEvent(messageId: 'r1');
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+          final result =
+              processEvent(conversation, streaming, event, createdAt: null);
 
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        expect(awaitingText.isThinkingStreaming, isTrue);
-        expect(awaitingText.currentPhase, isA<app_streaming.ThinkingPhase>());
-      });
+          final awaitingText = result.streaming as app_streaming.AwaitingText;
+          expect(awaitingText.isThinkingStreaming, isTrue);
+          expect(
+            awaitingText.currentPhase,
+            isA<app_streaming.ThinkingPhase>(),
+          );
+        },
+      );
 
       test('ReasoningMessageContentEvent appends to existing buffer', () {
         const startedState = app_streaming.AwaitingText(
@@ -2015,12 +1898,8 @@ void main() {
           delta: 'Part 2.',
         );
 
-        final result = processEvent(
-          conversation,
-          startedState,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, startedState, event, createdAt: null);
 
         expect(
           (result.streaming as app_streaming.AwaitingText).bufferedThinkingText,
@@ -2035,12 +1914,8 @@ void main() {
         );
         const event = ReasoningMessageEndEvent(messageId: 'r1');
 
-        final result = processEvent(
-          conversation,
-          startedState,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, startedState, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         expect(awaitingText.isThinkingStreaming, isFalse);
@@ -2125,16 +2000,15 @@ void main() {
       test('ReasoningStartEvent sets isThinkingStreaming and phase', () {
         const event = ReasoningStartEvent(messageId: 'reas-1');
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         expect(awaitingText.isThinkingStreaming, isTrue);
-        expect(awaitingText.currentPhase, isA<app_streaming.ThinkingPhase>());
+        expect(
+          awaitingText.currentPhase,
+          isA<app_streaming.ThinkingPhase>(),
+        );
       });
 
       test('ReasoningEndEvent sets isThinkingStreaming to false', () {
@@ -2144,12 +2018,8 @@ void main() {
         );
         const event = ReasoningEndEvent(messageId: 'reas-1');
 
-        final result = processEvent(
-          conversation,
-          reasoningState,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, reasoningState, event, createdAt: null);
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         expect(awaitingText.isThinkingStreaming, isFalse);
@@ -2160,12 +2030,8 @@ void main() {
           messageId: 'reas-1',
           delta: 'Inner reasoning',
         );
-        final afterReasoning = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final afterReasoning =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         const textStart = TextMessageStartEvent(messageId: 'msg-1');
         final afterStart = processEvent(
@@ -2192,12 +2058,8 @@ void main() {
       test('StateSnapshotEvent replaces aguiState', () {
         const event = StateSnapshotEvent(snapshot: {'key': 'value'});
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.aguiState, equals({'key': 'value'}));
         expect(result.streaming, equals(streaming));
@@ -2251,12 +2113,8 @@ void main() {
           ],
         );
 
-        final result = processEvent(
-          conversation,
-          streaming,
-          event,
-          createdAt: null,
-        );
+        final result =
+            processEvent(conversation, streaming, event, createdAt: null);
 
         expect(result.conversation.aguiState['count'], 1);
         expect(result.conversation.aguiState['nested'], {'key': 'value'});
@@ -2443,19 +2301,18 @@ void main() {
           addTearDown(() => LogManager.instance.removeSink(sink));
         });
         Iterable<LogRecord> lostClaims() => sink.records.where(
-          (r) =>
-              r.loggerName == 'soliplex_client.event_processor' &&
-              r.message.contains('names the message still streaming'),
-        );
+              (r) =>
+                  r.loggerName == 'soliplex_client.event_processor' &&
+                  r.message.contains('names the message still streaming'),
+            );
 
         test('is reported when it is the message still streaming', () {
           // Only a committed message can be marked, so naming a message
           // before its end loses the mark and it renders as the
           // "no text" notice once it commits.
           final opened = processEvent(
-            Conversation.empty(
-              threadId: 'thread-1',
-            ).withStatus(const Running(runId: 'run-1')),
+            Conversation.empty(threadId: 'thread-1')
+                .withStatus(const Running(runId: 'run-1')),
             const app_streaming.AwaitingText(),
             const TextMessageStartEvent(messageId: 'm1'),
             createdAt: null,
@@ -2525,37 +2382,27 @@ void main() {
         ],
       );
       Conversation start() => conversation.copyWith(
-        aguiState: {
-          'a': 1,
-          'items': ['x'],
-        },
-      );
+            aguiState: {
+              'a': 1,
+              'items': ['x'],
+            },
+          );
 
       test('a later delta that applies keeps the mark', () {
-        final marked = processEvent(
-          start(),
-          streaming,
-          unappliable,
-          createdAt: null,
-        ).conversation;
+        final marked =
+            processEvent(start(), streaming, unappliable, createdAt: null)
+                .conversation;
 
-        final result = processEvent(
-          marked,
-          streaming,
-          appliable,
-          createdAt: null,
-        );
+        final result =
+            processEvent(marked, streaming, appliable, createdAt: null);
 
         expect(result.conversation.aguiStateIncomplete, isTrue);
       });
 
       test('a later snapshot clears the mark', () {
-        final marked = processEvent(
-          start(),
-          streaming,
-          unappliable,
-          createdAt: null,
-        ).conversation;
+        final marked =
+            processEvent(start(), streaming, unappliable, createdAt: null)
+                .conversation;
 
         final result = processEvent(
           marked,
@@ -2604,12 +2451,8 @@ void main() {
       });
 
       test('a delta that applies keeps a complete state complete', () {
-        final result = processEvent(
-          start(),
-          streaming,
-          appliable,
-          createdAt: null,
-        );
+        final result =
+            processEvent(start(), streaming, appliable, createdAt: null);
 
         expect(result.conversation.aguiStateIncomplete, isFalse);
       });
