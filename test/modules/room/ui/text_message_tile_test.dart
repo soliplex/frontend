@@ -703,7 +703,7 @@ void main() {
     Widget tile(
       String text, {
       List<SourceReference>? sourceReferences,
-      Map<String, int> citationNumbers = const {},
+      Map<String, int> threadCitationNumbers = const {},
       ChatUser user = ChatUser.assistant,
     }) =>
         _wrap(
@@ -718,7 +718,7 @@ void main() {
                 text: text,
               ),
               sourceReferences: sourceReferences,
-              citationNumbers: citationNumbers,
+              threadCitationNumbers: threadCitationNumbers,
             ),
           ),
         );
@@ -728,55 +728,37 @@ void main() {
     String copied(WidgetTester tester) =>
         tester.widget<CopyButton>(find.byType(CopyButton).first).text;
 
-    testWidgets('shows the badge numbers in place of chunk ids',
-        (tester) async {
-      await tester.pumpWidget(
-        tile('Boils [$first] and freezes [$second].', sourceReferences: refs),
-      );
+    testWidgets('labels the text once its sources arrive', (tester) async {
+      const text = 'Boils [$first].';
+      await tester.pumpWidget(tile(text));
+      expect(rich('Boils [$first].'), findsOneWidget);
 
-      expect(rich('Boils [4] and freezes [2].'), findsOneWidget);
-      expect(rich(first), findsNothing);
+      await tester.pumpWidget(tile(text, sourceReferences: refs));
+
+      expect(rich('Boils [4].'), findsOneWidget);
+      expect(copied(tester), text);
     });
 
-    testWidgets('a number is not a link: tapping it opens nothing',
-        (tester) async {
-      await tester.pumpWidget(
-        tile('Boils [$first] and freezes [$second].', sourceReferences: refs),
-      );
+    testWidgets(
+        "keeps an SVG block's source view when another answer's source "
+        'is numbered', (tester) async {
+      const text = 'A diagram [$first]:\n\n```svg\n'
+          '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'
+          '\n```';
+      await tester.pumpWidget(tile(text, sourceReferences: refs));
+      await tester.tap(find.byTooltip('Show source'));
+      await tester.pump();
 
-      await tester.tapOnText(find.textRange.ofSubstring('[2]'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Heading two'), findsNothing);
-      expect(find.text('Heading four'), findsNothing);
-    });
-
-    testWidgets('copies the numbers, not the ids', (tester) async {
-      await tester.pumpWidget(
-        tile('Boils [$first, $second].', sourceReferences: refs),
-      );
-
-      expect(copied(tester), 'Boils [4][2].');
-    });
-
-    testWidgets('leaves the ids while the turn has no sources yet',
-        (tester) async {
-      await tester.pumpWidget(tile('Boils [$first].'));
-
-      expect(rich('[$first]'), findsOneWidget);
-      expect(copied(tester), 'Boils [$first].');
-    });
-
-    testWidgets("names an earlier turn's source by its number", (tester) async {
       await tester.pumpWidget(
         tile(
-          'As before [$earlier], boils [$first].',
+          text,
           sourceReferences: refs,
-          citationNumbers: {earlier: 7},
+          threadCitationNumbers: {earlier: 7},
         ),
       );
 
-      expect(rich('As before [7], boils [4].'), findsOneWidget);
+      expect(rich('A diagram [4]:'), findsOneWidget);
+      expect(find.byTooltip('Show preview'), findsOneWidget);
     });
 
     testWidgets("never rewrites the user's own text", (tester) async {
@@ -784,7 +766,7 @@ void main() {
         tile(
           'What is [$first]?',
           user: ChatUser.user,
-          citationNumbers: {first: 4},
+          threadCitationNumbers: {first: 4},
         ),
       );
 

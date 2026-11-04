@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart'
@@ -13,6 +14,7 @@ import '../../../../shared/markdown/markdown_style_sheet.dart';
 import '../../../../shared/markdown/sanitize_markdown.dart';
 import '../../../../shared/zoomable_image.dart';
 import '../../../../shared/zoomable_view.dart';
+import '../../citation_markers.dart';
 import 'code_block_builder.dart';
 import 'data_uri_image.dart';
 import 'file_image_loader.dart'
@@ -31,6 +33,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     super.onImageTap,
     super.key,
     this.selectable = true,
+    this.citationNumbers = const {},
   });
 
   /// Whether the markdown manages its own selection (via `SelectableText`).
@@ -38,6 +41,10 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   /// area handles selection — a self-selecting widget nested in a
   /// `SelectionArea` conflicts.
   final bool selectable;
+
+  /// The numbers cited chunk ids in [data] are shown as — see
+  /// [CitationMarkerSyntax].
+  final Map<String, int> citationNumbers;
 
   @override
   Widget build(BuildContext context) {
@@ -48,15 +55,24 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       fontFamilyFallback: mono.fallback,
     );
 
+    final markdown = sanitizeMarkdown(data);
+    final numbers = citationNumbersIn(markdown, citationNumbers);
+
     return MarkdownBody(
-      data: sanitizeMarkdown(data),
+      // MarkdownBody parses again when its text, its style sheet or its
+      // dependencies change, not when its syntaxes do, so the key replaces it
+      // whenever the number of an id in one of its text's bracketed groups
+      // changes, dropping the state of the widgets it built, such as an SVG
+      // block's source view.
+      key: _CitationNumbersKey(numbers),
+      data: markdown,
       selectable: selectable,
       styleSheet: markdownTheme?.toMarkdownStyleSheet(
         codeFontStyle: monoStyle,
       ),
       extensionSet: md.ExtensionSet.gitHubFlavored,
       blockSyntaxes: [LatexBlockSyntax()],
-      inlineSyntaxes: [LatexInlineSyntax()],
+      inlineSyntaxes: [LatexInlineSyntax(), CitationMarkerSyntax(numbers)],
       onTapLink: (_, href, title) {
         if (href == null) return;
         final handleTap = onLinkTap;
@@ -84,6 +100,23 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       },
     );
   }
+}
+
+/// Equal when the two maps hold the same entries, so the [MarkdownBody] is
+/// replaced exactly when an entry is added, removed or renumbered.
+class _CitationNumbersKey extends LocalKey {
+  const _CitationNumbersKey(this.numbers);
+
+  final Map<String, int> numbers;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CitationNumbersKey && mapEquals(numbers, other.numbers);
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+        numbers.entries.map((entry) => Object.hash(entry.key, entry.value)),
+      );
 }
 
 /// Renders the image schemes that `flutter_markdown_plus` markdown can emit:

@@ -54,7 +54,7 @@ class TextMessageTile extends StatelessWidget {
     required this.roomId,
     required this.message,
     this.sourceReferences,
-    this.citationNumbers = const {},
+    this.threadCitationNumbers = const {},
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
@@ -67,10 +67,10 @@ class TextMessageTile extends StatelessWidget {
   final TextMessage message;
   final List<SourceReference>? sourceReferences;
 
-  /// Every chunk id cited in the thread, mapped to its number — see
-  /// [threadCitationNumbers]. Names a source this answer mentions but did not
-  /// cite again, whose row is in an earlier answer's list.
-  final Map<String, int> citationNumbers;
+  /// Every chunk id cited in the thread with a backend `index`, mapped to that
+  /// index. Names a source this answer mentions whose row is in another
+  /// answer's list.
+  final Map<String, int> threadCitationNumbers;
 
   final void Function(FeedbackType feedback, String? reason)? onFeedbackSubmit;
   final VoidCallback? onInspect;
@@ -83,23 +83,17 @@ class TextMessageTile extends StatelessWidget {
   /// writing into any more.
   final bool isStreaming;
 
-  /// The message's text with cited chunk ids shown as the numbers the source
-  /// list gives them, as markdown for the bubble or plain for the clipboard. A
-  /// user's own text is never rewritten.
-  String _labelled({required bool markdown}) {
-    if (message.user == ChatUser.user) return message.text;
-    return labelCitationMarkers(
-      message.text,
-      own: sourceReferences ?? const [],
-      thread: citationNumbers,
-      markdown: markdown,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isUser = message.user == ChatUser.user;
+    // A user's own text is never labelled.
+    final numbers = isUser
+        ? const <String, int>{}
+        : answerCitationNumbers(
+            own: sourceReferences ?? const [],
+            thread: threadCitationNumbers,
+          );
     final showFeedback = !isUser && onFeedbackSubmit != null;
     final hasTracker = executionTracker != null;
 
@@ -135,7 +129,7 @@ class TextMessageTile extends StatelessWidget {
         const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(
           message: message,
-          text: _labelled(markdown: true),
+          citationNumbers: numbers,
           isStreaming: isStreaming,
         ),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
@@ -143,7 +137,7 @@ class TextMessageTile extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CopyButton(text: _labelled(markdown: false)),
+            CopyButton(text: message.text),
             if (isUser && onInspect != null) ...[
               const SizedBox(width: SoliplexSpacing.s1),
               Tooltip(
@@ -181,15 +175,14 @@ class TextMessageTile extends StatelessWidget {
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
-    required this.text,
+    required this.citationNumbers,
     required this.isStreaming,
   });
 
   final TextMessage message;
 
-  /// What the assistant's bubble renders: [message]'s text with its citation
-  /// markers labelled.
-  final String text;
+  /// The numbers the cited chunk ids in [message]'s text are shown as.
+  final Map<String, int> citationNumbers;
 
   final bool isStreaming;
 
@@ -236,8 +229,9 @@ class _MessageBubble extends StatelessWidget {
           : message.text.isEmpty
               ? const SoliplexShimmer(lineFractions: [1, 1, 0.55])
               : FlutterMarkdownPlusRenderer(
-                  data: text,
+                  data: message.text,
                   selectable: false,
+                  citationNumbers: citationNumbers,
                 ),
     );
   }
