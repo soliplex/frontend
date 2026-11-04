@@ -472,12 +472,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
                         final entry = tiles[index];
                         final message = entry.message;
                         final isLastItem = index == displayMessages.length - 1;
-                        // A distinct key for the loading sentinel forces a
-                        // remount at the AwaitingText → TextStreaming transition.
-                        // Children capture their MessageExpansion handle once in
-                        // initState; without the remount they would stay bound to
-                        // loadingMessageId (which forMessage rejects) and never
-                        // acquire a handle under the real messageId.
+                        // The loading tile and the reply's tile carry different
+                        // keys, so a band moving from one to the other mounts
+                        // fresh widgets; what the reader opened on it crosses
+                        // over through MessageExpansions.forBand.
                         final tile = MessageTile(
                           roomId: widget.roomId,
                           message: message,

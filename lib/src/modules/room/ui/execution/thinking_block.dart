@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
-import '../../lay_out_timeline.dart' show loadingMessageId;
 import '../../execution_tracker.dart';
 import '../../message_expansions.dart' show MessageExpansion;
 import '../../room_providers.dart';
@@ -28,40 +27,31 @@ class ExecutionThinkingBlock extends ConsumerStatefulWidget {
 
 class _ExecutionThinkingBlockState
     extends ConsumerState<ExecutionThinkingBlock> {
-  // Thinking-block expansion while messageId == loadingMessageId. Kept
-  // local (not in the store) because the sentinel is reused across runs —
-  // persisting under it would leak open/closed state into the next
-  // response.
-  bool _loadingPhaseThinking = false;
-
-  // Null during the AwaitingText sentinel phase, because loadingMessageId
-  // is reused across runs and persisting under it would leak state into
-  // the next response. Captured once in initState; the AwaitingText →
-  // TextStreaming transition remounts this widget under a real messageId
-  // (see MessageTimeline's per-id ValueKey), at which point [_expansion]
-  // becomes non-null for the rest of its life.
-  MessageExpansion? _expansion;
+  late MessageExpansion _expansion;
 
   @override
   void initState() {
     super.initState();
-    if (widget.messageId == loadingMessageId) return;
-    _expansion = ref
-        .read(messageExpansionsProvider)
-        .forMessage(widget.roomId, widget.messageId);
+    _expansion = _bindExpansion();
   }
 
-  bool get _expanded => _expansion?.thinkingExpanded ?? _loadingPhaseThinking;
+  @override
+  void didUpdateWidget(ExecutionThinkingBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tracker != oldWidget.tracker ||
+        widget.messageId != oldWidget.messageId) {
+      _expansion = _bindExpansion();
+    }
+  }
+
+  MessageExpansion _bindExpansion() => ref
+      .read(messageExpansionsProvider)
+      .forBand(widget.roomId, widget.messageId, widget.tracker);
+
+  bool get _expanded => _expansion.thinkingExpanded;
 
   void _toggle() {
-    setState(() {
-      final next = !_expanded;
-      if (_expansion != null) {
-        _expansion!.thinkingExpanded = next;
-      } else {
-        _loadingPhaseThinking = next;
-      }
-    });
+    setState(() => _expansion.thinkingExpanded = !_expanded);
   }
 
   @override

@@ -211,7 +211,8 @@ void main() {
       expect(find.text('A deep thought'), findsNothing);
     });
 
-    testWidgets('does not write to store during loading phase', (tester) async {
+    testWidgets('does not write under loadingMessageId on the loading tile',
+        (tester) async {
       tracker.observe(const ThinkingStarted());
       tracker.observe(const ThinkingContent(delta: 'transient'));
 
@@ -221,8 +222,39 @@ void main() {
       await tester.pump();
       expect(find.text('transient'), findsOneWidget);
 
-      // Local state flipped, but nothing written to the store.
+      // Open, but nothing written under the id every response reuses.
       expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
+    });
+
+    testWidgets("the loading tile shows the next response's band collapsed",
+        (tester) async {
+      // One run can have several responses that speak, each with its own
+      // band, shown on the same loading tile in turn.
+      final next = ExecutionTracker(
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      );
+      addTearDown(next.dispose);
+      tracker
+        ..observe(const ThinkingStarted())
+        ..observe(const ThinkingContent(delta: 'first'));
+      next
+        ..observe(const ThinkingStarted())
+        ..observe(const ThinkingContent(delta: 'second'));
+
+      await tester.pumpWidget(wrap(build(messageId: loadingMessageId)));
+      await tester.tap(find.textContaining('Thinking'));
+      await tester.pump();
+      expect(find.text('first'), findsOneWidget);
+
+      await tester.pumpWidget(wrap(ExecutionThinkingBlock(
+        roomId: _roomId,
+        messageId: loadingMessageId,
+        tracker: next,
+      )));
+
+      expect(find.textContaining('Thinking'), findsOneWidget);
+      expect(find.text('second'), findsNothing);
     });
   });
 }

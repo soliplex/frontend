@@ -26,6 +26,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- Events and thinking opened while the agent works stay open when its reply
+  starts, and can be opened and closed while the reply streams.
 - When reading, saving or removing a server's stored sign-in fails, the
   diagnostics log no longer shows the stored data the failure quoted,
   tokens included. The record keeps the platform's error code instead.
