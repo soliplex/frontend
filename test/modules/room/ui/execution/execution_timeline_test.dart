@@ -593,7 +593,7 @@ void main() {
       expect(find.text('Thinking'), findsNothing);
     });
 
-    testWidgets('header toggle in loading phase uses local state only',
+    testWidgets('header toggle on the loading tile writes nothing under its id',
         (tester) async {
       tracker.observe(const ThinkingStarted());
 
@@ -609,7 +609,7 @@ void main() {
       expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
     });
 
-    testWidgets('source toggle in loading phase uses local state only',
+    testWidgets('source toggle on the loading tile writes nothing under its id',
         (tester) async {
       tracker.observe(const ServerToolCallStarted(
         toolName: 'execute_skill',
@@ -633,15 +633,38 @@ void main() {
       await tester.pump();
       expect(find.textContaining('print(42)'), findsOneWidget);
 
-      // Collapse pins the "remove from local set" branch. A regression
-      // that only adds and never removes would silently break the
-      // loading-phase collapse path.
+      // Collapse too: a regression that only adds and never removes would
+      // silently break collapsing on the loading tile.
       await tester.tap(find.text('execute_script'));
       await tester.pump();
       expect(find.textContaining('print(42)'), findsNothing);
 
-      // Safety invariant for source rows — no writes to the store.
+      // Nothing written under the id every response reuses.
       expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
+    });
+
+    testWidgets("the loading tile shows the next response's band collapsed",
+        (tester) async {
+      // One run can have several responses that speak, each with its own
+      // band, shown on the same loading tile in turn.
+      final next = ExecutionTracker(
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      );
+      addTearDown(next.dispose);
+      tracker.observe(const ThinkingStarted());
+      next.observe(const ThinkingStarted());
+
+      await tester.pumpWidget(wrap(build(messageId: loadingMessageId)));
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+      expect(find.text('Thinking'), findsOneWidget);
+
+      await tester
+          .pumpWidget(wrap(build(messageId: loadingMessageId, t: next)));
+
+      expect(find.text('1 event'), findsOneWidget);
+      expect(find.text('Thinking'), findsNothing);
     });
   });
 

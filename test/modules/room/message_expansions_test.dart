@@ -1,5 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart'
+    show loadingMessageId;
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
+
+import '../../helpers/replayed_band.dart';
 
 void main() {
   group('MessageExpansions', () {
@@ -89,6 +93,68 @@ void main() {
       expect(expansions.debugHasStateFor('r', 'm0'), isFalse);
       expect(expansions.debugHasStateFor('r', 'new'), isTrue);
       expect(expansions.debugHasStateFor('r', 'm1'), isTrue);
+    });
+
+    group('a band on the loading tile', () {
+      test('keeps its own state, apart from every other band', () {
+        final band = replayedBand();
+        final other = replayedBand();
+        addTearDown(band.dispose);
+        addTearDown(other.dispose);
+
+        expansions.forBand('r', loadingMessageId, band)
+          ..timelineExpanded = true
+          ..toggleSource('a1');
+
+        final handle = expansions.forBand('r', loadingMessageId, band);
+        expect(handle.timelineExpanded, isTrue);
+        expect(handle.isSourceExpanded('a1'), isTrue);
+        expect(
+            expansions.forBand('r', loadingMessageId, other).timelineExpanded,
+            isFalse);
+      });
+
+      test('hands its state to the message that first renders it', () {
+        final band = replayedBand();
+        addTearDown(band.dispose);
+        expansions.forBand('r', loadingMessageId, band)
+          ..thinkingExpanded = true
+          ..toggleSource('a1');
+
+        final reply = expansions.forBand('r', 'reply', band);
+
+        expect(reply.thinkingExpanded, isTrue);
+        expect(reply.isSourceExpanded('a1'), isTrue);
+        expect(reply.timelineExpanded, isFalse);
+        expect(expansions.debugHasStateFor('r', 'reply'), isTrue);
+      });
+
+      test('does not override what a message already stores', () {
+        final band = replayedBand();
+        addTearDown(band.dispose);
+        expansions.forMessage('r', 'reply').timelineExpanded = true;
+        expansions.forBand('r', loadingMessageId, band).thinkingExpanded = true;
+
+        final reply = expansions.forBand('r', 'reply', band);
+
+        expect(reply.timelineExpanded, isTrue);
+        expect(reply.thinkingExpanded, isFalse);
+      });
+
+      test('counts against maxEntries once a message takes it', () {
+        final band = replayedBand();
+        addTearDown(band.dispose);
+        for (var i = 0; i < MessageExpansions.maxEntries; i++) {
+          expansions.forMessage('r', 'm$i').timelineExpanded = true;
+        }
+        expansions.forBand('r', loadingMessageId, band).timelineExpanded = true;
+
+        expansions.forBand('r', 'reply', band);
+
+        expect(expansions.debugHasStateFor('r', 'reply'), isTrue);
+        expect(expansions.debugHasStateFor('r', 'm0'), isFalse);
+        expect(expansions.debugHasStateFor('r', 'm1'), isTrue);
+      });
     });
   });
 }

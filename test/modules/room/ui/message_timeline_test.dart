@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
@@ -121,6 +122,73 @@ void main() {
     await tester.pumpWidget(timeline('Hello there'));
 
     expect(tester.state(find.byType(ExpansionTile)), same(first));
+  });
+
+  testWidgets(
+      'blocks opened while the agent works stay open once the reply speaks',
+      (tester) async {
+    // While the agent works the band shows on the loading tile; when the reply
+    // speaks, the same band moves to the reply's tile, a different tile.
+    final band = ExecutionTracker(
+      activities: Signal<List<ActivityRecord>>(const []),
+      logger: testLogger(),
+    )
+      ..observe(const ThinkingStarted())
+      ..observe(const ThinkingContent(delta: 'pondering'))
+      ..observe(
+          const ServerToolCallStarted(toolName: 'search', toolCallId: 't1'));
+    addTearDown(band.dispose);
+    final expansions = MessageExpansions();
+    const ask = TextMessage(
+      id: 'u1',
+      user: ChatUser.user,
+      createdAt: null,
+      text: 'ask',
+      runId: 'run-1',
+    );
+
+    Widget timeline({
+      required StreamingState streaming,
+      required String bandKey,
+    }) =>
+        ProviderScope(
+          overrides: [messageExpansionsProvider.overrideWithValue(expansions)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: MessageTimeline(
+                roomId: 'r',
+                messages: const [ask],
+                messageStates: const {},
+                streamingState: streaming,
+                activeRunId: 'run-1',
+                executionTrackers: {bandKey: band},
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(timeline(
+      streaming: const AwaitingText(),
+      bandKey: noResponseMessageId('run-1'),
+    ));
+    await tester.tap(find.text('Thinking'));
+    await tester.tap(find.textContaining(' events'));
+    await tester.pump();
+    expect(find.text('pondering'), findsOneWidget);
+    expect(find.text('search'), findsOneWidget);
+
+    await tester.pumpWidget(timeline(
+      streaming: const TextStreaming(
+        messageId: 'a1',
+        user: ChatUser.assistant,
+        text: 'Here is',
+      ),
+      bandKey: 'a1',
+    ));
+
+    expect(find.text('Here is'), findsOneWidget);
+    expect(find.text('pondering'), findsOneWidget);
+    expect(find.text('search'), findsOneWidget);
   });
 
   testWidgets('a band that stays dropped is reported once, not per update',
