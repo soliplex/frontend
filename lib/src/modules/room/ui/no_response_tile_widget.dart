@@ -76,22 +76,29 @@ class NoResponseTileWidget extends StatelessWidget {
   /// reasoning, and who the notice speaks for.
   List<Widget> _standingIn(ThemeData theme) {
     final hasTracker = executionTracker != null;
+    // Children that hold state, or have state below them, are keyed: the phase
+    // indicator before them and the caption after them come and go together
+    // when the run ends, and Flutter rebuilds from scratch any unkeyed child
+    // between two changed ends of a list.
     return [
       if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
       if (hasTracker)
         ExecutionTimeline(
+          key: const ValueKey('execution-timeline'),
           roomId: roomId,
           messageId: message.id,
           tracker: executionTracker!,
         ),
       if (hasTracker)
         ExecutionThinkingBlock(
+          key: const ValueKey('execution-thinking'),
           roomId: roomId,
           messageId: message.id,
           tracker: executionTracker!,
         )
       else if (message.hasThinkingText)
         StaticThinkingBlock(
+          key: const ValueKey('static-thinking'),
           roomId: roomId,
           messageId: message.id,
           text: message.thinkingText,

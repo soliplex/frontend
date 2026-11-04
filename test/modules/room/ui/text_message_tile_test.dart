@@ -3,20 +3,27 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/attachment_pill.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/citations_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/copy_button.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/feedback_buttons.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_caption.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/paged_zoomable_images.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/text_message_tile.dart';
 import 'package:soliplex_frontend/src/shared/zoomable_image.dart';
+
+import '../../../helpers/test_logger.dart';
 
 Widget _wrap(Widget child, {MessageExpansions? store}) => ProviderScope(
       overrides: [
@@ -772,6 +779,98 @@ void main() {
 
       expect(find.text('What is [$first]?'), findsOneWidget);
       expect(copied(tester), 'What is [$first]?');
+    });
+  });
+
+  group('when the reply commits', () {
+    // On commit the phase indicator leaves the head of the tile and the
+    // caption joins its tail in the same frame. Nothing the reader holds open
+    // in between may be rebuilt from scratch.
+    const refs = [
+      SourceReference(
+        documentId: 'doc-1',
+        documentUri: 'file:///docs/doc-1.txt',
+        content: 'Passage',
+        chunkId: 'chunk-1',
+        index: 1,
+      ),
+    ];
+
+    Widget tile({
+      required bool streaming,
+      ExecutionTracker? band,
+      List<SourceReference>? sourceReferences,
+    }) =>
+        _wrap(
+          SingleChildScrollView(
+            child: TextMessageTile(
+              isStreaming: streaming,
+              roomId: 'r',
+              streamingPhase: streaming ? const RespondingPhase() : null,
+              executionTracker: band,
+              sourceReferences: sourceReferences,
+              onFeedbackSubmit: (_, __) {},
+              message: TextMessage(
+                id: 'a1',
+                user: ChatUser.assistant,
+                createdAt: streaming ? null : DateTime(2026),
+                text: 'The answer',
+                thinkingText: 'pondering',
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('keeps the band, the bubble, the actions and the citations',
+        (tester) async {
+      final band = ExecutionTracker(
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      )
+        ..observe(const ThinkingStarted())
+        ..observe(const ThinkingContent(delta: 'pondering'));
+      addTearDown(band.dispose);
+      List<State> held() => [
+            tester.state(find.byType(ExecutionTimeline)),
+            tester.state(find.byType(ExecutionThinkingBlock)),
+            tester.state(find.byType(MarkdownBody)),
+            tester.state(find.byType(FeedbackButtons)),
+            tester.state(find.byType(CitationsSection)),
+          ];
+
+      await tester.pumpWidget(
+        tile(streaming: true, band: band, sourceReferences: refs),
+      );
+      final before = held();
+      await tester.pumpWidget(
+        tile(streaming: false, band: band, sourceReferences: refs),
+      );
+
+      expect(find.byType(MessageCaption), findsOneWidget);
+      final after = held();
+      for (var i = 0; i < before.length; i++) {
+        expect(after[i], same(before[i]), reason: '${before[i].widget}');
+      }
+    });
+
+    testWidgets('keeps the actions when its sources arrive with it',
+        (tester) async {
+      // The sources join the tail too, so no end of the list is unchanged.
+      await tester.pumpWidget(tile(streaming: true));
+      final before = tester.state(find.byType(FeedbackButtons));
+      await tester.pumpWidget(tile(streaming: false, sourceReferences: refs));
+
+      expect(find.byType(CitationsSection), findsOneWidget);
+      expect(tester.state(find.byType(FeedbackButtons)), same(before));
+    });
+
+    testWidgets('keeps the stored thinking block', (tester) async {
+      await tester.pumpWidget(tile(streaming: true));
+      final before = tester.state(find.byType(ExpansionTile));
+      await tester.pumpWidget(tile(streaming: false));
+
+      expect(find.byType(MessageCaption), findsOneWidget);
+      expect(tester.state(find.byType(ExpansionTile)), same(before));
     });
   });
 }

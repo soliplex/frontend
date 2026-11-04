@@ -98,6 +98,10 @@ class TextMessageTile extends StatelessWidget {
     final showFeedback = !isUser && onFeedbackSubmit != null;
     final hasTracker = executionTracker != null;
 
+    // Children that hold state, or have state below them, are keyed: when the
+    // reply commits, the phase indicator leaves the head of this list while the
+    // caption, and sometimes the sources, are added further down, and Flutter
+    // rebuilds from scratch any unkeyed child between two changes in one frame.
     return Column(
       crossAxisAlignment:
           isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -105,18 +109,21 @@ class TextMessageTile extends StatelessWidget {
         if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
         if (hasTracker)
           ExecutionTimeline(
+            key: const ValueKey('execution-timeline'),
             roomId: roomId,
             messageId: message.id,
             tracker: executionTracker!,
           ),
         if (hasTracker)
           ExecutionThinkingBlock(
+            key: const ValueKey('execution-thinking'),
             roomId: roomId,
             messageId: message.id,
             tracker: executionTracker!,
           )
         else if (!isUser && message.hasThinkingText)
           StaticThinkingBlock(
+            key: const ValueKey('static-thinking'),
             roomId: roomId,
             messageId: message.id,
             text: message.thinkingText,
@@ -129,6 +136,7 @@ class TextMessageTile extends StatelessWidget {
         ),
         const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(
+          key: const ValueKey('message-bubble'),
           message: message,
           citationNumbers: numbers,
           isStreaming: isStreaming,
@@ -136,6 +144,7 @@ class TextMessageTile extends StatelessWidget {
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
         const SizedBox(height: SoliplexSpacing.s2),
         Row(
+          key: const ValueKey('message-actions'),
           mainAxisSize: MainAxisSize.min,
           children: [
             CopyButton(text: message.text),
@@ -175,6 +184,7 @@ class TextMessageTile extends StatelessWidget {
 
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
+    super.key,
     required this.message,
     required this.citationNumbers,
     required this.isStreaming,
