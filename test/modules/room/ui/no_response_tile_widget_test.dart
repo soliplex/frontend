@@ -309,4 +309,53 @@ void main() {
       expect(reported, ['run-7']);
     });
   });
+
+  group('when the run ends', () {
+    // The phase indicator leaves the head of the tile and the caption joins
+    // its tail in the same frame. Nothing the reader holds open in between may
+    // be rebuilt from scratch.
+    Widget tile({required bool running, ExecutionTracker? band}) => _wrap(
+          SingleChildScrollView(
+            child: NoResponseTileWidget(
+              roomId: 'r',
+              besideReply: false,
+              executionTracker: band,
+              streamingPhase: running ? const RespondingPhase() : null,
+              message: NoResponseTile.finished(
+                runId: 'run-1',
+                createdAt: running ? null : DateTime(2026),
+                thinkingText: 'pondering',
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('keeps the band', (tester) async {
+      final band = ExecutionTracker(
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      )
+        ..observe(const ThinkingStarted())
+        ..observe(const ThinkingContent(delta: 'pondering'));
+      addTearDown(band.dispose);
+
+      await tester.pumpWidget(tile(running: true, band: band));
+      final timeline = tester.state(find.byType(ExecutionTimeline));
+      final thinking = tester.state(find.byType(ExecutionThinkingBlock));
+      await tester.pumpWidget(tile(running: false, band: band));
+
+      expect(find.byType(MessageCaption), findsOneWidget);
+      expect(tester.state(find.byType(ExecutionTimeline)), same(timeline));
+      expect(tester.state(find.byType(ExecutionThinkingBlock)), same(thinking));
+    });
+
+    testWidgets('keeps the stored thinking block', (tester) async {
+      await tester.pumpWidget(tile(running: true));
+      final before = tester.state(find.byType(ExpansionTile));
+      await tester.pumpWidget(tile(running: false));
+
+      expect(find.byType(MessageCaption), findsOneWidget);
+      expect(tester.state(find.byType(ExpansionTile)), same(before));
+    });
+  });
 }
