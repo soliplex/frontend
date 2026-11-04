@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -71,6 +74,43 @@ List<ChatMessage> _shortThenGrowing() => [
         ),
     ];
 
+/// Two slightly taller messages first. Read from the top, the list
+/// overestimates its end by less than a screen, so the jump there lands past
+/// the end with the question's tile still laid out.
+List<ChatMessage> _slightlyTallFirst() => [
+      for (var i = 0; i < 60; i++)
+        TextMessage(
+          id: 'm-$i',
+          user: i.isEven ? ChatUser.user : ChatUser.assistant,
+          createdAt: DateTime(2026, 3, 1).add(Duration(minutes: i)),
+          text: i < 2 ? 'Tall $i ${'word ' * 10}' : 'Short $i',
+        ),
+    ];
+
+/// Plays the web engine's part when the accessibility tree is on: it mirrors
+/// the scroll view in a DOM scroll container that cannot sit past the end, so
+/// a position reported past the end comes back as a scroll to the end.
+void _echoClampedPosition(WidgetTester tester) {
+  final position = _timelinePosition(tester);
+  if (position.pixels <= position.maxScrollExtent) return;
+  final owner = tester.getSemantics(find.byType(Scrollable).first).owner!;
+  final scrollers = <SemanticsNode>[];
+  bool collect(SemanticsNode node) {
+    if (node.getSemanticsData().hasAction(SemanticsAction.scrollToOffset)) {
+      scrollers.add(node);
+    }
+    node.visitChildren(collect);
+    return true;
+  }
+
+  collect(owner.rootSemanticsNode!);
+  owner.performAction(
+    scrollers.single.id,
+    SemanticsAction.scrollToOffset,
+    Float64List.fromList([0, position.maxScrollExtent]),
+  );
+}
+
 const _question = TextMessage(
   id: 'sent',
   user: ChatUser.user,
@@ -126,5 +166,36 @@ void main() {
       'pins the sent question at the top when the list underestimates its end',
       (tester) async {
     await _expectPinnedAfterSendingFromTop(tester, _shortThenGrowing());
+  });
+
+  testWidgets(
+      'pins the sent question at the top when the accessibility tree pulls '
+      'the list back from past its end', (tester) async {
+    final semantics = tester.ensureSemantics();
+    // Disposed in the body: the framework checks for live handles before
+    // tear-downs run.
+    try {
+      final history = _slightlyTallFirst();
+      await tester.pumpWidget(_harness(history));
+      await tester.pumpAndSettle();
+      _timelinePosition(tester).jumpTo(0);
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(_harness(
+        [...history, _question],
+        streamingState: const AwaitingText(),
+      ));
+      for (var frame = 0; frame < 40; frame++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        _echoClampedPosition(tester);
+      }
+
+      final viewport = tester.getRect(find.byType(Scrollable).first);
+      final questionTop = tester.getRect(find.text('THE SENT QUESTION')).top;
+      expect(questionTop - viewport.top, lessThan(100.0),
+          reason: 'the sent question sits at the top of the viewport');
+    } finally {
+      semantics.dispose();
+    }
   });
 }
