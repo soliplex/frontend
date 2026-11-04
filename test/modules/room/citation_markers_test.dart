@@ -8,17 +8,11 @@ const _b = '7e3a2b10-5c4d-4f6e-8a9b-0c1d2e3f4a02';
 const _c = 'c4d5e6f7-1a2b-4c3d-9e8f-7a6b5c4d3e03';
 const _earlier = 'e1e2e3e4-1111-4222-8333-944455556604';
 
-SourceReference _ref(
-  String chunkId, {
-  int? index,
-  List<String> chunkIds = const [],
-}) =>
-    SourceReference(
+SourceReference _ref(String chunkId, {int? index}) => SourceReference(
       documentId: 'doc-$chunkId',
       documentUri: 'file://$chunkId.pdf',
       content: 'Content of $chunkId',
       chunkId: chunkId,
-      chunkIds: chunkIds,
       index: index,
     );
 
@@ -70,20 +64,6 @@ void main() {
       for (final text in ['see [the appendix]', 'x [$damaged]', '[ ]']) {
         expect(_markdown(text, own), text);
       }
-    });
-
-    test('answers to any id a merged citation covers', () {
-      final merged = [
-        _ref(_a, index: 1, chunkIds: [_a, _c]),
-      ];
-      expect(_plain('x [$_c]', merged), 'x [1]');
-    });
-
-    test('shows one label for two ids of the same citation in a group', () {
-      final merged = [
-        _ref(_a, index: 1, chunkIds: [_a, _c]),
-      ];
-      expect(_plain('x [$_a, $_c]', merged), 'x [1]');
     });
 
     test('falls back to the list position when the index is missing', () {
@@ -155,14 +135,12 @@ void main() {
   });
 
   group('threadCitationNumbers', () {
-    test('maps every indexed id across turns, merged ids included', () {
+    test('maps every indexed id across turns', () {
       final numbers = threadCitationNumbers([
-        [
-          _ref(_a, index: 1, chunkIds: [_a, _c]),
-        ],
+        [_ref(_a, index: 1)],
         [_ref(_b, index: 2), _ref(_earlier)],
       ]);
-      expect(numbers, {_a: 1, _c: 1, _b: 2});
+      expect(numbers, {_a: 1, _b: 2});
     });
 
     test('a source cited again in a later turn keeps its number', () {

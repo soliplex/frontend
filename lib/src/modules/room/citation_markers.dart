@@ -9,10 +9,6 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 int citationBadgeNumber(SourceReference ref, int position) =>
     ref.index ?? position + 1;
 
-/// The chunk ids a citation answers to: its own, and every id it merged. The
-/// model is shown each of them, so it can name the citation by any one.
-Iterable<String> _keysOf(SourceReference ref) => {ref.chunkId, ...ref.chunkIds};
-
 /// Every chunk id cited anywhere in a thread, mapped to its number.
 ///
 /// Only citations carrying a backend `index` are taken: that number is assigned
@@ -27,9 +23,7 @@ Map<String, int> threadCitationNumbers(
     for (final ref in refs) {
       final index = ref.index;
       if (index == null) continue;
-      for (final key in _keysOf(ref)) {
-        numbers.putIfAbsent(key, () => index);
-      }
+      numbers.putIfAbsent(ref.chunkId, () => index);
     }
   }
   return numbers;
@@ -82,9 +76,7 @@ String labelCitationMarkers(
   final numbers = <String, int>{};
   for (var position = 0; position < own.length; position++) {
     final number = citationBadgeNumber(own[position], position);
-    for (final key in _keysOf(own[position])) {
-      numbers.putIfAbsent(key, () => number);
-    }
+    numbers.putIfAbsent(own[position].chunkId, () => number);
   }
 
   String label(Match match) {

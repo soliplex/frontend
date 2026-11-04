@@ -48,7 +48,6 @@ class SourceReference {
     required this.documentUri,
     required this.content,
     required this.chunkId,
-    this.chunkIds = const [],
     this.documentTitle,
     this.sourceUrl,
     this.headings = const [],
@@ -72,11 +71,6 @@ class SourceReference {
 
   /// Unique identifier for this chunk within the document.
   final String chunkId;
-
-  /// Every chunk id a merged citation covers, as the backend reports them
-  /// (`chunk_ids`). The model is shown each of them, so its answer can name
-  /// the citation by any one. Empty for a citation that merged nothing.
-  final List<String> chunkIds;
 
   /// Human-readable document title, if available.
   final String? documentTitle;
@@ -217,7 +211,6 @@ class SourceReference {
         documentUri == other.documentUri &&
         content == other.content &&
         chunkId == other.chunkId &&
-        listEquals.equals(chunkIds, other.chunkIds) &&
         documentTitle == other.documentTitle &&
         sourceUrl == other.sourceUrl &&
         listEquals.equals(headings, other.headings) &&
@@ -236,7 +229,6 @@ class SourceReference {
         documentUri,
         content,
         chunkId,
-        const ListEquality<String>().hash(chunkIds),
         documentTitle,
         sourceUrl,
         const ListEquality<String>().hash(headings),
