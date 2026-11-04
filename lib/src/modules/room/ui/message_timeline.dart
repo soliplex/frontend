@@ -201,6 +201,13 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// the previous layout corrected. [jumpedTo] is the extent the previous
   /// attempt jumped to: resting there with the extent unchanged means the
   /// list is at its true end, and a tile still not laid out will not be.
+  ///
+  /// Never pins from past the end, where the position is about to be pulled
+  /// back to it: by the physics, and on the web by the accessibility tree,
+  /// whose DOM scroll container cannot sit past the end and reports the
+  /// clamped offset back as a jump. That jump would cancel the pin's scroll
+  /// before the anchor lengthens the list, leaving the question below the
+  /// fold. Jumping to the end first and pinning next frame avoids the race.
   void _pinMessageAtTop(
     String messageId, {
     required int attempt,
@@ -210,9 +217,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
       if (!_scrollController.hasClients) return;
       // A newer question owns the pin now.
       if (messageId != _lastUserMessageId) return;
-      if (_tryPinAtTop(messageId)) return;
       final position = _scrollController.position;
       final end = position.maxScrollExtent;
+      final pastEnd = position.pixels > end;
+      if (!pastEnd && _tryPinAtTop(messageId)) return;
       if (end == jumpedTo && position.pixels == end) {
         _logger.warning(
           'Sent message $messageId is not laid out at the end of the list; '
