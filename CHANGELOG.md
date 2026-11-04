@@ -8,11 +8,6 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
-### Added
-
-- **Library consumers:** `SourceReference.chunkIds` carries every chunk id a
-  merged citation covers, empty when the backend sends none.
-
 ### Changed
 
 - An answer names the sources it cites by the numbers on their badges in its

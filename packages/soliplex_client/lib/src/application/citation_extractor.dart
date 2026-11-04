@@ -206,7 +206,6 @@ class CitationExtractor {
       documentUri: c.documentUri,
       content: c.content,
       chunkId: c.chunkId,
-      chunkIds: c.chunkIds ?? const [],
       documentTitle: c.documentTitle,
       sourceUrl: sourceUrlFromMetadata(c.documentMeta),
       headings: path.where((h) => h.isNotEmpty).toList(),
