@@ -228,6 +228,52 @@ void main() {
     );
   });
 
+  testWidgets('a reply leaves an id whose source no list shows as written',
+      (tester) async {
+    // The first turn has citations but no reply, so no source list shows
+    // them: a number for its id would name no badge on screen.
+    const unshown = 'e1e2e3e4-1111-4222-8333-944455556604';
+    TextMessage text(String id, ChatUser user, String body) =>
+        TextMessage(id: id, user: user, createdAt: null, text: body);
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: MessageTimeline(
+            roomId: 'r',
+            messages: [
+              text('u1', ChatUser.user, 'first'),
+              text('u2', ChatUser.user, 'second'),
+              text('a2', ChatUser.assistant, 'As before [$unshown].'),
+            ],
+            messageStates: {
+              'u1': MessageState(
+                userMessageId: 'u1',
+                sourceReferences: const [
+                  SourceReference(
+                    documentId: 'doc-7',
+                    documentUri: 'file:///docs/doc-7.pdf',
+                    content: 'Passage 7',
+                    chunkId: unshown,
+                    index: 7,
+                  ),
+                ],
+              ),
+            },
+          ),
+        ),
+      ),
+    ));
+
+    expect(
+      find.textContaining('As before [$unshown].', findRichText: true),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
       'a failed run that answered reports the failure beside the reply, '
       'under one author label', (tester) async {

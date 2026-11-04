@@ -67,9 +67,10 @@ class TextMessageTile extends StatelessWidget {
   final TextMessage message;
   final List<SourceReference>? sourceReferences;
 
-  /// Every chunk id cited in the thread with a backend `index`, mapped to that
-  /// index. Names a source this answer mentions whose row is in another
-  /// answer's list.
+  /// The numbers of the chunk ids in the source lists this thread shows whose
+  /// citations carry a backend `index`, as `threadCitationNumbers` in
+  /// `citation_markers.dart` builds them. Names a source this answer mentions
+  /// whose row is in another answer's list.
   final Map<String, int> threadCitationNumbers;
 
   final void Function(FeedbackType feedback, String? reason)? onFeedbackSubmit;
