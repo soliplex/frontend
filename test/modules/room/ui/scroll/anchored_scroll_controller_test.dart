@@ -81,5 +81,39 @@ void main() {
 
       expect(controller.position.maxScrollExtent, naturalMax + 200);
     });
+
+    testWidgets('keeps the anchor when the scroll position is replaced',
+        (tester) async {
+      // The Scrollable builds a new position whenever a dependency it reads
+      // changes, such as the theme when the OS switches light and dark.
+      final controller = AnchoredScrollController();
+      addTearDown(controller.dispose);
+      Widget list(Brightness brightness) => MaterialApp(
+            theme: ThemeData(brightness: brightness),
+            home: Scaffold(
+              body: ListView(
+                controller: controller,
+                children: [
+                  for (var i = 0; i < 100; i++) const SizedBox(height: 50)
+                ],
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(list(Brightness.light));
+      final anchorOffset = controller.position.maxScrollExtent + 500;
+      controller.setAnchor(anchorOffset);
+      controller.jumpTo(anchorOffset);
+      await tester.pump();
+      final original = controller.position;
+
+      await tester.pumpWidget(list(Brightness.dark));
+      await tester.pumpAndSettle();
+
+      expect(controller.position, isNot(same(original)),
+          reason: 'the theme change replaced the scroll position');
+      expect(controller.anchorOffset, anchorOffset);
+      expect(controller.position.pixels, anchorOffset);
+    });
   });
 }
