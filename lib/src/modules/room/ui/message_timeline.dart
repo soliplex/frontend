@@ -185,10 +185,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
     return null;
   }
 
-  /// Most frames [_pinMessageAtTop] spends looking for the question's tile.
-  /// Every jump either corrects the extent or reaches the true end, so the
-  /// search ends on its own; this only guards against an extent that keeps
-  /// changing without the tile ever being laid out.
+  /// Most frames [_pinMessageAtTop] spends trying to pin the question. Each
+  /// jump normally either corrects the extent or reaches the true end, which
+  /// ends the search; this caps it if the extent keeps changing without the
+  /// question ever being pinned.
   static const _pinAttemptLimit = 20;
 
   /// Pins [messageId]'s tile at the top of the viewport, so the reply streams
@@ -202,12 +202,12 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// attempt jumped to: resting there with the extent unchanged means the
   /// list is at its true end, and a tile still not laid out will not be.
   ///
-  /// Never pins from past the end, where the position is about to be pulled
-  /// back to it: by the physics, and on the web by the accessibility tree,
-  /// whose DOM scroll container cannot sit past the end and reports the
-  /// clamped offset back as a jump. That jump would cancel the pin's scroll
-  /// before the anchor lengthens the list, leaving the question below the
-  /// fold. Jumping to the end first and pinning next frame avoids the race.
+  /// Never pins from past the end. On the web, the accessibility tree's DOM
+  /// scroll container cannot sit past the end, and when the browser clamps it
+  /// the engine reports the clamped offset back as a jump. That jump cancels
+  /// the pin's scroll before the anchor lengthens the list, leaving the
+  /// question below the fold. Jumping to the end first and pinning next frame
+  /// avoids the race.
   void _pinMessageAtTop(
     String messageId, {
     required int attempt,
@@ -225,15 +225,26 @@ class _MessageTimelineState extends State<MessageTimeline> {
         _logger.warning(
           'Sent message $messageId is not laid out at the end of the list; '
           'leaving it unpinned',
-          attributes: {'messageId': messageId, 'attempts': attempt},
+          attributes: {
+            'messageId': messageId,
+            'attempts': attempt,
+            'pixels': position.pixels,
+            'maxScrollExtent': end,
+          },
         );
         return;
       }
       if (attempt == _pinAttemptLimit) {
         _logger.warning(
-          'Sent message $messageId was not laid out after $attempt frames; '
+          'Sent message $messageId was not pinned after $attempt frames; '
           'leaving it unpinned',
-          attributes: {'messageId': messageId, 'attempts': attempt},
+          attributes: {
+            'messageId': messageId,
+            'attempts': attempt,
+            'pixels': position.pixels,
+            'maxScrollExtent': end,
+            'pastEnd': pastEnd,
+          },
         );
         return;
       }
@@ -257,6 +268,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
     final target = _revealTopOffset(messageId);
     if (target == null) return false;
     _scrollController.setAnchor(target);
+    // Left unrecorded if cut short: a user scrolling during the animation
+    // stops it too, and that is not a failure.
     _scrollController.animateTo(
       target,
       duration: const Duration(milliseconds: 300),

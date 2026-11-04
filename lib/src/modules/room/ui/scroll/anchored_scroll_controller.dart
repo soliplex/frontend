@@ -58,8 +58,9 @@ class _AnchoredScrollPosition extends ScrollPositionWithSingleContext {
   double? anchorOffset;
 
   /// The Scrollable replaces its position whenever a dependency it reads
-  /// changes (theme, platform brightness, device pixel ratio); without carrying
-  /// the anchor over, a pinned message would drop out of view.
+  /// changes, such as the theme (which a light/dark switch replaces) or the
+  /// device pixel ratio; without carrying the anchor over, a pinned message
+  /// would drop out of view.
   @override
   void absorb(ScrollPosition other) {
     if (other is _AnchoredScrollPosition) anchorOffset = other.anchorOffset;
