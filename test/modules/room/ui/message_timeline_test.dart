@@ -83,6 +83,46 @@ void main() {
     );
   });
 
+  testWidgets('the streaming reply keeps its tile across text deltas',
+      (tester) async {
+    // A remount per delta would drop anything the reader is doing inside the
+    // tile, such as a tap still in progress.
+    Widget timeline(String text) => ProviderScope(
+          overrides: [
+            messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: MessageTimeline(
+                roomId: 'r',
+                messages: const [
+                  TextMessage(
+                    id: 'u1',
+                    user: ChatUser.user,
+                    createdAt: null,
+                    text: 'ask',
+                  ),
+                ],
+                messageStates: const {},
+                streamingState: TextStreaming(
+                  messageId: 'a1',
+                  user: ChatUser.assistant,
+                  text: text,
+                  thinkingText: 'pondering',
+                ),
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(timeline('Hel'));
+    final first = tester.state(find.byType(ExpansionTile));
+    await tester.pumpWidget(timeline('Hello'));
+    await tester.pumpWidget(timeline('Hello there'));
+
+    expect(tester.state(find.byType(ExpansionTile)), same(first));
+  });
+
   testWidgets('a band that stays dropped is reported once, not per update',
       (tester) async {
     // Every streaming delta rebuilds the timeline. A report per rebuild would
