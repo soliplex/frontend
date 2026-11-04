@@ -167,9 +167,9 @@ class _MessageTimelineState extends State<MessageTimeline> {
   void _recomputeMaps() {
     _sourceReferencesMap =
         buildSourceReferencesMap(widget.messages, widget.messageStates);
-    _threadCitationNumbers = threadCitationNumbers(
-      widget.messageStates.values.map((state) => state.sourceReferences),
-    );
+    // From the source lists the tiles show only, so every number names a badge
+    // in one of them.
+    _threadCitationNumbers = threadCitationNumbers(_sourceReferencesMap.values);
   }
 
   @override

@@ -81,6 +81,42 @@ void main() {
     expect(map['asst-2'], refs);
   });
 
+  test(
+      "gives a turn's citations to its last text message the timeline shows, "
+      "not a tool call's empty placeholder", () {
+    final refs = [_ref(index: 1)];
+    final messages = <ChatMessage>[
+      TextMessage(
+        id: 'user-1',
+        user: ChatUser.user,
+        createdAt: _time,
+        text: 'Question',
+      ),
+      TextMessage(
+        id: 'asst-1',
+        user: ChatUser.assistant,
+        createdAt: _time,
+        text: 'Answer',
+      ),
+      TextMessage(
+        id: 'placeholder',
+        user: ChatUser.assistant,
+        createdAt: _time,
+        text: '',
+        namedByToolCall: true,
+      ),
+    ];
+    final messageStates = {
+      'user-1': MessageState(
+        userMessageId: 'user-1',
+        sourceReferences: refs,
+      ),
+    };
+
+    final map = buildSourceReferencesMap(messages, messageStates);
+    expect(map, {'asst-1': refs});
+  });
+
   test('skips tool call messages for citation assignment', () {
     final refs = [_ref(index: 1)];
     final messages = <ChatMessage>[
