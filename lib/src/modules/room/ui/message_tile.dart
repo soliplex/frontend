@@ -34,8 +34,9 @@ class MessageTile extends StatelessWidget {
   final String? runId;
   final List<SourceReference>? sourceReferences;
 
-  /// Every chunk id cited in the thread with a backend `index`, mapped to that
-  /// index.
+  /// The numbers of the chunk ids in the source lists this thread shows whose
+  /// citations carry a backend `index`, as `threadCitationNumbers` in
+  /// `citation_markers.dart` builds them.
   final Map<String, int> threadCitationNumbers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;

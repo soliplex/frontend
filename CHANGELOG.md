@@ -12,16 +12,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - An answer names the sources it cites by the numbers on their badges in its
   source list, "[2]", in place of the chunk id (a UUID) the model wrote.
-  A source the answer's own list does not hold, cited in another answer of the
-  thread, shows the number the backend gave it there; one the backend did not
+  A source the answer's own list does not hold, shown in another answer's
+  list, takes the number the backend gave it there; one the backend did not
   number is left as written. The numbers are text, not links. While an answer
-  streams, an id not yet cited in the thread shows as written until the
-  answer's sources arrive. A bracketed group holding any id without a number
-  is left as written, as are ids inside code, a URL or math, and a group
-  markdown reads as a link or an image. A group with an escaped bracket is not
-  read as a citation: `\[a\]` usually shows as math, as it did before. The
-  copy button copies an answer's text as written, chunk ids included, since
-  the numbers name badges only beside the answer; text selected in the answer
+  streams, an id no source list shows yet stays as written until the answer's
+  sources arrive. A bracketed group holding any id without a number is left
+  as written, as are ids inside code, a URL or math, and a group markdown
+  reads as a link or an image. A group with an escaped bracket is not read as
+  a citation: `\[a\]` usually shows as math, as it did before. The copy
+  button copies an answer's text as written, chunk ids included, since the
+  numbers name badges only beside the answer; text selected in the answer
   copies as it shows, numbers included.
 
 ### Fixed
@@ -29,6 +29,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - When reading, saving or removing a server's stored sign-in fails, the
   diagnostics log no longer shows the stored data the failure quoted,
   tokens included. The record keeps the platform's error code instead.
+- A turn whose last assistant text is the empty message a tool call is named
+  by shows its sources under its last shown answer. They were given to that
+  empty message, which the timeline does not show.
 
 ## [0.114.0+101] - 2026-10-30
 
