@@ -119,7 +119,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
     if (lastUserMsg != null && lastUserMsg.id != _lastUserMessageId) {
       _lastUserMessageId = lastUserMsg.id;
       _needsInitialScroll = false;
-      _pinMessageAtTop(lastUserMsg.id);
+      _pinMessageAtTop(lastUserMsg.id, attempt: 1, jumpedTo: null);
     }
   }
 
@@ -185,17 +185,52 @@ class _MessageTimelineState extends State<MessageTimeline> {
     return null;
   }
 
-  void _pinMessageAtTop(String messageId) {
+  /// Most frames [_pinMessageAtTop] spends looking for the question's tile.
+  /// Every jump either corrects the extent or reaches the true end, so the
+  /// search ends on its own; this only guards against an extent that keeps
+  /// changing without the tile ever being laid out.
+  static const _pinAttemptLimit = 20;
+
+  /// Pins [messageId]'s tile at the top of the viewport, so the reply streams
+  /// below it.
+  ///
+  /// When the tile is not laid out, jumps to the end to build it and looks
+  /// again next frame. A lazily built list only estimates its extent from the
+  /// tiles it has built, so a jump from far above the end can land past the
+  /// real end, or short of it; each jump on a later frame targets the extent
+  /// the previous layout corrected. [jumpedTo] is the extent the previous
+  /// attempt jumped to: resting there with the extent unchanged means the
+  /// list is at its true end, and a tile still not laid out will not be.
+  void _pinMessageAtTop(
+    String messageId, {
+    required int attempt,
+    required double? jumpedTo,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-
+      // A newer question owns the pin now.
+      if (messageId != _lastUserMessageId) return;
       if (_tryPinAtTop(messageId)) return;
-
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
-        _tryPinAtTop(messageId);
-      });
+      final position = _scrollController.position;
+      final end = position.maxScrollExtent;
+      if (end == jumpedTo && position.pixels == end) {
+        _logger.warning(
+          'Sent message $messageId is not laid out at the end of the list; '
+          'leaving it unpinned',
+          attributes: {'messageId': messageId, 'attempts': attempt},
+        );
+        return;
+      }
+      if (attempt == _pinAttemptLimit) {
+        _logger.warning(
+          'Sent message $messageId was not laid out after $attempt frames; '
+          'leaving it unpinned',
+          attributes: {'messageId': messageId, 'attempts': attempt},
+        );
+        return;
+      }
+      _scrollController.jumpTo(end);
+      _pinMessageAtTop(messageId, attempt: attempt + 1, jumpedTo: end);
     });
   }
 
