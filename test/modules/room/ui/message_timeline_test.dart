@@ -179,6 +179,55 @@ void main() {
     expect(inspected, 'segment-2');
   });
 
+  testWidgets("a reply names an earlier turn's source by that turn's number",
+      (tester) async {
+    const earlier = 'e1e2e3e4-1111-4222-8333-944455556604';
+    TextMessage text(String id, ChatUser user, String body) =>
+        TextMessage(id: id, user: user, createdAt: null, text: body);
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: MessageTimeline(
+            roomId: 'r',
+            messages: [
+              text('u1', ChatUser.user, 'first'),
+              text('a1', ChatUser.assistant, 'First [$earlier].'),
+              text('u2', ChatUser.user, 'second'),
+              text('a2', ChatUser.assistant, 'As before [$earlier].'),
+            ],
+            messageStates: {
+              'u1': MessageState(
+                userMessageId: 'u1',
+                sourceReferences: const [
+                  SourceReference(
+                    documentId: 'doc-7',
+                    documentUri: 'file:///docs/doc-7.pdf',
+                    content: 'Passage 7',
+                    chunkId: earlier,
+                    index: 7,
+                  ),
+                ],
+              ),
+              'u2': MessageState(
+                userMessageId: 'u2',
+                sourceReferences: const [],
+              ),
+            },
+          ),
+        ),
+      ),
+    ));
+
+    expect(
+      find.textContaining('As before [7].', findRichText: true),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
       'a failed run that answered reports the failure beside the reply, '
       'under one author label', (tester) async {
