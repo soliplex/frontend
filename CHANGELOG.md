@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.115.0+102] - 2026-11-05
 
 ### Added
 
@@ -55,6 +55,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A turn whose last assistant text is the empty message a tool call is named
   by shows its sources under its last shown answer. They were given to that
   empty message, which the timeline does not show.
+- A sent question stays pinned at the top of the timeline while its reply
+  streams below it. The reply streamed out of sight when the question was
+  sent from about a screen or more above the end, when the theme switched
+  between light and dark or the window moved to another display mid-reply,
+  and on the web with the accessibility tree on.
+- A reply that goes on to call a tool no longer flashes an empty "This
+  message has no text" tile above the loading tile before the call starts.
+  The loading tile keeps its animation when a tile above it comes or goes.
 
 ## [0.114.0+101] - 2026-10-30
 
