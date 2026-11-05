@@ -454,6 +454,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
     return _messageKeys.putIfAbsent(id, () => GlobalKey());
   }
 
+  Key _tileKey(ChatMessage message) => message is LoadingMessage
+      ? const ValueKey('loading')
+      : _keyFor(message.id);
+
   @override
   Widget build(BuildContext context) {
     final (:tiles, :dropped) = _layOut();
@@ -524,6 +528,15 @@ class _MessageTimelineState extends State<MessageTimeline> {
                     padding: const EdgeInsets.all(SoliplexSpacing.s4),
                     sliver: SliverList.builder(
                       itemCount: tiles.length,
+                      // Matches a tile to its element by key, not position, so
+                      // the loading tile keeps its state when a tile above it
+                      // comes or goes.
+                      findChildIndexCallback: (key) {
+                        final index = tiles.indexWhere(
+                          (tile) => _tileKey(tile.message) == key,
+                        );
+                        return index < 0 ? null : index;
+                      },
                       itemBuilder: (context, index) {
                         final entry = tiles[index];
                         final message = entry.message;
@@ -565,9 +578,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           if (showUnread) const UnreadDivider(),
                         ];
                         return Padding(
-                          key: message is LoadingMessage
-                              ? const ValueKey('loading')
-                              : _keyFor(message.id),
+                          key: _tileKey(message),
                           padding:
                               const EdgeInsets.only(bottom: SoliplexSpacing.s4),
                           child: leading.isEmpty
