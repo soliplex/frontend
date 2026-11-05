@@ -166,6 +166,32 @@ bool isFolderExpanded(
 }) =>
     toggles[path] ?? (topLevel && !isToolingPath(path));
 
+/// The paths of every folder in [root]'s tree that is open, by [toggles] or
+/// by default, at any depth: those inside a closed folder too, which show
+/// open again when it reopens.
+List<String> openFolders(WorkspaceFolder root, Map<String, bool> toggles) {
+  final open = <String>[];
+  void visit(WorkspaceFolder folder, {required bool topLevel}) {
+    if (isFolderExpanded(toggles, folder.path, topLevel: topLevel)) {
+      open.add(folder.path);
+    }
+    for (final child in folder.folders) {
+      visit(child, topLevel: false);
+    }
+  }
+
+  for (final folder in root.folders) {
+    visit(folder, topLevel: true);
+  }
+  return open;
+}
+
+/// Whether the reader sees an open folder in [root]'s tree: one is shown
+/// only while every folder above it is open, so exactly when a top-level
+/// folder is.
+bool anyFolderOpen(WorkspaceFolder root, Map<String, bool> toggles) =>
+    root.folders.any((f) => isFolderExpanded(toggles, f.path, topLevel: true));
+
 /// Whether any segment of [path] is a tooling directory's name, at any
 /// depth: so a file inside one, or a file with that name, such as the `.git`
 /// file a Git worktree writes.

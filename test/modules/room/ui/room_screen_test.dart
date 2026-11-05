@@ -28,7 +28,9 @@ import 'package:soliplex_frontend/src/stores/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/stores/thread_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/collapse_folders_button.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_sort_bar.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
@@ -5810,8 +5812,12 @@ void main() {
           sizeBytes: sizeBytes,
         );
 
-    Future<void> openPanel(WidgetTester tester, {String? threadId}) async {
-      tester.view.physicalSize = const Size(1200, 800);
+    Future<void> openPanel(
+      WidgetTester tester, {
+      String? threadId,
+      Size window = const Size(1200, 800),
+    }) async {
+      tester.view.physicalSize = window;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -5898,6 +5904,52 @@ void main() {
 
       await tapSegment(tester, 'Name');
       expect(rowsInOrder(tester, names), ['z.pdf', 'b.pdf', 'a.pdf']);
+    });
+
+    group('collapse all folders', () {
+      setUp(() {
+        api.nextWorkdirFiles = [
+          WorkdirFile(
+            filename: 'reports/a.csv',
+            url: Uri.parse('https://example.com/reports/a.csv'),
+          ),
+        ];
+      });
+
+      testWidgets('closes the workspace folders', (tester) async {
+        await openPanel(tester, threadId: 'thread-1');
+        expect(findFileName('a.csv'), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.unfold_less));
+        await tester.pumpAndSettle();
+
+        expect(findFileName('a.csv'), findsNothing);
+      });
+
+      for (final (width, textScale) in [
+        (320.0, 1.0),
+        (1200.0, 1.0),
+        (1200.0, 2.0)
+      ]) {
+        testWidgets(
+            'sits right of the sort bar at its height, '
+            '$width wide, text at ${textScale}x', (tester) async {
+          tester.platformDispatcher.textScaleFactorTestValue = textScale;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await openPanel(
+            tester,
+            threadId: 'thread-1',
+            window: Size(width, 800),
+          );
+
+          final bar = tester.getRect(find.byType(FileSortBar));
+          final collapse = tester.getRect(find.byType(CollapseFoldersButton));
+          expect(collapse.height, bar.height);
+          expect(collapse.top, bar.top);
+          expect(collapse.left, greaterThan(bar.right));
+          expect(collapse.right, lessThanOrEqualTo(width));
+        });
+      }
     });
 
     testWidgets('the sort bar stays in view while the lists scroll',

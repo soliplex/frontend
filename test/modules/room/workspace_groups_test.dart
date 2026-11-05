@@ -287,6 +287,49 @@ void main() {
     });
   });
 
+  group('open folders', () {
+    // `src/lib/deep` is nested, so it starts closed; `.git` is tooling.
+    final root = workspaceTree(descending: false, [
+      _file('src/main.py'),
+      _file('src/lib/util.py'),
+      _file('src/lib/deep/x.py'),
+      _file('docs/a.md'),
+      _file('.git/HEAD'),
+    ]);
+
+    test('openFolders lists every open folder, by default or by toggle', () {
+      expect(
+        openFolders(root, {'src/lib': true}),
+        unorderedEquals(['src', 'src/lib', 'docs']),
+      );
+    });
+
+    test('openFolders includes an open folder inside a closed one', () {
+      expect(
+        openFolders(root, {'src': false, 'src/lib': true}),
+        unorderedEquals(['src/lib', 'docs']),
+      );
+    });
+
+    test('anyFolderOpen holds while a top-level folder is open', () {
+      expect(anyFolderOpen(root, {'src': false}), isTrue);
+    });
+
+    test('anyFolderOpen fails when only hidden folders are open', () {
+      expect(
+        anyFolderOpen(root, {'src': false, 'docs': false, 'src/lib': true}),
+        isFalse,
+      );
+    });
+
+    test('anyFolderOpen reads a merged chain by its full path', () {
+      final chain = workspaceTree(descending: false, [_file('raw/2023/a.csv')]);
+
+      expect(anyFolderOpen(chain, {}), isTrue);
+      expect(anyFolderOpen(chain, {'raw/2023': false}), isFalse);
+    });
+  });
+
   group('ancestorsOf', () {
     test('lists every folder above a file, outermost first', () {
       expect(ancestorsOf(_file('a/b/c/d.txt')), ['a', 'a/b', 'a/b/c']);

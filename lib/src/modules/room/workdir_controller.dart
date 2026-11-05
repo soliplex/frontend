@@ -102,6 +102,16 @@ class WorkdirController {
     );
   }
 
+  /// Closes the thread's [folders], paths from the workspace root.
+  void closeFolders(String threadId, Iterable<String> folders) {
+    final toggles = _thread(threadId).folderToggles;
+    final closing = {for (final folder in folders) folder: false};
+    toggles.value = {...toggles.value, ...closing};
+    _logger.debug(
+      'workdir folders closed threadId=$threadId folders=${closing.length}',
+    );
+  }
+
   /// Opens every folder above each of [files], so a reader shown them finds
   /// them whatever they closed before. Folders already open are left
   /// untouched, so the panel does not rebuild for nothing; a folder deeper

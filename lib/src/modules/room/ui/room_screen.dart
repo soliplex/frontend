@@ -77,6 +77,7 @@ import 'thread_state_warning_banner.dart';
 import 'upload_entry_row.dart';
 import 'upload_event_banner.dart';
 import 'workspace_event_banner.dart';
+import 'collapse_folders_button.dart';
 import 'file_sort_bar.dart';
 import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
@@ -2406,15 +2407,42 @@ class _RoomScreenState extends State<RoomScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Above the scrolling lists, so it stays in view as they
-              // scroll: it orders all of them.
-              FileSortBar(
-                sort: sort,
-                hasTimes: hasTimes,
-                hasSizes: hasSizes,
-                // A failed save is logged by the preference, and the
-                // choice still applies for the session.
-                onTap: (key) =>
-                    unawaited(widget.fileSort.setSort(sort.tap(key))),
+              // scroll: it orders all of them. The collapse button is pinned
+              // at its right; on a narrow screen the bar scrolls under it.
+              // The row takes the bar's height, which the button fills.
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FileSortBar(
+                        sort: sort,
+                        hasTimes: hasTimes,
+                        hasSizes: hasSizes,
+                        // A failed save is logged by the preference, and the
+                        // choice still applies for the session.
+                        onTap: (key) =>
+                            unawaited(widget.fileSort.setSort(sort.tap(key))),
+                      ),
+                    ),
+                    if (threadId != null)
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(left: SoliplexSpacing.s2),
+                        // Reads the toggles in its own scope, as the
+                        // workspace section does.
+                        child: Watch(
+                          (context) => CollapseFoldersButton(
+                            listing: workspace,
+                            sort: sort,
+                            folderToggles:
+                                _workdirs.folderToggles(threadId).value,
+                            onCollapse: (folders) =>
+                                _workdirs.closeFolders(threadId, folders),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: SoliplexSpacing.s2),
               Flexible(
