@@ -41,9 +41,8 @@ class WorkdirFileRow extends StatelessWidget {
 
   final WorkdirFile file;
 
-  /// The part of [file]'s directory the row shows after its name, or `null`
-  /// to show none. A row inside a folder group shows only what lies below
-  /// that folder.
+  /// The directory the row shows after [file]'s name, or `null` to show
+  /// none, as a row under its folder's row does.
   final String? directory;
 
   final Future<DownloadOutcome> Function() onTap;
@@ -63,6 +62,13 @@ class WorkdirFileRow extends StatelessWidget {
     // icon doesn't imply a preview is available.
     final leadingIcon =
         canPreview ? kind.rowIcon : Icons.insert_drive_file_outlined;
+    // Muted so tooling output reads as apart from the agent's files; its
+    // directory, its own name, or the muted folder row it sits under says
+    // why.
+    final nameStyle = isToolingPath(file.filename)
+        ? theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)
+        : theme.textTheme.bodySmall;
     return DownloadFeedbackButton(
       filename: file.filename,
       onDownload: onTap,
@@ -96,16 +102,11 @@ class WorkdirFileRow extends StatelessWidget {
               size: 16,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            content: _NameAndDirectory(
-              file: file,
+            content: NameAndDirectory(
+              path: file.filename,
+              name: FileName(file.basename, style: nameStyle),
               directory: directory,
-              // Muted so tooling output reads as apart from the agent's
-              // files; its directory, its own name, or the muted folder row
-              // it sits under says why.
-              style: isToolingPath(file.filename)
-                  ? theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)
-                  : theme.textTheme.bodySmall,
+              style: nameStyle,
             ),
             actions: [
               if (canPreview)
@@ -123,23 +124,33 @@ class WorkdirFileRow extends StatelessWidget {
   }
 }
 
-/// A file's basename on one line, followed by [directory] in muted text,
-/// ending in `/` so it reads as a folder, not as a tag on the name.
+/// A file's or folder's [name] on one line, followed by [directory] in
+/// muted text, ending in `/` so it reads as a folder, not as a tag on the
+/// name.
 ///
-/// The basename is what a reader scans the list for, so the directory gives
-/// way first: it is end-ellipsized into whatever width the basename leaves,
-/// and gets none once the basename fills the row. Wraps in a
-/// [FullNameTooltip], so the full path shows on hover or long press and the
-/// text is not selectable.
-class _NameAndDirectory extends StatelessWidget {
-  const _NameAndDirectory({
-    required this.file,
+/// The name is what a reader scans the list for, so the directory gives
+/// way first: it is end-ellipsized into whatever width the name leaves,
+/// and gets none once the name fills the row. Wraps in a
+/// [FullNameTooltip], so the full [path] shows on hover or long press and
+/// the text is not selectable.
+class NameAndDirectory extends StatelessWidget {
+  const NameAndDirectory({
+    super.key,
+    required this.path,
+    required this.name,
     required this.directory,
     this.style,
   });
 
-  final WorkdirFile file;
+  /// The entry's path from the workspace root.
+  final String path;
+
+  /// The entry's name on one line, in [style].
+  final Widget name;
+
   final String? directory;
+
+  /// The name's style, which the directory takes muted.
   final TextStyle? style;
 
   @override
@@ -156,21 +167,21 @@ class _NameAndDirectory extends StatelessWidget {
         return Align(
           alignment: Alignment.centerLeft,
           child: FullNameTooltip(
-            name: file.filename,
+            name: path,
             // The label announces the full path once: the texts would read
-            // the basename, then the directory apart from it.
+            // the name, then the directory apart from it.
             child: Semantics(
-              label: file.filename,
+              label: path,
               child: ExcludeSemantics(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     ConstrainedBox(
                       // A Row leaves an inflexible child's width unbounded;
-                      // the basename may take the whole row, but no more.
+                      // the name may take the whole row, but no more.
                       constraints:
                           BoxConstraints(maxWidth: constraints.maxWidth),
-                      child: FileName(file.basename, style: style),
+                      child: name,
                     ),
                     if (directory != null)
                       Flexible(

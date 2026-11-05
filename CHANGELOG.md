@@ -34,6 +34,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A workspace folder's icon lines up with the icons of the files at its level.
   Its open-and-close chevron moved to the right of the row, in line with the
   download buttons, pointing down while closed and up while open.
+- Under Folders, every workspace folder opens and closes, not only the
+  top-level ones. Each folder lists its own files, then its folders, with
+  `.git` and `__pycache__` last. Top-level folders start open; nested
+  folders, and tooling folders at any depth, start closed, and each stays as
+  the reader left it across sorts. A chain of folders that each hold only one
+  folder shows as one row, such as `raw/archive/2023`. Each level indents,
+  up to four; a folder deeper than that shows its parent's path after its
+  name. A file's row no longer shows its directory, and its preview pages
+  through the files of its own folder only. Show on the workspace notice
+  opens every folder above the new files.
 
 ### Fixed
 

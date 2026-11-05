@@ -251,6 +251,18 @@ void main() {
       expect(controller.folderToggles('t-1').value, {'a': false, 'b': true});
     });
 
+    test('opening the folders of a nested file opens every folder above it',
+        () {
+      final controller = build();
+      addTearDown(controller.dispose);
+      controller.setFolderExpanded('t-1', 'a', expanded: false);
+
+      controller.openFoldersOf('t-1', [_file('a/b/c/x.csv')]);
+
+      expect(controller.folderToggles('t-1').value,
+          {'a': true, 'a/b': true, 'a/b/c': true});
+    });
+
     test('opening the folders of files already open changes nothing', () {
       final controller = build();
       addTearDown(controller.dispose);

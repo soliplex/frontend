@@ -402,6 +402,30 @@ void main() {
       expect(color('reports'), isNot(muted));
     });
 
+    testWidgets('a folder inside a tooling folder is muted', (tester) async {
+      await tester.pumpWidget(
+        _grouped(['.git/HEAD', '.git/refs/main'], toggles: {'.git': true}),
+      );
+
+      expect(
+        tester.widget<Text>(find.text('refs')).style?.color,
+        Theme.of(tester.element(find.text('refs')))
+            .colorScheme
+            .onSurfaceVariant,
+      );
+    });
+
+    testWidgets('a folder holding only a tooling folder is not muted',
+        (tester) async {
+      await tester.pumpWidget(_grouped(['pkg/__pycache__/m.pyc']));
+      final muted = Theme.of(tester.element(find.text('pkg')))
+          .colorScheme
+          .onSurfaceVariant;
+
+      expect(tester.widget<Text>(find.text('pkg')).style?.color, isNot(muted));
+      expect(tester.widget<Text>(find.text('__pycache__')).style?.color, muted);
+    });
+
     testWidgets('a screen reader hears a folder, its count and its state',
         (tester) async {
       await tester.pumpWidget(
@@ -423,11 +447,130 @@ void main() {
       expect(data.flagsCollection.isExpanded.toBoolOrNull(), isFalse);
     });
 
+    group('nested', () {
+      testWidgets('a nested folder starts closed and opens on a tap',
+          (tester) async {
+        await tester.pumpWidget(_grouped(['src/main.py', 'src/lib/util.py']));
+        expect(findFileName('main.py'), findsOneWidget);
+        expect(find.text('lib'), findsOneWidget);
+        expect(findFileName('util.py'), findsNothing);
+
+        await tester.tap(folder('lib'));
+        await tester.pump();
+
+        expect(findFileName('util.py'), findsOneWidget);
+      });
+
+      testWidgets("a folder's files come before its folders", (tester) async {
+        await tester.pumpWidget(_grouped(['src/lib/util.py', 'src/z.py']));
+
+        expect(
+          tester.getTopLeft(findFileName('z.py')).dy,
+          lessThan(tester.getTopLeft(find.text('lib')).dy),
+        );
+      });
+
+      testWidgets('a nested __pycache__ shows as one closed row',
+          (tester) async {
+        await tester.pumpWidget(_grouped([
+          'src/main.py',
+          'src/__pycache__/m.pyc',
+          'src/__pycache__/n.pyc',
+        ]));
+
+        expect(find.text('__pycache__'), findsOneWidget);
+        expect(find.text('2 files'), findsOneWidget);
+        expect(findFileName('m.pyc'), findsNothing);
+      });
+
+      testWidgets('a chain of single folders shows as one row', (tester) async {
+        await tester.pumpWidget(_grouped(['raw/archive/2023/a.csv']));
+
+        expect(find.text('raw/archive/2023'), findsOneWidget);
+        expect(findFileName('a.csv'), findsOneWidget,
+            reason: 'the chain is a top-level row, so it starts open');
+      });
+
+      testWidgets('a file shows no directory after its name', (tester) async {
+        await tester.pumpWidget(_grouped(
+          ['src/a.py', 'src/lib/util.py'],
+          toggles: {'src/lib': true},
+        ));
+
+        expect(findFileName('util.py'), findsOneWidget);
+        expect(find.textContaining('/'), findsNothing);
+      });
+
+      testWidgets('a screen reader hears a nested folder by its full path',
+          (tester) async {
+        await tester.pumpWidget(_grouped(['src/a.py', 'src/lib/util.py']));
+
+        expect(
+          tester.getSemantics(folder('lib')).getSemanticsData().label,
+          'src/lib, 1 file',
+        );
+      });
+
+      testWidgets("a folder's tooltip carries its full path", (tester) async {
+        await tester.pumpWidget(_grouped(['src/a.py', 'src/lib/util.py']));
+
+        expect(find.byTooltip('src/lib'), findsOneWidget);
+      });
+
+      group('deeper than four levels', () {
+        // Every folder holds a file, so no chain merges.
+        const listing = [
+          'a/x',
+          'a/b/x',
+          'a/b/c/x',
+          'a/b/c/d/x',
+          'a/b/c/d/e/x',
+          'a/b/c/d/e/f/x',
+        ];
+        const open = {
+          'a/b': true,
+          'a/b/c': true,
+          'a/b/c/d': true,
+          'a/b/c/d/e': true,
+          'a/b/c/d/e/f': true,
+        };
+        double indentOf(WidgetTester tester, String name) =>
+            tester.getTopLeft(find.text(name)).dx -
+            tester.getTopLeft(find.text('a')).dx;
+
+        testWidgets('each level indents, up to four', (tester) async {
+          await tester.pumpWidget(_grouped(listing, toggles: open));
+
+          for (final (level, name) in ['b', 'c', 'd', 'e'].indexed) {
+            expect(indentOf(tester, name), (level + 1) * SoliplexSpacing.s4,
+                reason: name);
+          }
+          expect(indentOf(tester, 'f'), 4 * SoliplexSpacing.s4);
+        });
+
+        testWidgets("a folder past the indent shows its parent's path",
+            (tester) async {
+          await tester.pumpWidget(_grouped(listing, toggles: open));
+
+          expect(find.text('a/b/c/d/e/'), findsOneWidget);
+          expect(find.text('a/b/c/d/'), findsNothing,
+              reason: 'e still has an indent of its own');
+        });
+      });
+    });
+
     testWidgets('the preview pages through the tapped file\'s folder only',
         (tester) async {
-      await tester.pumpWidget(_grouped(
-        ['a.txt', 'b.txt', 'reports/c.txt', 'reports/d.txt', 'reports/e.txt'],
-      ));
+      await tester.pumpWidget(_grouped([
+        'a.txt',
+        'b.txt',
+        'reports/c.txt',
+        'reports/d.txt',
+        'reports/e.txt',
+        'reports/sub/f.txt',
+      ], toggles: {
+        'reports/sub': true,
+      }));
 
       await tester.tap(findFileName('d.txt'));
       await tester.pumpAndSettle();
@@ -526,6 +669,23 @@ void main() {
       await tester.pumpWidget(
           _host(_sorted(paths, FileSort.foldersAToZ, toggles: closed)));
       expect(findFileName('file'), findsNothing);
+    });
+
+    testWidgets('a nested folder opened in Folders is open after Name and back',
+        (tester) async {
+      const paths = ['src/main.py', 'src/lib/util.py'];
+      const opened = {'src/lib': true};
+
+      await tester.pumpWidget(
+          _host(_sorted(paths, FileSort.foldersAToZ, toggles: opened)));
+      expect(findFileName('util.py'), findsOneWidget);
+
+      await tester.pumpWidget(
+          _host(_sorted(paths, FileSort.nameAToZ, toggles: opened)));
+      await tester.pumpWidget(
+          _host(_sorted(paths, FileSort.foldersAToZ, toggles: opened)));
+
+      expect(findFileName('util.py'), findsOneWidget);
     });
 
     testWidgets('preview from a flat list pages through the real files only',
