@@ -48,11 +48,21 @@ class FileSortPreference {
       final prefs = await _prefsFactory();
       // Android reports a failed commit by returning false, not by throwing.
       final saved = await prefs.setString(_key, value.name);
-      if (!saved) _logger.error('Failed to save the file sort');
+      if (!saved) {
+        _logger.error(
+          'Failed to save the file sort',
+          attributes: {'sort': value.name},
+        );
+      }
       return saved;
     } catch (e, st) {
       // A shared_preferences failure carries no user or backend value.
-      _logger.error('Failed to save the file sort', error: e, stackTrace: st);
+      _logger.error(
+        'Failed to save the file sort',
+        error: e,
+        stackTrace: st,
+        attributes: {'sort': value.name},
+      );
       return false;
     }
   }

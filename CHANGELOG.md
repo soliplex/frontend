@@ -30,6 +30,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - **Library consumers:** a negative `size_bytes` in a file listing is read
   as unknown (`sizeBytes` null) and logged as a warning, rather than kept.
 
+### Fixed
+
+- A screen reader announces a disabled sort option by its name before the
+  reason it is disabled: "Size: None of these files has a size".
+- The workspace's `.git` and `__pycache__` folder rows are muted under
+  Folders, as tooling file names are.
+- A failure to save the file sort is logged with the sort being saved.
+
 ## [0.115.0+102] - 2026-11-05
 
 ### Added

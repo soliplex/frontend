@@ -100,7 +100,8 @@ class WorkdirFileRow extends StatelessWidget {
               file: file,
               directory: directory,
               // Muted so tooling output reads as apart from the agent's
-              // files; its directory, or its own name, says why.
+              // files; its directory, its own name, or the muted folder row
+              // it sits under says why.
               style: isToolingPath(file.filename)
                   ? theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)

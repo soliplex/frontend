@@ -139,9 +139,12 @@ void main() {
 
     expect(taps, isEmpty);
     expect(
-      find.bySemanticsLabel('None of these files has a modified time'),
+      find.bySemanticsLabel(
+          'Modified: None of these files has a modified time'),
       findsOneWidget,
     );
+    expect(find.byTooltip('None of these files has a modified time'),
+        findsOneWidget);
   });
 
   testWidgets('a server without sizes disables Size', (tester) async {
@@ -151,8 +154,9 @@ void main() {
 
     expect(taps, isEmpty);
     expect(
-      find.bySemanticsLabel('None of these files has a size'),
+      find.bySemanticsLabel('Size: None of these files has a size'),
       findsOneWidget,
     );
+    expect(find.byTooltip('None of these files has a size'), findsOneWidget);
   });
 }

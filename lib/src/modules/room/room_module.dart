@@ -68,7 +68,8 @@ class RoomAppModule extends AppModule {
   /// AI disclaimer under the chat composer.
   final String appName;
 
-  /// The order of every file list, loaded before the module is built.
+  /// The order of every file list. Loading it is the caller's to do; until
+  /// it loads, the lists show its default.
   final FileSortPreference fileSort;
   final Widget? logo;
   final bool enableDocumentFilter;

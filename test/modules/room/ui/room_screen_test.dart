@@ -5917,7 +5917,9 @@ void main() {
         isTrue,
       );
       expect(
-        find.bySemanticsLabel('None of these files has a modified time'),
+        find.bySemanticsLabel(
+          'Modified: None of these files has a modified time',
+        ),
         findsOneWidget,
       );
       expect(fileSort.sort.value, FileSort.newestFirst);
