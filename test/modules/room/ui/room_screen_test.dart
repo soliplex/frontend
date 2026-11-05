@@ -5809,7 +5809,7 @@ void main() {
           sizeBytes: sizeBytes,
         );
 
-    Future<void> openPanel(WidgetTester tester) async {
+    Future<void> openPanel(WidgetTester tester, {String? threadId}) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -5818,6 +5818,7 @@ void main() {
         id: 'room-1',
         name: 'Attachable',
         acceptsRoomUploads: true,
+        acceptsThreadUploads: true,
       );
       api.nextThreads = const [];
       await tester.pumpWidget(MaterialApp(
@@ -5825,7 +5826,7 @@ void main() {
           appName: 'Test App',
           serverEntry: entry,
           roomId: 'room-1',
-          threadId: null,
+          threadId: threadId,
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
@@ -5920,6 +5921,32 @@ void main() {
         findsOneWidget,
       );
       expect(fileSort.sort.value, FileSort.newestFirst);
+    });
+
+    testWidgets('tapping Name where a stored Modified fell back gives Z to A',
+        (tester) async {
+      await fileSort.setSort(FileSort.newestFirst);
+      api.nextRoomUploads = [upload('a.pdf'), upload('b.pdf')];
+      await openPanel(tester);
+
+      await tapSegment(tester, 'Name');
+
+      expect(rowsInOrder(tester, ['a.pdf', 'b.pdf']), ['b.pdf', 'a.pdf']);
+      expect(fileSort.sort.value, FileSort.nameZToA);
+    });
+
+    testWidgets('thread uploads follow the chosen order', (tester) async {
+      // Name order is the reverse of size order, so only the sort gives
+      // b.pdf first.
+      api.nextThreadUploads = [
+        upload('a.pdf', sizeBytes: 1),
+        upload('b.pdf', sizeBytes: 3),
+      ];
+      await openPanel(tester, threadId: 'thread-1');
+
+      await tapSegment(tester, 'Size');
+
+      expect(rowsInOrder(tester, ['a.pdf', 'b.pdf']), ['b.pdf', 'a.pdf']);
     });
   });
 }

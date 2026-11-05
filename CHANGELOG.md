@@ -17,8 +17,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   and is remembered across launches; Folders, A to Z is the default.
 - Under Name, Modified and Size the workspace lists every file as a row of
   its own, showing its folder.
-- Tooling output (`.git`, `__pycache__`) sorts after the other files in
-  every option and direction, and its names are muted.
+- Tooling output (`.git`, `__pycache__`) sorts last in every option and
+  direction: after the other files of its folder under Folders, with the
+  tooling folders after the other folders, and after every other file under
+  Name, Modified and Size. Its file names are muted.
 - Uploads still in progress or failed are listed first, ahead of the stored
   files, whatever the order.
 - Modified and Size are disabled, and the list is shown by name, where no
@@ -41,7 +43,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   copies as it shows, numbers included.
 - Inside a workspace folder, files sort by file name, ignoring case, rather
   than by full path, so files from different subfolders interleave. Root
-  files and folders sort by name rather than in the server's order.
+  files and folders sort by name ignoring case.
 
 ### Fixed
 

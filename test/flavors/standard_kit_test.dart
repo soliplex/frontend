@@ -9,6 +9,7 @@ import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_module.dart';
 import 'package:soliplex_frontend/src/modules/preferences/preferences_module.dart';
+import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 import 'package:soliplex_frontend/src/stores/stores_module.dart';
 
@@ -112,6 +113,18 @@ void main() {
       preference.checkingServers.value,
       kit.serverManager.servers.value.keys.toSet(),
     );
+  });
+
+  test('the room module starts with the stored file sort', () async {
+    SharedPreferences.setMockInitialValues({
+      'soliplex_has_launched': true,
+      'soliplex_file_sort': 'smallestFirst',
+    });
+
+    final kit = await buildStandardKit(identity: AppIdentity.soliplex);
+
+    final room = kit.modules.whereType<RoomAppModule>().single;
+    expect(room.fileSort.sort.value, FileSort.smallestFirst);
   });
 
   test('signedOutLandingPath never displaces the auth callback', () async {

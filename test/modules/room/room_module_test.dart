@@ -11,6 +11,8 @@ import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/room_info_screen.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/stores/database_selections.dart';
 import 'package:soliplex_frontend/src/stores/document_selections.dart';
 import 'package:soliplex_frontend/src/stores/run_registry.dart';
@@ -88,6 +90,51 @@ void main() {
     expect(
       container.read(messageExpansionsProvider),
       isA<MessageExpansions>(),
+    );
+  });
+
+  // The compiler checks only that each screen gets a preference, not that
+  // both get the module's: a second one would split the choice in two.
+  testWidgets('the room and room info screens share its file sort',
+      (tester) async {
+    final serverManager = _createManager();
+    final shared = RoomAppModule(
+      serverManager: serverManager,
+      runtimeManager: runtimeManager,
+      registry: registry,
+      roomReadMarkers: RoomReadMarkers(),
+      serverReadMarkers: ServerReadMarkers(),
+      documentSelections: DocumentSelections(),
+      databaseSelections: DatabaseSelections(),
+      appName: 'Soliplex',
+      fileSort: FileSortPreference(),
+    );
+    addTearDown(shared.onDispose);
+    serverManager.addServer(
+      serverId: 'srv-1',
+      serverUrl: Uri.parse('https://example.test'),
+      requiresAuth: false,
+      alias: 'srv',
+    );
+    final router = GoRouter(
+      initialLocation: '/room/srv/room-1',
+      routes: shared.build().routes,
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pump();
+
+    expect(
+      tester.widget<RoomScreen>(find.byType(RoomScreen)).fileSort,
+      same(shared.fileSort),
+    );
+
+    router.go('/room/srv/room-1/info');
+    await tester.pump();
+
+    expect(
+      tester.widget<RoomInfoScreen>(find.byType(RoomInfoScreen)).fileSort,
+      same(shared.fileSort),
     );
   });
 
