@@ -111,10 +111,11 @@ WorkspaceFilesSection _workspace({
   required VoidCallback onRetry,
   required Future<DownloadOutcome> Function(WorkdirFile file) onDownload,
   required Future<Uint8List> Function(WorkdirFile file) onFetchBytes,
+  FileSort sort = FileSort.foldersAToZ,
 }) =>
     WorkspaceFilesSection(
       status: status,
-      sort: FileSort.foldersAToZ,
+      sort: sort,
       onRetry: onRetry,
       onDownload: onDownload,
       onFetchBytes: onFetchBytes,
@@ -1424,6 +1425,8 @@ void main() {
 
   group('nested paths', () {
     const path = 'crm_app/backend/models/customer.py';
+    // A flat list shows each file's directory; Folders shows it as rows.
+    const directory = 'crm_app/backend/models/';
 
     Future<void> pumpRow(
       WidgetTester tester, {
@@ -1444,6 +1447,7 @@ void main() {
                   onRetry: () {},
                   onDownload: (_) async => DownloadOutcome.success,
                   onFetchBytes: (_) async => Uint8List(0),
+                  sort: FileSort.nameAToZ,
                 ),
               ),
             ),
@@ -1464,13 +1468,13 @@ void main() {
       expect(find.text(path), findsNothing);
       expect(find.text('customer'), findsOneWidget);
       expect(find.text('.py'), findsOneWidget);
-      expect(find.text('backend/models/'), findsOneWidget);
+      expect(find.text(directory), findsOneWidget);
       Color? painted(String text) => tester
           .renderObject<RenderParagraph>(find.text(text))
           .text
           .style
           ?.color;
-      expect(painted('backend/models/'), isNot(painted('customer')));
+      expect(painted(directory), isNot(painted('customer')));
     });
 
     testWidgets('a narrow row cuts the directory, never the basename',
@@ -1478,7 +1482,7 @@ void main() {
       await pumpRow(tester, width: 320);
 
       expect(isCut(tester, find.text('customer')), isFalse);
-      expect(isCut(tester, find.text('backend/models/')), isTrue);
+      expect(isCut(tester, find.text(directory)), isTrue);
     });
 
     testWidgets(
@@ -1488,7 +1492,7 @@ void main() {
 
       expect(isCut(tester, find.text('customer')), isTrue);
       expect(isCut(tester, find.text('.py')), isFalse);
-      expect(tester.getSize(find.text('backend/models/')).width, 0);
+      expect(tester.getSize(find.text(directory)).width, 0);
     });
 
     testWidgets('a cut name stops short of the preview button', (tester) async {

@@ -33,10 +33,11 @@ class FilePanelSectionLabel extends StatelessWidget {
 }
 
 /// The files panel's list of the thread's sandbox workspace, in [sort]'s
-/// order. Under folders: its root files, then one row per first-level folder
-/// that opens and closes the folder's files. Under the other keys: every file
-/// as a row of its own, showing its directory, with tooling files last.
-/// Renders nothing while loading or when empty.
+/// order. Under folders: the workspace's folder tree, each folder a row that
+/// opens and closes its files and folders, which sit indented below it.
+/// Under the other keys: every file as a row of its own, showing its
+/// directory, with tooling files last. Renders nothing while loading or when
+/// empty.
 class WorkspaceFilesSection extends StatelessWidget {
   const WorkspaceFilesSection({
     super.key,
@@ -55,12 +56,17 @@ class WorkspaceFilesSection extends StatelessWidget {
   final Future<Uint8List> Function(WorkdirFile file) onFetchBytes;
   final VoidCallback onRetry;
 
-  /// The folders the reader has opened or closed, mapped to whether each is
-  /// open. A folder not in it is open unless it [startsCollapsed].
+  /// The folders the reader has opened or closed, by path from the
+  /// workspace root, mapped to whether each is open. A folder not in it
+  /// shows its default (see [isFolderExpanded]).
   final Map<String, bool> folderToggles;
 
-  /// Called with a folder the reader opens or closes.
+  /// Called with the path of a folder the reader opens or closes.
   final void Function(String folder, {required bool expanded}) onFolderToggled;
+
+  /// The levels a folder's contents indent, past which they line up with
+  /// the level above: each indent takes width from the names.
+  static const _indentedLevels = 4;
 
   @override
   Widget build(BuildContext context) {
@@ -98,13 +104,25 @@ class WorkspaceFilesSection extends StatelessWidget {
     );
   }
 
-  List<Widget> _grouped(BuildContext context, List<WorkdirFile> listing) {
-    final grouped = groupByFirstFolder(listing, descending: sort.descending);
-    return [
-      ..._rows(context, grouped.files, directoryOf: (_) => null),
-      for (final group in grouped.folders) ..._folder(context, group),
-    ];
-  }
+  List<Widget> _grouped(BuildContext context, List<WorkdirFile> listing) =>
+      _contents(
+        context,
+        workspaceTree(listing, descending: sort.descending),
+        depth: 0,
+      );
+
+  /// [folder]'s files, then its folders, as rows with [depth] folders above
+  /// them.
+  List<Widget> _contents(
+    BuildContext context,
+    WorkspaceFolder folder, {
+    required int depth,
+  }) =>
+      [
+        ..._rows(context, folder.files, directoryOf: (_) => null),
+        for (final child in folder.folders)
+          ..._folder(context, child, parent: folder, depth: depth),
+      ];
 
   /// The real files, then the tooling files, each part paging its own
   /// previews, so paging from the last real file does not walk into tooling
@@ -119,37 +137,35 @@ class WorkspaceFilesSection extends StatelessWidget {
 
   List<Widget> _folder(
     BuildContext context,
-    ({String name, List<WorkdirFile> files}) group,
-  ) {
-    final expanded = isFolderExpanded(folderToggles, group.name);
+    WorkspaceFolder folder, {
+    required WorkspaceFolder parent,
+    required int depth,
+  }) {
+    final expanded =
+        isFolderExpanded(folderToggles, folder.path, topLevel: depth == 0);
     return [
       _FolderRow(
-        name: group.name,
-        count: group.files.length,
-        latestChange: group.files
-            .map((f) => f.modifiedAt)
-            .nonNulls
-            .fold<DateTime?>(
-              null,
-              (latest, t) => latest == null || t.isAfter(latest) ? t : latest,
-            ),
+        name: folder.name,
+        path: folder.path,
+        // Past the last indent, a row's place no longer shows where it is.
+        parentPath: depth > _indentedLevels ? parent.path : null,
+        count: folder.fileCount,
+        latestChange: folder.latestChange,
         expanded: expanded,
-        onTap: () => onFolderToggled(group.name, expanded: !expanded),
+        onTap: () => onFolderToggled(folder.path, expanded: !expanded),
       ),
       if (expanded)
-        // Keyed by the folder, so when the folders reorder its files' rows
-        // move with it and keep their state, such as a download in progress.
+        // Keyed by the folder, so when the folders reorder its rows move
+        // with it and keep their state, such as a download in progress.
         Padding(
-          key: ValueKey(group.name),
-          padding: const EdgeInsets.only(left: SoliplexSpacing.s4),
+          key: ValueKey(folder.path),
+          padding: EdgeInsets.only(
+            left: depth < _indentedLevels ? SoliplexSpacing.s4 : 0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: _rows(
-              context,
-              group.files,
-              directoryOf: (f) => directoryWithin(f, group.name),
-            ),
+            children: _contents(context, folder, depth: depth + 1),
           ),
         ),
     ];
@@ -186,15 +202,17 @@ class WorkspaceFilesSection extends StatelessWidget {
       ];
 }
 
-/// A first-level workspace folder: its name, and under it the count of the
-/// files below it at any depth and when the newest of them changed. Tapping
-/// it opens or closes the folder's files.
+/// A workspace folder: its name, and under it the count of the files below
+/// it at any depth and when the newest of them changed. Tapping it opens or
+/// closes the folder.
 ///
 /// Its icon lines up with the icons of the files at its level, and its
 /// chevron sits in their download buttons' column.
 class _FolderRow extends StatelessWidget {
   const _FolderRow({
     required this.name,
+    required this.path,
+    required this.parentPath,
     required this.count,
     required this.latestChange,
     required this.expanded,
@@ -202,6 +220,14 @@ class _FolderRow extends StatelessWidget {
   });
 
   final String name;
+
+  /// From the workspace root; shown in full on hover and to a screen reader.
+  final String path;
+
+  /// The path of the folder holding this one, shown after [name]; null to
+  /// show none.
+  final String? parentPath;
+
   final int count;
 
   /// When the most recently modified file below the folder changed; null
@@ -215,6 +241,10 @@ class _FolderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
+    // Muted as a tooling file's name is, and for the same reason.
+    final nameStyle = isToolingPath(path)
+        ? theme.textTheme.bodySmall?.copyWith(color: muted)
+        : theme.textTheme.bodySmall;
     final countLabel = '$count ${count == 1 ? 'file' : 'files'}';
     final latestChange = this.latestChange;
     final details = latestChange == null
@@ -232,7 +262,7 @@ class _FolderRow extends StatelessWidget {
       child: Semantics(
         button: true,
         expanded: expanded,
-        label: '$name, ${details.spoken}',
+        label: '$path, ${details.spoken}',
         child: ExcludeSemantics(
           child: FileListRow(
             leading: Icon(
@@ -240,18 +270,17 @@ class _FolderRow extends StatelessWidget {
               size: 16,
               color: muted,
             ),
-            content: FullNameTooltip(
-              name: name,
-              child: Text(
+            content: NameAndDirectory(
+              path: path,
+              name: Text(
                 name,
-                // Muted as a tooling file's name is, and for the same reason.
-                style: isToolingPath(name)
-                    ? theme.textTheme.bodySmall?.copyWith(color: muted)
-                    : theme.textTheme.bodySmall,
+                style: nameStyle,
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,
               ),
+              directory: parentPath,
+              style: nameStyle,
             ),
             details: details,
             // Not a FileRowAction: the whole row is the one button.
