@@ -124,6 +124,63 @@ void main() {
     expect(tester.state(find.byType(ExpansionTile)), same(first));
   });
 
+  group('a tile keeps its state when a tile above it comes', () {
+    Widget timeline(
+      List<ChatMessage> messages, {
+      StreamingState? streaming,
+    }) =>
+        ProviderScope(
+          overrides: [
+            messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: MessageTimeline(
+                roomId: 'r',
+                messages: messages,
+                messageStates: const {},
+                streamingState: streaming,
+                activeRunId: streaming == null ? null : 'run-1',
+              ),
+            ),
+          ),
+        );
+
+    const ask = TextMessage(
+      id: 'u1',
+      user: ChatUser.user,
+      createdAt: null,
+      text: 'ask',
+      runId: 'run-1',
+    );
+
+    testWidgets('the loading tile, when a tile is inserted above it',
+        (tester) async {
+      await tester.pumpWidget(
+        timeline(const [ask], streaming: const AwaitingText()),
+      );
+      final shimmer = tester.state(find.byType(SoliplexShimmer));
+
+      await tester.pumpWidget(
+        timeline(
+          const [
+            ask,
+            TextMessage(
+              id: 'a0',
+              user: ChatUser.assistant,
+              createdAt: null,
+              text: 'One moment.',
+              runId: 'run-1',
+            ),
+          ],
+          streaming: const AwaitingText(),
+        ),
+      );
+
+      expect(tester.state(find.byType(SoliplexShimmer)), same(shimmer));
+    });
+  });
+
   testWidgets(
       'blocks opened while the agent works stay open once the reply speaks',
       (tester) async {
