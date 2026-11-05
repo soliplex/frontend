@@ -46,7 +46,8 @@ void main() {
       'the streaming reply keeps its shimmer while committed empty '
       'replies report they carried no text', (tester) async {
     // Two empty assistant replies: one is the message the run is streaming
-    // into, the other no run is writing into. Only the live one may animate.
+    // into, the other was committed by no run still in flight. Only the live
+    // one may animate.
     final settled = TextMessage(
       id: 'msg-1',
       user: ChatUser.assistant,
@@ -75,8 +76,8 @@ void main() {
     ));
     await tester.pump();
 
-    // Bound to position, not just to counts: computeDisplayMessages appends
-    // the streaming reply after the settled one, so the notice must sit above
+    // Bound to position, not just to counts: layOutTimeline appends the
+    // streaming reply after the settled one, so the notice must sit above
     // the shimmer. Counting one of each passes just as well when they swap.
     expect(
       tester.getTopLeft(find.byType(NoticeBubble)).dy,

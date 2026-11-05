@@ -222,6 +222,27 @@ void main() {
     expect(band.isFrozen, isTrue);
   });
 
+  test('a reply with nothing in it never takes the band', () {
+    // Layout holds back an empty reply of the run in flight, so a band keyed
+    // to one would have no tile to render on.
+    registry.onStreaming(
+        const AwaitingText(currentPhase: ThinkingPhase()), 'run-0');
+    final band = registry.trackers[noResponseMessageId('run-0')];
+
+    for (final text in ['', ' \n']) {
+      registry.onStreaming(
+          TextStreaming(
+            messageId: 'msg-1',
+            user: ChatUser.assistant,
+            text: text,
+          ),
+          'run-0');
+    }
+
+    expect(registry.trackers.keys, equals([noResponseMessageId('run-0')]));
+    expect(registry.trackers[noResponseMessageId('run-0')], same(band));
+  });
+
   test('opens a band when the run speaks before any other phase', () {
     registry.onStreaming(
         const TextStreaming(

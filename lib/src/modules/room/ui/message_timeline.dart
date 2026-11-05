@@ -495,9 +495,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
       }
     }
 
-    // The one message the run is streaming into, if any. An empty bubble
-    // means "text still arriving" only for this id. AwaitingText contributes
-    // no id because `computeDisplayMessages` renders that phase as a
+    // The one message the run is streaming into, if any. AwaitingText
+    // contributes no id because `layOutTimeline` renders that phase as a
     // LoadingMessage rather than an empty TextMessage.
     final streamingMessageId = switch (widget.streamingState) {
       TextStreaming(:final messageId) => messageId,

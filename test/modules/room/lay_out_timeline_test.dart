@@ -205,10 +205,10 @@ void main() {
   });
 
   group('holding back an empty reply until its run ends', () {
-    // TEXT_MESSAGE_END commits the empty message and leaves the run awaiting
-    // text; TOOL_CALL_START, which names it, has not arrived yet.
     test('an empty reply of the run in flight is not shown before its call',
         () {
+      // TEXT_MESSAGE_END commits the empty message and leaves the run awaiting
+      // text; TOOL_CALL_START, which names it, has not arrived yet.
       final band = replayedBand(
         unfinishedAs: StepStatus.failed,
         events: const [],
@@ -239,8 +239,10 @@ void main() {
 
     test('the next reply stays on the loading tile until it says something',
         () {
-      // TEXT_MESSAGE_START of the reply after the tool round, before its first
-      // delta.
+      // An empty message no tool call has named, then TEXT_MESSAGE_START of
+      // the next reply, before its first delta. A call that names a message
+      // while it still streams loses the mark, so the empty one can still be
+      // unnamed when the next reply opens.
       final tiles = layOut(
         messages: [user('u1'), assistant('m1', run: 'run-0')],
         streaming: const TextStreaming(
@@ -276,6 +278,48 @@ void main() {
       );
 
       expect(idsOf(tiles), equals(['u1', 'm1', 'u2', loadingMessageId]));
+    });
+
+    test('an empty reply carrying only reasoning is held back too', () {
+      // TEXT_MESSAGE_START moves the buffered reasoning onto the message it
+      // opens, so the empty message usually carries some. The band renders
+      // that reasoning; the message would only repeat it, unanimated.
+      final tiles = layOut(
+        messages: [
+          user('u1'),
+          assistant('m1', run: 'run-0', thinking: 'weighing it'),
+        ],
+        streaming: const AwaitingText(),
+        activeRunId: 'run-0',
+      );
+
+      expect(idsOf(tiles), equals(['u1', loadingMessageId]));
+    });
+
+    test('an empty system message of the run in flight is shown', () {
+      // No tool call can name one, so there is nothing to wait for.
+      const notice = TextMessage(
+        id: 's1',
+        user: ChatUser.system,
+        createdAt: null,
+        text: '',
+        runId: 'run-0',
+      );
+      final tiles = layOut(
+        messages: [user('u1'), notice],
+        streaming: const AwaitingText(),
+        activeRunId: 'run-0',
+      );
+
+      expect(idsOf(tiles), equals(['u1', 's1', loadingMessageId]));
+    });
+
+    test('an empty reply that names no run is shown when no run is live', () {
+      // A message's run is optional; with no run live, nothing is waiting
+      // to name it.
+      final tiles = layOut(messages: [user('u1'), assistant('m1')]);
+
+      expect(idsOf(tiles), equals(['u1', 'm1']));
     });
   });
 
