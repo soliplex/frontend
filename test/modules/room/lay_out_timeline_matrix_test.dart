@@ -316,6 +316,17 @@ List<_Row> _rows() => [
         tiles: ['u1', 'm1'],
         placement: {'m1': 'm1'},
       ),
+      (
+        case_: 'S4',
+        what: 'END of an empty message, before the call that names it',
+        messages: [_user('u1'), _assistant('m1', run: 'run-0')],
+        bands: {_unclaimed('run-0'): 'run-0'},
+        outcomes: const {},
+        streaming: const AwaitingText(),
+        activeRunId: 'run-0',
+        tiles: ['u1', loadingMessageId],
+        placement: {loadingMessageId: _unclaimed('run-0')},
+      ),
     ];
 
 void main() {

@@ -53,7 +53,8 @@ typedef TimelineLayout = ({
 ///    visible between `TEXT_MESSAGE_START` and `TEXT_MESSAGE_END` rather than
 ///    only once it commits.
 /// 2. **Filter** — leave out a message opened only to give a tool call's
-///    `parentMessageId` a target ([existsOnlyForToolCall]).
+///    `parentMessageId` a target ([existsOnlyForToolCall]), and an empty reply
+///    of the run still in flight, which a tool call may yet name ([_leftOut]).
 /// 3. **Guarantee** — give a run left with no band-capable tile, or with work no
 ///    message spoke for, its parked outcome, so the work the user watched still
 ///    has somewhere to render. Place the outcome of a failed run whose reply
@@ -219,7 +220,7 @@ int _lastBandCapableIn(
 }) {
   final shown = [
     for (final message in projected)
-      if (!existsOnlyForToolCall(message)) message,
+      if (!_leftOut(message, activeRunId)) message,
   ];
   final representedRuns = {
     for (final message in shown)
@@ -303,7 +304,7 @@ int _lastBandCapableIn(
     if (openRun != null && runId != openRun) settle(openRun);
     if (runId != null) settleRunsEndingBefore(runId);
     openRun = runId;
-    if (existsOnlyForToolCall(message)) continue;
+    if (_leftOut(message, activeRunId)) continue;
     tiles.add(message);
   }
   // Whatever is still owed ended after everything the timeline holds, so it
@@ -313,6 +314,22 @@ int _lastBandCapableIn(
   }
   return (tiles: tiles, besideReply: besideReply);
 }
+
+/// Whether [message] is kept off the timeline.
+///
+/// A message opened only to give a tool call a `parentMessageId` commits empty
+/// at `TEXT_MESSAGE_END`, and only `TOOL_CALL_START` marks it as one. Until its
+/// run ends, an empty reply of the run in flight may be such a message, so it
+/// is held back rather than shown for the frames before its call arrives. If
+/// the run ends with it still empty and unnamed, it is shown. Whitespace counts
+/// as empty, as it does for [existsOnlyForToolCall].
+bool _leftOut(ChatMessage message, String? activeRunId) =>
+    existsOnlyForToolCall(message) ||
+    (activeRunId != null &&
+        message.runId == activeRunId &&
+        message is TextMessage &&
+        message.user == ChatUser.assistant &&
+        message.text.trim().isEmpty);
 
 /// Whether [message] is a tile that can host a run's execution band, and so
 /// stands in for the run rather than needing its outcome beside it.
@@ -353,7 +370,7 @@ bool _standsInForItsRun(ChatMessage message) => switch (message) {
 /// than as an empty bubble. That is the window between `TEXT_MESSAGE_START` and
 /// the first delta — the window a message opened only to name a tool call never
 /// leaves — and no tool call has named it yet to tell the two apart. Which it turns
-/// out to be is settled when it commits.
+/// out to be is settled once a tool call names it or its run ends ([_leftOut]).
 List<ChatMessage> _project(
   List<ChatMessage> messages,
   StreamingState? streaming,

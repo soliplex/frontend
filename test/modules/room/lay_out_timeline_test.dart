@@ -204,6 +204,81 @@ void main() {
     });
   });
 
+  group('holding back an empty reply until its run ends', () {
+    // TEXT_MESSAGE_END commits the empty message and leaves the run awaiting
+    // text; TOOL_CALL_START, which names it, has not arrived yet.
+    test('an empty reply of the run in flight is not shown before its call',
+        () {
+      final band = replayedBand(
+        unfinishedAs: StepStatus.failed,
+        events: const [],
+        logger: testLogger(),
+      );
+      addTearDown(band.dispose);
+
+      final tiles = layOut(
+        messages: [user('u1', run: 'run-0'), assistant('m1', run: 'run-0')],
+        bands: {noResponseMessageId('run-0'): band},
+        streaming: const AwaitingText(),
+        activeRunId: 'run-0',
+      );
+
+      expect(idsOf(tiles), equals(['u1', loadingMessageId]));
+      expect(tiles.last.band, same(band));
+    });
+
+    test('a whitespace-only reply of the run in flight is not shown', () {
+      final tiles = layOut(
+        messages: [user('u1'), assistant('m1', text: ' \n', run: 'run-0')],
+        streaming: const AwaitingText(),
+        activeRunId: 'run-0',
+      );
+
+      expect(idsOf(tiles), equals(['u1', loadingMessageId]));
+    });
+
+    test('the next reply stays on the loading tile until it says something',
+        () {
+      // TEXT_MESSAGE_START of the reply after the tool round, before its first
+      // delta.
+      final tiles = layOut(
+        messages: [user('u1'), assistant('m1', run: 'run-0')],
+        streaming: const TextStreaming(
+          messageId: 'm2',
+          user: ChatUser.assistant,
+          text: '',
+        ),
+        activeRunId: 'run-0',
+      );
+
+      expect(idsOf(tiles), equals(['u1', loadingMessageId]));
+    });
+
+    test('a finished run whose reply stayed empty shows it', () {
+      final tiles = layOut(
+        messages: [user('u1'), assistant('m1', run: 'run-0')],
+        outcomes: {'run-0': outcome('run-0')},
+      );
+
+      expect(idsOf(tiles), equals(['u1', 'm1']));
+    });
+
+    test("an earlier run's empty reply is shown while a later run is live", () {
+      final tiles = layOut(
+        messages: [
+          user('u1'),
+          assistant('m1', run: 'run-0'),
+          user('u2'),
+        ],
+        outcomes: {'run-0': outcome('run-0')},
+        streaming: const AwaitingText(),
+        activeRunId: 'run-1',
+      );
+
+      expect(idsOf(tiles), equals(['u1', 'm1', 'u2', loadingMessageId]));
+    });
+  });
+
   group('guaranteeing a tile for every run that ended', () {
     test('a run whose only message was left out gets its parked outcome', () {
       final tiles = layOut(
