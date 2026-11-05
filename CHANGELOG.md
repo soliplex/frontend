@@ -44,6 +44,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   name. A file's row no longer shows its directory, and its preview pages
   through the files of its own folder only. Show on the workspace notice
   opens every folder above the new files.
+- A Collapse all folders button sits at the right of the files panel's sort
+  bar, and closes every workspace folder at once. It shows when the
+  workspace has folders, and is disabled, saying why, under Name, Modified
+  and Size, or when no folder is open.
 
 ### Fixed
 
