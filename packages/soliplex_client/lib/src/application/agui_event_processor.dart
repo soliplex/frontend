@@ -332,16 +332,27 @@ EventProcessingResult _processTextStart(
   );
 }
 
-/// Events for a stale or already-closed stream are ignored.
+/// Events for a stale or already-closed stream are ignored, and reported:
+/// one means the backend sent an orphan or out-of-order event, or the
+/// streaming state went wrong here.
 EventProcessingResult _onActiveTextStream(
   Conversation conversation,
   StreamingState streaming,
   String messageId,
+  String eventName,
   EventProcessingResult Function(TextStreaming active) onMatch,
 ) {
   if (streaming is TextStreaming && streaming.messageId == messageId) {
     return onMatch(streaming);
   }
+  _logger.warning(
+    '$eventName for a message not streaming; ignored',
+    attributes: {
+      'messageId': messageId,
+      'streaming': streaming.runtimeType.toString(),
+      if (streaming is TextStreaming) 'streamingMessageId': streaming.messageId,
+    },
+  );
   return EventProcessingResult(
     conversation: conversation,
     streaming: streaming,
@@ -358,6 +369,7 @@ EventProcessingResult _processTextContent(
       conversation,
       streaming,
       messageId,
+      'TextMessageContentEvent',
       (active) => EventProcessingResult(
         conversation: conversation,
         streaming: active.appendDelta(delta),
@@ -384,6 +396,7 @@ EventProcessingResult _processTextEnd(
       conversation,
       streaming,
       messageId,
+      'TextMessageEndEvent',
       (active) {
         // Skip if a message with this ID already exists — idempotency guard
         // against duplicate events (e.g. from history replay).

@@ -650,6 +650,75 @@ void main() {
         },
       );
 
+      group('an event for a message not streaming', () {
+        late MemorySink sink;
+        setUp(() {
+          sink = MemorySink();
+          LogManager.instance.addSink(sink);
+          addTearDown(() => LogManager.instance.removeSink(sink));
+        });
+        Iterable<LogRecord> ignored() => sink.records.where(
+              (r) =>
+                  r.loggerName == 'soliplex_client.event_processor' &&
+                  r.message.contains('for a message not streaming'),
+            );
+        const active = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello',
+        );
+
+        test('is reported when no message is streaming', () {
+          processEvent(
+            conversation,
+            streaming,
+            const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
+            createdAt: null,
+          );
+
+          final record = ignored().single;
+          expect(record.level, LogLevel.warning);
+          expect(record.message, startsWith('TextMessageContentEvent'));
+          expect(record.attributes, containsPair('messageId', 'msg-1'));
+          expect(record.attributes, containsPair('streaming', 'AwaitingText'));
+          expect(record.attributes, isNot(contains('streamingMessageId')));
+        });
+
+        test('names the message that is streaming instead', () {
+          processEvent(
+            conversation,
+            active,
+            const TextMessageEndEvent(messageId: 'msg-other'),
+            createdAt: null,
+          );
+
+          final record = ignored().single;
+          expect(record.message, startsWith('TextMessageEndEvent'));
+          expect(record.attributes, containsPair('messageId', 'msg-other'));
+          expect(
+            record.attributes,
+            containsPair('streamingMessageId', 'msg-1'),
+          );
+        });
+
+        test('is not reported for the message that is streaming', () {
+          final appended = processEvent(
+            conversation,
+            active,
+            const TextMessageContentEvent(messageId: 'msg-1', delta: '!'),
+            createdAt: null,
+          );
+          processEvent(
+            appended.conversation,
+            appended.streaming,
+            const TextMessageEndEvent(messageId: 'msg-1'),
+            createdAt: null,
+          );
+
+          expect(ignored(), isEmpty);
+        });
+      });
+
       // Regression: https://github.com/soliplex/frontend/issues/33
       test('TextMessageEndEvent skips duplicate message ID', () {
         // Simulate a conversation that already contains msg-1
