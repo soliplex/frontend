@@ -41,6 +41,21 @@ void main() {
       expect(at(const Duration(days: 7)), '6/2/2026');
     });
 
+    test('a time a minute or more ahead of the clock shows its date', () {
+      expect(
+        formatRelativeTime(now.add(const Duration(seconds: 59)), now: now),
+        'Just now',
+      );
+      expect(
+        formatRelativeTime(now.add(const Duration(minutes: 2)), now: now),
+        '6/9/2026',
+      );
+      expect(
+        spokenRelativeTime(now.add(const Duration(minutes: 2)), now: now),
+        'June 9, 2026',
+      );
+    });
+
     // Regression for issue #338: the numeric-date fallback must read the
     // viewer's local calendar fields, not the raw UTC instant. Backend
     // timestamps arrive in UTC, so a date rendered from UTC fields is off by a
@@ -54,6 +69,24 @@ void main() {
         formatRelativeTime(utcInstant, now: reference),
         '${local.month}/${local.day}/${local.year}',
       );
+    });
+  });
+
+  group('spokenRelativeTime', () {
+    String at(Duration ago) => spokenRelativeTime(now.subtract(ago), now: now);
+
+    test('says each unit in words, singular for one', () {
+      expect(at(const Duration(seconds: 59)), 'just now');
+      expect(at(const Duration(minutes: 1)), '1 minute ago');
+      expect(at(const Duration(minutes: 59)), '59 minutes ago');
+      expect(at(const Duration(hours: 1)), '1 hour ago');
+      expect(at(const Duration(hours: 23)), '23 hours ago');
+      expect(at(const Duration(hours: 24)), '1 day ago');
+      expect(at(const Duration(days: 6)), '6 days ago');
+    });
+
+    test('says the date from a week on', () {
+      expect(at(const Duration(days: 7)), 'June 2, 2026');
     });
   });
 }

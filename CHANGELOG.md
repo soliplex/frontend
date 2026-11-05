@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- Every stored file in the file lists shows when it was last modified and its
+  size, as `5m ago · 2.4 KB`, on a muted line under its name. Hovering over
+  that line, or a long press on touch, shows the exact local time. When the
+  server does not report one of them, the row shows the other alone; when it
+  reports neither, the row shows only the name.
+- A workspace folder shows, under its name, how many files lie below it and
+  when the newest of them changed, as `6 files · 2d ago`.
+- An upload in progress shows `Uploading` and the file's size under its
+  name, so its row keeps its height when the upload lands on a server that
+  reports times or sizes.
+
+### Changed
+
+- A file row's action buttons take taps across the row's full height.
+- A time a minute or more ahead of the device's clock, as clock skew gives,
+  shows its date rather than "Just now", in file lists, thread tiles and
+  room cards alike.
+- **Library consumers:** a negative `size_bytes` in a file listing is read
+  as unknown (`sizeBytes` null) and logged as a warning, rather than kept.
+
 ## [0.115.0+102] - 2026-11-05
 
 ### Added

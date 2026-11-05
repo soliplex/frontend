@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
@@ -13,14 +14,22 @@ import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 
 // Every kind of entry the file panel and room info list, side by side: the
 // list reads as one only if they share a height and their icons share
-// columns.
+// columns. Stored files carry a time and a size unless a test says
+// otherwise, so each has the second line folder and pending rows always
+// show.
 
 const _longName = 'quarterly_financial_reports_archive_2026_final_v2.xlsx';
 
-PersistedUpload _stored(String name, {bool isDeleting = false}) =>
+PersistedUpload _stored(
+  String name, {
+  bool isDeleting = false,
+  bool hasDetails = true,
+}) =>
     PersistedUpload(
       filename: name,
       url: Uri.parse('https://example.test/$name'),
+      modifiedAt: hasDetails ? DateTime.utc(2026, 11, 5, 12) : null,
+      sizeBytes: hasDetails ? 2458 : null,
       isDeleting: isDeleting,
     );
 
@@ -49,11 +58,17 @@ Future<void> _pump(WidgetTester tester, List<Widget> rows) async {
   ));
 }
 
-Widget _workspace(List<String> paths) => WorkspaceFilesSection(
+Widget _workspace(List<String> paths, {bool hasDetails = true}) =>
+    WorkspaceFilesSection(
       sort: FileSort.foldersAToZ,
       status: WorkdirFilesLoaded([
         for (final p in paths)
-          WorkdirFile(filename: p, url: Uri.parse('https://example.test/$p')),
+          WorkdirFile(
+            filename: p,
+            url: Uri.parse('https://example.test/$p'),
+            modifiedAt: hasDetails ? DateTime.utc(2026, 11, 5, 12) : null,
+            sizeBytes: hasDetails ? 2458 : null,
+          ),
       ]),
       onDownload: (_) async => DownloadOutcome.success,
       onFetchBytes: (_) async => Uint8List(0),
@@ -68,7 +83,8 @@ Finder _uploadRow(String name) =>
     find.ancestor(of: find.text(name), matching: find.byType(UploadEntryRow));
 
 Finder _workspaceRow(String name) => find.ancestor(
-      of: find.bySemanticsLabel(name),
+      // The row's label goes on to its time and size.
+      of: find.bySemanticsLabel(RegExp('^${RegExp.escape(name)}')),
       matching: find.byType(WorkdirFileRow),
     );
 
@@ -108,6 +124,33 @@ void main() {
     );
   });
 
+  testWidgets(
+      'from a server without times or sizes, stored files are one line, '
+      'and folders and pending uploads two', (tester) async {
+    // Accepted: such a server predates the fields. A blank second line would
+    // read as missing data, and folders and pending uploads always have
+    // something to say on theirs.
+    await _pump(tester, [
+      _upload(_stored('room.csv', hasDetails: false)),
+      _upload(PendingUpload(
+        id: 'p',
+        filename: 'pending.csv',
+        sentBytes: 1,
+        totalBytes: 2,
+      )),
+      _workspace(['notes.md', 'reports/a.csv'], hasDetails: false),
+    ]);
+
+    final folder = find
+        .ancestor(of: find.text('reports'), matching: find.byType(InkWell))
+        .first;
+    final oneLine = _height(tester, _uploadRow('room.csv'));
+    expect(oneLine, FileRowAction.extent);
+    expect(_height(tester, _workspaceRow('notes.md')), oneLine);
+    expect(_height(tester, _uploadRow('pending.csv')), greaterThan(oneLine));
+    expect(_height(tester, folder), _height(tester, _uploadRow('pending.csv')));
+  });
+
   testWidgets('every failure is as tall as the others', (tester) async {
     await _pump(tester, [
       _upload(FailedUpload(id: 'a', filename: 'a.csv', message: 'Too big')),
@@ -133,8 +176,8 @@ void main() {
         of: find.byTooltip(tooltip),
         matching: find.byType(InkWell),
       ));
-      expect(target, const Size.square(32), reason: tooltip);
-      expect(row.height, target.height, reason: tooltip);
+      expect(target.width, FileRowAction.extent, reason: tooltip);
+      expect(target.height, row.height, reason: tooltip);
     }
   });
 

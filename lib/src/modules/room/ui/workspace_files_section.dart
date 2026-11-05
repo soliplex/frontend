@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../shared/local_time_format.dart';
+import '../../../shared/relative_time.dart';
+
 import '../file_sort.dart';
 import '../workdir_files_status.dart';
 import '../workspace_groups.dart';
@@ -123,6 +126,13 @@ class WorkspaceFilesSection extends StatelessWidget {
       _FolderRow(
         name: group.name,
         count: group.files.length,
+        latestChange: group.files
+            .map((f) => f.modifiedAt)
+            .nonNulls
+            .fold<DateTime?>(
+              null,
+              (latest, t) => latest == null || t.isAfter(latest) ? t : latest,
+            ),
         expanded: expanded,
         onTap: () => onFolderToggled(group.name, expanded: !expanded),
       ),
@@ -176,18 +186,25 @@ class WorkspaceFilesSection extends StatelessWidget {
       ];
 }
 
-/// A first-level workspace folder: its name and file count. Tapping it opens
-/// or closes the folder's files.
+/// A first-level workspace folder: its name, and under it the count of the
+/// files below it at any depth and when the newest of them changed. Tapping
+/// it opens or closes the folder's files.
 class _FolderRow extends StatelessWidget {
   const _FolderRow({
     required this.name,
     required this.count,
+    required this.latestChange,
     required this.expanded,
     required this.onTap,
   });
 
   final String name;
   final int count;
+
+  /// When the most recently modified file below the folder changed; null
+  /// when none has a time.
+  final DateTime? latestChange;
+
   final bool expanded;
   final VoidCallback onTap;
 
@@ -196,13 +213,23 @@ class _FolderRow extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final countLabel = '$count ${count == 1 ? 'file' : 'files'}';
+    final latestChange = this.latestChange;
+    final details = latestChange == null
+        ? DetailsLine(text: countLabel, spoken: countLabel)
+        : DetailsLine(
+            text: '$countLabel · ${formatRelativeTime(latestChange)}',
+            spoken: '$countLabel, latest change '
+                '${spokenRelativeTime(latestChange)}',
+            tooltip: 'Latest change inside: '
+                '${formatDateAndTime(latestChange.toLocal())}',
+          );
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(context.radii.sm),
       child: Semantics(
         button: true,
         expanded: expanded,
-        label: '$name, $countLabel',
+        label: '$name, ${details.spoken}',
         child: ExcludeSemantics(
           child: FileListRow(
             leading: Row(
@@ -222,31 +249,17 @@ class _FolderRow extends StatelessWidget {
                 ),
               ],
             ),
-            // The name gives way first; the muted count stays whole. It
-            // follows the name rather than sitting at the row's end, where
-            // it would line up with the file rows' action icons and read as
-            // an action.
-            content: Row(
-              children: [
-                Flexible(
-                  child: FullNameTooltip(
-                    name: name,
-                    child: Text(
-                      name,
-                      style: theme.textTheme.bodySmall,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: SoliplexSpacing.s2),
-                Text(
-                  countLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                ),
-              ],
+            content: FullNameTooltip(
+              name: name,
+              child: Text(
+                name,
+                style: theme.textTheme.bodySmall,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
+            details: details,
           ),
         ),
       ),

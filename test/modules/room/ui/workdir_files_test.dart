@@ -131,6 +131,29 @@ void main() {
   // next, masking real failures.
   setUp(() => PaintingBinding.instance.imageCache.clear());
 
+  testWidgets('a file row shows its time and size', (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([
+        WorkdirFile(
+          filename: 'notes.txt',
+          url: Uri.parse('https://example.test/notes.txt'),
+          modifiedAt:
+              DateTime.now().subtract(const Duration(hours: 3, minutes: 1)),
+          sizeBytes: 2458,
+        ),
+      ]),
+      onRetry: () {},
+      onDownload: (_) async => DownloadOutcome.success,
+      onFetchBytes: (_) async => Uint8List(0),
+    )));
+
+    expect(find.text('3h ago · 2.4 KB'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('notes.txt\nmodified 3 hours ago, 2.4 kilobytes'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets("a tooling file's name is muted", (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
       // A root `.git` file is a worktree's pointer: a tooling path that
