@@ -29,6 +29,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   room cards alike.
 - **Library consumers:** a negative `size_bytes` in a file listing is read
   as unknown (`sizeBytes` null) and logged as a warning, rather than kept.
+- The files panel's sort bar stays at the top of the panel while the lists
+  under it scroll.
+- A workspace folder's icon lines up with the icons of the files at its level.
+  Its open-and-close chevron moved to the right of the row, in line with the
+  download buttons, pointing down while closed and up while open.
 
 ### Fixed
 

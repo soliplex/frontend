@@ -28,6 +28,7 @@ import 'package:soliplex_frontend/src/stores/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/stores/thread_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
@@ -5897,6 +5898,58 @@ void main() {
 
       await tapSegment(tester, 'Name');
       expect(rowsInOrder(tester, names), ['z.pdf', 'b.pdf', 'a.pdf']);
+    });
+
+    testWidgets('the sort bar stays in view while the lists scroll',
+        (tester) async {
+      api.nextRoomUploads = [
+        for (var i = 0; i < 40; i++) upload('f${'$i'.padLeft(2, '0')}.pdf'),
+      ];
+      await openPanel(tester);
+      final barTop = tester.getTopLeft(find.text('Name')).dy;
+      final firstRowTop = tester.getTopLeft(find.text('f00.pdf')).dy;
+
+      await tester.drag(find.text('f00.pdf'), const Offset(0, -2000));
+      await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(find.text('f00.pdf')).dy, lessThan(firstRowTop));
+      expect(tester.getTopLeft(find.text('Name')).dy, barTop);
+    });
+
+    testWidgets(
+        'uploads, workspace files and workspace folders share an icon column',
+        (tester) async {
+      api
+        ..nextThreadUploads = [upload('up.pdf')]
+        ..nextWorkdirFiles = [
+          WorkdirFile(
+            filename: 'notes.txt',
+            url: Uri.parse('https://example.com/notes.txt'),
+          ),
+          WorkdirFile(
+            filename: 'reports/a.csv',
+            url: Uri.parse('https://example.com/reports/a.csv'),
+          ),
+        ];
+      await openPanel(tester, threadId: 'thread-1');
+      double iconLeft(Finder name) => tester
+          .getTopLeft(find
+              .descendant(
+                of: find.ancestor(
+                  of: name,
+                  matching: find.byType(FileListRow),
+                ),
+                matching: find.byType(Icon),
+              )
+              .first)
+          .dx;
+      final uploadIconLeft = iconLeft(find.text('up.pdf'));
+
+      expect(iconLeft(findFileName('notes.txt')), uploadIconLeft);
+      expect(
+        tester.getTopLeft(find.byIcon(Icons.folder_open_outlined)).dx,
+        uploadIconLeft,
+      );
     });
 
     testWidgets('a stored Modified with no dated entry renders Name A to Z',

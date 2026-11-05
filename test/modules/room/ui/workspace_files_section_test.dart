@@ -8,6 +8,7 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
@@ -194,9 +195,10 @@ void main() {
     });
 
     testWidgets('a folder says its count under its name', (tester) async {
-      // Not in the trailing column, which holds only the file rows' actions:
-      // a number there sits out of line with their icons and reads as an
-      // action. Under the name, as a file row's time and size are.
+      // Not in the trailing column, which holds the rows' actions and a
+      // folder's chevron: a number there sits out of line with their icons
+      // and reads as an action. Under the name, as a file row's time and
+      // size are.
       await tester.pumpWidget(_grouped(['reports/a.csv', 'reports/b.csv']));
 
       final name = tester.getRect(find.text('reports'));
@@ -314,6 +316,58 @@ void main() {
 
       expect(icon(Icons.folder_outlined), findsOneWidget);
       expect(icon(Icons.folder_open_outlined), findsNothing);
+    });
+
+    testWidgets("a folder's chevron sits in the files' download column",
+        (tester) async {
+      await tester.pumpWidget(_grouped(['notes.txt', 'reports/a.csv']));
+      final download = find
+          .descendant(
+            of: find.ancestor(
+              of: findFileName('notes.txt'),
+              matching: find.byType(FileListRow),
+            ),
+            matching: find.byType(FileRowAction),
+          )
+          .last;
+
+      expect(
+        tester.getCenter(find.byIcon(Icons.expand_less)).dx,
+        tester.getCenter(download).dx,
+      );
+    });
+
+    testWidgets("a folder's chevron points up while open, down while shut",
+        (tester) async {
+      await tester.pumpWidget(_grouped(['reports/a.csv']));
+      Finder icon(IconData data) =>
+          find.descendant(of: folder('reports'), matching: find.byIcon(data));
+      expect(icon(Icons.expand_less), findsOneWidget);
+
+      await tester.tap(folder('reports'));
+      await tester.pump();
+
+      expect(icon(Icons.expand_more), findsOneWidget);
+      expect(icon(Icons.expand_less), findsNothing);
+    });
+
+    testWidgets("a folder's icon lines up with the root files' icons",
+        (tester) async {
+      await tester.pumpWidget(_grouped(['notes.txt', 'reports/a.csv']));
+      final fileIcon = find
+          .descendant(
+            of: find.ancestor(
+              of: findFileName('notes.txt'),
+              matching: find.byType(FileListRow),
+            ),
+            matching: find.byType(Icon),
+          )
+          .first;
+
+      expect(
+        tester.getTopLeft(find.byIcon(Icons.folder_open_outlined)).dx,
+        tester.getTopLeft(fileIcon).dx,
+      );
     });
 
     testWidgets('.git and __pycache__ start closed', (tester) async {
