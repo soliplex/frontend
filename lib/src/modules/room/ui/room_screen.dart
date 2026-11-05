@@ -2401,43 +2401,54 @@ class _RoomScreenState extends State<RoomScreen> {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.4,
           ),
-          // Right padding reserves space for the overlay scrollbar so
-          // it doesn't sit on top of the file rows' trailing actions.
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(right: SoliplexSpacing.s3),
-            // The rows draw their tints and their actions' highlights on
-            // the nearest Material. This one sits above the panel's
-            // background, and scrolls and clips with the rows.
-            child: Material(
-              type: MaterialType.transparency,
-              // One area over the panel lets a reader select a failed
-              // upload's reason or a section's load error; file names opt
-              // out of it (see FullNameTooltip). Sitting above the rows' own
-              // handlers leaves their taps intact.
-              child: SelectableContent(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FileSortBar(
-                      sort: sort,
-                      hasTimes: hasTimes,
-                      hasSizes: hasSizes,
-                      // A failed save is logged by the preference, and the
-                      // choice still applies for the session.
-                      onTap: (key) =>
-                          unawaited(widget.fileSort.setSort(sort.tap(key))),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Above the scrolling lists, so it stays in view as they
+              // scroll: it orders all of them.
+              FileSortBar(
+                sort: sort,
+                hasTimes: hasTimes,
+                hasSizes: hasSizes,
+                // A failed save is logged by the preference, and the
+                // choice still applies for the session.
+                onTap: (key) =>
+                    unawaited(widget.fileSort.setSort(sort.tap(key))),
+              ),
+              const SizedBox(height: SoliplexSpacing.s2),
+              Flexible(
+                // Right padding reserves space for the overlay scrollbar so
+                // it doesn't sit on top of the file rows' trailing actions.
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(right: SoliplexSpacing.s3),
+                  // The rows draw their tints and their actions' highlights
+                  // on the nearest Material. This one sits above the panel's
+                  // background, and scrolls and clips with the rows.
+                  child: Material(
+                    type: MaterialType.transparency,
+                    // One area over the lists lets a reader select a failed
+                    // upload's reason or a section's load error; file names
+                    // opt out of it (see FullNameTooltip). Sitting above the
+                    // rows' own handlers leaves their taps intact.
+                    child: SelectableContent(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // A divider sits between each pair of visible
+                          // sections.
+                          for (var i = 0; i < sections.length; i++) ...[
+                            if (i > 0) const Divider(height: 12),
+                            sections[i],
+                          ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: SoliplexSpacing.s2),
-                    // A divider sits between each pair of visible sections.
-                    for (var i = 0; i < sections.length; i++) ...[
-                      if (i > 0) const Divider(height: 12),
-                      sections[i],
-                    ],
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),

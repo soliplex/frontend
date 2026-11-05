@@ -189,6 +189,9 @@ class WorkspaceFilesSection extends StatelessWidget {
 /// A first-level workspace folder: its name, and under it the count of the
 /// files below it at any depth and when the newest of them changed. Tapping
 /// it opens or closes the folder's files.
+///
+/// Its icon lines up with the icons of the files at its level, and its
+/// chevron sits in their download buttons' column.
 class _FolderRow extends StatelessWidget {
   const _FolderRow({
     required this.name,
@@ -232,22 +235,10 @@ class _FolderRow extends StatelessWidget {
         label: '$name, ${details.spoken}',
         child: ExcludeSemantics(
           child: FileListRow(
-            leading: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  expanded ? Icons.expand_more : Icons.chevron_right,
-                  size: 16,
-                  color: muted,
-                ),
-                // With no gap, the folder icon lines up with the icons of
-                // its files, which indent by s4.
-                Icon(
-                  expanded ? Icons.folder_open_outlined : Icons.folder_outlined,
-                  size: 16,
-                  color: muted,
-                ),
-              ],
+            leading: Icon(
+              expanded ? Icons.folder_open_outlined : Icons.folder_outlined,
+              size: 16,
+              color: muted,
             ),
             content: FullNameTooltip(
               name: name,
@@ -263,6 +254,17 @@ class _FolderRow extends StatelessWidget {
               ),
             ),
             details: details,
+            // Not a FileRowAction: the whole row is the one button.
+            actions: [
+              SizedBox(
+                width: FileRowAction.extent,
+                child: Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 16,
+                  color: muted,
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -34,8 +34,9 @@ class FileListRow extends StatelessWidget {
   final Widget leading;
   final Widget content;
 
-  /// [FileRowAction]s, or a [FileRowActionProgress] in one's place: each
-  /// [FileRowAction.extent] wide.
+  /// [FileRowAction]s, a [FileRowActionProgress] in one's place, or an
+  /// indicator such as a folder's chevron: each must be [FileRowAction.extent]
+  /// wide, the width the row reserves per action.
   final List<Widget> actions;
 
   final bool isFailed;
