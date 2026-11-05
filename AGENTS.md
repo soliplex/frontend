@@ -141,6 +141,12 @@ cache-busted web build (the `Dockerfile`'s `web` target) to GHCR as
 release tag like `v0.109.0+95` becomes the image tags `0.109.0`,
 `0.109.0-95`, `0.109`, and `latest`.
 
+## Issues, PRs and Milestones
+
+Before starting on an issue, and when opening an issue or PR, follow
+`.claude/skills/project-management/SKILL.md`: it says whose items you may
+change, how to triage, and what goes into a release milestone.
+
 ## Pre-commit Hooks
 
 Configured via `.pre-commit-config.yaml`:
