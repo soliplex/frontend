@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
@@ -44,6 +45,7 @@ Future<void> _pump(WidgetTester tester) => tester.pumpWidget(MaterialApp(
                 onDismiss: (_) {},
               ),
               WorkspaceFilesSection(
+                sort: FileSort.foldersAToZ,
                 status: WorkdirFilesLoaded([
                   WorkdirFile(
                     filename: 'reports/summary.md',

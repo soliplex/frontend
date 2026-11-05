@@ -7,6 +7,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
@@ -45,6 +46,7 @@ void main() {
       documentSelections: DocumentSelections(),
       databaseSelections: DatabaseSelections(),
       appName: 'Soliplex',
+      fileSort: FileSortPreference(),
     );
   });
 
@@ -107,6 +109,7 @@ void main() {
       documentSelections: DocumentSelections(),
       databaseSelections: DatabaseSelections(),
       appName: 'Acme',
+      fileSort: FileSortPreference(),
     );
     addTearDown(forkModule.onDispose);
     // requiresAuth: false makes the entry connected on arrival, which is what

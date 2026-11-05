@@ -1,18 +1,22 @@
 import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
 
+import 'file_sort.dart';
+
 /// Directories that tools, not the agent's task, fill: Git's repository and
 /// CPython's bytecode cache. The names are fixed by those tools.
 const _toolingDirectories = {'.git', '__pycache__'};
 
 /// Splits a workspace listing into its root files and one folder per first
-/// path segment: files in listing order, and folders in the order they first
-/// appear, except that the folders that [startsCollapsed] come last. They
-/// hold no output a reader looks for, so they stay out of the way of the
-/// folders that do.
+/// path segment, in the direction [descending] gives. Files go by name
+/// within their group, with [isToolingPath] files after the rest; folders go
+/// by name, except that the folders that [startsCollapsed] come last, by
+/// name ascending in both directions. They hold no output a reader looks for,
+/// so they stay out of the way of the folders that do.
 ({
   List<WorkdirFile> files,
   List<({String name, List<WorkdirFile> files})> folders,
-}) groupByFirstFolder(List<WorkdirFile> listing) {
+}) groupByFirstFolder(List<WorkdirFile> listing, {required bool descending}) {
+  final sort = descending ? FileSort.foldersZToA : FileSort.foldersAToZ;
   final files = <WorkdirFile>[];
   final folders = <String, List<WorkdirFile>>{};
   for (final file in listing) {
@@ -22,14 +26,44 @@ const _toolingDirectories = {'.git', '__pycache__'};
       files.add(file);
     }
   }
+  final names = sortFiles<String>(
+    folders.keys.where((name) => !startsCollapsed(name)),
+    sort,
+    path: (name) => name,
+    modifiedAt: (_) => null,
+    sizeBytes: (_) => null,
+  );
+  final toolingNames = folders.keys.where(startsCollapsed).toList()..sort();
+  List<WorkdirFile> toolingLast(List<WorkdirFile> group) {
+    final split = flatWorkspace(group, sort);
+    return [...split.files, ...split.tooling];
+  }
+
   return (
-    files: files,
+    files: toolingLast(files),
     folders: [
-      for (final MapEntry(:key, :value) in folders.entries)
-        if (!startsCollapsed(key)) (name: key, files: value),
-      for (final MapEntry(:key, :value) in folders.entries)
-        if (startsCollapsed(key)) (name: key, files: value),
+      for (final name in [...names, ...toolingNames])
+        (name: name, files: toolingLast(folders[name]!)),
     ],
+  );
+}
+
+/// Every file, split into the files outside tooling paths and the files
+/// inside them ([isToolingPath]), each part by [sortFiles].
+({List<WorkdirFile> files, List<WorkdirFile> tooling}) flatWorkspace(
+  List<WorkdirFile> listing,
+  FileSort sort,
+) {
+  List<WorkdirFile> sorted(Iterable<WorkdirFile> files) => sortFiles(
+        files,
+        sort,
+        path: (f) => f.filename,
+        modifiedAt: (f) => f.modifiedAt,
+        sizeBytes: (f) => f.sizeBytes,
+      );
+  return (
+    files: sorted(listing.where((f) => !isToolingPath(f.filename))),
+    tooling: sorted(listing.where((f) => isToolingPath(f.filename))),
   );
 }
 

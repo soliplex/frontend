@@ -7,6 +7,8 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_client/soliplex_client.dart' hide Room, State;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../file_sort.dart';
+import '../file_sort_preference.dart';
 import '../pick_file.dart';
 
 import '../../../core/routes.dart';
@@ -23,6 +25,7 @@ import 'room_info/quizzes_card.dart';
 import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
+import 'file_sort_bar.dart';
 import 'upload_entry_row.dart';
 import '../../../shared/selectable_content.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -37,6 +40,7 @@ class RoomInfoScreen extends StatefulWidget {
     required this.roomId,
     required this.toolRegistryResolver,
     required this.uploadRegistry,
+    required this.fileSort,
     required this.appName,
     this.logo,
   });
@@ -45,6 +49,9 @@ class RoomInfoScreen extends StatefulWidget {
   final String roomId;
   final Future<ToolRegistry> Function(String roomId) toolRegistryResolver;
   final UploadTrackerRegistry uploadRegistry;
+
+  /// The order of the uploads card's list, shared with the files panel.
+  final FileSortPreference fileSort;
   final String appName;
   final Widget? logo;
 
@@ -135,6 +142,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
                     clientToolsFuture: _clientToolsFuture,
                     onRetryDocuments: _retryDocuments,
                     uploadRegistry: widget.uploadRegistry,
+                    fileSort: widget.fileSort,
                   );
                 },
               ),
@@ -158,6 +166,7 @@ class _RoomInfoBody extends StatelessWidget {
     required this.clientToolsFuture,
     required this.onRetryDocuments,
     required this.uploadRegistry,
+    required this.fileSort,
   });
 
   final Room room;
@@ -170,6 +179,7 @@ class _RoomInfoBody extends StatelessWidget {
   final Future<List<Tool>> clientToolsFuture;
   final VoidCallback onRetryDocuments;
   final UploadTrackerRegistry uploadRegistry;
+  final FileSortPreference fileSort;
 
   @override
   Widget build(BuildContext context) {
@@ -251,6 +261,7 @@ class _RoomInfoBody extends StatelessWidget {
             if (room.acceptsRoomUploads)
               _UploadedFilesCard(
                 uploadRegistry: uploadRegistry,
+                fileSort: fileSort,
                 serverEntry: serverEntry,
                 roomId: roomId,
                 userHasWrite: room.userHasWrite,
@@ -420,12 +431,14 @@ class _AgentCard extends StatelessWidget {
 class _UploadedFilesCard extends StatefulWidget {
   const _UploadedFilesCard({
     required this.uploadRegistry,
+    required this.fileSort,
     required this.serverEntry,
     required this.roomId,
     required this.userHasWrite,
   });
 
   final UploadTrackerRegistry uploadRegistry;
+  final FileSortPreference fileSort;
   final ServerEntry serverEntry;
   final String roomId;
 
@@ -669,7 +682,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     return SectionCard(
       title: title,
       children: [
-        _buildBody(status, theme),
+        _buildBody(status, theme, widget.fileSort.sort.watch(context)),
         // One slot, one occupant per state, so whatever the check withholds
         // leaves something in its place. Never empty: an absent control would
         // read as a refusal the client has not been told.
@@ -780,7 +793,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     );
   }
 
-  Widget _buildBody(UploadsStatus status, ThemeData theme) {
+  Widget _buildBody(UploadsStatus status, ThemeData theme, FileSort stored) {
     return switch (status) {
       UploadsLoading() => const Padding(
           padding: EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
@@ -792,27 +805,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
         ),
       UploadsLoaded(uploads: final list) when list.isEmpty =>
         const EmptyMessage(label: 'uploaded files'),
-      UploadsLoaded(uploads: final list) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: SoliplexSpacing.s2),
-            for (final entry in list)
-              UploadEntryRow(
-                entry: entry,
-                onCancel: _tracker.cancelUpload,
-                onDismiss: _tracker.dismissFailed,
-                // The upload controls' answer: deleting a room upload needs
-                // the same permission as adding one.
-                onDelete: _permission == _UploadPermission.permitted
-                    ? (filename) => unawaited(_tracker.deleteRoomUpload(
-                          roomId: widget.roomId,
-                          filename: filename,
-                        ))
-                    : null,
-              ),
-          ],
-        ),
+      UploadsLoaded(uploads: final list) => _buildList(list, stored),
       UploadsFailed(error: final error) => Padding(
           padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
           child: Text(
@@ -823,5 +816,42 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
           ),
         ),
     };
+  }
+
+  Widget _buildList(List<DisplayUpload> list, FileSort stored) {
+    final persisted = list.whereType<PersistedUpload>();
+    final hasTimes = persisted.any((u) => u.modifiedAt != null);
+    final hasSizes = persisted.any((u) => u.sizeBytes != null);
+    final sort = effectiveSort(stored, hasTimes: hasTimes, hasSizes: hasSizes);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: SoliplexSpacing.s2),
+        FileSortBar(
+          sort: sort,
+          hasTimes: hasTimes,
+          hasSizes: hasSizes,
+          // A failed save is logged by the preference, and the choice
+          // still applies for the session.
+          onTap: (key) => unawaited(widget.fileSort.setSort(sort.tap(key))),
+        ),
+        const SizedBox(height: SoliplexSpacing.s2),
+        for (final entry in orderUploads(list, sort))
+          UploadEntryRow(
+            entry: entry,
+            onCancel: _tracker.cancelUpload,
+            onDismiss: _tracker.dismissFailed,
+            // The upload controls' answer: deleting a room upload needs
+            // the same permission as adding one.
+            onDelete: _permission == _UploadPermission.permitted
+                ? (filename) => unawaited(_tracker.deleteRoomUpload(
+                      roomId: widget.roomId,
+                      filename: filename,
+                    ))
+                : null,
+          ),
+      ],
+    );
   }
 }

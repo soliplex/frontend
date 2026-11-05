@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../file_sort.dart';
 import '../workdir_files_status.dart';
 import '../workspace_groups.dart';
 import 'file_list_row.dart';
@@ -28,13 +29,16 @@ class FilePanelSectionLabel extends StatelessWidget {
   }
 }
 
-/// The files panel's list of the thread's sandbox workspace: its root files,
-/// then one row per first-level folder that opens and closes the folder's
-/// files. Renders nothing while loading or when empty.
+/// The files panel's list of the thread's sandbox workspace, in [sort]'s
+/// order. Under folders: its root files, then one row per first-level folder
+/// that opens and closes the folder's files. Under the other keys: every file
+/// as a row of its own, showing its directory, with tooling files last.
+/// Renders nothing while loading or when empty.
 class WorkspaceFilesSection extends StatelessWidget {
   const WorkspaceFilesSection({
     super.key,
     required this.status,
+    required this.sort,
     required this.onDownload,
     required this.onFetchBytes,
     required this.onRetry,
@@ -43,6 +47,7 @@ class WorkspaceFilesSection extends StatelessWidget {
   });
 
   final WorkdirFilesStatus status;
+  final FileSort sort;
   final Future<DownloadOutcome> Function(WorkdirFile file) onDownload;
   final Future<Uint8List> Function(WorkdirFile file) onFetchBytes;
   final VoidCallback onRetry;
@@ -77,16 +82,36 @@ class WorkspaceFilesSection extends StatelessWidget {
   }
 
   Widget _listing(BuildContext context, List<WorkdirFile> listing) {
-    final grouped = groupByFirstFolder(listing);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         const FilePanelSectionLabel('Workspace'),
-        ..._rows(context, grouped.files, folder: null),
-        for (final group in grouped.folders) ..._folder(context, group),
+        if (sort.key == FileSortKey.folders)
+          ..._grouped(context, listing)
+        else
+          ..._flat(context, listing),
       ],
     );
+  }
+
+  List<Widget> _grouped(BuildContext context, List<WorkdirFile> listing) {
+    final grouped = groupByFirstFolder(listing, descending: sort.descending);
+    return [
+      ..._rows(context, grouped.files, directoryOf: (_) => null),
+      for (final group in grouped.folders) ..._folder(context, group),
+    ];
+  }
+
+  /// The real files, then the tooling files, each part paging its own
+  /// previews, so paging from the last real file does not walk into tooling
+  /// output.
+  List<Widget> _flat(BuildContext context, List<WorkdirFile> listing) {
+    final flat = flatWorkspace(listing, sort);
+    return [
+      ..._rows(context, flat.files, directoryOf: (f) => f.directory),
+      ..._rows(context, flat.tooling, directoryOf: (f) => f.directory),
+    ];
   }
 
   List<Widget> _folder(
@@ -107,18 +132,22 @@ class WorkspaceFilesSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: _rows(context, group.files, folder: group.name),
+            children: _rows(
+              context,
+              group.files,
+              directoryOf: (f) => directoryWithin(f, group.name),
+            ),
           ),
         ),
     ];
   }
 
-  /// Rows for one group of files: the root files, or one folder's. The
-  /// preview a row opens pages through that group only.
+  /// Rows for one group of files, each showing [directoryOf] it after its
+  /// name. The preview a row opens pages through that group only.
   List<Widget> _rows(
     BuildContext context,
     List<WorkdirFile> files, {
-    required String? folder,
+    required String? Function(WorkdirFile file) directoryOf,
   }) =>
       [
         for (var i = 0; i < files.length; i++)
@@ -131,8 +160,7 @@ class WorkspaceFilesSection extends StatelessWidget {
             // those are part of its equality.
             key: ValueKey(files[i]),
             file: files[i],
-            directory:
-                folder == null ? null : directoryWithin(files[i], folder),
+            directory: directoryOf(files[i]),
             onTap: () => onDownload(files[i]),
             onOpenPreview: () => WorkdirPreviewPage.show(
               context: context,

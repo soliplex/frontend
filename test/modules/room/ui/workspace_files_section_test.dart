@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
@@ -14,6 +15,26 @@ import '../../../helpers/file_name_finder.dart';
 
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
+
+Widget _host(Widget section) => MaterialApp(
+      theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
+      home: Scaffold(body: SingleChildScrollView(child: section)),
+    );
+
+WorkspaceFilesSection _sorted(
+  List<String> paths,
+  FileSort sort, {
+  Map<String, bool> toggles = const {},
+}) =>
+    WorkspaceFilesSection(
+      status: WorkdirFilesLoaded([for (final p in paths) _file(p)]),
+      sort: sort,
+      onDownload: (_) async => DownloadOutcome.success,
+      onFetchBytes: (_) async => Uint8List.fromList([104, 105]),
+      onRetry: () {},
+      folderToggles: toggles,
+      onFolderToggled: (_, {required expanded}) {},
+    );
 
 Widget _section(
   WorkdirFilesStatus status, {
@@ -24,6 +45,7 @@ Widget _section(
       home: Scaffold(
         body: WorkspaceFilesSection(
           status: status,
+          sort: FileSort.foldersAToZ,
           onDownload: onDownload ?? (_) async => DownloadOutcome.success,
           onFetchBytes: (_) async => Uint8List(0),
           onRetry: () {},
@@ -47,6 +69,7 @@ Widget _grouped(
         child: StatefulBuilder(
           builder: (context, setState) => WorkspaceFilesSection(
             status: WorkdirFilesLoaded([for (final p in paths) _file(p)]),
+            sort: FileSort.foldersAToZ,
             onDownload: (_) async => DownloadOutcome.success,
             onFetchBytes: (_) async => Uint8List.fromList([104, 105]),
             onRetry: () {},
@@ -279,6 +302,65 @@ void main() {
     testWidgets('the preview pages through the root files only',
         (tester) async {
       await tester.pumpWidget(_grouped(['a.txt', 'b.txt', 'reports/c.txt']));
+
+      await tester.tap(findFileName('b.txt'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 / 2'), findsOneWidget);
+    });
+  });
+
+  group('flat options', () {
+    const listing = [
+      'src-b/another/dir/file-b',
+      '.git/HEAD',
+      'a.txt',
+      'src-a/main.py',
+    ];
+
+    testWidgets(
+        'a flat option lists every file with its directory and tooling last',
+        (tester) async {
+      await tester.pumpWidget(_host(_sorted(listing, FileSort.nameAToZ)));
+
+      // No folder rows: every file is its own row, `.git` included.
+      expect(find.textContaining('files'), findsNothing);
+      expect(find.text('src-b/another/dir/'), findsOneWidget);
+      final head = tester.getTopLeft(findFileName('HEAD')).dy;
+      for (final real in ['a.txt', 'file-b', 'main.py']) {
+        expect(tester.getTopLeft(findFileName(real)).dy, lessThan(head),
+            reason: '$real comes before tooling');
+      }
+      expect(
+        tester.getTopLeft(findFileName('a.txt')).dy,
+        lessThan(tester.getTopLeft(findFileName('file-b')).dy),
+      );
+    });
+
+    testWidgets('a folder closed in Folders is closed after Name and back',
+        (tester) async {
+      const paths = ['src-b/file', 'a.txt'];
+      const closed = {'src-b': false};
+
+      await tester.pumpWidget(
+          _host(_sorted(paths, FileSort.foldersAToZ, toggles: closed)));
+      expect(findFileName('file'), findsNothing);
+
+      await tester.pumpWidget(
+          _host(_sorted(paths, FileSort.nameAToZ, toggles: closed)));
+      expect(findFileName('file'), findsOneWidget);
+
+      await tester.pumpWidget(
+          _host(_sorted(paths, FileSort.foldersAToZ, toggles: closed)));
+      expect(findFileName('file'), findsNothing);
+    });
+
+    testWidgets('preview from a flat list pages through the real files only',
+        (tester) async {
+      await tester.pumpWidget(_host(_sorted(
+        ['a.txt', 'b.txt', '__pycache__/notes.txt'],
+        FileSort.nameAToZ,
+      )));
 
       await tester.tap(findFileName('b.txt'));
       await tester.pumpAndSettle();

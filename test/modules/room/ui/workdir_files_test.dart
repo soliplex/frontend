@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
@@ -113,6 +114,7 @@ WorkspaceFilesSection _workspace({
 }) =>
     WorkspaceFilesSection(
       status: status,
+      sort: FileSort.foldersAToZ,
       onRetry: onRetry,
       onDownload: onDownload,
       onFetchBytes: onFetchBytes,
@@ -128,6 +130,26 @@ void main() {
   // entry from one test will resurface as a "Codec failed" error in the
   // next, masking real failures.
   setUp(() => PaintingBinding.instance.imageCache.clear());
+
+  testWidgets("a tooling file's name is muted", (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      // A root `.git` file is a worktree's pointer: a tooling path that
+      // shows as a row of its own.
+      status: WorkdirFilesLoaded([_file('.git'), _file('notes.txt')]),
+      onRetry: () {},
+      onDownload: (_) async => DownloadOutcome.success,
+      onFetchBytes: (_) async => Uint8List(0),
+    )));
+    final muted = Theme.of(tester.element(findFileName('notes.txt')))
+        .colorScheme
+        .onSurfaceVariant;
+
+    expect(tester.widget<FileName>(findFileName('.git')).style?.color, muted);
+    expect(
+      tester.widget<FileName>(findFileName('notes.txt')).style?.color,
+      isNot(muted),
+    );
+  });
 
   testWidgets('renders each filename', (tester) async {
     await tester.pumpWidget(_wrap(_workspace(

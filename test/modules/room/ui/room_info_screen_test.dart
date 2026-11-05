@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/shared/selectable_content.dart';
+import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
+import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 
@@ -48,6 +51,7 @@ Widget _buildScreen({
   Room? room,
   FakeSoliplexApi? api,
   Future<ToolRegistry> Function(String)? toolRegistryResolver,
+  FileSortPreference? fileSort,
 }) {
   final fakeApi = api ?? FakeSoliplexApi();
   fakeApi.nextRoom ??= room ?? _testRoom;
@@ -62,6 +66,7 @@ Widget _buildScreen({
       toolRegistryResolver:
           toolRegistryResolver ?? (_) async => const ToolRegistry(),
       uploadRegistry: uploadRegistry,
+      fileSort: fileSort ?? FileSortPreference(),
       appName: 'Soliplex',
     ),
   );
@@ -93,6 +98,7 @@ Widget _buildScreen({
         toolRegistryResolver:
             toolRegistryResolver ?? (_) async => const ToolRegistry(),
         uploadRegistry: registry,
+        fileSort: FileSortPreference(),
         appName: 'Soliplex',
       ),
     ),
@@ -952,6 +958,85 @@ void main() {
       );
       expect(find.text('Failed to load documents'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
+    });
+  });
+
+  group('uploaded files order', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    FileUpload upload(String name, {DateTime? modifiedAt, int? sizeBytes}) =>
+        FileUpload(
+          filename: name,
+          url: Uri.parse('https://example.com/$name'),
+          modifiedAt: modifiedAt,
+          sizeBytes: sizeBytes,
+        );
+
+    Future<void> pumpCard(
+      WidgetTester tester,
+      FakeSoliplexApi api,
+      FileSortPreference fileSort,
+    ) async {
+      await tester.pumpWidget(_buildScreen(api: api, fileSort: fileSort));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Folders'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+    }
+
+    List<String> rowsInOrder(WidgetTester tester, List<String> names) =>
+        [...names]..sort((a, b) => tester
+            .getTopLeft(find.text(a))
+            .dy
+            .compareTo(tester.getTopLeft(find.text(b)).dy));
+
+    testWidgets('a stored Size with no sized upload renders Name A to Z',
+        (tester) async {
+      final fileSort = FileSortPreference();
+      await fileSort.setSort(FileSort.largestFirst);
+      final api = FakeSoliplexApi()
+        ..nextRoomUploads = [upload('b.pdf'), upload('a.pdf')];
+
+      await pumpCard(tester, api, fileSort);
+
+      expect(rowsInOrder(tester, ['a.pdf', 'b.pdf']), ['a.pdf', 'b.pdf']);
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('Name, A to Z'))
+            .getSemanticsData()
+            .flagsCollection
+            .isSelected
+            .toBoolOrNull(),
+        isTrue,
+      );
+      expect(
+        find.bySemanticsLabel('None of these files has a size'),
+        findsOneWidget,
+      );
+      expect(fileSort.sort.value, FileSort.largestFirst);
+    });
+
+    testWidgets('the uploads card bar edits the same choice as the files panel',
+        (tester) async {
+      final fileSort = FileSortPreference();
+      final api = FakeSoliplexApi()
+        ..nextRoomUploads = [
+          upload('old.pdf', modifiedAt: DateTime.utc(2026, 1, 1)),
+          upload('new.pdf', modifiedAt: DateTime.utc(2026, 1, 3)),
+          upload('mid.pdf', modifiedAt: DateTime.utc(2026, 1, 2)),
+        ];
+
+      await pumpCard(tester, api, fileSort);
+      await tester.tap(find.text('Modified'));
+      await tester.pumpAndSettle();
+
+      expect(fileSort.sort.value, FileSort.newestFirst);
+      expect(
+        rowsInOrder(tester, ['old.pdf', 'new.pdf', 'mid.pdf']),
+        ['new.pdf', 'mid.pdf', 'old.pdf'],
+      );
     });
   });
 
