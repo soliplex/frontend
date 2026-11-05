@@ -29,6 +29,7 @@ import '../modules/preferences/preferences_module.dart';
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/execution_tracker_extension.dart';
+import '../modules/room/file_sort_preference.dart';
 import '../modules/room/human_approval_extension.dart';
 import '../modules/room/room_module.dart';
 import '../stores/stores_module.dart';
@@ -127,6 +128,8 @@ Future<StandardKit> buildStandardKit({
 
   final bandwidthPreference = BandwidthPreference();
   await bandwidthPreference.load();
+  final fileSort = FileSortPreference();
+  await fileSort.load();
 
   final runtimeManager = AgentRuntimeManager(
     platform: kIsWeb
@@ -194,6 +197,7 @@ Future<StandardKit> buildStandardKit({
         documentSelections: stores.documentSelections,
         databaseSelections: stores.databaseSelections,
         appName: identity.appName,
+        fileSort: fileSort,
         logo: brandLogo,
         enableDocumentFilter: enableDocumentFilter,
       ),

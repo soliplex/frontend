@@ -47,6 +47,8 @@ import '../../../stores/database_selections.dart';
 import '../document_filter_hydration.dart';
 import '../rag_state_overlay.dart';
 import '../../../stores/document_selections.dart';
+import '../file_sort.dart';
+import '../file_sort_preference.dart';
 import '../pick_file.dart';
 import '../agent_runtime_manager.dart';
 import '../room_state.dart';
@@ -75,6 +77,7 @@ import 'thread_state_warning_banner.dart';
 import 'upload_entry_row.dart';
 import 'upload_event_banner.dart';
 import 'workspace_event_banner.dart';
+import 'file_sort_bar.dart';
 import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
@@ -194,6 +197,7 @@ class RoomScreen extends StatefulWidget {
     required this.runtimeManager,
     required this.registry,
     required this.uploadRegistry,
+    required this.fileSort,
     this.enableDocumentFilter = false,
     required this.documentSelections,
     this.databaseSelections,
@@ -211,6 +215,9 @@ class RoomScreen extends StatefulWidget {
   final AgentRuntimeManager runtimeManager;
   final RunRegistry registry;
   final UploadTrackerRegistry uploadRegistry;
+
+  /// The order of the files panel's lists, shared with the room info screen.
+  final FileSortPreference fileSort;
   final bool enableDocumentFilter;
   final DocumentSelections documentSelections;
 
@@ -2288,11 +2295,49 @@ class _RoomScreenState extends State<RoomScreen> {
     WorkdirFilesStatus workspaceStatus,
     String? threadId,
   ) {
+    // Only the panel reads the choice, so a tap on the bar rebuilds it alone.
+    return Watch(
+      (context) => _buildFilePanelContent(
+        context,
+        room,
+        roomStatus,
+        threadStatus,
+        workspaceStatus,
+        threadId,
+      ),
+    );
+  }
+
+  Widget _buildFilePanelContent(
+    BuildContext context,
+    Room? room,
+    UploadsStatus roomStatus,
+    UploadsStatus threadStatus,
+    WorkdirFilesStatus workspaceStatus,
+    String? threadId,
+  ) {
     final theme = Theme.of(context);
     // Read now, not when a delete is confirmed: the screen can move to
     // another room while the confirmation is open.
     final roomId = widget.roomId;
     final tracker = _state.uploadTracker;
+    final persisted = [
+      for (final status in [roomStatus, threadStatus])
+        if (status is UploadsLoaded)
+          ...status.uploads.whereType<PersistedUpload>(),
+    ];
+    final workspace = workspaceStatus is WorkdirFilesLoaded
+        ? workspaceStatus.files
+        : const <WorkdirFile>[];
+    final hasTimes = persisted.any((u) => u.modifiedAt != null) ||
+        workspace.any((f) => f.modifiedAt != null);
+    final hasSizes = persisted.any((u) => u.sizeBytes != null) ||
+        workspace.any((f) => f.sizeBytes != null);
+    final sort = effectiveSort(
+      widget.fileSort.sort.watch(context),
+      hasTimes: hasTimes,
+      hasSizes: hasSizes,
+    );
     // A section is visible when its status renders a row: an upload scope
     // while Loading or Failed or with at least one file, the workspace list
     // when Failed or with at least one file.
@@ -2302,6 +2347,7 @@ class _RoomScreenState extends State<RoomScreen> {
           'Room',
           roomStatus,
           theme,
+          sort,
           onDelete: (room?.acceptsRoomUploads ?? false) &&
                   _state.mayWriteRoom.watch(context)
               ? (filename) => unawaited(
@@ -2310,13 +2356,20 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
       // SoliplexApi has no delete for a thread's uploads.
       if (_scopeRendersContent(threadStatus))
-        _buildScopeSection('Thread', threadStatus, theme, onDelete: null),
+        _buildScopeSection(
+          'Thread',
+          threadStatus,
+          theme,
+          sort,
+          onDelete: null,
+        ),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))
         // Only the section reads the toggles, so a folder tap rebuilds it
         // alone rather than the whole room.
         Watch(
           (context) => WorkspaceFilesSection(
             status: workspaceStatus,
+            sort: sort,
             onDownload: (file) => _workdirs.downloadFile(threadId, file),
             onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
             onRetry: () {
@@ -2366,6 +2419,16 @@ class _RoomScreenState extends State<RoomScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    FileSortBar(
+                      sort: sort,
+                      hasTimes: hasTimes,
+                      hasSizes: hasSizes,
+                      // A failed save is logged by the preference, and the
+                      // choice still applies for the session.
+                      onTap: (key) =>
+                          unawaited(widget.fileSort.setSort(sort.tap(key))),
+                    ),
+                    const SizedBox(height: SoliplexSpacing.s2),
                     // A divider sits between each pair of visible sections.
                     for (var i = 0; i < sections.length; i++) ...[
                       if (i > 0) const Divider(height: 12),
@@ -2384,7 +2447,8 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _buildScopeSection(
     String label,
     UploadsStatus status,
-    ThemeData theme, {
+    ThemeData theme,
+    FileSort sort, {
     required void Function(String filename)? onDelete,
   }) {
     return switch (status) {
@@ -2405,7 +2469,7 @@ class _RoomScreenState extends State<RoomScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             FilePanelSectionLabel(label),
-            for (final entry in list)
+            for (final entry in orderUploads(list, sort))
               UploadEntryRow(
                 entry: entry,
                 onCancel: _state.uploadTracker.cancelUpload,

@@ -8,6 +8,22 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Every file list (the files panel's room uploads, thread uploads and
+  workspace, and the room info screen's uploaded files) can be shown by
+  Name, Modified, Size or Folders, from a bar at the top of the list.
+  Tapping the active option reverses it. The choice applies to every list
+  and is remembered across launches; Folders, A to Z is the default.
+- Under Name, Modified and Size the workspace lists every file as a row of
+  its own, showing its folder.
+- Tooling output (`.git`, `__pycache__`) sorts after the other files in
+  every option and direction, and its names are muted.
+- Uploads still in progress or failed are listed first, ahead of the stored
+  files, whatever the order.
+- Modified and Size are disabled, and the list is shown by name, where no
+  file has a time or a size, as with a server that does not report them.
+
 ### Changed
 
 - An answer names the sources it cites by the numbers on their badges in its
@@ -23,6 +39,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   button copies an answer's text as written, chunk ids included, since the
   numbers name badges only beside the answer; text selected in the answer
   copies as it shows, numbers included.
+- Inside a workspace folder, files sort by file name, ignoring case, rather
+  than by full path, so files from different subfolders interleave. Root
+  files and folders sort by name rather than in the server's order.
 
 ### Fixed
 

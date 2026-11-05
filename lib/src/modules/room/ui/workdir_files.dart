@@ -8,6 +8,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/zoomable_image.dart';
+import '../workspace_groups.dart' show isToolingPath;
 import 'file_list_row.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';
@@ -94,7 +95,12 @@ class WorkdirFileRow extends StatelessWidget {
             content: _NameAndDirectory(
               file: file,
               directory: directory,
-              style: theme.textTheme.bodySmall,
+              // Muted so tooling output reads as apart from the agent's
+              // files; its directory, or its own name, says why.
+              style: isToolingPath(file.filename)
+                  ? theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)
+                  : theme.textTheme.bodySmall,
             ),
             actions: [
               if (canPreview)

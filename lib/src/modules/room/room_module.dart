@@ -7,6 +7,7 @@ import '../auth/server_manager.dart';
 import '../../stores/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
 import 'agent_runtime_manager.dart';
+import 'file_sort_preference.dart';
 import '../../stores/database_selections.dart';
 import '../../stores/document_selections.dart';
 import 'message_expansions.dart';
@@ -27,6 +28,7 @@ class RoomAppModule extends AppModule {
     required this.documentSelections,
     required this.databaseSelections,
     required this.appName,
+    required this.fileSort,
     this.logo,
     this.enableDocumentFilter = false,
   })  : _messageExpansions = MessageExpansions(),
@@ -65,6 +67,9 @@ class RoomAppModule extends AppModule {
   /// The product's own name — the room-info screen's branded header, and the
   /// AI disclaimer under the chat composer.
   final String appName;
+
+  /// The order of every file list, loaded before the module is built.
+  final FileSortPreference fileSort;
   final Widget? logo;
   final bool enableDocumentFilter;
 
@@ -96,6 +101,7 @@ class RoomAppModule extends AppModule {
                   roomId: state.pathParameters['roomId']!,
                   toolRegistryResolver: runtimeManager.toolRegistryResolver,
                   uploadRegistry: _uploadRegistry,
+                  fileSort: fileSort,
                   appName: appName,
                   logo: logo,
                 ),
@@ -126,6 +132,7 @@ class RoomAppModule extends AppModule {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: _uploadRegistry,
+            fileSort: fileSort,
             enableDocumentFilter: enableDocumentFilter,
             documentSelections: documentSelections,
             databaseSelections: databaseSelections,

@@ -33,6 +33,8 @@ import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
 import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
+import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
+import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
@@ -145,6 +147,7 @@ GoRouter _roomModuleRouter({
   required AgentRuntimeManager runtimeManager,
   required RunRegistry registry,
   required UploadTrackerRegistry uploadRegistry,
+  required FileSortPreference fileSort,
   String? threadId,
 }) {
   GoRoute route(String path) => GoRoute(
@@ -158,6 +161,7 @@ GoRouter _roomModuleRouter({
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ),
@@ -178,6 +182,7 @@ Widget _buildRouted({
   required AgentRuntimeManager runtimeManager,
   required RunRegistry registry,
   required UploadTrackerRegistry uploadRegistry,
+  required FileSortPreference fileSort,
   String roomId = 'room-1',
   String? threadId,
 }) {
@@ -196,6 +201,7 @@ Widget _buildRouted({
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
         routes: [
@@ -209,6 +215,7 @@ Widget _buildRouted({
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           ),
@@ -487,6 +494,7 @@ void main() {
   late RunRegistry registry;
   late Signal<Map<String, ServerEntry>> servers;
   late UploadTrackerRegistry uploadRegistry;
+  late FileSortPreference fileSort;
 
   setUp(() {
     api = FakeSoliplexApi();
@@ -515,6 +523,7 @@ void main() {
     registry = RunRegistry(servers: emptyServers());
     servers = Signal({entry.serverId: entry});
     uploadRegistry = UploadTrackerRegistry(servers: servers);
+    fileSort = FileSortPreference();
   });
 
   tearDown(() async {
@@ -539,6 +548,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -567,6 +577,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -593,6 +604,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -999,6 +1011,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         threadId: 'thread-a',
       );
       addTearDown(router.dispose);
@@ -1103,6 +1116,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         threadId: 'thread-a',
       );
       addTearDown(router.dispose);
@@ -1186,6 +1200,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           enableDocumentFilter: true,
           documentSelections: DocumentSelections(),
         ),
@@ -1216,6 +1231,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -1245,6 +1261,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
       );
       addTearDown(router.dispose);
 
@@ -1284,6 +1301,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1319,6 +1337,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -1347,6 +1366,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -1385,6 +1405,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -1424,6 +1445,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -1466,6 +1488,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -1674,6 +1697,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1710,6 +1734,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1756,6 +1781,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1799,6 +1825,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1838,6 +1865,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1864,6 +1892,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1882,6 +1911,7 @@ void main() {
       runtimeManager: runtimeManager,
       registry: registry,
       uploadRegistry: uploadRegistry,
+      fileSort: fileSort,
     ));
     await tester.pumpAndSettle();
 
@@ -1911,6 +1941,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1948,6 +1979,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -1989,6 +2021,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -2048,6 +2081,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -2120,6 +2154,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -2170,6 +2205,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -2213,6 +2249,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           enableDocumentFilter: true,
           documentSelections: DocumentSelections(),
         ),
@@ -2327,6 +2364,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -2377,6 +2415,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -2422,6 +2461,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2468,6 +2508,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         documentSelections: DocumentSelections(),
       ),
     ));
@@ -2512,6 +2553,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2558,6 +2600,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2628,6 +2671,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2698,6 +2742,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           );
@@ -2750,6 +2795,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2787,6 +2833,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2821,6 +2868,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2854,6 +2902,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -2897,6 +2946,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2926,6 +2976,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -2977,6 +3028,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           ),
@@ -2988,6 +3040,49 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
     }
+
+    testWidgets('dated workspace files enable Modified beside undated uploads',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      wideView(tester);
+      api
+        ..nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          acceptsRoomUploads: true,
+        )
+        ..nextRoomUploads = [
+          FileUpload(
+            filename: 'undated.pdf',
+            url: Uri.parse('https://example.com/undated.pdf'),
+          ),
+        ]
+        ..nextWorkdirFiles = [
+          WorkdirFile(
+            filename: 'old.csv',
+            url: Uri.parse('https://example.com/old.csv'),
+            modifiedAt: DateTime.utc(2026, 1, 1),
+          ),
+          WorkdirFile(
+            filename: 'new.csv',
+            url: Uri.parse('https://example.com/new.csv'),
+            modifiedAt: DateTime.utc(2026, 1, 3),
+          ),
+        ];
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.folder));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Modified'));
+      await tester.pumpAndSettle();
+
+      expect(fileSort.sort.value, FileSort.newestFirst);
+      expect(
+        tester.getTopLeft(findFileName('new.csv')).dy,
+        lessThan(tester.getTopLeft(findFileName('old.csv')).dy),
+      );
+    });
 
     testWidgets('lists them under the files button', (tester) async {
       wideView(tester);
@@ -3305,6 +3400,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           enableDocumentFilter: true,
           documentSelections: DocumentSelections(),
         ),
@@ -3361,6 +3457,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               enableDocumentFilter: true,
               documentSelections: DocumentSelections(),
             ),
@@ -3402,6 +3499,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -3473,6 +3571,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -3570,6 +3669,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -3696,6 +3796,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         );
@@ -3721,6 +3822,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           );
@@ -3762,6 +3864,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -3807,6 +3910,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -3856,6 +3960,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           );
@@ -3925,6 +4030,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ),
@@ -3984,6 +4090,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           threadId: 'thread-1',
         ));
         await tester.pumpAndSettle();
@@ -4034,6 +4141,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -4087,6 +4195,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           );
@@ -4154,6 +4263,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           );
@@ -4226,6 +4336,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -4280,6 +4391,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -4349,6 +4461,7 @@ void main() {
         runtimeManager: runtimeManager,
         registry: registry,
         uploadRegistry: uploadRegistry,
+        fileSort: fileSort,
         threadId: 'thread-1',
       ));
       await tester.pumpAndSettle();
@@ -4432,6 +4545,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -4511,6 +4625,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -4573,6 +4688,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           threadId: 'thread-1',
         ));
         await tester.pumpAndSettle();
@@ -4621,6 +4737,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           threadId: 'thread-1',
         ));
         await tester.pumpAndSettle();
@@ -4661,6 +4778,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -4715,6 +4833,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -4767,6 +4886,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           );
@@ -4821,6 +4941,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ));
@@ -4860,6 +4981,7 @@ void main() {
       runtimeManager: runtimeManager,
       registry: registry,
       uploadRegistry: uploadRegistry,
+      fileSort: fileSort,
     ));
     await tester.pumpAndSettle();
 
@@ -4962,6 +5084,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -5069,6 +5192,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -5189,6 +5313,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -5399,6 +5524,7 @@ void main() {
           runtimeManager: runtimeManager,
           registry: registry,
           uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
           documentSelections: DocumentSelections(),
         ),
       ));
@@ -5429,6 +5555,7 @@ void main() {
               runtimeManager: runtimeManager,
               registry: registry,
               uploadRegistry: uploadRegistry,
+              fileSort: fileSort,
               documentSelections: DocumentSelections(),
             ),
           );
@@ -5558,6 +5685,7 @@ void main() {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: uploadRegistry,
+            fileSort: fileSort,
             documentSelections: DocumentSelections(),
           ),
         ),
@@ -5667,6 +5795,131 @@ void main() {
 
       expect(find.text('Tell us why'), findsOneWidget);
       expect(find.text('worth keeping'), findsOneWidget);
+    });
+  });
+
+  group('files panel order', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    FileUpload upload(String name, {DateTime? modifiedAt, int? sizeBytes}) =>
+        FileUpload(
+          filename: name,
+          url: Uri.parse('https://example.com/$name'),
+          modifiedAt: modifiedAt,
+          sizeBytes: sizeBytes,
+        );
+
+    Future<void> openPanel(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        acceptsRoomUploads: true,
+      );
+      api.nextThreads = const [];
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          fileSort: fileSort,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.folder));
+      await tester.pumpAndSettle();
+    }
+
+    List<String> rowsInOrder(WidgetTester tester, List<String> names) =>
+        [...names]..sort((a, b) => tester
+            .getTopLeft(find.text(a))
+            .dy
+            .compareTo(tester.getTopLeft(find.text(b)).dy));
+
+    Future<void> tapSegment(WidgetTester tester, String label) async {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the files panel lists room uploads by name', (tester) async {
+      api.nextRoomUploads = [upload('b.pdf'), upload('a.pdf')];
+
+      await openPanel(tester);
+
+      expect(rowsInOrder(tester, ['a.pdf', 'b.pdf']), ['a.pdf', 'b.pdf']);
+    });
+
+    testWidgets(
+        'tapping Size orders room uploads largest first, again smallest first',
+        (tester) async {
+      api.nextRoomUploads = [
+        upload('small.pdf', sizeBytes: 1),
+        upload('large.pdf', sizeBytes: 3),
+        upload('mid.pdf', sizeBytes: 2),
+      ];
+      const names = ['small.pdf', 'large.pdf', 'mid.pdf'];
+      await openPanel(tester);
+
+      await tapSegment(tester, 'Size');
+      expect(rowsInOrder(tester, names), ['large.pdf', 'mid.pdf', 'small.pdf']);
+      expect(fileSort.sort.value, FileSort.largestFirst);
+
+      await tapSegment(tester, 'Size');
+      expect(rowsInOrder(tester, names), ['small.pdf', 'mid.pdf', 'large.pdf']);
+      expect(fileSort.sort.value, FileSort.smallestFirst);
+    });
+
+    testWidgets('a failed upload stays first when the order reverses',
+        (tester) async {
+      api.nextRoomUploads = [upload('a.pdf'), upload('b.pdf')];
+      await openPanel(tester);
+      uploadRegistry
+          .trackerFor(entry: entry, roomId: 'room-1')
+          .recordClientError(
+            roomId: 'room-1',
+            filename: 'z.pdf',
+            message: 'Could not read the file.',
+          );
+      await tester.pumpAndSettle();
+      const names = ['a.pdf', 'b.pdf', 'z.pdf'];
+
+      await tapSegment(tester, 'Name');
+      expect(rowsInOrder(tester, names), ['z.pdf', 'a.pdf', 'b.pdf']);
+
+      await tapSegment(tester, 'Name');
+      expect(rowsInOrder(tester, names), ['z.pdf', 'b.pdf', 'a.pdf']);
+    });
+
+    testWidgets('a stored Modified with no dated entry renders Name A to Z',
+        (tester) async {
+      await fileSort.setSort(FileSort.newestFirst);
+      api.nextRoomUploads = [upload('b.pdf'), upload('a.pdf')];
+
+      await openPanel(tester);
+
+      expect(rowsInOrder(tester, ['a.pdf', 'b.pdf']), ['a.pdf', 'b.pdf']);
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('Name, A to Z'))
+            .getSemanticsData()
+            .flagsCollection
+            .isSelected
+            .toBoolOrNull(),
+        isTrue,
+      );
+      expect(
+        find.bySemanticsLabel('None of these files has a modified time'),
+        findsOneWidget,
+      );
+      expect(fileSort.sort.value, FileSort.newestFirst);
     });
   });
 }
