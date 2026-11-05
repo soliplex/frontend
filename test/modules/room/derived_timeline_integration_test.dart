@@ -216,6 +216,46 @@ void main() {
       expect(dropped, isEmpty);
     });
 
+    /// Reasons, then opens and ends a message with nothing in it: what a
+    /// response that is about to call a tool produces before the call starts.
+    Future<void> emitEmptyReplyAfterReasoning() async {
+      await emit(RunStartedEvent(threadId: 't', runId: _runId));
+      await emit(const ReasoningMessageStartEvent(messageId: 'reason-1'));
+      await emit(
+        const ReasoningMessageContentEvent(
+          messageId: 'reason-1',
+          delta: 'weighing it',
+        ),
+      );
+      await emit(const TextMessageStartEvent(messageId: 'm1'));
+      await emit(const TextMessageEndEvent(messageId: 'm1'));
+    }
+
+    test('END of an empty reply keeps the run on the loading tile', () async {
+      await start();
+      await emitEmptyReplyAfterReasoning();
+
+      final tiles = render();
+      expect(
+        idsOf(tiles),
+        isNot(contains('m1')),
+        reason: 'a tool call may yet name it; showing it now flashes a tile',
+      );
+      expect(idsOf(tiles).last, equals(loadingMessageId));
+      expect(tiles.last.band, isNotNull);
+      expect(dropped, isEmpty);
+    });
+
+    test('an empty reply no tool call named shows once the run ends', () async {
+      await start();
+      await emitEmptyReplyAfterReasoning();
+      await emit(const RunFinishedEvent(threadId: 't', runId: _runId));
+
+      final tiles = render();
+      expect(idsOf(tiles), contains('m1'));
+      expect(dropped, isEmpty);
+    });
+
     /// The run's failure is reported once, by its own outcome tile, right
     /// after [reply], which keeps the run's band.
     void expectReportedOnceBeside(
