@@ -92,6 +92,22 @@ void main() {
 
     expect(saved, isFalse);
     expect(preference.sort.value, FileSort.largestFirst);
-    expect(errors(), hasLength(1));
+    expect(errors().single.attributes, {'sort': 'largestFirst'});
+  });
+
+  test('a save that throws still applies for the session and logs', () async {
+    final errors = _captureErrors();
+    final preference = FileSortPreference(
+      prefsFactory: () => Future.error(StateError('prefs unavailable')),
+    );
+
+    final saved = await preference.setSort(FileSort.oldestFirst);
+
+    expect(saved, isFalse);
+    expect(preference.sort.value, FileSort.oldestFirst);
+    final record = errors().single;
+    expect(record.attributes, {'sort': 'oldestFirst'});
+    expect(record.error, isA<StateError>());
+    expect(record.stackTrace, isNotNull);
   });
 }

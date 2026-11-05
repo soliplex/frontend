@@ -1012,7 +1012,7 @@ void main() {
         isTrue,
       );
       expect(
-        find.bySemanticsLabel('None of these files has a size'),
+        find.bySemanticsLabel('Size: None of these files has a size'),
         findsOneWidget,
       );
       expect(fileSort.sort.value, FileSort.largestFirst);
@@ -1033,7 +1033,7 @@ void main() {
       expect(fileSort.sort.value, FileSort.nameZToA);
     });
 
-    testWidgets('the uploads card bar edits the same choice as the files panel',
+    testWidgets('a tap on the uploads card bar stores and applies the choice',
         (tester) async {
       final fileSort = FileSortPreference();
       final api = FakeSoliplexApi()

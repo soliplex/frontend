@@ -253,7 +253,10 @@ class _FolderRow extends StatelessWidget {
               name: name,
               child: Text(
                 name,
-                style: theme.textTheme.bodySmall,
+                // Muted as a tooling file's name is, and for the same reason.
+                style: isToolingPath(name)
+                    ? theme.textTheme.bodySmall?.copyWith(color: muted)
+                    : theme.textTheme.bodySmall,
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,

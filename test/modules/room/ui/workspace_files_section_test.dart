@@ -333,6 +333,21 @@ void main() {
       expect(findFileName('HEAD'), findsOneWidget);
     });
 
+    testWidgets("a tooling folder's name is muted", (tester) async {
+      await tester.pumpWidget(
+        _grouped(['.git/HEAD', '__pycache__/x.pyc', 'reports/a.csv']),
+      );
+      final muted = Theme.of(tester.element(find.text('reports')))
+          .colorScheme
+          .onSurfaceVariant;
+      Color? color(String name) =>
+          tester.widget<Text>(find.text(name)).style?.color;
+
+      expect(color('.git'), muted);
+      expect(color('__pycache__'), muted);
+      expect(color('reports'), isNot(muted));
+    });
+
     testWidgets('a screen reader hears a folder, its count and its state',
         (tester) async {
       await tester.pumpWidget(

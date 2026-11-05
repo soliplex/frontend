@@ -101,8 +101,9 @@ class _Segment extends StatelessWidget {
   final bool active;
   final bool descending;
 
-  /// The tooltip and semantics label: the order this segment shows or a tap
-  /// would select, or why it is disabled.
+  /// The tooltip: the order this segment shows or a tap would select, or why
+  /// it is disabled. Also the semantics label, which for a disabled segment
+  /// starts with [label], since the reason does not name the segment.
   final String description;
 
   /// The colour of the line on the segment's left edge; none for the first
@@ -135,7 +136,7 @@ class _Segment extends StatelessWidget {
           button: true,
           selected: active,
           enabled: enabled,
-          label: description,
+          label: enabled ? description : '$label: $description',
           excludeSemantics: true,
           child: Container(
             decoration: BoxDecoration(
