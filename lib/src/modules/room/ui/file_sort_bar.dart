@@ -105,8 +105,8 @@ class _Segment extends StatelessWidget {
   /// would select, or why it is disabled.
   final String description;
 
-  /// The colour of the line on the segment's leading edge; none for the
-  /// first segment.
+  /// The colour of the line on the segment's left edge; none for the first
+  /// segment.
   final Color? divider;
 
   /// Null disables the segment.

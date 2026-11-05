@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -307,6 +308,43 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('2 / 2'), findsOneWidget);
+    });
+  });
+
+  group('Folders, Z to A', () {
+    testWidgets('reverses the root files and the folders', (tester) async {
+      await tester.pumpWidget(_host(_sorted(
+        ['a.txt', 'b.txt', 'src-a/x.py', 'src-b/y.py'],
+        FileSort.foldersZToA,
+      )));
+
+      double top(Finder finder) => tester.getTopLeft(finder).dy;
+      expect(top(findFileName('b.txt')), lessThan(top(findFileName('a.txt'))));
+      expect(top(find.text('src-b')), lessThan(top(find.text('src-a'))));
+    });
+
+    testWidgets('keeps a download in progress inside a folder', (tester) async {
+      final download = Completer<DownloadOutcome>();
+      Widget section(FileSort sort) => _host(WorkspaceFilesSection(
+            status: WorkdirFilesLoaded([_file('a/x.pdf'), _file('z/y.pdf')]),
+            sort: sort,
+            onDownload: (_) => download.future,
+            onFetchBytes: (_) async => Uint8List(0),
+            onRetry: () {},
+            folderToggles: const {},
+            onFolderToggled: (_, {required expanded}) {},
+          ));
+      await tester.pumpWidget(section(FileSort.foldersAToZ));
+      await tester.tap(find.byIcon(Icons.download_outlined).first);
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      await tester.pumpWidget(section(FileSort.foldersZToA));
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      download.complete(DownloadOutcome.success);
+      // Past the success tick's revert timer.
+      await tester.pump(const Duration(seconds: 3));
     });
   });
 

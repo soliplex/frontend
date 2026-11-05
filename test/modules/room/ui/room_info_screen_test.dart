@@ -1018,6 +1018,21 @@ void main() {
       expect(fileSort.sort.value, FileSort.largestFirst);
     });
 
+    testWidgets('tapping Name where a stored Size fell back gives Z to A',
+        (tester) async {
+      final fileSort = FileSortPreference();
+      await fileSort.setSort(FileSort.largestFirst);
+      final api = FakeSoliplexApi()
+        ..nextRoomUploads = [upload('a.pdf'), upload('b.pdf')];
+      await pumpCard(tester, api, fileSort);
+
+      await tester.tap(find.text('Name'));
+      await tester.pumpAndSettle();
+
+      expect(rowsInOrder(tester, ['a.pdf', 'b.pdf']), ['b.pdf', 'a.pdf']);
+      expect(fileSort.sort.value, FileSort.nameZToA);
+    });
+
     testWidgets('the uploads card bar edits the same choice as the files panel',
         (tester) async {
       final fileSort = FileSortPreference();

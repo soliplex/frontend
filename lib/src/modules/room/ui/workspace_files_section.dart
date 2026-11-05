@@ -127,7 +127,10 @@ class WorkspaceFilesSection extends StatelessWidget {
         onTap: () => onFolderToggled(group.name, expanded: !expanded),
       ),
       if (expanded)
+        // Keyed by the folder, so when the folders reorder its files' rows
+        // move with it and keep their state, such as a download in progress.
         Padding(
+          key: ValueKey(group.name),
           padding: const EdgeInsets.only(left: SoliplexSpacing.s4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
