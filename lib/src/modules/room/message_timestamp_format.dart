@@ -45,8 +45,7 @@ String formatMessageCaption(DateTime time, {DateTime? now}) {
     _DayBucket.yesterday => 'Yesterday · $clock',
     _DayBucket.weekday => '${weekdayAbbrev(local)} · $clock',
     _DayBucket.thisYear => '${monthAbbrev(local)} ${local.day} · $clock',
-    _DayBucket.older =>
-      '${monthAbbrev(local)} ${local.day}, ${local.year} · $clock',
+    _DayBucket.older => formatDateAndTime(local),
   };
 }
 

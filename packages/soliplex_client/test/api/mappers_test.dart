@@ -2719,6 +2719,24 @@ void _listedFileTimeAndSizeTests(
     expect(_render(record), isNot(contains(_canary)));
   });
 
+  test(
+      'a negative size_bytes is null, logged with its value, and the file '
+      'kept', () {
+    final sink = _attach();
+    final f = parse(entry({'size_bytes': -1}));
+    expect(f.filename, 'a.pdf');
+    expect(f.sizeBytes, isNull);
+    final record = sink.records.single;
+    expect(record.level, LogLevel.warning);
+    expect(record.message, 'Negative size ignored');
+    expect(record.attributes['field'], 'size_bytes');
+    expect(record.attributes['value'], -1);
+  });
+
+  test('a size_bytes of zero is kept', () {
+    expect(parse(entry({'size_bytes': 0})).sizeBytes, 0);
+  });
+
   test('a non-int size_bytes is null and logged without its value', () {
     final sink = _attach(loggerName: 'soliplex_client.parse_utils');
     final f = parse(

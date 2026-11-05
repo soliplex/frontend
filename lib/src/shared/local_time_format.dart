@@ -45,6 +45,11 @@ String formatClock12(DateTime local) {
   return '$hour12:$mm $period';
 }
 
+/// A local time with its date and year, e.g. `"Nov 5, 2026 · 3:42 PM"`.
+String formatDateAndTime(DateTime local) =>
+    '${monthAbbrev(local)} ${local.day}, ${local.year} · '
+    '${formatClock12(local)}';
+
 /// Whether [a] and [b] fall on the same local calendar day. Component equality
 /// (no arithmetic), so it is DST-safe.
 bool isSameCalendarDay(DateTime a, DateTime b) {

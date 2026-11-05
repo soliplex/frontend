@@ -87,6 +87,10 @@ class WorkdirFileRow extends StatelessWidget {
           onTap: canPreview ? onOpenPreview : downloadTap,
           borderRadius: BorderRadius.circular(context.radii.sm),
           child: FileListRow(
+            details: DetailsLine.file(
+              modifiedAt: file.modifiedAt,
+              sizeBytes: file.sizeBytes,
+            ),
             leading: Icon(
               leadingIcon,
               size: 16,

@@ -11,6 +11,7 @@ import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
+import 'package:soliplex_frontend/src/shared/local_time_format.dart';
 
 import '../../../helpers/file_name_finder.dart';
 
@@ -61,6 +62,12 @@ Widget _section(
 Widget _grouped(
   List<String> paths, {
   Map<String, bool> toggles = const {},
+}) =>
+    _groupedFiles([for (final p in paths) _file(p)], toggles: toggles);
+
+Widget _groupedFiles(
+  List<WorkdirFile> files, {
+  Map<String, bool> toggles = const {},
 }) {
   var held = toggles;
   return MaterialApp(
@@ -69,7 +76,7 @@ Widget _grouped(
       body: SingleChildScrollView(
         child: StatefulBuilder(
           builder: (context, setState) => WorkspaceFilesSection(
-            status: WorkdirFilesLoaded([for (final p in paths) _file(p)]),
+            status: WorkdirFilesLoaded(files),
             sort: FileSort.foldersAToZ,
             onDownload: (_) async => DownloadOutcome.success,
             onFetchBytes: (_) async => Uint8List.fromList([104, 105]),
@@ -186,23 +193,82 @@ void main() {
       expect(find.text('2 files'), findsOneWidget);
     });
 
-    testWidgets('a folder says its count beside its name', (tester) async {
+    testWidgets('a folder says its count under its name', (tester) async {
       // Not in the trailing column, which holds only the file rows' actions:
       // a number there sits out of line with their icons and reads as an
-      // action.
+      // action. Under the name, as a file row's time and size are.
       await tester.pumpWidget(_grouped(['reports/a.csv', 'reports/b.csv']));
 
-      // The name's box hugs its text, so the gap below is measured from the
-      // painted name rather than from a box stretched to the row's end.
-      final nameText =
-          tester.renderObject<RenderParagraph>(find.text('reports'));
-      expect(
-        nameText.size.width,
-        nameText.getMaxIntrinsicWidth(double.infinity),
-      );
       final name = tester.getRect(find.text('reports'));
       final count = tester.getRect(find.text('2 files'));
-      expect(count.left - name.right, lessThanOrEqualTo(SoliplexSpacing.s2));
+      expect(count.top, greaterThanOrEqualTo(name.bottom - 1));
+      expect(count.left, name.left);
+    });
+
+    group('latest change inside', () {
+      final now = DateTime.now();
+      WorkdirFile at(String path, Duration ago) => WorkdirFile(
+            filename: path,
+            url: Uri.parse('https://example.test/$path'),
+            modifiedAt: now.subtract(ago),
+          );
+
+      testWidgets('shows when the newest file at any depth changed',
+          (tester) async {
+        // The newest is neither first nor last, so only the newest wins.
+        await tester.pumpWidget(_groupedFiles([
+          at('reports/a.csv', const Duration(days: 2)),
+          at('reports/sub/b.csv', const Duration(hours: 3, minutes: 1)),
+          at('reports/c.csv', const Duration(days: 4)),
+        ]));
+
+        expect(find.text('3 files · 3h ago'), findsOneWidget);
+      });
+
+      testWidgets('shows only the count when no file has a time',
+          (tester) async {
+        await tester.pumpWidget(_grouped(['reports/a.csv']));
+
+        expect(find.text('1 file'), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (w) => w is Tooltip && w.message!.startsWith('Latest change'),
+          ),
+          findsNothing,
+        );
+      });
+
+      testWidgets("the exact time shows on hover, in the viewer's zone",
+          (tester) async {
+        // UTC, as the server sends it. Only a runner outside UTC can catch
+        // a time shown in UTC.
+        final modifiedAt = DateTime.utc(2026, 11, 5, 15, 42);
+        await tester.pumpWidget(_groupedFiles([
+          WorkdirFile(
+            filename: 'reports/a.csv',
+            url: Uri.parse('https://example.test/reports/a.csv'),
+            modifiedAt: modifiedAt,
+          ),
+        ]));
+
+        expect(
+          find.byTooltip(
+            'Latest change inside: ${formatDateAndTime(modifiedAt.toLocal())}',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('a screen reader hears it after the count', (tester) async {
+        await tester.pumpWidget(_groupedFiles([
+          at('reports/a.csv', const Duration(hours: 3, minutes: 1)),
+        ]));
+
+        expect(
+          tester.getSemantics(folder('reports')).getSemanticsData().label,
+          'reports, 1 file, latest change 3 hours ago',
+        );
+      });
     });
 
     testWidgets('a narrow folder row shortens the name and keeps the count',

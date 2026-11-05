@@ -4,9 +4,10 @@ import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/preview_kind.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
+import 'package:soliplex_frontend/src/shared/file_size.dart';
 
-/// One row of an upload list: the file's state or type, its name, why it
-/// failed, and the action its state allows.
+/// One row of an upload list: the file's state or type, its name, its time
+/// and size or why it failed, and the action its state allows.
 class UploadEntryRow extends StatelessWidget {
   const UploadEntryRow({
     super.key,
@@ -67,8 +68,22 @@ class UploadEntryRow extends StatelessWidget {
       PersistedUpload() => null,
     };
 
+    final details = switch (entry) {
+      PersistedUpload(:final modifiedAt, :final sizeBytes) =>
+        DetailsLine.file(modifiedAt: modifiedAt, sizeBytes: sizeBytes),
+      // Holds the line a stored file shows, so the row keeps its height
+      // when the upload lands on a server that reports a time or a size.
+      // Only the size is spoken: the ring's label already says Uploading.
+      PendingUpload(:final totalBytes) => DetailsLine(
+          text: 'Uploading · ${formatFileSize(totalBytes)}',
+          spoken: spokenFileSize(totalBytes),
+        ),
+      FailedUpload() => null,
+    };
+
     return FileListRow(
       isFailed: isFailed,
+      details: details,
       leading: leading,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

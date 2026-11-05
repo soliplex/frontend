@@ -553,18 +553,36 @@ DateTime? _listedFileModifiedAt(Map<String, dynamic> json) =>
       subsystem: 'soliplex_client.api',
     );
 
+/// Reads a listed file's `size_bytes`.
+///
+/// Absent, null and non-int values give null, as [intOrNull] reads them. A
+/// negative size gives null too, logged with its value: no file has one, so
+/// it is a backend fault or an "unknown" stand-in, and a row would otherwise
+/// show `-1 B`.
+int? _listedFileSizeBytes(Map<String, dynamic> json) {
+  final size = intOrNull(json['size_bytes'], 'size_bytes');
+  if (size == null || size >= 0) return size;
+  // A byte count, not a secret: the value is what makes the record
+  // actionable.
+  _logger.warning(
+    'Negative size ignored',
+    attributes: {'field': 'size_bytes', 'value': size},
+  );
+  return null;
+}
+
 /// Creates a [FileUpload] from JSON.
 ///
 /// Throws [FormatException] if `filename` or `url` is missing or
 /// malformed. An absent, null or wrong-typed `modified_at` or `size_bytes`,
-/// or a malformed `modified_at`, yields null instead.
+/// a malformed `modified_at` or a negative `size_bytes` yields null instead.
 FileUpload fileUploadFromJson(Map<String, dynamic> json) {
   final filename = _requireString(json, 'filename', 'file upload');
   return FileUpload(
     filename: filename,
     url: _requireUrl(json, 'url', 'file upload "$filename"'),
     modifiedAt: _listedFileModifiedAt(json),
-    sizeBytes: intOrNull(json['size_bytes'], 'size_bytes'),
+    sizeBytes: _listedFileSizeBytes(json),
   );
 }
 
@@ -589,7 +607,7 @@ bool isWorkspaceFilePath(String path) => path.split('/').every(
 /// byte, or has a segment that is empty (a leading, trailing or doubled
 /// `/`), `.` or `..` (see [isWorkspaceFilePath]); or if `url` is missing or
 /// malformed. An absent, null or wrong-typed `modified_at` or `size_bytes`,
-/// or a malformed `modified_at`, yields null instead.
+/// a malformed `modified_at` or a negative `size_bytes` yields null instead.
 WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
   final filename = _requireString(json, 'filename', 'workdir file');
   if (filename.isEmpty) {
@@ -609,7 +627,7 @@ WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
     filename: filename,
     url: _requireUrl(json, 'url', 'workdir file "$filename"'),
     modifiedAt: _listedFileModifiedAt(json),
-    sizeBytes: intOrNull(json['size_bytes'], 'size_bytes'),
+    sizeBytes: _listedFileSizeBytes(json),
   );
 }
 

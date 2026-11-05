@@ -39,4 +39,13 @@ void main() {
       );
     });
   });
+
+  group('formatDateAndTime', () {
+    test('date, year and 12-hour clock', () {
+      expect(
+        formatDateAndTime(DateTime(2026, 11, 5, 15, 42)),
+        'Nov 5, 2026 · 3:42 PM',
+      );
+    });
+  });
 }

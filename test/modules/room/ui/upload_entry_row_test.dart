@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 
@@ -40,6 +41,49 @@ void main() {
         url: Uri.parse('https://example.com/report.pdf'),
         isDeleting: isDeleting,
       );
+
+  testWidgets('a stored upload shows its time and size', (tester) async {
+    await pumpRow(
+      tester,
+      PersistedUpload(
+        filename: 'report.pdf',
+        url: Uri.parse('https://example.com/report.pdf'),
+        modifiedAt:
+            DateTime.now().subtract(const Duration(hours: 3, minutes: 1)),
+        sizeBytes: 2458,
+      ),
+    );
+
+    expect(find.text('3h ago · 2.4 KB'), findsOneWidget);
+  });
+
+  testWidgets("a pending upload shows that it is uploading and the file's size",
+      (tester) async {
+    await pumpRow(
+      tester,
+      const PendingUpload(
+        id: 'p1',
+        filename: 'report.pdf',
+        sentBytes: 5,
+        totalBytes: 2458,
+      ),
+    );
+
+    expect(find.text('Uploading · 2.4 KB'), findsOneWidget);
+    // The ring says it is uploading; the line adds only the size.
+    expect(find.bySemanticsLabel('2.4 kilobytes'), findsOneWidget);
+  });
+
+  testWidgets('a failed upload shows its reason, and no time or size',
+      (tester) async {
+    await pumpRow(
+      tester,
+      const FailedUpload(id: 'f1', filename: 'report.pdf', message: 'Too big'),
+    );
+
+    expect(find.text('Too big'), findsOneWidget);
+    expect(find.byType(DetailsLine), findsNothing);
+  });
 
   testWidgets('a pending upload can be cancelled', (tester) async {
     await pumpRow(
