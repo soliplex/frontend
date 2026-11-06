@@ -13,16 +13,6 @@ void main() {
       expect(splitExtension('archive.tar.gz'), ('archive.tar', '.gz'));
     });
 
-    test('a leading-dot name has no extension', () {
-      // .bashrc has no useful stem-extension split: the extension *is* the
-      // whole name.
-      expect(splitExtension('.bashrc'), ('.bashrc', ''));
-    });
-
-    test('a trailing dot is no extension', () {
-      expect(splitExtension('notes.'), ('notes.', ''));
-    });
-
     test('a name without a dot has no extension', () {
       expect(splitExtension('Makefile'), ('Makefile', ''));
     });

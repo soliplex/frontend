@@ -18,9 +18,10 @@ final Logger _logger =
 /// Persistent device-local state is partitioned by user identity, so a switch
 /// needs no teardown there. But six in-memory caches would carry the prior
 /// user's state into the new session: [AgentRuntimeManager] caches against the
-/// live `ServerConnection`, which re-auth reuses; [RunRegistry],
-/// [UploadTrackerRegistry] and [FileDownloadsRegistry] key by the stable
-/// `serverId`; and [DocumentSelections] and [DatabaseSelections] hold document
+/// live `ServerConnection`, which re-auth reuses; [RunRegistry] keys by the
+/// stable `serverId`, and [UploadTrackerRegistry] and [FileDownloadsRegistry]
+/// by the `ServerEntry`, which re-auth also reuses; and [DocumentSelections]
+/// and [DatabaseSelections] hold document
 /// filters and database selections in shared maps that are not partitioned by
 /// user. Without this the next user would reattach to the prior user's
 /// runtime, runs, uploads, downloads, document filters and database

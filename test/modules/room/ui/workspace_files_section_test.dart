@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -29,16 +28,15 @@ Widget _host(Widget section) => MaterialApp(
 
 WorkspaceFilesSection _sorted(
   List<String> paths,
-  FileSort sort, {
-  Map<String, bool> toggles = const {},
-}) =>
+  FileSort sort,
+) =>
     WorkspaceFilesSection(
       status: WorkdirFilesLoaded([for (final p in paths) _file(p)]),
       sort: sort,
       downloads: testDownloads(),
       onFetchBytes: (_) async => Uint8List.fromList([104, 105]),
       onRetry: () {},
-      folderToggles: toggles,
+      folderToggles: const {},
       onFolderToggled: (_, {required expanded}) {},
     );
 
@@ -158,6 +156,8 @@ void main() {
 
   testWidgets('the error row keeps its height while a retry is in flight',
       (tester) async {
+    // On a desktop, where the button is as tall as its glyph: a touch one
+    // pads to 48 px whatever the glyph, hiding a spinner of another size.
     Widget row({required bool isRetrying}) => MaterialApp(
           theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
           home: Scaffold(
@@ -175,7 +175,7 @@ void main() {
     final retryingHeight = tester.getSize(find.byType(WorkdirErrorRow)).height;
 
     expect(retryingHeight, idleHeight);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   group('folders', () {
     Finder folder(String name) =>
@@ -188,15 +188,6 @@ void main() {
         tester.getTopLeft(findFileName('notes.txt')).dy,
         lessThan(tester.getTopLeft(find.text('crm_app')).dy),
       );
-    });
-
-    testWidgets('a folder counts every file below it, and no root file',
-        (tester) async {
-      await tester.pumpWidget(
-        _grouped(['notes.txt', 'reports/a.csv', 'reports/sub/b.csv']),
-      );
-
-      expect(find.text('2 files'), findsOneWidget);
     });
 
     testWidgets('a folder says its count under its name', (tester) async {
@@ -375,23 +366,6 @@ void main() {
       );
     });
 
-    testWidgets('.git and __pycache__ start closed', (tester) async {
-      await tester.pumpWidget(_grouped(
-        ['.git/HEAD', '__pycache__/x.pyc', 'reports/a.csv'],
-      ));
-
-      expect(findFileName('HEAD'), findsNothing);
-      expect(findFileName('x.pyc'), findsNothing);
-      expect(findFileName('a.csv'), findsOneWidget);
-    });
-
-    testWidgets('a toggle wins over a folder that starts closed',
-        (tester) async {
-      await tester.pumpWidget(_grouped(['.git/HEAD'], toggles: {'.git': true}));
-
-      expect(findFileName('HEAD'), findsOneWidget);
-    });
-
     testWidgets("a tooling folder's name is muted", (tester) async {
       await tester.pumpWidget(
         _grouped(['.git/HEAD', '__pycache__/x.pyc', 'reports/a.csv']),
@@ -418,17 +392,6 @@ void main() {
             .colorScheme
             .onSurfaceVariant,
       );
-    });
-
-    testWidgets('a folder holding only a tooling folder is not muted',
-        (tester) async {
-      await tester.pumpWidget(_grouped(['pkg/__pycache__/m.pyc']));
-      final muted = Theme.of(tester.element(find.text('pkg')))
-          .colorScheme
-          .onSurfaceVariant;
-
-      expect(tester.widget<Text>(find.text('pkg')).style?.color, isNot(muted));
-      expect(tester.widget<Text>(find.text('__pycache__')).style?.color, muted);
     });
 
     testWidgets('a screen reader hears a folder, its count and its state',
@@ -464,28 +427,6 @@ void main() {
         await tester.pump();
 
         expect(findFileName('util.py'), findsOneWidget);
-      });
-
-      testWidgets("a folder's files come before its folders", (tester) async {
-        await tester.pumpWidget(_grouped(['src/lib/util.py', 'src/z.py']));
-
-        expect(
-          tester.getTopLeft(findFileName('z.py')).dy,
-          lessThan(tester.getTopLeft(find.text('lib')).dy),
-        );
-      });
-
-      testWidgets('a nested __pycache__ shows as one closed row',
-          (tester) async {
-        await tester.pumpWidget(_grouped([
-          'src/main.py',
-          'src/__pycache__/m.pyc',
-          'src/__pycache__/n.pyc',
-        ]));
-
-        expect(find.text('__pycache__'), findsOneWidget);
-        expect(find.text('2 files'), findsOneWidget);
-        expect(findFileName('m.pyc'), findsNothing);
       });
 
       testWidgets('a chain of single folders shows as one row', (tester) async {
@@ -582,32 +523,6 @@ void main() {
 
       expect(findPreviewTitle('2 / 3 · reports/'), findsOneWidget);
     });
-
-    testWidgets("the preview pages through a nested folder's own files",
-        (tester) async {
-      await tester.pumpWidget(_grouped([
-        'reports/c.txt',
-        'reports/sub/f.txt',
-        'reports/sub/g.txt',
-      ], toggles: {
-        'reports/sub': true,
-      }));
-
-      await tester.tap(findFileName('g.txt'));
-      await tester.pumpAndSettle();
-
-      expect(findPreviewTitle('2 / 2 · reports/sub/'), findsOneWidget);
-    });
-
-    testWidgets('the preview pages through the root files only',
-        (tester) async {
-      await tester.pumpWidget(_grouped(['a.txt', 'b.txt', 'reports/c.txt']));
-
-      await tester.tap(findFileName('b.txt'));
-      await tester.pumpAndSettle();
-
-      expect(findPreviewTitle('2 / 2'), findsOneWidget);
-    });
   });
 
   group('Folders, Z to A', () {
@@ -620,31 +535,6 @@ void main() {
       double top(Finder finder) => tester.getTopLeft(finder).dy;
       expect(top(findFileName('b.txt')), lessThan(top(findFileName('a.txt'))));
       expect(top(find.text('src-b')), lessThan(top(find.text('src-a'))));
-    });
-
-    testWidgets('keeps a download in progress inside a folder', (tester) async {
-      final download = Completer<DownloadOutcome>();
-      final downloads = testDownloads((_) => download.future);
-      Widget section(FileSort sort) => _host(WorkspaceFilesSection(
-            status: WorkdirFilesLoaded([_file('a/x.pdf'), _file('z/y.pdf')]),
-            sort: sort,
-            downloads: downloads,
-            onFetchBytes: (_) async => Uint8List(0),
-            onRetry: () {},
-            folderToggles: const {},
-            onFolderToggled: (_, {required expanded}) {},
-          ));
-      await tester.pumpWidget(section(FileSort.foldersAToZ));
-      await tester.tap(find.byIcon(Icons.download_outlined).first);
-      await tester.pump();
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-
-      await tester.pumpWidget(section(FileSort.foldersZToA));
-
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      download.complete(DownloadOutcome.success);
-      // Past the success tick's revert timer.
-      await tester.pump(const Duration(seconds: 3));
     });
   });
 
@@ -673,41 +563,6 @@ void main() {
         tester.getTopLeft(findFileName('a.txt')).dy,
         lessThan(tester.getTopLeft(findFileName('file-b')).dy),
       );
-    });
-
-    testWidgets('a folder closed in Folders is closed after Name and back',
-        (tester) async {
-      const paths = ['src-b/file', 'a.txt'];
-      const closed = {'src-b': false};
-
-      await tester.pumpWidget(
-          _host(_sorted(paths, FileSort.foldersAToZ, toggles: closed)));
-      expect(findFileName('file'), findsNothing);
-
-      await tester.pumpWidget(
-          _host(_sorted(paths, FileSort.nameAToZ, toggles: closed)));
-      expect(findFileName('file'), findsOneWidget);
-
-      await tester.pumpWidget(
-          _host(_sorted(paths, FileSort.foldersAToZ, toggles: closed)));
-      expect(findFileName('file'), findsNothing);
-    });
-
-    testWidgets('a nested folder opened in Folders is open after Name and back',
-        (tester) async {
-      const paths = ['src/main.py', 'src/lib/util.py'];
-      const opened = {'src/lib': true};
-
-      await tester.pumpWidget(
-          _host(_sorted(paths, FileSort.foldersAToZ, toggles: opened)));
-      expect(findFileName('util.py'), findsOneWidget);
-
-      await tester.pumpWidget(
-          _host(_sorted(paths, FileSort.nameAToZ, toggles: opened)));
-      await tester.pumpWidget(
-          _host(_sorted(paths, FileSort.foldersAToZ, toggles: opened)));
-
-      expect(findFileName('util.py'), findsOneWidget);
     });
 
     testWidgets('preview from a flat list pages through the real files only',

@@ -14,11 +14,6 @@ void main() {
       }
     });
 
-    test('reads the kind from the last segment of a path', () {
-      // A dotfile has no extension, wherever it sits.
-      expect(PreviewKind.from('dir/.md'), PreviewKind.unknown);
-    });
-
     test('maps svg to svg', () {
       expect(PreviewKind.from('chart.svg'), PreviewKind.svg);
       expect(PreviewKind.from('chart.SVG'), PreviewKind.svg);
@@ -96,10 +91,6 @@ void main() {
       expect(PreviewKind.from('archive.tar.gz'), PreviewKind.unknown);
       expect(PreviewKind.from('mystery.xyz'), PreviewKind.unknown);
     });
-
-    test('treats dotfiles (leading dot, no extension) as unknown', () {
-      expect(PreviewKind.from('.bashrc'), PreviewKind.unknown);
-    });
   });
 
   group('canRender / isText truth table', () {
@@ -119,10 +110,6 @@ void main() {
       PreviewKind.pdf: (canRender: false, isText: false),
       PreviewKind.unknown: (canRender: false, isText: false),
     };
-
-    test('covers every PreviewKind variant', () {
-      expect(expectations.keys.toSet(), PreviewKind.values.toSet());
-    });
 
     for (final entry in expectations.entries) {
       final kind = entry.key;

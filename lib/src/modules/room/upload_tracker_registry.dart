@@ -4,8 +4,8 @@ import '../auth/server_entry.dart';
 import 'per_server_cache.dart';
 import 'upload_tracker.dart';
 
-/// Module-scoped registry that hands out one `UploadTracker` per
-/// `(serverId, roomId)`.
+/// Module-scoped registry that hands out one `UploadTracker` per server
+/// entry and room.
 ///
 /// Trackers must outlive the widgets that mount them — an upload
 /// started on the room-info screen may complete *after* the user taps
@@ -29,7 +29,7 @@ class UploadTrackerRegistry {
 
   final PerServerCache<String, UploadTracker> _trackers;
 
-  /// Returns (or lazily creates) the tracker for [entry]'s server and
+  /// Returns (or lazily creates) the tracker for [entry] and
   /// [roomId]. Throws [StateError] if the registry has been disposed.
   UploadTracker trackerFor({
     required ServerEntry entry,

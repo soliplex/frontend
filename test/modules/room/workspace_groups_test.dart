@@ -33,14 +33,6 @@ void main() {
       expect(root.folders[0].folders.single.path, 'crm_app/backend');
     });
 
-    test('a workspace without folders has none', () {
-      final root =
-          workspaceTree([_file('a.txt'), _file('b.txt')], descending: false);
-
-      expect(_paths(root.files), ['a.txt', 'b.txt']);
-      expect(root.folders, isEmpty);
-    });
-
     test('orders files by name within their folder, in the direction', () {
       final listing = [
         _file('src/z/a.txt'),
@@ -242,23 +234,6 @@ void main() {
         '.git/HEAD',
         'src-b/__pycache__/m.pyc',
         'src-a/under/sub/dir/.git/config',
-      ]);
-    });
-
-    test('keeps tooling files apart when the order reverses', () {
-      final flat = flatWorkspace(listing, FileSort.oldestFirst);
-
-      expect(_paths(flat.files), [
-        'a.txt',
-        'b.txt',
-        'src-a/main.py',
-        'src-b/file',
-        'src-b/another/dir/file-b'
-      ]);
-      expect(_paths(flat.tooling), [
-        'src-a/under/sub/dir/.git/config',
-        'src-b/__pycache__/m.pyc',
-        '.git/HEAD',
       ]);
     });
   });

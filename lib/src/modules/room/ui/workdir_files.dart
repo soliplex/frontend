@@ -845,10 +845,11 @@ class _DownloadButton extends StatelessWidget {
   }
 }
 
-/// [text] with a place to break a line after each `_`, `-`, `.` and `/`, so
-/// a name too long for its line breaks between its words where it can.
+/// [text] with a place to break a line after each `_` and `.`, so a name too
+/// long for its line breaks between its words where it can. The line breaker
+/// already breaks after `-` and `/`.
 String _breakableAtSeparators(String text) =>
-    text.replaceAllMapped(RegExp(r'[_\-./]'), (m) => '${m[0]}\u200B');
+    text.replaceAllMapped(RegExp('[_.]'), (m) => '${m[0]}\u200B');
 
 // Together these make the title bar's action buttons
 // [kMinInteractiveDimension] square on every platform, which the title's

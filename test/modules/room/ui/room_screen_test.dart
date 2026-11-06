@@ -3270,6 +3270,34 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
+    testWidgets(
+        "a download shows in its own room, not in another's file of "
+        'the same name', (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('report.csv')];
+      final bytes = api.workdirFileBytes = Completer<Uint8List>();
+      Future<void> openFiles() async {
+        await tester.tap(find.byTooltip('1 in workspace'));
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+      await openFiles();
+      await tester.tap(find.byTooltip('Download'));
+      await tester.pump();
+      expect(find.byType(FileRowActionProgress), findsOneWidget);
+
+      await tester.pumpWidget(screen('thread-1', roomId: 'room-2'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await openFiles();
+
+      expect(find.byType(FileRowActionProgress), findsNothing);
+      expect(find.byTooltip('Download'), findsOneWidget);
+      bytes.complete(Uint8List(1));
+      await tester.pump(const Duration(seconds: 2));
+    });
+
     testWidgets('a folder toggle rebuilds the files section, not the room',
         (tester) async {
       wideView(tester);

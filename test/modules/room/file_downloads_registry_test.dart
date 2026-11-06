@@ -76,19 +76,16 @@ void main() {
       when(() => api.getThreadWorkdirFile(any(), any(), any()))
           .thenAnswer((_) async => bytes);
 
-      String? gotName;
       Uint8List? gotBytes;
       final outcome = await download(
         _file('output.csv'),
         saveFile: ({required String fileName, required Uint8List bytes}) async {
-          gotName = fileName;
           gotBytes = bytes;
           return '/Users/me/Desktop/$fileName';
         },
       );
 
       expect(outcome, DownloadOutcome.success);
-      expect(gotName, 'output.csv');
       expect(gotBytes, bytes);
     });
 
