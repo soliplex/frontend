@@ -23,6 +23,7 @@ import '../../stores/thread_anchor_storage.dart' show ThreadAnchorStorage;
 import '../../stores/thread_read_markers.dart' show ThreadReadMarkerStorage;
 import '../../stores/lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
+import 'lobby_tab.dart';
 import 'lobby_view_mode.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.lobby_state');
@@ -100,6 +101,7 @@ class LobbyState {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
+    unawaited(_loadActiveTab());
     if (!_selectionInitialized) unawaited(_loadSelectedServer());
     _watchRunCompletions();
   }
@@ -167,6 +169,39 @@ class LobbyState {
         // re-select — but log so a silent storage failure is debuggable.
         _logger.warning(
           'Failed to persist lobby view mode',
+          error: error,
+          stackTrace: st,
+        );
+      }),
+    );
+  }
+
+  /// Which section of the selected server is showing. Starts at
+  /// [LobbyTab.rooms]; replaced by the persisted preference once
+  /// [_loadActiveTab] resolves.
+  final Signal<LobbyTab> _activeTab = Signal(LobbyTab.rooms);
+  ReadonlySignal<LobbyTab> get activeTab => _activeTab;
+
+  Future<void> _loadActiveTab() async {
+    try {
+      _activeTab.value = await LobbyTabStorage.load();
+    } catch (error, st) {
+      _logger.warning(
+        'Failed to load lobby tab',
+        error: error,
+        stackTrace: st,
+      );
+    }
+  }
+
+  /// Switches the lobby section and persists the choice for next launch.
+  void setActiveTab(LobbyTab tab) {
+    if (tab == _activeTab.value) return;
+    _activeTab.value = tab;
+    unawaited(
+      LobbyTabStorage.save(tab).catchError((Object error, StackTrace st) {
+        _logger.warning(
+          'Failed to persist lobby tab',
           error: error,
           stackTrace: st,
         );
