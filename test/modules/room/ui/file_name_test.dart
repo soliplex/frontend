@@ -64,8 +64,8 @@ void main() {
 
   group('FileName', () {
     test('refuses a path', () {
-      // A dot in a directory segment would be taken for the extension:
-      // splitExtension('v1.2/notes') is ('v1', '.2/notes').
+      // A row shows a file's directory apart from its name, so FileName
+      // takes the name alone.
       expect(() => FileName('v1.2/notes'), throwsAssertionError);
     });
 

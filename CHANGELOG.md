@@ -51,21 +51,23 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   and Size, or when no folder is open.
 - Tapping a workspace file the app cannot preview opens the preview at that
   file, on its "Can't preview" page with a Download button, rather than
-  downloading it. The row's download button still downloads in one tap.
+  downloading it. The row's download button downloads in one tap.
 - The file preview has a download button beside Close on every page. It,
   the Download button of a page that cannot show the file, and the file's
   row show one download of the file, which stays with it while paging, when
   the list refreshes, and when you leave its room and come back: a file
   starts no second download while one runs or its outcome shows. A failed
-  download says "Download failed". Removing a server, or another user
-  signing in on it, drops its downloads before they save.
+  download says "Download failed", and tapping a row's download button
+  while it runs or its outcome shows does nothing. A download still
+  fetching opens no save dialog once its server is removed, another user
+  signs in on it, or its user signs out.
 - The file preview's title shows the file's whole name and directory,
   wrapping onto as many lines as they need, after a `_`, `-`, `.` or `/`
-  where it can, and no longer has a tooltip. A title taller than a third of
-  the preview scrolls within that space.
+  where it can, with no tooltip. A title taller than a third of the
+  preview scrolls within that space.
 - A file name cut short in a workspace or upload list shortens its middle,
   keeping its extension and the six characters before it, or its last six
-  when it has no extension: `output_2026…5_1432.csv`.
+  when it has no extension, or a long one: `output_2026…5_1432.csv`.
 
 ### Fixed
 

@@ -39,10 +39,7 @@ class WorkdirController {
 
   _ThreadFiles _thread(String threadId) {
     if (_isDisposed) throw StateError('WorkdirController has been disposed');
-    return _threads.putIfAbsent(
-      threadId,
-      _ThreadFiles.new,
-    );
+    return _threads.putIfAbsent(threadId, _ThreadFiles.new);
   }
 
   /// The thread's workspace listing. Starts [WorkdirFilesLoading]; call
@@ -205,7 +202,15 @@ class WorkdirController {
       );
       rethrow;
     } catch (e, st) {
-      warnWorkdirFetchFailed(_logger, 'preview', threadId, file, e, st);
+      warnWorkdirFetchFailed(
+        _logger,
+        purpose: 'preview',
+        roomId: _roomId,
+        threadId: threadId,
+        file: file,
+        error: e,
+        stackTrace: st,
+      );
       rethrow;
     }
   }
@@ -222,13 +227,14 @@ class WorkdirController {
 /// Logs a failed fetch of [file]'s bytes for [purpose] with the failure
 /// whole, so the record keeps its status code and the server's reason.
 void warnWorkdirFetchFailed(
-  Logger logger,
-  String purpose,
-  String threadId,
-  WorkdirFile file,
-  Object e,
-  StackTrace st,
-) {
+  Logger logger, {
+  required String purpose,
+  required String roomId,
+  required String threadId,
+  required WorkdirFile file,
+  required Object error,
+  required StackTrace stackTrace,
+}) {
   // A bodiless GET with the token in a header, so a failure can carry only
   // the URL path (room and thread ids, the file's path), a status code, a
   // host, or the answering server's JSON message field: a fixed string on
@@ -236,9 +242,9 @@ void warnWorkdirFetchFailed(
   // place. The client's own ArgumentError for an empty or malformed argument
   // names only that argument and its value: an id or the file's path.
   logger.warning(
-    'workdir $purpose fetch failed threadId=$threadId',
-    error: e,
-    stackTrace: st,
+    'workdir $purpose fetch failed roomId=$roomId threadId=$threadId',
+    error: error,
+    stackTrace: stackTrace,
     attributes: {'filename': file.filename},
   );
 }

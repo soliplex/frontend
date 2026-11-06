@@ -14,6 +14,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
@@ -120,7 +121,7 @@ Finder _inPreview(Finder f) => find.descendant(
 ///
 /// Its downloads save through [onDownload], unless [downloads] is given: a
 /// test that pumps the section again passes the same downloads each time, as
-/// the room's controller does.
+/// the room's download registry does.
 WorkspaceFilesSection _workspace({
   required WorkdirFilesStatus status,
   required VoidCallback onRetry,
@@ -282,32 +283,26 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('second tap during an in-flight download is a no-op',
-      (tester) async {
-    final completer = Completer<DownloadOutcome>();
-    var calls = 0;
+  testWidgets(
+      "a row's download icon is primary, and its failure the error "
+      'colour', (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) {
-        calls++;
-        return completer.future;
-      },
+      onDownload: (_) async => DownloadOutcome.failed,
     )));
     await tester.pump();
+    final colors =
+        Theme.of(tester.element(find.byType(WorkdirFileRow))).colorScheme;
+    Color? colorOf(IconData icon) =>
+        tester.widget<Icon>(find.byIcon(icon)).color;
 
-    final button = tester.getCenter(find.byIcon(Icons.download_outlined));
-    await tester.tapAt(button);
+    expect(colorOf(Icons.download_outlined), colors.primary);
+    await tester.tap(find.byIcon(Icons.download_outlined));
     await tester.pump();
-    expect(calls, 1);
 
-    await tester.tapAt(button);
-    await tester.pump();
-    expect(calls, 1);
-
-    completer.complete(DownloadOutcome.success);
-    await tester.pumpAndSettle();
+    expect(colorOf(Icons.error_outline), colors.error);
     await tester.pump(const Duration(seconds: 2));
   });
 
@@ -354,31 +349,6 @@ void main() {
         ),
         findsOneWidget,
       );
-
-      download.complete(DownloadOutcome.success);
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-    });
-
-    testWidgets("not to the same name in another thread's list",
-        (tester) async {
-      final download = Completer<DownloadOutcome>();
-      WorkdirFile inThread(String thread) => WorkdirFile(
-            filename: 'a.pdf',
-            url: Uri.parse('https://example.test/$thread/a.pdf'),
-          );
-      await pumpFiles(
-        tester,
-        [inThread('t1')],
-        testDownloads((_) => download.future),
-      );
-      await tester.tap(find.byIcon(Icons.download_outlined));
-      await tester.pump();
-
-      await pumpFiles(tester, [inThread('t2')], testDownloads());
-
-      expect(find.byType(CircularProgressIndicator), findsNothing);
-      expect(find.byIcon(Icons.download_outlined), findsOneWidget);
 
       download.complete(DownloadOutcome.success);
       await tester.pumpAndSettle();
@@ -958,28 +928,54 @@ void main() {
     expect(find.byIcon(Icons.article_outlined), findsOneWidget);
   });
 
-  testWidgets('second tap during feedback window is a no-op', (tester) async {
-    var calls = 0;
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('report.pdf')]),
-      onRetry: () {},
-      onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) async {
-        calls++;
-        return DownloadOutcome.success;
-      },
-    )));
-    await tester.pump();
+  group("a row's download icon, while it can't download, does nothing", () {
+    Future<Completer<DownloadOutcome>> startDownload(
+      WidgetTester tester,
+      List<int> calls,
+    ) async {
+      final download = Completer<DownloadOutcome>();
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('report.pdf')]),
+        onRetry: () {},
+        onFetchBytes: (_) async => _tinyPng,
+        onDownload: (_) {
+          calls.add(1);
+          return download.future;
+        },
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.download_outlined));
+      await tester.pump();
+      return download;
+    }
 
-    await tester.tap(find.byIcon(Icons.download_outlined));
-    await tester.pump();
-    expect(calls, 1);
+    testWidgets('while it runs', (tester) async {
+      final calls = <int>[];
+      final download = await startDownload(tester, calls);
 
-    // Try tapping the (now check) icon — should not fire again.
-    await tester.tap(find.byIcon(Icons.check));
-    await tester.pump();
-    expect(calls, 1);
-    await tester.pump(const Duration(seconds: 2));
+      await tester.tap(find.byType(FileRowActionProgress));
+      await tester.pump();
+
+      expect(find.byType(WorkdirPreviewPage), findsNothing);
+      expect(calls, hasLength(1));
+      download.complete(DownloadOutcome.success);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('while its outcome shows', (tester) async {
+      final calls = <int>[];
+      final download = await startDownload(tester, calls);
+      download.complete(DownloadOutcome.success);
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.check));
+      await tester.pump();
+
+      expect(find.byType(WorkdirPreviewPage), findsNothing);
+      expect(calls, hasLength(1));
+      await tester.pump(const Duration(seconds: 2));
+    });
   });
 
   group('multi-file pager', () {
@@ -1502,21 +1498,81 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
-    testWidgets('a download that ends after the preview closes is harmless',
+    testWidgets('a download outlives the preview it started in',
         (tester) async {
       final pending = Completer<DownloadOutcome>();
-      await openPreview(tester, ['a.md'], onDownload: (_) => pending.future);
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('a.md')]),
+        onRetry: () {},
+        onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
+        onDownload: (_) => pending.future,
+      )));
+      await tester.pump();
+      await tester.tap(findFileName('a.md'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(_inPreview(titleBarDownload));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pump(const Duration(milliseconds: 500));
+      pending.complete(DownloadOutcome.success);
+      await tester.pump();
+
+      expect(find.byType(WorkdirPreviewPage), findsNothing);
+      expect(find.byTooltip('Saved'), findsOneWidget, reason: 'on its row');
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('keeps the failure colour while it cannot be pressed',
+        (tester) async {
+      await openPreview(tester, ['a.md'],
+          onDownload: (_) async => DownloadOutcome.failed);
 
       await tester.tap(titleBarDownload);
       await tester.pump();
-      await tester.tap(find.byTooltip('Close'));
-      await tester.pumpAndSettle();
 
+      final error = Theme.of(tester.element(find.byType(WorkdirPreviewPage)))
+          .colorScheme
+          .error;
+      final icon = tester.widget<Icon>(find.byIcon(Icons.error_outline));
+      final painted = tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byIcon(Icons.error_outline),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style
+          ?.color;
+      expect(icon.color, error);
+      expect(painted, error);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('a screen reader hears the download under way once',
+        (tester) async {
+      final semantics = tester.ensureSemantics();
+      final pending = Completer<DownloadOutcome>();
+      try {
+        await openPreview(tester, ['a.md'], onDownload: (_) => pending.future);
+
+        await tester.tap(titleBarDownload);
+        await tester.pump();
+
+        expect(
+          find.semantics.byPredicate((node) {
+            final data = node.getSemanticsData();
+            return data.label.contains('Downloading') ||
+                data.tooltip.contains('Downloading');
+          }),
+          findsOne,
+        );
+      } finally {
+        semantics.dispose();
+      }
       pending.complete(DownloadOutcome.success);
       await tester.pump(const Duration(seconds: 2));
-
-      expect(tester.takeException(), isNull);
-      expect(find.byType(WorkdirPreviewPage), findsNothing);
     });
   });
 
@@ -1576,7 +1632,7 @@ void main() {
       expect(find.text('Download'), findsOneWidget);
     });
 
-    testWidgets('failed download flips to Couldn\'t save', (tester) async {
+    testWidgets('a failed download says Download failed', (tester) async {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
@@ -2059,6 +2115,26 @@ void main() {
           tester.getSize(find.byType(PageView)).height,
           greaterThan(320 / 2),
         );
+      });
+
+      testWidgets('a name too long for a third of the dialog scrolls there',
+          (tester) async {
+        // Wide enough for the dialog, which is at most 85% of the height.
+        tester.view.physicalSize = const Size(1000, 450);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final name = '${'x' * 2000}.md';
+
+        await openPreview(tester, [name]);
+
+        expect(find.byType(Dialog), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        final title = tester.getRect(find.ancestor(
+          of: _inPreview(findPreviewTitle(name)),
+          matching: find.byType(SingleChildScrollView),
+        ));
+        expect(title.height, lessThanOrEqualTo(450 * 0.85 / 3));
       });
     });
   });

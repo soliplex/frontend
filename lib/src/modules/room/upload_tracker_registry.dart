@@ -15,45 +15,28 @@ import 'upload_tracker.dart';
 /// `RoomScreen` and `RoomInfoScreen` so both read from the same
 /// underlying tracker instance.
 ///
-/// Eviction: the registry subscribes to `ServerManager.servers` and
-/// disposes every tracker whose `serverId` disappears from that map
-/// (typically when the user disconnects a server). All remaining
-/// trackers are disposed when the registry itself is disposed.
-///
-/// Lifetime: the registry is process-scoped by design. Production
-/// shell teardown does not call [dispose]; an upload started on one
-/// screen must survive navigation to another, which the per-server
-/// eviction path already handles. [dispose] exists for tests and for
-/// the per-tracker cleanup invoked from eviction.
+/// Eviction ([PerServerCache]): a tracker is disposed when its server is
+/// removed, when [evictServer] drops it (a different user signed in), and
+/// when the registry is disposed, which the room module does on its own
+/// disposal.
 class UploadTrackerRegistry {
   UploadTrackerRegistry({
     required ReadonlySignal<Map<String, ServerEntry>> servers,
   }) : _trackers = PerServerCache(
           servers: servers,
           disposeValue: (tracker) => tracker.dispose(),
-          what: 'upload tracker',
         );
 
   final PerServerCache<String, UploadTracker> _trackers;
 
-  /// Returns (or lazily creates) the tracker for the given
-  /// `(serverId, roomId)`. Throws [StateError] if the registry has
-  /// been disposed.
-  ///
-  /// Callers should pass a [ServerEntry] whose `serverId` is still
-  /// present in the injected `servers` signal; a tracker created for
-  /// a server that is never (or no longer) live will not be subject
-  /// to the server-removal eviction path.
-  ///
-  /// Identity is keyed on `(serverId, roomId)` only — assumes
-  /// `ServerManager` never hot-swaps an entry's `connection` without
-  /// first going through `removeServer` (which evicts the tracker).
+  /// Returns (or lazily creates) the tracker for [entry]'s server and
+  /// [roomId]. Throws [StateError] if the registry has been disposed.
   UploadTracker trackerFor({
     required ServerEntry entry,
     required String roomId,
   }) =>
       _trackers.putIfAbsent(
-        entry.serverId,
+        entry,
         roomId,
         () => UploadTracker(api: entry.connection.api, auth: entry.auth),
       );
