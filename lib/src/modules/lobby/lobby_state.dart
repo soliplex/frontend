@@ -638,7 +638,9 @@ class LobbyState {
     }
   }
 
-  void _fetchRooms(String serverId, ServerEntry entry) {
+  /// Fetches [serverId]'s rooms. With [inPlace] and a loaded list, the list
+  /// stays on screen while the request is in flight and a failure keeps it.
+  void _fetchRooms(String serverId, ServerEntry entry, {bool inPlace = false}) {
     // Cancel any in-flight request for this server
     _cancelTokens.remove(serverId)?.cancel('re-fetch');
 
@@ -647,10 +649,13 @@ class LobbyState {
 
     // Mark as loading, keeping the prior list to diff for disappeared rooms.
     final previous = _roomsByServer.value[serverId];
-    _roomsByServer.value = {
-      ..._roomsByServer.value,
-      serverId: const RoomsLoading(),
-    };
+    final keepList = inPlace && previous is RoomsLoaded;
+    if (!keepList) {
+      _roomsByServer.value = {
+        ..._roomsByServer.value,
+        serverId: const RoomsLoading(),
+      };
+    }
 
     _apiResolver(entry).getRooms(cancelToken: token).then((rooms) {
       if (token.isCancelled) return;
@@ -672,6 +677,16 @@ class LobbyState {
         // the ExpiredSession transition and writes RoomsExpired so the
         // lobby keeps the row with an inline "sign in again" affordance.
         entry.auth.markSessionExpired();
+        return;
+      }
+      if (keepList) {
+        // A background poll that fails keeps the list on screen; the next
+        // poll or a manual refresh tries again.
+        _logger.warning(
+          'Room list poll failed for $serverId',
+          error: error,
+          stackTrace: st,
+        );
         return;
       }
       if (error is! PermissionDeniedException) {
@@ -735,6 +750,16 @@ class LobbyState {
       throw StateError('No server entry for "$serverId"');
     }
     _fetchRooms(serverId, entry);
+  }
+
+  /// Re-fetches the rooms of every connected server in place, skipping a
+  /// server whose fetch is already in flight.
+  void pollRooms() {
+    for (final MapEntry(key: serverId, value: entry)
+        in _serverManager.servers.value.entries) {
+      if (!entry.isConnected || _cancelTokens.containsKey(serverId)) continue;
+      _fetchRooms(serverId, entry, inPlace: true);
+    }
   }
 
   void dispose() {

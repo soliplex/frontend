@@ -31,6 +31,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../core/activity_read.dart' show currentUserRoomMarkers;
 import '../../../core/keyed_storage.dart' show storageUser;
 import '../../../core/util/debouncer.dart';
+import '../../../core/util/periodic_refresh.dart';
 import '../../../core/routes.dart';
 import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/return_to_storage.dart';
@@ -252,6 +253,7 @@ class _RoomScreenState extends State<RoomScreen> {
   List<Room>? _serverRooms;
   Object? _serverRoomsError;
   CancelToken? _roomsCancelToken;
+  late final PeriodicRefresh _roomsRefresh;
 
   /// Last-activity per room id for the current server (from the room stats
   /// batch). Absent/empty when stats are unavailable — which simply shows no
@@ -439,18 +441,24 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   /// Fetches the current server's room list for the rail. Cancels any
-  /// in-flight fetch so a server switch can't apply a stale result.
-  void _fetchServerRooms() {
+  /// in-flight fetch so a server switch can't apply a stale result. With
+  /// [inPlace] and a loaded list, the rail keeps showing that list while the
+  /// request is in flight, and a failure keeps it.
+  void _fetchServerRooms({bool inPlace = false}) {
     final entry = widget.serverEntry;
     _roomsCancelToken?.cancel('refresh');
     final token = CancelToken();
     _roomsCancelToken = token;
-    // Assigned directly (not via setState): this runs from initState too, and
-    // the async callbacks below trigger the rebuild once a result lands.
-    _serverRooms = null;
-    _serverRoomsError = null;
+    final keepList = inPlace && _serverRooms != null;
+    if (!keepList) {
+      // Assigned directly (not via setState): this runs from initState too,
+      // and the async callbacks below trigger the rebuild once a result lands.
+      _serverRooms = null;
+      _serverRoomsError = null;
+    }
     entry.connection.api.getRooms(cancelToken: token).then((rooms) {
       if (!mounted || token != _roomsCancelToken) return;
+      _roomsCancelToken = null;
       setState(() => _serverRooms = rooms);
     }).catchError((Object error, StackTrace stackTrace) {
       if (error is AuthException) {
@@ -461,6 +469,17 @@ class _RoomScreenState extends State<RoomScreen> {
         return;
       }
       if (!mounted || token != _roomsCancelToken) return;
+      _roomsCancelToken = null;
+      if (keepList) {
+        // A background poll that fails keeps the rail's list; the next poll
+        // tries again.
+        _logger.warning(
+          'Rail room list poll failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        return;
+      }
       // A PermissionDeniedException (403) is an expected steady state — the
       // server denies access and re-auth won't help — and the rail surfaces it
       // inline, so keep it below the severe channel reserved for genuine
@@ -476,6 +495,14 @@ class _RoomScreenState extends State<RoomScreen> {
       }
       setState(() => _serverRoomsError = error);
     });
+  }
+
+  /// Re-fetches the rail's rooms in place on the refresh interval. Skips while
+  /// a fetch is in flight or nothing has loaded yet, so a poll never cancels
+  /// the first load or a server switch's fetch.
+  void _pollServerRooms() {
+    if (_roomsCancelToken != null || _serverRooms == null) return;
+    _fetchServerRooms(inPlace: true);
   }
 
   /// Fetches last-activity for the current server's rooms in one batch so the
@@ -977,6 +1004,10 @@ class _RoomScreenState extends State<RoomScreen> {
     _refreshFilterableDocuments();
     _fetchServerRooms();
     _fetchRoomActivity();
+    _roomsRefresh = PeriodicRefresh(
+      interval: roomListRefreshInterval,
+      onRefresh: _pollServerRooms,
+    )..start();
     unawaited(_loadRoomReadMarkers());
     unawaited(_loadServerReadMarkers());
     _threadReadTracker = _createThreadReadTracker();
@@ -1294,6 +1325,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _serverActivityUnsub?.call();
     _roomActivityRefresh.cancel();
     _filterDocsCancelToken?.cancel('disposed');
+    _roomsRefresh.dispose();
     _roomsCancelToken?.cancel('disposed');
     _activityCancelToken?.cancel('disposed');
     HardwareKeyboard.instance.removeHandler(_handleKey);

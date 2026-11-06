@@ -8,6 +8,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../../../core/activity_read.dart';
 import '../../../core/app_identity.dart';
 import '../../../core/routes.dart';
+import '../../../core/util/periodic_refresh.dart';
 import '../../../shared/mark_read_context_menu.dart';
 import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/server_entry.dart';
@@ -77,6 +78,7 @@ class LobbyScreen extends StatefulWidget {
 
 class _LobbyScreenState extends State<LobbyScreen> {
   late final LobbyState _state;
+  late final PeriodicRefresh _roomsRefresh;
 
   @override
   void initState() {
@@ -89,10 +91,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
       serverReadMarkers: widget.serverReadMarkers,
       initialServerId: widget.initialServerId,
     );
+    _roomsRefresh = PeriodicRefresh(
+      interval: roomListRefreshInterval,
+      onRefresh: _state.pollRooms,
+    )..start();
   }
 
   @override
   void dispose() {
+    _roomsRefresh.dispose();
     _state.dispose();
     super.dispose();
   }

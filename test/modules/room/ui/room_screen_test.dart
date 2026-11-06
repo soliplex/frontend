@@ -13,6 +13,8 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart' show appendUserMessage;
+import 'package:soliplex_frontend/src/core/util/periodic_refresh.dart'
+    show roomListRefreshInterval;
 import 'package:soliplex_frontend/src/modules/room/ui/context_gauge.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -3803,6 +3805,38 @@ void main() {
             documentSelections: DocumentSelections(),
           ),
         );
+
+    testWidgets('pick up a new room on the refresh interval, in place',
+        (tester) async {
+      api.nextRooms = [const Room(id: 'room-1', name: 'Test Room')];
+      await tester.pumpWidget(roomScreen('room-1'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Provisioned'), findsNothing);
+
+      api.nextRooms = [
+        const Room(id: 'room-1', name: 'Test Room'),
+        const Room(id: 'room-2', name: 'Provisioned'),
+      ];
+      final gate = Completer<void>();
+      api.roomsGate = gate;
+      await tester.pump(roomListRefreshInterval);
+      expect(api.getRoomsCallCount, 2);
+      // The poll is in flight. Rebuild the screen (any setState elsewhere
+      // would) and check the rail still shows its rooms, not a spinner.
+      await tester.pumpWidget(roomScreen('room-1'));
+      final rail = find.byType(RoomRail);
+      expect(
+          find.descendant(
+              of: rail, matching: find.byType(CircularProgressIndicator)),
+          findsNothing);
+      expect(find.descendant(of: rail, matching: find.byTooltip('Test Room')),
+          findsOneWidget);
+
+      gate.complete();
+      api.roomsGate = null;
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Provisioned'), findsOneWidget);
+    });
 
     testWidgets('are not refetched on an in-server room switch',
         (tester) async {

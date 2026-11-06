@@ -887,6 +887,72 @@ void main() {
       });
     });
 
+    group('pollRooms', () {
+      Future<(LobbyState, FakeSoliplexApi)> loaded() async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        final fakeApi = FakeSoliplexApi()
+          ..nextRooms = const [Room(id: 'room-1', name: 'One')];
+        final state =
+            LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+        await Future<void>.delayed(Duration.zero);
+        return (state, fakeApi);
+      }
+
+      test('adds a new room without passing through RoomsLoading', () async {
+        final (state, fakeApi) = await loaded();
+        final seen = <ServerRooms?>[];
+        final unsubscribe =
+            state.roomsByServer.subscribe((v) => seen.add(v['local']));
+
+        fakeApi.nextRooms = const [
+          Room(id: 'room-1', name: 'One'),
+          Room(id: 'room-2', name: 'Two'),
+        ];
+        state.pollRooms();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(seen.whereType<RoomsLoading>(), isEmpty);
+        final rooms = state.roomsByServer.value['local'];
+        expect((rooms! as RoomsLoaded).rooms.map((r) => r.id),
+            ['room-1', 'room-2']);
+        unsubscribe();
+        state.dispose();
+      });
+
+      test('a failed poll keeps the loaded list', () async {
+        final (state, fakeApi) = await loaded();
+
+        fakeApi.nextError = const NetworkException(message: 'offline');
+        state.pollRooms();
+        await Future<void>.delayed(Duration.zero);
+
+        final rooms = state.roomsByServer.value['local'];
+        expect(rooms, isA<RoomsLoaded>());
+        expect((rooms! as RoomsLoaded).rooms.map((r) => r.id), ['room-1']);
+        state.dispose();
+      });
+
+      test('does not cancel a fetch already in flight', () async {
+        final (state, fakeApi) = await loaded();
+        final gate = Completer<void>();
+        fakeApi.roomsGate = gate;
+        state.refresh('local');
+        final callsBefore = fakeApi.getRoomsCallCount;
+
+        state.pollRooms();
+        expect(fakeApi.getRoomsCallCount, callsBefore);
+
+        gate.complete();
+        await Future<void>.delayed(Duration.zero);
+        state.dispose();
+      });
+    });
+
     group('dispose', () {
       test('cancels in-flight fetches on dispose', () async {
         final manager = _createManager();
