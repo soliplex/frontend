@@ -72,9 +72,9 @@ class FileDownloadsRegistry {
         entry,
         (roomId, threadId),
         () => FileDownloads((file, isCleared) async {
-          // Signing out keeps a download from saving, even if the user signs
-          // back in before it would have saved. A server not signed in, as
-          // with no auth, has no sign-out to watch for.
+          // Signing out while the file is fetched keeps it from saving, even
+          // if the user signs back in before the fetch ends. A server not
+          // signed in, as with no auth, has no sign-out to watch for.
           var signedIn = false;
           var signedOut = false;
           final unsubscribe = entry.auth.session.subscribe((session) {

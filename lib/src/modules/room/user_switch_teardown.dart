@@ -21,14 +21,14 @@ final Logger _logger =
 /// live `ServerConnection`, which re-auth reuses; [RunRegistry] keys by the
 /// stable `serverId`, and [UploadTrackerRegistry] and [FileDownloadsRegistry]
 /// by the `ServerEntry`, which re-auth also reuses; and [DocumentSelections]
-/// and [DatabaseSelections] hold document
-/// filters and database selections in shared maps that are not partitioned by
-/// user. Without this the next user would reattach to the prior user's
-/// runtime, runs, uploads, downloads, document filters and database
-/// selections. A seventh, `AdminStatus`, hangs off the
-/// `ServerEntry` and holds an authorization answer, so it is evicted here too;
-/// `ServerManager` additionally clears it when a session ends, which reaches
-/// the sign-out path on the `null`-identity servers this class cannot see.
+/// and [DatabaseSelections] hold document filters and database selections in
+/// shared maps that are not partitioned by user. Without this the next user
+/// would reattach to the prior user's runtime, runs, uploads, downloads,
+/// document filters and database selections. A seventh, `AdminStatus`, hangs
+/// off the `ServerEntry` and holds an authorization answer, so it is evicted
+/// here too; `ServerManager` additionally clears it when a session ends,
+/// which reaches the sign-out path on the `null`-identity servers this class
+/// cannot see.
 /// Their expiry path is the known gap below, for `AdminStatus` as for the rest.
 /// `MessageExpansions` is a module-owned cache left untouched on purpose: its
 /// per-message expand/collapse state is cosmetic, and a cross-user collision
