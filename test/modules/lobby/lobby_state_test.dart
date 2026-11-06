@@ -597,6 +597,101 @@ void main() {
       });
     });
 
+    group('label admin standing', () {
+      ServerManager managerAnswering(AuthzOnlyClients? clients) =>
+          ServerManager(
+            authFactory: () =>
+                AuthSession(refreshService: FakeTokenRefreshService()),
+            clientFactory: ({getToken, tokenRefresher}) =>
+                clients?.create() ?? FakeHttpClient(),
+            storage: InMemoryServerStorage(),
+          );
+
+      LobbyState lobbyFor(ServerManager manager) {
+        final fakeApi = FakeSoliplexApi()..nextRooms = const <Room>[];
+        return LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      }
+
+      for (final verdict in [true, false]) {
+        test('records the server\'s verdict ($verdict) after rooms load',
+            () async {
+          final manager =
+              managerAnswering(AuthzOnlyClients(isAdminUser: verdict));
+          manager.addServer(
+            serverId: 'local',
+            serverUrl: Uri.parse('http://localhost:8000'),
+            requiresAuth: false,
+          );
+          final state = lobbyFor(manager);
+          await pumpEventQueue();
+
+          expect(state.labelAdmins.value, {'local': verdict});
+          state.dispose();
+        });
+      }
+
+      test('an unanswered check records nothing, which reads as no', () async {
+        // The default client throws on every request, so the check
+        // cannot be answered.
+        final manager = managerAnswering(null);
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        final state = lobbyFor(manager);
+        await pumpEventQueue();
+
+        expect(state.labelAdmins.value, isEmpty);
+        state.dispose();
+      });
+
+      test('signing out forgets the verdict', () async {
+        final manager = managerAnswering(AuthzOnlyClients());
+        final entry = manager.addServer(
+          serverId: 'auth-server',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+        final state = lobbyFor(manager);
+        await pumpEventQueue();
+        expect(state.labelAdmins.value, {'auth-server': true});
+
+        entry.auth.logout();
+        await pumpEventQueue();
+
+        expect(state.labelAdmins.value, isEmpty);
+        state.dispose();
+      });
+
+      test('removing the server forgets the verdict', () async {
+        final manager = managerAnswering(AuthzOnlyClients());
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        final state = lobbyFor(manager);
+        await pumpEventQueue();
+        expect(state.labelAdmins.value, {'local': true});
+
+        manager.removeServer('local');
+
+        expect(state.labelAdmins.value, isEmpty);
+        state.dispose();
+      });
+    });
+
     group('server addition after init', () {
       test('fetches rooms when a new server is added', () async {
         final manager = _createManager();
