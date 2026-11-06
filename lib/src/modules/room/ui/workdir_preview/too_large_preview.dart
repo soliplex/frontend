@@ -1,25 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import 'download_feedback_button.dart';
-import 'download_outcome.dart';
-
-/// Rendered when the fetched bytes exceed the preview size cap. Mirrors
-/// the inline download-feedback pattern used elsewhere (icon swaps, no
-/// SnackBars) so the cap doesn't introduce a one-off UI affordance.
+/// Rendered when the fetched bytes exceed the preview size cap: says so, and
+/// offers [downloadButton].
 class TooLargePreview extends StatelessWidget {
   const TooLargePreview({
     super.key,
-    required this.filename,
     required this.byteSize,
     required this.capBytes,
-    required this.onDownload,
+    required this.downloadButton,
   });
 
-  final String filename;
   final int byteSize;
   final int capBytes;
-  final Future<DownloadOutcome> Function() onDownload;
+
+  /// The file's Download button.
+  final Widget downloadButton;
 
   @override
   Widget build(BuildContext context) {
@@ -46,21 +42,7 @@ class TooLargePreview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: SoliplexSpacing.s4),
-          DownloadFeedbackButton(
-            filename: filename,
-            onDownload: onDownload,
-            logTag: 'too-large download callback threw',
-            extraLogAttributes: {'byteSize': byteSize},
-            builder: (context, state, onTap) {
-              final (icon, label) = state.buttonAffordance;
-              return SoliplexButton.filled(
-                onPressed: onTap,
-                isLoading: state == DownloadFeedbackState.downloading,
-                icon: Icon(icon),
-                child: Text(label),
-              );
-            },
-          ),
+          downloadButton,
         ],
       ),
     );

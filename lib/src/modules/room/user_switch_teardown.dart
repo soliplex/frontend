@@ -6,6 +6,7 @@ import 'agent_runtime_manager.dart';
 import '../../stores/database_selections.dart';
 import '../../stores/document_selections.dart';
 import '../../stores/run_registry.dart';
+import 'file_downloads_registry.dart';
 import 'upload_tracker_registry.dart';
 
 final Logger _logger =
@@ -15,14 +16,15 @@ final Logger _logger =
 /// within the same process.
 ///
 /// Persistent device-local state is partitioned by user identity, so a switch
-/// needs no teardown there. But five in-memory caches would carry the prior
+/// needs no teardown there. But six in-memory caches would carry the prior
 /// user's state into the new session: [AgentRuntimeManager] caches against the
-/// live `ServerConnection`, which re-auth reuses; [RunRegistry] and
-/// [UploadTrackerRegistry] key by the stable `serverId`; and [DocumentSelections]
-/// and [DatabaseSelections] hold document filters and database selections in
-/// shared maps that are not partitioned by user. Without this the next user
-/// would reattach to the prior user's runtime, runs, uploads, document filters
-/// and database selections. A sixth, `AdminStatus`, hangs off the
+/// live `ServerConnection`, which re-auth reuses; [RunRegistry],
+/// [UploadTrackerRegistry] and [FileDownloadsRegistry] key by the stable
+/// `serverId`; and [DocumentSelections] and [DatabaseSelections] hold document
+/// filters and database selections in shared maps that are not partitioned by
+/// user. Without this the next user would reattach to the prior user's
+/// runtime, runs, uploads, downloads, document filters and database
+/// selections. A seventh, `AdminStatus`, hangs off the
 /// `ServerEntry` and holds an authorization answer, so it is evicted here too;
 /// `ServerManager` additionally clears it when a session ends, which reaches
 /// the sign-out path on the `null`-identity servers this class cannot see.
@@ -59,11 +61,13 @@ class UserSwitchTeardown {
     required AgentRuntimeManager runtimeManager,
     required RunRegistry registry,
     required UploadTrackerRegistry uploadRegistry,
+    required FileDownloadsRegistry downloadRegistry,
     required DocumentSelections documentSelections,
     required DatabaseSelections databaseSelections,
   })  : _runtimeManager = runtimeManager,
         _registry = registry,
         _uploadRegistry = uploadRegistry,
+        _downloadRegistry = downloadRegistry,
         _documentSelections = documentSelections,
         _databaseSelections = databaseSelections {
     _dispose = effect(() {
@@ -85,6 +89,7 @@ class UserSwitchTeardown {
   final AgentRuntimeManager _runtimeManager;
   final RunRegistry _registry;
   final UploadTrackerRegistry _uploadRegistry;
+  final FileDownloadsRegistry _downloadRegistry;
   final DocumentSelections _documentSelections;
   final DatabaseSelections _databaseSelections;
   // Baseline identity per server. An entry for a removed server is left in
@@ -105,6 +110,11 @@ class UserSwitchTeardown {
     _step(() => _runtimeManager.evictServer(serverId), 'runtime', serverId);
     _step(() => _registry.evictServer(serverId), 'runs', serverId);
     _step(() => _uploadRegistry.evictServer(serverId), 'uploads', serverId);
+    _step(
+      () => _downloadRegistry.evictServer(serverId),
+      'downloads',
+      serverId,
+    );
     _step(() => _documentSelections.clearServer(serverId), 'filters', serverId);
     _step(
       () => _databaseSelections.clearServer(serverId),

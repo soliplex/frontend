@@ -1,35 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart' show FilePicker;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'ui/workdir_files.dart' show DownloadOutcome;
 import 'workdir_files_status.dart';
 import 'workspace_groups.dart';
-
-/// Save the [bytes] under [fileName], typically by opening the platform
-/// save dialog. Returns the chosen path on success, or `null` if the user
-/// cancelled. On web the browser triggers the download directly and the
-/// returned path is always `null`.
-typedef SaveFile = Future<String?> Function({
-  required String fileName,
-  required Uint8List bytes,
-});
-
-Future<String?> _defaultSaveFile({
-  required String fileName,
-  required Uint8List bytes,
-}) {
-  // file_picker 11.0.3 throws on web for empty bytes or a name with no
-  // extension (`Makefile`, `.env`), so such a download reports failed. On
-  // desktop it writes nothing for empty bytes, yet returns the chosen path,
-  // so an empty file reports success with nothing saved.
-  return FilePicker.saveFile(fileName: fileName, bytes: bytes);
-}
 
 class _ThreadFiles {
   final signal = Signal<WorkdirFilesStatus>(const WorkdirFilesLoading());
@@ -43,36 +20,29 @@ class _ThreadFiles {
   }
 }
 
-/// Owns each thread's workspace listing and the download flow that pipes
-/// bytes from the API into the platform save dialog.
-///
-/// Constructor parameters are injected so tests can drive both branches
-/// of the cancel logic (web returns null on success, native returns null
-/// on cancel) without spinning up real platform plugins.
+/// Owns each thread's workspace listing and open folders, and fetches its
+/// files' bytes for the preview, for one visit to a room.
 class WorkdirController {
   WorkdirController({
     required SoliplexApi api,
     required String roomId,
     Logger? logger,
-    SaveFile? saveFile,
-    bool isWeb = kIsWeb,
   })  : _api = api,
         _roomId = roomId,
-        _logger = logger ?? LogManager.instance.getLogger('workdir_files'),
-        _saveFile = saveFile ?? _defaultSaveFile,
-        _isWeb = isWeb;
+        _logger = logger ?? LogManager.instance.getLogger('workdir_files');
 
   final SoliplexApi _api;
   final String _roomId;
   final Logger _logger;
-  final SaveFile _saveFile;
-  final bool _isWeb;
   final _threads = <String, _ThreadFiles>{};
   bool _isDisposed = false;
 
   _ThreadFiles _thread(String threadId) {
     if (_isDisposed) throw StateError('WorkdirController has been disposed');
-    return _threads.putIfAbsent(threadId, _ThreadFiles.new);
+    return _threads.putIfAbsent(
+      threadId,
+      _ThreadFiles.new,
+    );
   }
 
   /// The thread's workspace listing. Starts [WorkdirFilesLoading]; call
@@ -208,66 +178,6 @@ class WorkdirController {
     entry.signal.value = WorkdirFilesLoaded(files);
   }
 
-  /// Downloads [file]'s bytes through the authenticated client and hands
-  /// them to the platform save dialog. Distinguishes user-cancel from
-  /// real failure so the caller can render the right inline feedback.
-  Future<DownloadOutcome> downloadFile(
-    String threadId,
-    WorkdirFile file,
-  ) async {
-    _logger.debug(
-      'workdir download start threadId=$threadId name=${file.filename}',
-    );
-    final Uint8List bytes;
-    try {
-      bytes = await _api.getThreadWorkdirFile(
-        _roomId,
-        threadId,
-        file.filename,
-      );
-    } catch (e, st) {
-      _warnFetchFailed('download', threadId, file, e, st);
-      return DownloadOutcome.failed;
-    }
-    try {
-      final path = await _saveFile(fileName: file.basename, bytes: bytes);
-      if (!_isWeb && path == null) {
-        _logger.debug(
-          'workdir file download cancelled threadId=$threadId '
-          'name=${file.filename}',
-        );
-        return DownloadOutcome.cancelled;
-      }
-      if (_isWeb) {
-        // The browser triggers the download immediately and saveFile
-        // returns null even on success; whether the file actually reached
-        // the user's downloads folder is unverifiable from here.
-        _logger.debug(
-          'workdir file download web-triggered threadId=$threadId '
-          'name=${file.filename} bytes=${bytes.length}',
-        );
-      } else {
-        _logger.debug(
-          'workdir file download saved threadId=$threadId '
-          'name=${file.filename} bytes=${bytes.length}',
-        );
-      }
-      return DownloadOutcome.success;
-    } catch (e, st) {
-      // Attached whole: a save failure is the platform's, the save dialog's
-      // error, the web saver's fixed-text refusal of an empty file or a name
-      // with no extension or, when writing the file failed, one naming the
-      // local path it could not write. None holds a credential.
-      _logger.warning(
-        'workdir download save failed threadId=$threadId',
-        error: e,
-        stackTrace: st,
-        attributes: {'filename': file.filename},
-      );
-      return DownloadOutcome.failed;
-    }
-  }
-
   /// Fetches the raw bytes for [file] without writing them to disk. Used
   /// by the in-app preview path; the save dialog is the download path.
   ///
@@ -295,32 +205,9 @@ class WorkdirController {
       );
       rethrow;
     } catch (e, st) {
-      _warnFetchFailed('preview', threadId, file, e, st);
+      warnWorkdirFetchFailed(_logger, 'preview', threadId, file, e, st);
       rethrow;
     }
-  }
-
-  /// Logs a failed fetch of [file]'s bytes for [purpose] with the failure
-  /// whole, so the record keeps its status code and the server's reason.
-  void _warnFetchFailed(
-    String purpose,
-    String threadId,
-    WorkdirFile file,
-    Object e,
-    StackTrace st,
-  ) {
-    // A bodiless GET with the token in a header, so a failure can carry only
-    // the URL path (room and thread ids, the file's path), a status code, a
-    // host, or the answering server's JSON message field: a fixed string on
-    // the workdir routes, a status phrase from a proxy answering in their
-    // place. The client's own ArgumentError for an empty or malformed argument
-    // names only that argument and its value: an id or the file's path.
-    _logger.warning(
-      'workdir $purpose fetch failed threadId=$threadId',
-      error: e,
-      stackTrace: st,
-      attributes: {'filename': file.filename},
-    );
   }
 
   void dispose() {
@@ -330,4 +217,28 @@ class WorkdirController {
     }
     _threads.clear();
   }
+}
+
+/// Logs a failed fetch of [file]'s bytes for [purpose] with the failure
+/// whole, so the record keeps its status code and the server's reason.
+void warnWorkdirFetchFailed(
+  Logger logger,
+  String purpose,
+  String threadId,
+  WorkdirFile file,
+  Object e,
+  StackTrace st,
+) {
+  // A bodiless GET with the token in a header, so a failure can carry only
+  // the URL path (room and thread ids, the file's path), a status code, a
+  // host, or the answering server's JSON message field: a fixed string on
+  // the workdir routes, a status phrase from a proxy answering in their
+  // place. The client's own ArgumentError for an empty or malformed argument
+  // names only that argument and its value: an id or the file's path.
+  logger.warning(
+    'workdir $purpose fetch failed threadId=$threadId',
+    error: e,
+    stackTrace: st,
+    attributes: {'filename': file.filename},
+  );
 }

@@ -10,6 +10,8 @@ import 'package:soliplex_frontend/src/stores/database_selections.dart';
 import 'package:soliplex_frontend/src/stores/document_selections.dart';
 import 'package:soliplex_frontend/src/stores/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
+import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
+import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/user_switch_teardown.dart';
 
@@ -40,12 +42,13 @@ typedef _Wired = ({
   AgentRuntimeManager runtimeManager,
   RunRegistry registry,
   UploadTrackerRegistry uploadRegistry,
+  FileDownloadsRegistry downloadRegistry,
   DocumentSelections docs,
   DatabaseSelections databases,
 });
 
 void main() {
-  // Builds a server signed in as [initialSub], with the five managers wired to
+  // Builds a server signed in as [initialSub], with the six managers wired to
   // the server signal but NOT yet populated, and NO coordinator yet — so a test
   // controls exactly when the coordinator first sees the identity.
   _Wired wire({String initialSub = 'alice'}) {
@@ -71,12 +74,14 @@ void main() {
     );
     final registry = RunRegistry(servers: manager.servers);
     final uploadRegistry = UploadTrackerRegistry(servers: manager.servers);
+    final downloadRegistry = FileDownloadsRegistry(servers: manager.servers);
     final docs = DocumentSelections();
     final databases = DatabaseSelections();
 
     addTearDown(() async {
       registry.dispose();
       uploadRegistry.dispose();
+      downloadRegistry.dispose();
       await runtimeManager.dispose();
       manager.dispose();
     });
@@ -88,6 +93,7 @@ void main() {
       runtimeManager: runtimeManager,
       registry: registry,
       uploadRegistry: uploadRegistry,
+      downloadRegistry: downloadRegistry,
       docs: docs,
       databases: databases,
     );
@@ -99,6 +105,7 @@ void main() {
       runtimeManager: w.runtimeManager,
       registry: w.registry,
       uploadRegistry: w.uploadRegistry,
+      downloadRegistry: w.downloadRegistry,
       documentSelections: w.docs,
       databaseSelections: w.databases,
     );
@@ -106,19 +113,29 @@ void main() {
     return teardown;
   }
 
-  // Fills all five managers with state attributable to the current user.
-  ({AgentRuntime runtime, UploadTracker tracker}) populate(_Wired w) {
+  FileDownloads downloadsOf(_Wired w) => w.downloadRegistry
+      .downloadsFor(entry: w.entry, roomId: 'room', threadId: 'thread');
+
+  // Fills all six managers with state attributable to the current user.
+  ({AgentRuntime runtime, UploadTracker tracker, FileDownloads downloads})
+      populate(_Wired w) {
     final runtime = w.runtimeManager.getRuntime(w.entry.connection);
     w.registry.register(_key, ManualAgentSession(_key));
     final tracker = w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room');
+    final downloads = downloadsOf(w);
     w.docs
         .set(serverId: 's1', roomId: 'room', threadId: 'thread', docs: {_doc});
     w.databases.set(
         serverId: 's1', roomId: 'room', threadId: 'thread', names: {'wiki'});
-    return (runtime: runtime, tracker: tracker);
+    return (runtime: runtime, tracker: tracker, downloads: downloads);
   }
 
-  void expectEvicted(_Wired w, AgentRuntime runtime, UploadTracker tracker) {
+  void expectEvicted(
+    _Wired w,
+    AgentRuntime runtime,
+    UploadTracker tracker,
+    FileDownloads downloads,
+  ) {
     expect(identical(w.runtimeManager.getRuntime(w.entry.connection), runtime),
         isFalse,
         reason: 'runtime should be evicted and rebuilt');
@@ -130,6 +147,8 @@ void main() {
       isFalse,
       reason: 'upload tracker should be evicted and rebuilt',
     );
+    expect(identical(downloadsOf(w), downloads), isFalse,
+        reason: 'file downloads should be evicted and rebuilt');
     expect(
         w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'), isEmpty,
         reason: 'document selections should be cleared');
@@ -138,7 +157,12 @@ void main() {
         reason: 'database selections should be cleared');
   }
 
-  void expectRetained(_Wired w, AgentRuntime runtime, UploadTracker tracker) {
+  void expectRetained(
+    _Wired w,
+    AgentRuntime runtime,
+    UploadTracker tracker,
+    FileDownloads downloads,
+  ) {
     expect(identical(w.runtimeManager.getRuntime(w.entry.connection), runtime),
         isTrue,
         reason: 'runtime should be retained');
@@ -150,6 +174,8 @@ void main() {
       isTrue,
       reason: 'upload tracker should be retained',
     );
+    expect(identical(downloadsOf(w), downloads), isTrue,
+        reason: 'file downloads should be retained');
     expect(w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
         isNotEmpty,
         reason: 'document selections should be retained');
@@ -167,7 +193,7 @@ void main() {
       w.entry.auth.logout();
       _login(w.entry, 'bob');
 
-      expectEvicted(w, captured.runtime, captured.tracker);
+      expectEvicted(w, captured.runtime, captured.tracker, captured.downloads);
     });
 
     test(
@@ -197,7 +223,7 @@ void main() {
       // A refresh swaps the session for the same identity.
       _login(w.entry, 'alice');
 
-      expectRetained(w, captured.runtime, captured.tracker);
+      expectRetained(w, captured.runtime, captured.tracker, captured.downloads);
     });
 
     test('first sight of an already-signed-in user does not evict', () {
@@ -208,7 +234,7 @@ void main() {
       // cold boot where restoreServers signed the user in before wiring.
       coordinator(w);
 
-      expectRetained(w, captured.runtime, captured.tracker);
+      expectRetained(w, captured.runtime, captured.tracker, captured.downloads);
     });
 
     test('a logout alone evicts nothing', () {
@@ -218,7 +244,7 @@ void main() {
 
       w.entry.auth.logout();
 
-      expectRetained(w, captured.runtime, captured.tracker);
+      expectRetained(w, captured.runtime, captured.tracker, captured.downloads);
     });
 
     test('a disposed coordinator ignores later user switches', () {
@@ -230,7 +256,7 @@ void main() {
       w.entry.auth.logout();
       _login(w.entry, 'bob');
 
-      expectRetained(w, captured.runtime, captured.tracker);
+      expectRetained(w, captured.runtime, captured.tracker, captured.downloads);
     });
 
     test('a switch on one server leaves another server\'s state intact', () {
@@ -250,6 +276,9 @@ void main() {
       w.registry.register(otherKey, ManualAgentSession(otherKey));
       final otherTracker =
           w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
+      FileDownloads otherDownloads() => w.downloadRegistry
+          .downloadsFor(entry: other, roomId: 'room', threadId: 'thread');
+      final otherDownloadsBefore = otherDownloads();
       w.docs.set(
           serverId: 's2', roomId: 'room', threadId: 'thread', docs: {_doc});
       w.databases.set(
@@ -259,8 +288,8 @@ void main() {
       w.entry.auth.logout();
       _login(w.entry, 'bob');
 
-      expectEvicted(w, captured.runtime, captured.tracker);
-      // All five caches isolate per server; only s1 is torn down.
+      expectEvicted(w, captured.runtime, captured.tracker, captured.downloads);
+      // All six caches isolate per server; only s1 is torn down.
       expect(
         identical(w.runtimeManager.getRuntime(other.connection), otherRuntime),
         isTrue,
@@ -274,6 +303,8 @@ void main() {
         isTrue,
         reason: "other server's upload tracker should survive",
       );
+      expect(identical(otherDownloads(), otherDownloadsBefore), isTrue,
+          reason: "other server's file downloads should survive");
       expect(w.docs.get(serverId: 's2', roomId: 'room', threadId: 'thread'),
           isNotEmpty,
           reason: "other server's document selections should survive");
@@ -290,10 +321,10 @@ void main() {
 
       // Session expires without an explicit logout.
       w.entry.auth.markSessionExpired();
-      expectRetained(w, captured.runtime, captured.tracker);
+      expectRetained(w, captured.runtime, captured.tracker, captured.downloads);
 
       _login(w.entry, 'bob');
-      expectEvicted(w, captured.runtime, captured.tracker);
+      expectEvicted(w, captured.runtime, captured.tracker, captured.downloads);
     });
 
     test('switching back to a prior user evicts again (baseline advances)', () {
@@ -304,14 +335,14 @@ void main() {
       var captured = populate(w);
       w.entry.auth.logout();
       _login(w.entry, 'bob');
-      expectEvicted(w, captured.runtime, captured.tracker);
+      expectEvicted(w, captured.runtime, captured.tracker, captured.downloads);
 
       // bob -> alice must evict again: the baseline has to have advanced to bob,
       // not stayed at the original alice.
       captured = populate(w);
       w.entry.auth.logout();
       _login(w.entry, 'alice');
-      expectEvicted(w, captured.runtime, captured.tracker);
+      expectEvicted(w, captured.runtime, captured.tracker, captured.downloads);
     });
 
     test('a server signing in after wiring records a baseline, not a switch',
@@ -332,6 +363,9 @@ void main() {
       w.registry.register(otherKey, ManualAgentSession(otherKey));
       final otherTracker =
           w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
+      FileDownloads otherDownloads() => w.downloadRegistry
+          .downloadsFor(entry: other, roomId: 'room', threadId: 'thread');
+      final otherDownloadsBefore = otherDownloads();
       w.docs.set(
           serverId: 's2', roomId: 'room', threadId: 'thread', docs: {_doc});
 
@@ -351,6 +385,8 @@ void main() {
         isTrue,
         reason: 'upload tracker should be retained on a first sign-in',
       );
+      expect(identical(otherDownloads(), otherDownloadsBefore), isTrue,
+          reason: 'file downloads should be retained on a first sign-in');
       expect(w.docs.get(serverId: 's2', roomId: 'room', threadId: 'thread'),
           isNotEmpty,
           reason: 'document selections should be retained on a first sign-in');
@@ -375,6 +411,7 @@ void main() {
         runtimeManager: throwingRuntime,
         registry: w.registry,
         uploadRegistry: w.uploadRegistry,
+        downloadRegistry: w.downloadRegistry,
         documentSelections: w.docs,
         databaseSelections: w.databases,
       );
@@ -383,6 +420,7 @@ void main() {
       w.registry.register(_key, ManualAgentSession(_key));
       final tracker =
           w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room');
+      final downloads = downloadsOf(w);
       w.docs.set(
           serverId: 's1', roomId: 'room', threadId: 'thread', docs: {_doc});
       w.databases.set(
@@ -402,6 +440,8 @@ void main() {
         isFalse,
         reason: 'upload tracker should be evicted despite the earlier throw',
       );
+      expect(identical(downloadsOf(w), downloads), isFalse,
+          reason: 'file downloads should be evicted despite the earlier throw');
       expect(w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
           isEmpty,
           reason: 'document selections should be cleared despite the throw');

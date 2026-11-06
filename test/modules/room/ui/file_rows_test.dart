@@ -12,6 +12,9 @@ import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.da
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 
+import '../../../helpers/file_name_finder.dart';
+import '../../../helpers/test_downloads.dart';
+
 // Every kind of entry the file panel and room info list, side by side: the
 // list reads as one only if they share a height and their icons share
 // columns. Stored files carry a time and a size unless a test says
@@ -70,7 +73,7 @@ Widget _workspace(List<String> paths, {bool hasDetails = true}) =>
             sizeBytes: hasDetails ? 2458 : null,
           ),
       ]),
-      onDownload: (_) async => DownloadOutcome.success,
+      downloads: testDownloads(),
       onFetchBytes: (_) async => Uint8List(0),
       onRetry: () {},
       folderToggles: const {},
@@ -79,8 +82,10 @@ Widget _workspace(List<String> paths, {bool hasDetails = true}) =>
 
 double _height(WidgetTester tester, Finder row) => tester.getSize(row).height;
 
-Finder _uploadRow(String name) =>
-    find.ancestor(of: find.text(name), matching: find.byType(UploadEntryRow));
+Finder _uploadRow(String name) => find.ancestor(
+      of: findFileName(name),
+      matching: find.byType(UploadEntryRow),
+    );
 
 Finder _workspaceRow(String name) => find.ancestor(
       // The row's label goes on to its time and size.

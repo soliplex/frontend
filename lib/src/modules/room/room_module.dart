@@ -15,6 +15,7 @@ import 'room_providers.dart';
 import '../../stores/run_registry.dart';
 import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
+import 'file_downloads_registry.dart';
 import 'upload_tracker_registry.dart';
 import 'user_switch_teardown.dart';
 
@@ -32,13 +33,15 @@ class RoomAppModule extends AppModule {
     this.logo,
     this.enableDocumentFilter = false,
   })  : _messageExpansions = MessageExpansions(),
-        _uploadRegistry =
-            UploadTrackerRegistry(servers: serverManager.servers) {
+        _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers),
+        _downloadRegistry =
+            FileDownloadsRegistry(servers: serverManager.servers) {
     _userSwitchTeardown = UserSwitchTeardown(
       servers: serverManager.servers,
       runtimeManager: runtimeManager,
       registry: registry,
       uploadRegistry: _uploadRegistry,
+      downloadRegistry: _downloadRegistry,
       documentSelections: documentSelections,
       databaseSelections: databaseSelections,
     );
@@ -76,6 +79,7 @@ class RoomAppModule extends AppModule {
 
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
+  final FileDownloadsRegistry _downloadRegistry;
   late final UserSwitchTeardown _userSwitchTeardown;
 
   @override
@@ -133,6 +137,7 @@ class RoomAppModule extends AppModule {
             runtimeManager: runtimeManager,
             registry: registry,
             uploadRegistry: _uploadRegistry,
+            downloadRegistry: _downloadRegistry,
             fileSort: fileSort,
             enableDocumentFilter: enableDocumentFilter,
             documentSelections: documentSelections,
@@ -150,5 +155,6 @@ class RoomAppModule extends AppModule {
     _userSwitchTeardown.dispose();
     await runtimeManager.dispose();
     _uploadRegistry.dispose();
+    _downloadRegistry.dispose();
   }
 }

@@ -1,11 +1,8 @@
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/server_entry.dart';
+import 'per_server_cache.dart';
 import 'upload_tracker.dart';
-
-final Logger _logger =
-    LogManager.instance.getLogger('soliplex.upload_tracker_registry');
 
 /// Module-scoped registry that hands out one `UploadTracker` per
 /// `(serverId, roomId)`.
@@ -31,14 +28,13 @@ final Logger _logger =
 class UploadTrackerRegistry {
   UploadTrackerRegistry({
     required ReadonlySignal<Map<String, ServerEntry>> servers,
-  }) : _servers = servers {
-    _unsubscribe = _servers.subscribe(_evictRemoved);
-  }
+  }) : _trackers = PerServerCache(
+          servers: servers,
+          disposeValue: (tracker) => tracker.dispose(),
+          what: 'upload tracker',
+        );
 
-  final ReadonlySignal<Map<String, ServerEntry>> _servers;
-  final Map<(String, String), UploadTracker> _trackers = {};
-  late final void Function() _unsubscribe;
-  bool _isDisposed = false;
+  final PerServerCache<String, UploadTracker> _trackers;
 
   /// Returns (or lazily creates) the tracker for the given
   /// `(serverId, roomId)`. Throws [StateError] if the registry has
@@ -55,67 +51,18 @@ class UploadTrackerRegistry {
   UploadTracker trackerFor({
     required ServerEntry entry,
     required String roomId,
-  }) {
-    if (_isDisposed) {
-      throw StateError('UploadTrackerRegistry has been disposed');
-    }
-    final key = (entry.serverId, roomId);
-    return _trackers.putIfAbsent(
-      key,
-      () => UploadTracker(api: entry.connection.api, auth: entry.auth),
-    );
-  }
-
-  void _evictRemoved(Map<String, ServerEntry> snapshot) {
-    final liveIds = snapshot.keys.toSet();
-    _evictWhere((serverId) => !liveIds.contains(serverId));
-  }
+  }) =>
+      _trackers.putIfAbsent(
+        entry.serverId,
+        roomId,
+        () => UploadTracker(api: entry.connection.api, auth: entry.auth),
+      );
 
   /// Disposes and drops every tracker for [serverId], so a different user
   /// signing in on that server starts with an empty tracker instead of
   /// inheriting the prior user's in-flight and completed uploads. No-op if
   /// none are cached.
-  void evictServer(String serverId) {
-    _evictWhere((id) => id == serverId);
-  }
+  void evictServer(String serverId) => _trackers.evictServer(serverId);
 
-  /// Drops each matching tracker before disposing it — disposal runs real
-  /// teardown that can throw, and eviction runs synchronously inside a signal
-  /// write (server removal, or a user switch mid-login), where an escape would
-  /// unwind the caller and strand the remaining evictions. Removing first keeps
-  /// a throw from leaving a disposed tracker referenced; the throw is logged.
-  void _evictWhere(bool Function(String serverId) shouldEvict) {
-    if (_isDisposed) return;
-    final dead = _trackers.entries.where((e) => shouldEvict(e.key.$1)).toList();
-    for (final entry in dead) {
-      _trackers.remove(entry.key);
-      _disposeQuietly(entry.key, entry.value);
-    }
-  }
-
-  void dispose() {
-    if (_isDisposed) return;
-    _isDisposed = true;
-    _unsubscribe();
-    for (final entry in _trackers.entries) {
-      _disposeQuietly(entry.key, entry.value);
-    }
-    _trackers.clear();
-  }
-
-  /// Disposes [tracker], swallowing and logging any throw so one tracker's
-  /// failing teardown can't strand the rest — whether it runs inside the
-  /// synchronous eviction signal write or the disposal loop.
-  void _disposeQuietly((String, String) key, UploadTracker tracker) {
-    try {
-      tracker.dispose();
-    } on Object catch (error, stackTrace) {
-      _logger.error(
-        'Failed to dispose upload tracker',
-        error: error,
-        stackTrace: stackTrace,
-        attributes: {'serverId': key.$1, 'roomId': key.$2},
-      );
-    }
-  }
+  void dispose() => _trackers.dispose();
 }

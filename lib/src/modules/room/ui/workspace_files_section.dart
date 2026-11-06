@@ -7,6 +7,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/local_time_format.dart';
 import '../../../shared/relative_time.dart';
 
+import '../file_downloads.dart';
 import '../file_sort.dart';
 import '../workdir_files_status.dart';
 import '../workspace_groups.dart';
@@ -44,7 +45,7 @@ class WorkspaceFilesSection extends StatelessWidget {
     super.key,
     required this.status,
     required this.sort,
-    required this.onDownload,
+    required this.downloads,
     required this.onFetchBytes,
     required this.onRetry,
     required this.folderToggles,
@@ -53,7 +54,9 @@ class WorkspaceFilesSection extends StatelessWidget {
 
   final WorkdirFilesStatus status;
   final FileSort sort;
-  final Future<DownloadOutcome> Function(WorkdirFile file) onDownload;
+
+  /// Each file's download, which its row and its preview show and start.
+  final FileDownloads downloads;
   final Future<Uint8List> Function(WorkdirFile file) onFetchBytes;
   final VoidCallback onRetry;
 
@@ -156,10 +159,7 @@ class WorkspaceFilesSection extends StatelessWidget {
         onTap: () => onFolderToggled(folder.path, expanded: !expanded),
       ),
       if (expanded)
-        // Keyed by the folder, so when the folders reorder its rows move
-        // with it and keep their state, such as a download in progress.
         Padding(
-          key: ValueKey(folder.path),
           padding: EdgeInsets.only(
             left: depth < _indentedLevels ? SoliplexSpacing.s4 : 0,
           ),
@@ -182,22 +182,15 @@ class WorkspaceFilesSection extends StatelessWidget {
       [
         for (var i = 0; i < files.length; i++)
           WorkdirFileRow(
-            // A row holds its download's state, which belongs to the file:
-            // keyed by it, the state follows the file as its group's list
-            // reorders, and a file of another thread starts fresh (the
-            // server's URL for it names the thread). A file the listing reports
-            // with a different modified time or size starts fresh too, since
-            // those are part of its equality.
-            key: ValueKey(files[i]),
             file: files[i],
             directory: directoryOf(files[i]),
-            onTap: () => onDownload(files[i]),
+            downloads: downloads,
             onOpenPreview: () => WorkdirPreviewPage.show(
               context: context,
               files: files,
               initialIndex: i,
               fetchBytes: onFetchBytes,
-              onDownload: onDownload,
+              downloads: downloads,
             ),
           ),
       ];

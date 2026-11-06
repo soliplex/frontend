@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
+    show FileName;
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/preview_kind.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_frontend/src/shared/file_size.dart';
@@ -90,12 +92,11 @@ class UploadEntryRow extends StatelessWidget {
         children: [
           FullNameTooltip(
             name: entry.filename,
-            child: Text(
+            child: FileName(
               entry.filename,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: isFailed ? theme.colorScheme.onErrorContainer : null,
               ),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
           if (errorMessage != null)

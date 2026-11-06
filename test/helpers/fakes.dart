@@ -565,6 +565,18 @@ class FakeSoliplexApi extends SoliplexApi {
     return nextWorkdirFiles ?? const [];
   }
 
+  /// When set, a file's bytes wait on it; otherwise a file is empty.
+  Completer<Uint8List>? workdirFileBytes;
+
+  @override
+  Future<Uint8List> getThreadWorkdirFile(
+    String roomId,
+    String threadId,
+    String filename, {
+    CancelToken? cancelToken,
+  }) =>
+      workdirFileBytes?.future ?? Future.value(Uint8List(0));
+
   @override
   Future<String> getMcpToken(String roomId, {CancelToken? cancelToken}) async {
     if (nextMcpTokenError != null) throw nextMcpTokenError!;
