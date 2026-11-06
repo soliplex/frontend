@@ -56,46 +56,21 @@ void main() {
           ['src/z/b.txt', 'src/z/a.txt']);
     });
 
-    test('orders folders by name in the direction, tooling folders last', () {
+    test('orders folders by name in the direction', () {
       final listing = [
-        _file('__pycache__/a.pyc'),
         _file('beta/x'),
-        _file('.git/HEAD'),
         _file('Alpha/x'),
-        _file('Alpha/__pycache__/y.pyc'),
         _file('Alpha/sub-b/z'),
-        _file('Alpha/.git/HEAD'),
         _file('Alpha/sub-a/z'),
       ];
 
       final up = workspaceTree(listing, descending: false);
-      expect(_names(up.folders), ['Alpha', 'beta', '.git', '__pycache__']);
-      expect(_names(up.folders[0].folders),
-          ['sub-a', 'sub-b', '.git', '__pycache__']);
+      expect(_names(up.folders), ['Alpha', 'beta']);
+      expect(_names(up.folders[0].folders), ['sub-a', 'sub-b']);
 
       final down = workspaceTree(listing, descending: true);
-      expect(_names(down.folders), ['beta', 'Alpha', '.git', '__pycache__']);
-      expect(_names(down.folders[1].folders),
-          ['sub-b', 'sub-a', '.git', '__pycache__']);
-    });
-
-    test('puts files named for tooling last in their folder', () {
-      final listing = [_file('wt/.git'), _file('wt/z.txt'), _file('wt/a.txt')];
-
-      expect(
-          _paths(
-              workspaceTree(listing, descending: false).folders.single.files),
-          ['wt/a.txt', 'wt/z.txt', 'wt/.git']);
-      expect(
-          _paths(workspaceTree(listing, descending: true).folders.single.files),
-          ['wt/z.txt', 'wt/a.txt', 'wt/.git']);
-    });
-
-    test('a file named .git makes no folder', () {
-      final root = workspaceTree(descending: false, [_file('.git')]);
-
-      expect(_paths(root.files), ['.git']);
-      expect(root.folders, isEmpty);
+      expect(_names(down.folders), ['beta', 'Alpha']);
+      expect(_names(down.folders[1].folders), ['sub-b', 'sub-a']);
     });
 
     test('merges a chain of folders that each hold only one folder', () {
@@ -144,21 +119,6 @@ void main() {
       expect(_names(root.folders.single.folders), ['a', 'b']);
     });
 
-    test('a chain stops before a tooling folder', () {
-      final root =
-          workspaceTree(descending: false, [_file('pkg/__pycache__/m.pyc')]);
-
-      expect(_names(root.folders), ['pkg']);
-      expect(root.folders.single.folders.single.path, 'pkg/__pycache__');
-    });
-
-    test('a chain that starts at a tooling folder merges', () {
-      final root =
-          workspaceTree(descending: false, [_file('.git/refs/heads/main')]);
-
-      expect(_names(root.folders), ['.git/refs/heads']);
-    });
-
     test('a merged chain sorts by its first folder', () {
       final listing = [
         _file('b/z/x.csv'),
@@ -205,7 +165,6 @@ void main() {
   });
 
   group('flatWorkspace', () {
-    // The tooling files are the newest, so only the split keeps them last.
     final listing = [
       for (final (i, path) in [
         'a.txt',
@@ -213,27 +172,17 @@ void main() {
         'src-a/main.py',
         'src-b/file',
         'src-b/another/dir/file-b',
-        'src-a/under/sub/dir/.git/config',
-        'src-b/__pycache__/m.pyc',
-        '.git/HEAD',
       ].indexed)
         _file(path, modifiedAt: DateTime.utc(2026, 1, i + 1)),
     ];
 
-    test('splits real files from tooling files, each by the sort', () {
-      final flat = flatWorkspace(listing, FileSort.newestFirst);
-
-      expect(_paths(flat.files), [
+    test('sorts every file by the sort, whatever its folder', () {
+      expect(_paths(flatWorkspace(listing, FileSort.newestFirst)), [
         'src-b/another/dir/file-b',
         'src-b/file',
         'src-a/main.py',
         'b.txt',
         'a.txt',
-      ]);
-      expect(_paths(flat.tooling), [
-        '.git/HEAD',
-        'src-b/__pycache__/m.pyc',
-        'src-a/under/sub/dir/.git/config',
       ]);
     });
   });
@@ -248,28 +197,20 @@ void main() {
       expect(isFolderExpanded({}, 'reports/q1', topLevel: false), isFalse);
     });
 
-    test('a top-level tooling folder starts closed', () {
-      expect(isFolderExpanded({}, '.git', topLevel: true), isFalse);
-      expect(isFolderExpanded({}, '__pycache__', topLevel: true), isFalse);
-      expect(isFolderExpanded({}, '.git/refs', topLevel: true), isFalse);
-    });
-
     test('a toggle wins over where the folder starts', () {
       expect(isFolderExpanded({'reports': false}, 'reports', topLevel: true),
           isFalse);
       expect(isFolderExpanded({'a/b': true}, 'a/b', topLevel: false), isTrue);
-      expect(isFolderExpanded({'.git': true}, '.git', topLevel: true), isTrue);
     });
   });
 
   group('open folders', () {
-    // `src/lib/deep` is nested, so it starts closed; `.git` is tooling.
+    // `src/lib/deep` is nested, so it starts closed.
     final root = workspaceTree(descending: false, [
       _file('src/main.py'),
       _file('src/lib/util.py'),
       _file('src/lib/deep/x.py'),
       _file('docs/a.md'),
-      _file('.git/HEAD'),
     ]);
 
     test('openFolders lists every open folder, by default or by toggle', () {
@@ -312,19 +253,6 @@ void main() {
 
     test('is empty for a root file', () {
       expect(ancestorsOf(_file('d.txt')), isEmpty);
-    });
-  });
-
-  group('isToolingPath', () {
-    test('holds for a .git or __pycache__ segment at any depth', () {
-      expect(isToolingPath('.git/HEAD'), isTrue);
-      expect(isToolingPath('crm_app/backend/__pycache__/v.pyc'), isTrue);
-    });
-
-    test('needs a whole segment to match', () {
-      expect(isToolingPath('reports/git.txt'), isFalse);
-      expect(isToolingPath('__pycache__.txt'), isFalse);
-      expect(isToolingPath('a.git/b.txt'), isFalse);
     });
   });
 }

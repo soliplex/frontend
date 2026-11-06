@@ -52,6 +52,32 @@ void main() {
     });
   });
 
+  group('splitPathForCut', () {
+    test("keeps a folder's end, with no extension split off", () {
+      expect(splitPathForCut('experiment_run_11_05'),
+          ('', 'experiment_run', '_11_05'));
+      expect(splitPathForCut('v1.2'), ('', '', 'v1.2'));
+    });
+
+    test('keeps the last folder whole, after the rest', () {
+      expect(splitPathForCut('raw/archive/2023'), ('raw/archive', '', '/2023'));
+    });
+
+    test('keeps the end of a last folder too long alone', () {
+      expect(
+        splitPathForCut('project/src/experiment_run_11_05'),
+        ('project/src', '/experiment_run', '_11_05'),
+      );
+    });
+
+    test('counts what a reader sees as one character', () {
+      expect(
+        splitPathForCut('a/run_\u{1F44D}\u{1F3FD}\u{1F44D}\u{1F3FD}_done'),
+        ('a', '/run_\u{1F44D}\u{1F3FD}', '\u{1F44D}\u{1F3FD}_done'),
+      );
+    });
+  });
+
   group('FileName', () {
     test('refuses a path', () {
       // A row shows a file's directory apart from its name, so FileName

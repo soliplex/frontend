@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/workdir_controller.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
@@ -49,6 +50,60 @@ void main() {
 
       final status = controller.files('t-1').value as WorkdirFilesLoaded;
       expect(status.files.map((f) => f.filename), ['a.csv', 'b.csv']);
+    });
+
+    test('drops files under an ignored folder, at any depth', () async {
+      stubList(() async => [
+            _file('.git/HEAD'),
+            _file('.git'),
+            _file('src/__pycache__/main.cpython-312.pyc'),
+            _file('a/b/.git/objects/ab/cd'),
+            _file('.gitignore'),
+            _file('git/notes.md'),
+            _file('src/main.py'),
+            _file('__pycache__.txt'),
+            _file('a.git/b.txt'),
+          ]);
+      final controller = build();
+      addTearDown(controller.dispose);
+
+      await controller.refresh('t-1');
+
+      expect(
+        names(controller, 't-1'),
+        [
+          '.gitignore',
+          '__pycache__.txt',
+          'a.git/b.txt',
+          'git/notes.md',
+          'src/main.py',
+        ],
+      );
+    });
+
+    test('logs how many files a listing dropped, at debug', () async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final level = LogManager.instance.minimumLevel;
+      LogManager.instance.minimumLevel = LogLevel.debug;
+      addTearDown(() => LogManager.instance.minimumLevel = level);
+      stubList(() async => [
+            _file('.git/HEAD'),
+            _file('src/__pycache__/main.pyc'),
+            _file('src/main.py'),
+          ]);
+      final controller = build();
+      addTearDown(controller.dispose);
+
+      await controller.refresh('t-1');
+
+      final record = sink.records.singleWhere(
+        (r) => r.message.startsWith('workdir list loaded'),
+      );
+      expect(record.level, LogLevel.debug);
+      expect(record.message, contains('count=1'));
+      expect(record.message, contains('ignored=2'));
     });
 
     test('a 404 before any load is an empty list', () async {

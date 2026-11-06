@@ -54,6 +54,34 @@ void main() {
     api = _MockApi();
   });
 
+  group('downloadFailureReason', () {
+    for (final (error, reason) in <(Object, String)>[
+      (
+        const NotFoundException(message: 'No workdir file'),
+        'File no longer exists',
+      ),
+      (const NetworkException(message: 'down'), "Couldn't reach the server"),
+      (const AuthException(message: 'expired'), 'Sign in again'),
+      (
+        const PermissionDeniedException(message: 'denied'),
+        "You don't have access to this file",
+      ),
+      (
+        const ApiException(message: 'HTTP 503', statusCode: 503),
+        'Server is temporarily unavailable',
+      ),
+      (
+        const ApiException(message: 'HTTP 400', statusCode: 400),
+        "The server couldn't send the file",
+      ),
+      (StateError('broken'), 'Something went wrong'),
+    ]) {
+      test('${error.runtimeType} reads "$reason"', () {
+        expect(downloadFailureReason(error), reason);
+      });
+    }
+  });
+
   group('downloadWorkdirFile', () {
     Future<DownloadOutcome> download(
       WorkdirFile file, {
@@ -85,7 +113,7 @@ void main() {
         },
       );
 
-      expect(outcome, DownloadOutcome.success);
+      expect(outcome, const DownloadSaved());
       expect(gotBytes, bytes);
     });
 
@@ -104,7 +132,7 @@ void main() {
         },
       );
 
-      expect(outcome, DownloadOutcome.success);
+      expect(outcome, const DownloadSaved());
       expect(gotName, 'file.csv');
     });
 
@@ -118,7 +146,7 @@ void main() {
           saveFile: ({required String fileName, required Uint8List bytes}) =>
               Future.value(),
         ),
-        DownloadOutcome.cancelled,
+        const DownloadCancelled(),
       );
     });
 
@@ -133,18 +161,22 @@ void main() {
           saveFile: ({required String fileName, required Uint8List bytes}) =>
               Future.value(),
         ),
-        DownloadOutcome.success,
+        const DownloadSaved(),
       );
     });
 
-    test('returns failed when the API throws', () async {
+    test('a failed fetch gives the reason its exception maps to', () async {
       when(() => api.getThreadWorkdirFile(any(), any(), any()))
           .thenThrow(const NetworkException(message: 'down'));
 
-      expect(await download(_file('output.csv')), DownloadOutcome.failed);
+      expect(
+        await download(_file('output.csv')),
+        isA<DownloadFailed>()
+            .having((f) => f.reason, 'reason', "Couldn't reach the server"),
+      );
     });
 
-    test('returns failed when saveFile throws', () async {
+    test('a failed save says the save failed', () async {
       when(() => api.getThreadWorkdirFile(any(), any(), any()))
           .thenAnswer((_) async => Uint8List(0));
 
@@ -154,7 +186,8 @@ void main() {
           saveFile: ({required String fileName, required Uint8List bytes}) =>
               throw Exception('disk full'),
         ),
-        DownloadOutcome.failed,
+        isA<DownloadFailed>()
+            .having((f) => f.reason, 'reason', "Couldn't save the file"),
       );
     });
 
@@ -172,7 +205,7 @@ void main() {
         },
       );
 
-      expect(outcome, DownloadOutcome.cancelled);
+      expect(outcome, const DownloadCancelled());
       expect(saved, isEmpty);
     });
 
@@ -244,7 +277,7 @@ void main() {
 
         final outcome = await download(_file('output.csv'), isUnwanted: true);
 
-        expect(outcome, DownloadOutcome.cancelled);
+        expect(outcome, const DownloadCancelled());
         expect(sink.records.where((r) => r.level >= LogLevel.warning), isEmpty);
       });
 
@@ -310,7 +343,7 @@ void main() {
 
       expect(
         downloads(thread: 't-2').stateOf(file),
-        DownloadFeedbackState.success,
+        const DownloadSaved(),
       );
       expect(saved, ['report.csv']);
     });
@@ -349,7 +382,7 @@ void main() {
 
       expect(
         downloads.stateOf(_file('output.csv')),
-        DownloadFeedbackState.success,
+        const DownloadSaved(),
       );
     });
 
@@ -379,7 +412,7 @@ void main() {
       expect(saved, isEmpty);
       expect(
         downloads().stateOf(_file('output.csv')),
-        DownloadFeedbackState.idle,
+        const DownloadIdle(),
       );
     });
 

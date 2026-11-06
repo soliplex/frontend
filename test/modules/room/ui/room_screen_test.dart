@@ -3307,7 +3307,7 @@ void main() {
       await tester.tap(find.byTooltip('1 in workspace'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('reports'));
+      await tester.tap(findFolderPath('reports'));
 
       expect(tester.element(find.byType(RoomScreen)).dirty, isFalse);
       await tester.pump();
@@ -3324,7 +3324,7 @@ void main() {
 
       await tester.tap(filesButton);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('reports'));
+      await tester.tap(findFolderPath('reports'));
       await tester.pumpAndSettle();
       expect(findFileName('a.csv'), findsNothing);
 
@@ -3333,7 +3333,7 @@ void main() {
       await tester.tap(filesButton);
       await tester.pumpAndSettle();
 
-      expect(find.text('reports'), findsOneWidget);
+      expect(findFolderPath('reports'), findsOneWidget);
       expect(findFileName('a.csv'), findsNothing);
     });
 
@@ -3478,7 +3478,7 @@ void main() {
       final live = await openRunningThread(tester);
       await tester.tap(find.byTooltip('1 in workspace'));
       await pumpFrames(tester);
-      await tester.tap(find.text('reports'));
+      await tester.tap(findFolderPath('reports'));
       await pumpFrames(tester);
       expect(findFileName('a.csv'), findsNothing, reason: 'precondition');
 
