@@ -4,10 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
-    show DownloadOutcome;
 import 'package:soliplex_frontend/src/modules/room/workdir_controller.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 
@@ -27,20 +24,7 @@ void main() {
     api = _MockApi();
   });
 
-  WorkdirController build({
-    SaveFile? saveFile,
-    bool isWeb = false,
-  }) {
-    return WorkdirController(
-      api: api,
-      roomId: 'room-1',
-      saveFile: saveFile ??
-          ({required String fileName, required Uint8List bytes}) async {
-            return '/tmp/$fileName';
-          },
-      isWeb: isWeb,
-    );
-  }
+  WorkdirController build() => WorkdirController(api: api, roomId: 'room-1');
 
   group('thread files', () {
     void stubList(Future<List<WorkdirFile>> Function() answer,
@@ -296,188 +280,16 @@ void main() {
     });
   });
 
-  group('downloadFile', () {
-    test('returns success on native when saveFile returns a path', () async {
-      final bytes = Uint8List.fromList([1, 2, 3]);
-      when(() => api.getThreadWorkdirFile(any(), any(), any()))
-          .thenAnswer((_) async => bytes);
-
-      String? gotName;
-      Uint8List? gotBytes;
-      final controller = build(
-        saveFile: ({required String fileName, required Uint8List bytes}) async {
-          gotName = fileName;
-          gotBytes = bytes;
-          return '/Users/me/Desktop/$fileName';
-        },
-      );
-
-      final outcome = await controller.downloadFile('t', _file('output.csv'));
-
-      expect(outcome, DownloadOutcome.success);
-      expect(gotName, 'output.csv');
-      expect(gotBytes, bytes);
-    });
-
-    test('fetches a nested file by its path and saves it under its basename',
-        () async {
-      final bytes = Uint8List.fromList([1, 2, 3]);
-      when(() => api.getThreadWorkdirFile('room-1', 't', 'dir/sub/file.csv'))
-          .thenAnswer((_) async => bytes);
-
-      String? gotName;
-      final controller = build(
-        saveFile: ({required String fileName, required Uint8List bytes}) async {
-          gotName = fileName;
-          return '/Users/me/Desktop/$fileName';
-        },
-      );
-
-      final outcome =
-          await controller.downloadFile('t', _file('dir/sub/file.csv'));
-
-      expect(outcome, DownloadOutcome.success);
-      expect(gotName, 'file.csv');
-    });
-
-    test('returns cancelled on native when saveFile returns null', () async {
-      when(() => api.getThreadWorkdirFile(any(), any(), any()))
-          .thenAnswer((_) async => Uint8List(0));
-      final controller = build(
-        saveFile: ({required String fileName, required Uint8List bytes}) async {
-          return null;
-        },
-      );
-
-      expect(
-        await controller.downloadFile('t', _file('output.csv')),
-        DownloadOutcome.cancelled,
-      );
-    });
-
-    test('returns success on web even when saveFile returns null', () async {
-      when(() => api.getThreadWorkdirFile(any(), any(), any()))
-          .thenAnswer((_) async => Uint8List(0));
-      final controller = build(
-        isWeb: true,
-        saveFile: ({required String fileName, required Uint8List bytes}) async {
-          return null;
-        },
-      );
-
-      expect(
-        await controller.downloadFile('t', _file('output.csv')),
-        DownloadOutcome.success,
-      );
-    });
-
-    test('returns failed when the API throws', () async {
-      when(() => api.getThreadWorkdirFile(any(), any(), any()))
-          .thenThrow(const NetworkException(message: 'down'));
-      final controller = build();
-
-      expect(
-        await controller.downloadFile('t', _file('output.csv')),
-        DownloadOutcome.failed,
-      );
-    });
-
-    test('returns failed when saveFile throws', () async {
-      when(() => api.getThreadWorkdirFile(any(), any(), any()))
-          .thenAnswer((_) async => Uint8List(0));
-      final controller = build(
-        saveFile: ({required String fileName, required Uint8List bytes}) async {
-          throw Exception('disk full');
-        },
-      );
-
-      expect(
-        await controller.downloadFile('t', _file('output.csv')),
-        DownloadOutcome.failed,
-      );
-    });
-
-    group('logs', () {
-      late MemorySink sink;
-
-      setUp(() {
-        sink = MemorySink();
-        LogManager.instance.addSink(sink);
-        addTearDown(() => LogManager.instance.removeSink(sink));
-      });
-
-      LogRecord warning() =>
-          sink.records.singleWhere((r) => r.level == LogLevel.warning);
-
-      test('a failed fetch as a warning with the failure and its status code',
-          () async {
-        when(() => api.getThreadWorkdirFile(any(), any(), any())).thenThrow(
-          const ApiException(
-            message: 'HTTP 500: workspace unreadable',
-            statusCode: 500,
-          ),
-        );
-        final controller = build();
-
-        await controller.downloadFile('t', _file('dir/output.csv'));
-
-        final record = warning();
-        expect(
-          record.error,
-          isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500),
-        );
-        expect(record.attributes['filename'], 'dir/output.csv');
-      });
-
-      test("a vanished file as a warning, unlike a preview's debug-level 404",
-          () async {
-        when(() => api.getThreadWorkdirFile(any(), any(), any()))
-            .thenThrow(const NotFoundException(message: 'No workdir file'));
-        final controller = build();
-
-        await controller.downloadFile('t', _file('dir/output.csv'));
-
-        expect(warning().error, isA<NotFoundException>());
-      });
-
-      test('a failed save as a warning with what failed and where', () async {
-        when(() => api.getThreadWorkdirFile(any(), any(), any()))
-            .thenAnswer((_) async => Uint8List(1));
-        final failure = Exception('cannot write /Users/me/Desktop/output.csv');
-        final controller = build(
-          saveFile: ({required String fileName, required Uint8List bytes}) {
-            throw failure;
-          },
-        );
-
-        await controller.downloadFile('t', _file('dir/output.csv'));
-
-        final record = warning();
-        // The local path says where the save failed; it is not a secret.
-        expect(record.error, failure);
-        expect(record.attributes['filename'], 'dir/output.csv');
-      });
-    });
-  });
-
   group('fetchFileBytes', () {
-    test('returns API bytes and skips the save dialog', () async {
+    test('returns API bytes', () async {
       final bytes = Uint8List.fromList([9, 9, 9]);
       when(() => api.getThreadWorkdirFile(any(), any(), any()))
           .thenAnswer((_) async => bytes);
-
-      var saveCalls = 0;
-      final controller = build(
-        saveFile: ({required String fileName, required Uint8List bytes}) async {
-          saveCalls++;
-          return '/tmp/$fileName';
-        },
-      );
+      final controller = build();
 
       final out = await controller.fetchFileBytes('t-1', _file('preview.png'));
 
       expect(out, bytes);
-      expect(saveCalls, 0);
       verify(() => api.getThreadWorkdirFile('room-1', 't-1', 'preview.png'))
           .called(1);
     });

@@ -81,6 +81,7 @@ import 'collapse_folders_button.dart';
 import 'file_sort_bar.dart';
 import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
+import '../file_downloads_registry.dart';
 import '../upload_tracker_registry.dart';
 import '../../../shared/selectable_content.dart';
 import '../../../shared/type_to_focus.dart';
@@ -198,6 +199,7 @@ class RoomScreen extends StatefulWidget {
     required this.runtimeManager,
     required this.registry,
     required this.uploadRegistry,
+    required this.downloadRegistry,
     required this.fileSort,
     this.enableDocumentFilter = false,
     required this.documentSelections,
@@ -216,6 +218,9 @@ class RoomScreen extends StatefulWidget {
   final AgentRuntimeManager runtimeManager;
   final RunRegistry registry;
   final UploadTrackerRegistry uploadRegistry;
+
+  /// Each thread's file downloads, kept across visits to the room.
+  final FileDownloadsRegistry downloadRegistry;
 
   /// The order of the files panel's lists, shared with the room info screen.
   final FileSortPreference fileSort;
@@ -2371,7 +2376,11 @@ class _RoomScreenState extends State<RoomScreen> {
           (context) => WorkspaceFilesSection(
             status: workspaceStatus,
             sort: sort,
-            onDownload: (file) => _workdirs.downloadFile(threadId, file),
+            downloads: widget.downloadRegistry.downloadsFor(
+              entry: widget.serverEntry,
+              roomId: widget.roomId,
+              threadId: threadId,
+            ),
             onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
             onRetry: () {
               _logger.debug('workspace refresh: retry threadId=$threadId');

@@ -7,10 +7,12 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
+
+import '../../../helpers/file_name_finder.dart';
+import '../../../helpers/test_downloads.dart';
 
 // The file panel and room info hold their entries inside a SelectableContent,
 // a SelectionArea. A file's name labels the file, as in a file manager: it
@@ -52,7 +54,7 @@ Future<void> _pump(WidgetTester tester) => tester.pumpWidget(MaterialApp(
                     url: Uri.parse('https://example.test/summary.md'),
                   ),
                 ]),
-                onDownload: (_) async => DownloadOutcome.success,
+                downloads: testDownloads(),
                 onFetchBytes: (_) async => Uint8List(0),
                 onRetry: () {},
                 folderToggles: const {},
@@ -86,11 +88,16 @@ Future<void> _mouseDragAcross(WidgetTester tester, Finder target) async {
 void main() {
   setUp(() => _selected = null);
 
-  for (final name in ['stored.csv', 'failed.csv', 'summary', 'reports']) {
+  for (final (name, target) in [
+    ('stored.csv', find.text('stored.csv')),
+    ('failed.csv', find.text('failed.csv')),
+    ('summary.md', findFileName('summary.md')),
+    ('reports', find.text('reports')),
+  ]) {
     testWidgets('a mouse drag across $name selects nothing', (tester) async {
       await _pump(tester);
 
-      await _mouseDragAcross(tester, find.text(name));
+      await _mouseDragAcross(tester, target);
 
       expect(_selected ?? '', isEmpty);
     });
@@ -124,7 +131,7 @@ void main() {
 
         await _longPress(
           tester,
-          name == 'summary.md' ? find.text('summary') : find.text(name),
+          name == 'summary.md' ? findFileName(name) : find.text(name),
         );
 
         expect(find.text(shown), findsNWidgets(onScreen + 1));

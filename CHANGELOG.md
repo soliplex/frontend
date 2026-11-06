@@ -41,13 +41,31 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   the reader left it across sorts. A chain of folders that each hold only one
   folder shows as one row, such as `raw/archive/2023`, unless that folder is
   `.git` or `__pycache__`. Each level indents, up to four; a folder deeper
-  than that shows its parent's path after its name. A file's row no longer shows its directory, and its preview pages
-  through the files of its own folder only. Show on the workspace notice
-  opens every folder above the new files.
+  than that shows its parent's path after its name. Under Folders, a file's
+  row does not show its directory, and its preview pages through the files
+  of its own folder only. Show on the workspace notice opens every folder
+  above the new files.
 - A Collapse all folders button sits at the right of the files panel's sort
   bar, and closes every workspace folder at once. It shows when the
   workspace has folders, and is disabled, saying why, under Name, Modified
   and Size, or when no folder is open.
+- Tapping a workspace file the app cannot preview opens the preview at that
+  file, on its "Can't preview" page with a Download button, rather than
+  downloading it. The row's download button still downloads in one tap.
+- The file preview has a download button beside Close on every page. It,
+  the Download button of a page that cannot show the file, and the file's
+  row show one download of the file, which stays with it while paging, when
+  the list refreshes, and when you leave its room and come back: a file
+  starts no second download while one runs or its outcome shows. A failed
+  download says "Download failed". Removing a server, or another user
+  signing in on it, drops its downloads before they save.
+- The file preview's title shows the file's whole name and directory,
+  wrapping onto as many lines as they need, after a `_`, `-`, `.` or `/`
+  where it can, and no longer has a tooltip. A title taller than a third of
+  the preview scrolls within that space.
+- A file name cut short in a workspace or upload list shortens its middle,
+  keeping its extension and the six characters before it, or its last six
+  when it has no extension: `output_2026…5_1432.csv`.
 
 ### Fixed
 

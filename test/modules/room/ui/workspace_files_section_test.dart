@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
@@ -15,6 +16,8 @@ import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 import 'package:soliplex_frontend/src/shared/local_time_format.dart';
 
 import '../../../helpers/file_name_finder.dart';
+import '../../../helpers/preview_title_finder.dart';
+import '../../../helpers/test_downloads.dart';
 
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
@@ -32,7 +35,7 @@ WorkspaceFilesSection _sorted(
     WorkspaceFilesSection(
       status: WorkdirFilesLoaded([for (final p in paths) _file(p)]),
       sort: sort,
-      onDownload: (_) async => DownloadOutcome.success,
+      downloads: testDownloads(),
       onFetchBytes: (_) async => Uint8List.fromList([104, 105]),
       onRetry: () {},
       folderToggles: toggles,
@@ -49,7 +52,7 @@ Widget _section(
         body: WorkspaceFilesSection(
           status: status,
           sort: FileSort.foldersAToZ,
-          onDownload: onDownload ?? (_) async => DownloadOutcome.success,
+          downloads: testDownloads(onDownload),
           onFetchBytes: (_) async => Uint8List(0),
           onRetry: () {},
           folderToggles: const {},
@@ -71,6 +74,7 @@ Widget _groupedFiles(
   Map<String, bool> toggles = const {},
 }) {
   var held = toggles;
+  final downloads = testDownloads();
   return MaterialApp(
     theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
     home: Scaffold(
@@ -79,7 +83,7 @@ Widget _groupedFiles(
           builder: (context, setState) => WorkspaceFilesSection(
             status: WorkdirFilesLoaded(files),
             sort: FileSort.foldersAToZ,
-            onDownload: (_) async => DownloadOutcome.success,
+            downloads: downloads,
             onFetchBytes: (_) async => Uint8List.fromList([104, 105]),
             onRetry: () {},
             folderToggles: held,
@@ -108,6 +112,7 @@ void main() {
     await tester.pump();
 
     expect(downloaded, [_file('b.png')]);
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('Failed explains the failure without rendering the raw message',
@@ -575,7 +580,7 @@ void main() {
       await tester.tap(findFileName('d.txt'));
       await tester.pumpAndSettle();
 
-      expect(find.text('2 / 3 · reports/'), findsOneWidget);
+      expect(findPreviewTitle('2 / 3 · reports/'), findsOneWidget);
     });
 
     testWidgets("the preview pages through a nested folder's own files",
@@ -591,7 +596,7 @@ void main() {
       await tester.tap(findFileName('g.txt'));
       await tester.pumpAndSettle();
 
-      expect(find.text('2 / 2 · reports/sub/'), findsOneWidget);
+      expect(findPreviewTitle('2 / 2 · reports/sub/'), findsOneWidget);
     });
 
     testWidgets('the preview pages through the root files only',
@@ -601,7 +606,7 @@ void main() {
       await tester.tap(findFileName('b.txt'));
       await tester.pumpAndSettle();
 
-      expect(find.text('2 / 2'), findsOneWidget);
+      expect(findPreviewTitle('2 / 2'), findsOneWidget);
     });
   });
 
@@ -619,10 +624,11 @@ void main() {
 
     testWidgets('keeps a download in progress inside a folder', (tester) async {
       final download = Completer<DownloadOutcome>();
+      final downloads = testDownloads((_) => download.future);
       Widget section(FileSort sort) => _host(WorkspaceFilesSection(
             status: WorkdirFilesLoaded([_file('a/x.pdf'), _file('z/y.pdf')]),
             sort: sort,
-            onDownload: (_) => download.future,
+            downloads: downloads,
             onFetchBytes: (_) async => Uint8List(0),
             onRetry: () {},
             folderToggles: const {},
@@ -714,7 +720,7 @@ void main() {
       await tester.tap(findFileName('b.txt'));
       await tester.pumpAndSettle();
 
-      expect(find.text('2 / 2'), findsOneWidget);
+      expect(findPreviewTitle('2 / 2'), findsOneWidget);
     });
   });
 }

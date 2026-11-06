@@ -35,11 +35,64 @@ void main() {
     });
   });
 
+  group('splitForCut', () {
+    test('keeps the end of the stem with the extension', () {
+      // Names an agent writes often differ only there.
+      expect(
+        splitForCut('output_20261105_1432.csv'),
+        ('output_2026110', '5_1432.csv'),
+      );
+    });
+
+    test('keeps the whole of a short name', () {
+      expect(splitForCut('a.md'), ('', 'a.md'));
+    });
+
+    test('keeps the end of a name without an extension', () {
+      expect(splitForCut('Makefile_backup'), ('Makefile_', 'backup'));
+    });
+
+    test('counts what a reader sees as one character', () {
+      // Each thumb with its skin tone is four UTF-16 code units: counting
+      // those would split one.
+      expect(
+        splitForCut('notes_\u{1F44D}\u{1F3FD}\u{1F44D}\u{1F3FD}.md'),
+        ('no', 'tes_\u{1F44D}\u{1F3FD}\u{1F44D}\u{1F3FD}.md'),
+      );
+    });
+  });
+
   group('FileName', () {
     test('refuses a path', () {
       // A dot in a directory segment would be taken for the extension:
       // splitExtension('v1.2/notes') is ('v1', '.2/notes').
       expect(() => FileName('v1.2/notes'), throwsAssertionError);
+    });
+
+    testWidgets('a screen reader hears the whole name, not its two parts',
+        (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 120,
+                child: FileName('quarterly_report_final.xlsx'),
+              ),
+            ),
+          ),
+        ));
+
+        expect(
+          find.bySemanticsLabel('quarterly_report_final.xlsx'),
+          findsOneWidget,
+        );
+        expect(find.bySemanticsLabel('_final.xlsx'), findsNothing);
+      } finally {
+        semantics.dispose();
+      }
     });
 
     testWidgets('cuts an extension wider than its slot', (tester) async {

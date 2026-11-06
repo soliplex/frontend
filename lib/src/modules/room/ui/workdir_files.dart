@@ -1,26 +1,26 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/zoomable_image.dart';
+import '../file_downloads.dart';
 import '../workspace_groups.dart' show isToolingPath;
 import 'file_list_row.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';
-import 'workdir_preview/download_feedback_button.dart';
-import 'workdir_preview/download_outcome.dart';
+import 'workdir_preview/download_feedback.dart';
 import 'workdir_preview/json_preview.dart';
 import 'workdir_preview/preview_kind.dart';
 import 'workdir_preview/svg_preview.dart';
 import 'workdir_preview/text_preview.dart';
 import 'workdir_preview/too_large_preview.dart';
-
-export 'workdir_preview/download_outcome.dart' show DownloadOutcome;
 
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.workdir_files');
@@ -35,7 +35,7 @@ class WorkdirFileRow extends StatelessWidget {
     super.key,
     required this.file,
     required this.directory,
-    required this.onTap,
+    required this.downloads,
     required this.onOpenPreview,
   });
 
@@ -45,12 +45,14 @@ class WorkdirFileRow extends StatelessWidget {
   /// none, as every row under Folders does.
   final String? directory;
 
-  final Future<DownloadOutcome> Function() onTap;
+  /// Where the row's download action reads [file]'s download and starts it.
+  final FileDownloads downloads;
 
-  /// Opens the preview of a previewable file: tapping the row or the eye
-  /// icon invokes it (the parent opens the multi-file pager on the files of
-  /// the row's group, so they are reachable via swipe). Ignored for files
-  /// that cannot preview.
+  /// Opens the preview at [file]: tapping the row invokes it, and so does
+  /// the eye icon a previewable file shows (the parent opens the multi-file
+  /// pager on the files of the row's group, so they are reachable via
+  /// swipe). A file that cannot preview opens at its "Can't preview" page,
+  /// which offers the download.
   final VoidCallback onOpenPreview;
 
   @override
@@ -58,7 +60,7 @@ class WorkdirFileRow extends StatelessWidget {
     final theme = Theme.of(context);
     final kind = PreviewKind.from(file.filename);
     final canPreview = kind.canRender;
-    // Download-only rows show the generic file icon so the leading
+    // Rows that can't preview show the generic file icon so the leading
     // icon doesn't imply a preview is available.
     final leadingIcon =
         canPreview ? kind.rowIcon : Icons.insert_drive_file_outlined;
@@ -69,57 +71,50 @@ class WorkdirFileRow extends StatelessWidget {
         ? theme.textTheme.bodySmall
             ?.copyWith(color: theme.colorScheme.onSurfaceVariant)
         : theme.textTheme.bodySmall;
-    return DownloadFeedbackButton(
-      filename: file.filename,
-      onDownload: onTap,
-      logTag: 'row download callback threw',
-      builder: (context, state, downloadTap) {
-        final (icon, tooltip) = state.affordance;
-        Widget action(Color color) => FileRowAction(
+    return InkWell(
+      onTap: onOpenPreview,
+      borderRadius: BorderRadius.circular(context.radii.sm),
+      child: FileListRow(
+        details: DetailsLine.file(
+          modifiedAt: file.modifiedAt,
+          sizeBytes: file.sizeBytes,
+        ),
+        leading: Icon(
+          leadingIcon,
+          size: 16,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        content: NameAndDirectory(
+          path: file.filename,
+          name: FileName(file.basename, style: nameStyle),
+          directory: directory,
+          style: nameStyle,
+        ),
+        actions: [
+          if (canPreview)
+            FileRowAction(
+              icon: Icons.visibility_outlined,
+              tooltip: 'Preview',
+              onTap: onOpenPreview,
+            ),
+          Watch((context) {
+            final state = downloads.stateOf(file);
+            final (icon, tooltip) = state.affordance;
+            if (state == DownloadFeedbackState.downloading) {
+              return FileRowActionProgress(label: tooltip);
+            }
+            return FileRowAction(
               icon: icon,
               tooltip: tooltip,
-              onTap: downloadTap,
-              color: color,
+              onTap: state == DownloadFeedbackState.idle
+                  ? () => downloads.start(file)
+                  : null,
+              color: state.outcomeColor(theme.colorScheme) ??
+                  theme.colorScheme.primary,
             );
-        final download = switch (state) {
-          DownloadFeedbackState.idle => action(theme.colorScheme.primary),
-          DownloadFeedbackState.downloading =>
-            FileRowActionProgress(label: tooltip),
-          DownloadFeedbackState.success =>
-            action(theme.colorScheme.onSurfaceVariant),
-          DownloadFeedbackState.error => action(theme.colorScheme.error),
-        };
-        return InkWell(
-          onTap: canPreview ? onOpenPreview : downloadTap,
-          borderRadius: BorderRadius.circular(context.radii.sm),
-          child: FileListRow(
-            details: DetailsLine.file(
-              modifiedAt: file.modifiedAt,
-              sizeBytes: file.sizeBytes,
-            ),
-            leading: Icon(
-              leadingIcon,
-              size: 16,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            content: NameAndDirectory(
-              path: file.filename,
-              name: FileName(file.basename, style: nameStyle),
-              directory: directory,
-              style: nameStyle,
-            ),
-            actions: [
-              if (canPreview)
-                FileRowAction(
-                  icon: Icons.visibility_outlined,
-                  tooltip: 'Preview',
-                  onTap: onOpenPreview,
-                ),
-              download,
-            ],
-          ),
-        );
-      },
+          }),
+        ],
+      ),
     );
   }
 }
@@ -209,26 +204,26 @@ class NameAndDirectory extends StatelessWidget {
   }
 }
 
-/// A file name on one line that, when cut, shortens its stem before its
-/// extension.
+/// A file name on one line that, when cut, shortens its middle.
 ///
-/// The extension is the most informative part of a cut name, so a short one
-/// (see [splitExtension]) stays whole while it fits:
-/// `quarterly_report_final.xlsx` reads `quarterly_rep….xlsx`. Flutter lays
-/// out and ellipsizes both parts, so the cut follows the text scale and
+/// The end of a name is the most informative part of a cut one: names an
+/// agent writes often differ only just before the extension, as dates and
+/// versions do. So the end [splitForCut] keeps stays whole while it fits:
+/// `quarterly_report_final.xlsx` reads `quarterly_r…_final.xlsx`. Flutter
+/// lays out and ellipsizes both parts, so the cut follows the text scale and
 /// bold-text settings. Announces the whole name to a screen reader.
 class FileName extends StatelessWidget {
   FileName(this.name, {super.key, this.style})
       : assert(!name.contains('/'), 'FileName takes a basename, not a path');
 
-  /// A basename, not a path: a dot in a directory segment would be taken for
-  /// the extension.
+  /// A basename, not a path: a row shows a file's directory apart from its
+  /// name.
   final String name;
   final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
-    final (stem, extension) = splitExtension(name);
+    final (head, end) = splitForCut(name);
     return Semantics(
       label: name,
       child: ExcludeSemantics(
@@ -236,12 +231,12 @@ class FileName extends StatelessWidget {
           builder: (context, constraints) => Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Flexible(child: _line(stem)),
+              Flexible(child: _line(head)),
               ConstrainedBox(
-                // A slot narrower than the extension cuts it rather than
+                // A slot narrower than the end cuts it rather than
                 // overflowing.
                 constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                child: _line(extension),
+                child: _line(end),
               ),
             ],
           ),
@@ -256,7 +251,25 @@ class FileName extends StatelessWidget {
         maxLines: 1,
         softWrap: false,
         overflow: TextOverflow.ellipsis,
+        // As wide as the text it paints: a cut line would otherwise keep
+        // its slot's width, leaving a gap between the ellipsis and the end.
+        textWidthBasis: TextWidthBasis.longestLine,
       );
+}
+
+/// How many of a stem's last characters a cut name keeps with its extension.
+const _keptStemCharacters = 6;
+
+/// Splits the basename [name] into the head a cut shortens and the end it
+/// keeps: the last [_keptStemCharacters] characters of the stem, then the
+/// extension (see [splitExtension]). Counts characters as a reader sees
+/// them, so no emoji or accented letter is split.
+(String, String) splitForCut(String name) {
+  final (stem, extension) = splitExtension(name);
+  final characters = stem.characters;
+  final head = characters.skipLast(_keptStemCharacters).string;
+  final tail = characters.takeLast(_keptStemCharacters).string;
+  return (head, '$tail$extension');
 }
 
 /// Splits the basename [name] into its stem and its extension, dot included.
@@ -280,7 +293,7 @@ class WorkdirPreviewPage extends StatefulWidget {
     required this.files,
     required this.initialIndex,
     required this.fetchBytes,
-    required this.onDownload,
+    required this.downloads,
   })  : assert(
             files.isNotEmpty, 'WorkdirPreviewPage requires at least one file'),
         assert(initialIndex >= 0 && initialIndex < files.length,
@@ -289,14 +302,17 @@ class WorkdirPreviewPage extends StatefulWidget {
   final List<WorkdirFile> files;
   final int initialIndex;
   final Future<Uint8List> Function(WorkdirFile file) fetchBytes;
-  final Future<DownloadOutcome> Function(WorkdirFile file) onDownload;
+
+  /// Where the page's download affordances read each file's download and
+  /// start it, shared with the file rows.
+  final FileDownloads downloads;
 
   static Future<void> show({
     required BuildContext context,
     required List<WorkdirFile> files,
     required int initialIndex,
     required Future<Uint8List> Function(WorkdirFile file) fetchBytes,
-    required Future<DownloadOutcome> Function(WorkdirFile file) onDownload,
+    required FileDownloads downloads,
   }) {
     assert(
         files.isNotEmpty, 'WorkdirPreviewPage.show requires non-empty files');
@@ -307,7 +323,7 @@ class WorkdirPreviewPage extends StatefulWidget {
       files: files,
       initialIndex: clampedIndex,
       fetchBytes: fetchBytes,
-      onDownload: onDownload,
+      downloads: downloads,
     );
     if (useDialog) {
       // Zero-duration transition — showDialog's default fade adds a
@@ -407,10 +423,8 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   Widget _slideFor(BuildContext context, int index) {
     final file = widget.files[index];
     final kind = PreviewKind.from(file.filename);
-    final cannot = _CannotPreview(
-      filename: file.filename,
-      onDownload: () => widget.onDownload(file),
-    );
+    final download = _DownloadButton(file: file, downloads: widget.downloads);
+    final cannot = _CannotPreview(downloadButton: download);
     if (!kind.canRender) return cannot;
     return FutureBuilder<Uint8List>(
       // Bumping the retry token re-keys the FutureBuilder so it sees a
@@ -431,8 +445,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             attributes: {'filename': file.filename},
           );
           return _CannotPreview(
-            filename: file.filename,
-            onDownload: () => widget.onDownload(file),
+            downloadButton: download,
             icon: Icons.description_outlined,
             message: 'File is empty',
           );
@@ -447,17 +460,16 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             },
           );
           return TooLargePreview(
-            filename: file.filename,
             byteSize: bytes.length,
             capBytes: previewSizeCapBytes,
-            onDownload: () => widget.onDownload(file),
+            downloadButton: download,
           );
         }
         return _PreviewBody(
           bytes: bytes,
           kind: kind,
           filename: file.filename,
-          onDownload: () => widget.onDownload(file),
+          downloadButton: download,
           rotationQuarterTurns: _rotations[file] ?? 0,
           onRotate: () => _rotate(file),
         );
@@ -515,11 +527,16 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     );
   }
 
-  Widget _buildTitleBar(BuildContext context) {
+  /// The shown file's name, then its position and directory, both wrapping
+  /// whole: this is where a name the list cuts is read in full. Taller than
+  /// [maxTitleHeight], the two scroll there, so the file keeps the rest of
+  /// the preview.
+  Widget _buildTitleBar(
+    BuildContext context, {
+    required double maxTitleHeight,
+  }) {
     final theme = Theme.of(context);
     final file = widget.files[_currentIndex];
-    // The position leads so that a long directory, not the position, is
-    // what the ellipsis cuts.
     final subtitle = [
       if (widget.files.length > 1)
         '${_currentIndex + 1} / ${widget.files.length}',
@@ -533,40 +550,52 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
         SoliplexSpacing.s2,
       ),
       child: Row(
+        // A title of several lines keeps the actions at its top.
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            // Align lets the title size to its content, so the Tooltip
-            // anchors to the painted name and directory and appears near the
-            // cursor.
-            child: Align(
-              alignment: Alignment.centerLeft,
-              // The full path, which a cut name and directory hide; the name
-              // and the directory below it read the path's parts.
-              child: FullNameTooltip(
-                name: file.filename,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FileName(file.basename, style: theme.textTheme.titleMedium),
-                    if (subtitle.isNotEmpty)
+            // At least as tall as the actions, so a short title is
+            // centred on them.
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: kMinInteractiveDimension,
+                maxHeight: maxTitleHeight,
+              ),
+              // Its title's height, not the most the constraints allow.
+              child: Align(
+                alignment: Alignment.centerLeft,
+                heightFactor: 1,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        _breakableAtSeparators(file.basename),
+                        semanticsLabel: file.basename,
+                        style: theme.textTheme.titleMedium,
                       ),
-                  ],
+                      if (subtitle.isNotEmpty)
+                        Text(
+                          _breakableAtSeparators(subtitle),
+                          semanticsLabel: subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
+          _TitleBarDownload(file: file, downloads: widget.downloads),
           IconButton(
             icon: const Icon(Icons.close),
             tooltip: 'Close',
+            visualDensity: _titleBarActionDensity,
+            style:
+                IconButton.styleFrom(tapTargetSize: _titleBarActionTapTarget),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
@@ -624,13 +653,23 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
       focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: _handleKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildTitleBar(context),
-          Expanded(child: _buildPager(context)),
-          _buildNavBar(context),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTitleBar(
+              context,
+              // A third of the preview, so even a name of hundreds of
+              // characters leaves the file most of it.
+              maxTitleHeight: math.max(
+                kMinInteractiveDimension,
+                constraints.maxHeight / 3,
+              ),
+            ),
+            Expanded(child: _buildPager(context)),
+            _buildNavBar(context),
+          ],
+        ),
       ),
     );
   }
@@ -666,7 +705,7 @@ class _PreviewBody extends StatelessWidget {
     required this.bytes,
     required this.kind,
     required this.filename,
-    required this.onDownload,
+    required this.downloadButton,
     required this.rotationQuarterTurns,
     required this.onRotate,
   }) : assert(kind.canRender, 'pdf/unknown must be guarded before this point');
@@ -674,14 +713,13 @@ class _PreviewBody extends StatelessWidget {
   final Uint8List bytes;
   final PreviewKind kind;
   final String filename;
-  final Future<DownloadOutcome> Function() onDownload;
+  final Widget downloadButton;
   final int rotationQuarterTurns;
   final VoidCallback onRotate;
 
   Widget _fallback({required IconData icon, required String message}) =>
       _CannotPreview(
-        filename: filename,
-        onDownload: onDownload,
+        downloadButton: downloadButton,
         icon: icon,
         message: message,
       );
@@ -748,14 +786,12 @@ class _PreviewBody extends StatelessWidget {
 /// Download button is not pannable/zoomable.
 class _CannotPreview extends StatelessWidget {
   const _CannotPreview({
-    required this.filename,
-    required this.onDownload,
+    required this.downloadButton,
     this.icon = Icons.image_not_supported_outlined,
     this.message = "Can't preview this file",
   });
 
-  final String filename;
-  final Future<DownloadOutcome> Function() onDownload;
+  final Widget downloadButton;
   final IconData icon;
   final String message;
 
@@ -777,23 +813,81 @@ class _CannotPreview extends StatelessWidget {
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: SoliplexSpacing.s4),
-          DownloadFeedbackButton(
-            filename: filename,
-            onDownload: onDownload,
-            logTag: 'preview-fallback download callback threw',
-            builder: (context, state, onTap) {
-              final (btnIcon, label) = state.buttonAffordance;
-              return SoliplexButton.filled(
-                onPressed: onTap,
-                isLoading: state == DownloadFeedbackState.downloading,
-                icon: Icon(btnIcon),
-                child: Text(label),
-              );
-            },
-          ),
+          downloadButton,
         ],
       ),
     );
+  }
+}
+
+/// The labelled Download button of a preview page that cannot show [file],
+/// showing [file]'s download in [downloads].
+class _DownloadButton extends StatelessWidget {
+  const _DownloadButton({required this.file, required this.downloads});
+
+  final WorkdirFile file;
+  final FileDownloads downloads;
+
+  @override
+  Widget build(BuildContext context) {
+    return Watch((context) {
+      final state = downloads.stateOf(file);
+      final (icon, label) = state.buttonAffordance;
+      return SoliplexButton.filled(
+        onPressed: state == DownloadFeedbackState.idle
+            ? () => downloads.start(file)
+            : null,
+        isLoading: state == DownloadFeedbackState.downloading,
+        icon: Icon(icon),
+        child: Text(label),
+      );
+    });
+  }
+}
+
+/// [text] with a place to break a line after each `_`, `-`, `.` and `/`, so
+/// a name too long for its line breaks between its words, not inside one.
+String _breakableAtSeparators(String text) =>
+    text.replaceAllMapped(RegExp(r'[_\-./]'), (m) => '${m[0]}\u200B');
+
+// Together these make the title bar's action buttons
+// [kMinInteractiveDimension] square on every platform, which the title's
+// least height matches: Material makes them smaller on desktop.
+const _titleBarActionDensity = VisualDensity.standard;
+const _titleBarActionTapTarget = MaterialTapTargetSize.padded;
+
+/// The preview title bar's download action for [file], beside Close: its
+/// outcome shows in the icon, as a row's does.
+class _TitleBarDownload extends StatelessWidget {
+  const _TitleBarDownload({required this.file, required this.downloads});
+
+  final WorkdirFile file;
+  final FileDownloads downloads;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Watch((context) {
+      final state = downloads.stateOf(file);
+      final (icon, label) = state.affordance;
+      // Colored here, not by the button, so the outcome keeps its color
+      // while the button is disabled.
+      final color = state.outcomeColor(colorScheme);
+      return IconButton(
+        // A spinner in the button's place keeps the button's size, so Close
+        // does not move; the button's tooltip already names it to a screen
+        // reader.
+        icon: state == DownloadFeedbackState.downloading
+            ? ExcludeSemantics(child: ProgressRing(label: label))
+            : Icon(icon, color: color),
+        tooltip: label,
+        visualDensity: _titleBarActionDensity,
+        style: IconButton.styleFrom(tapTargetSize: _titleBarActionTapTarget),
+        onPressed: state == DownloadFeedbackState.idle
+            ? () => downloads.start(file)
+            : null,
+      );
+    });
   }
 }
 

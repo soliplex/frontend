@@ -3,7 +3,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 
 /// Finds the [FileName] showing [name].
 ///
-/// [FileName] draws a stem and an extension as two texts, so `find.text`
-/// with the whole name matches neither.
+/// [FileName] draws a name as two texts, the part a cut shortens and the end
+/// it keeps, so `find.text` with the whole name matches neither.
 Finder findFileName(String name) =>
     find.byWidgetPredicate((w) => w is FileName && w.name == name);

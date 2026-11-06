@@ -8,11 +8,11 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/collapse_folders_button.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 
 import '../../../helpers/file_name_finder.dart';
+import '../../../helpers/test_downloads.dart';
 
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
@@ -44,7 +44,7 @@ Widget _panel(
               WorkspaceFilesSection(
                 status: WorkdirFilesLoaded(files),
                 sort: sort,
-                onDownload: (_) async => DownloadOutcome.success,
+                downloads: testDownloads(),
                 onFetchBytes: (_) async => Uint8List(0),
                 onRetry: () {},
                 folderToggles: held,

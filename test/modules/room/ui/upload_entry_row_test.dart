@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
@@ -152,6 +152,36 @@ void main() {
 
     expect(dismissed, ['f1']);
     expect(cancelled, isEmpty);
+  });
+
+  testWidgets('a long name is cut in its middle, keeping its end',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: UploadEntryRow(
+                entry: PersistedUpload(
+                  filename: 'quarterly_revenue_report_final.xlsx',
+                  url: Uri.parse('https://example.com/q.xlsx'),
+                ),
+                onCancel: cancelled.add,
+                onDismiss: dismissed.add,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    bool isCut(String text) =>
+        tester.renderObject<RenderParagraph>(find.text(text)).didExceedMaxLines;
+    expect(isCut('quarterly_revenue_report'), isTrue);
+    expect(isCut('_final.xlsx'), isFalse);
   });
 
   testWidgets('a persisted upload offers no action', (tester) async {
