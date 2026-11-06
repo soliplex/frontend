@@ -1,6 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/stores/thread_anchor_storage.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+/// The levels [logger] recorded into [sink], in order.
+List<LogLevel> levelsFrom(MemorySink sink, String logger) => [
+      for (final r in sink.records)
+        if (r.loggerName == logger) r.level,
+    ];
+
+MemorySink captureLogs() {
+  final sink = MemorySink();
+  LogManager.instance.addSink(sink);
+  addTearDown(() => LogManager.instance.removeSink(sink));
+  return sink;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -168,6 +182,33 @@ void main() {
           await ThreadAnchorStorage.loadRoom(
               serverId: s, userId: u1, roomId: r),
           {'th1': 'm1'});
+    });
+
+    group('logs', () {
+      const logger = 'soliplex.thread_anchor_storage';
+      Future<Map<String, String>> load(String payload) {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_thread_anchor:${Uri.encodeComponent(s)}:'
+              '${Uri.encodeComponent(u1)}:${Uri.encodeComponent(r)}': payload,
+        });
+        return ThreadAnchorStorage.loadRoom(serverId: s, userId: u1, roomId: r);
+      }
+
+      test('an error when every entry is malformed', () async {
+        final sink = captureLogs();
+
+        expect(await load('{"th1":1,"th2":2}'), isEmpty);
+
+        expect(levelsFrom(sink, logger), [LogLevel.error]);
+      });
+
+      test('only a warning when some entries survive', () async {
+        final sink = captureLogs();
+
+        expect(await load('{"th1":"m1","th2":2}'), {'th1': 'm1'});
+
+        expect(levelsFrom(sink, logger), [LogLevel.warning]);
+      });
     });
   });
 }
