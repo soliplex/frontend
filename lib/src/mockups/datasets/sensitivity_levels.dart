@@ -1,5 +1,5 @@
-// The one file in the mockups allowed hex color literals: a classification
-// marking's colors are fixed per deployment, never derived from the brand, so
+// The one file in the mockups allowed hex color literals: a sensitivity
+// level's colors are fixed per deployment, never derived from the brand, so
 // this is the flavor-level configuration a deployment would write. Approved as
 // an exception to the design-system no-hex rule for the datasets mockup.
 import 'package:flutter/material.dart';
@@ -12,7 +12,7 @@ const levelIds = ['public', 'internal', 'confidential', 'restricted'];
 int levelRank(String id) => levelIds.indexOf(id);
 
 /// Sample sensitivity labels, one color each.
-final mockupClassifications = ClassificationTheme(
+final mockupLevels = ClassificationTheme(
   defaultId: 'public',
   levels: const [
     ClassificationLevel(
@@ -45,6 +45,6 @@ final mockupClassifications = ClassificationTheme(
   ],
 );
 
-/// The marking text for [id], for sentences that name a level.
+/// The label for [id], for sentences that name a level.
 String levelLabel(String id) =>
-    mockupClassifications.levels.firstWhere((l) => l.id == id).label;
+    mockupLevels.levels.firstWhere((l) => l.id == id).label;

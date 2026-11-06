@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import '../classification_levels.dart';
+import '../sensitivity_levels.dart';
 import '../model.dart';
 import '../store.dart';
 import 'common.dart';
@@ -257,8 +257,8 @@ class _NoResults extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(SoliplexSpacing.s6),
       child: Text(
-        'No datasets match. Datasets you are not cleared for, or not shared '
-        'with, are never listed.',
+        'No datasets match. Datasets above your access, or not shared '
+        'with you, are never listed.',
         textAlign: TextAlign.center,
         style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
@@ -456,7 +456,7 @@ class _FacetGroupState extends State<_FacetGroup> {
               onChanged: (v) =>
                   store.setFacet(facet, value, selected: v ?? false),
               title: facet == Facet.level
-                  // Shrinks a long marking to fit the column rather than
+                  // Shrinks a long level label to fit the column rather than
                   // breaking it mid-word.
                   ? FittedBox(
                       fit: BoxFit.scaleDown,
@@ -512,9 +512,12 @@ Future<void> showFacetSheet(BuildContext context) {
 /// Picks datasets to add to a thread: the catalog with checkboxes, the room's
 /// ceiling enforced, in a dialog when wide and full screen when not. Returns
 /// the ids picked, or null when dismissed.
+///
+/// A null [ceiling] is a conversation outside any room: nothing is above
+/// it but what the user cannot access, and the catalog never lists that.
 Future<List<String>?> showDatasetPicker(
   BuildContext context, {
-  required String ceiling,
+  required String? ceiling,
   required Set<String> inUse,
 }) {
   final store = DatasetsScope.read(context);
@@ -540,7 +543,7 @@ Future<List<String>?> showDatasetPicker(
 class _Picker extends StatefulWidget {
   const _Picker({required this.ceiling, required this.inUse});
 
-  final String ceiling;
+  final String? ceiling;
   final Set<String> inUse;
 
   @override
@@ -568,7 +571,7 @@ class _PickerState extends State<_Picker> {
       ),
       body: CatalogView(
         pick: CatalogPick(
-          ceiling: widget.ceiling,
+          ceiling: widget.ceiling ?? DatasetsScope.of(context).user.access,
           inUse: widget.inUse,
           chosen: _chosen,
           withinCeiling: _withinCeiling,
@@ -576,32 +579,36 @@ class _PickerState extends State<_Picker> {
             () => _chosen.contains(id) ? _chosen.remove(id) : _chosen.add(id),
           ),
         ),
-        header: Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: SoliplexSpacing.s4,
-          runSpacing: SoliplexSpacing.s2,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text("This room's level", style: theme.textTheme.labelMedium),
-                const SizedBox(width: SoliplexSpacing.s2),
-                LevelBadge(widget.ceiling),
-              ],
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Within room level', style: theme.textTheme.labelMedium),
-                Switch(
-                  value: _withinCeiling,
-                  onChanged: (v) => setState(() => _withinCeiling = v),
-                ),
-              ],
-            ),
-          ],
-        ),
+        header: widget.ceiling == null
+            ? null
+            : Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: SoliplexSpacing.s4,
+                runSpacing: SoliplexSpacing.s2,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("This room's level",
+                          style: theme.textTheme.labelMedium),
+                      const SizedBox(width: SoliplexSpacing.s2),
+                      LevelBadge(widget.ceiling!),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Within room level',
+                          style: theme.textTheme.labelMedium),
+                      Switch(
+                        value: _withinCeiling,
+                        onChanged: (v) => setState(() => _withinCeiling = v),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(

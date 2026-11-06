@@ -6,7 +6,7 @@
 /// entity yet.
 library;
 
-import 'classification_levels.dart';
+import 'sensitivity_levels.dart';
 
 /// Where a committed file is on its way to being searchable.
 enum FileStatus {
@@ -228,7 +228,7 @@ class Principal {
     required this.id,
     required this.name,
     required this.kind,
-    this.clearance,
+    this.access,
     this.email,
     this.detail,
   });
@@ -238,7 +238,7 @@ class Principal {
   final PrincipalKind kind;
 
   /// People only: the highest level they may receive.
-  final String? clearance;
+  final String? access;
   final String? email;
 
   /// A second line: a person's unit, a group's member count.
@@ -256,7 +256,7 @@ class MockUser {
   final Set<String> groupIds;
 
   String get id => person.id;
-  String get clearance => person.clearance!;
+  String get access => person.access!;
 
   /// The personal namespace: the e-mail's local part.
   String get personalNamespace => person.email!.split('@').first;
@@ -286,6 +286,28 @@ class RoomPreset {
 bool isWithin(String level, String ceiling) =>
     levelRank(level) <= levelRank(ceiling);
 
+/// The room that holds conversations started outside any room.
+///
+/// The cheaper of the two backend shapes in `docs/mockups.md`: the
+/// installation provides one hidden room, so every room-keyed route
+/// (threads, uploads, labels, feedback) keeps working unchanged. It has no
+/// preset: no ceiling and no default datasets.
+const conversationsRoomId = 'conversations';
+
+/// Where the conversations page lives, or one of its threads.
+///
+/// A page of its own rather than the hidden room's: the hidden room is a
+/// backend detail, and the page has no room rail to place it in.
+String conversationsLocation([String? threadId]) =>
+    threadId == null ? '/conversations' : '/conversations/thread/$threadId';
+
+/// The most restrictive of [levels], or the least restrictive level when
+/// there are none.
+String highestLevel(Iterable<String> levels) => levels.fold(
+      levelIds.first,
+      (a, b) => levelRank(b) > levelRank(a) ? b : a,
+    );
+
 /// The outcome of the upload scan for one staged file.
 enum ScanStatus {
   /// Not scanned yet.
@@ -295,7 +317,7 @@ enum ScanStatus {
   /// Nothing above the dataset's level found — advisory, not a determination.
   clean,
 
-  /// Possible markings above the dataset's level: the uploader has to look.
+  /// Possible content above the dataset's level: the uploader has to look.
   flagged,
 
   /// Declared above the dataset's level: it will not be added.

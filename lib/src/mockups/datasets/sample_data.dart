@@ -12,7 +12,7 @@ const _principals = [
     id: 'jdoe',
     name: 'J. Doe',
     kind: PrincipalKind.person,
-    clearance: 'confidential',
+    access: 'confidential',
     email: 'jdoe@example.com',
     detail: 'Plant maintenance',
   ),
@@ -20,7 +20,7 @@ const _principals = [
     id: 'asmith',
     name: 'A. Smith',
     kind: PrincipalKind.person,
-    clearance: 'confidential',
+    access: 'confidential',
     email: 'asmith@example.com',
     detail: 'Ops/Logistics',
   ),
@@ -28,7 +28,7 @@ const _principals = [
     id: 'bnguyen',
     name: 'B. Nguyen',
     kind: PrincipalKind.person,
-    clearance: 'restricted',
+    access: 'restricted',
     email: 'bnguyen@example.com',
     detail: 'Plant operations',
   ),
@@ -36,7 +36,7 @@ const _principals = [
     id: 'cgarcia',
     name: 'C. Garcia',
     kind: PrincipalKind.person,
-    clearance: 'internal',
+    access: 'internal',
     email: 'cgarcia@example.com',
     detail: 'Eng/Reliability',
   ),
@@ -44,7 +44,7 @@ const _principals = [
     id: 'dlee',
     name: 'D. Lee',
     kind: PrincipalKind.person,
-    clearance: 'public',
+    access: 'public',
     email: 'dlee@contractor.example',
     detail: 'Contractor',
   ),
@@ -52,7 +52,7 @@ const _principals = [
     id: 'erivera',
     name: 'E. Rivera',
     kind: PrincipalKind.person,
-    clearance: 'confidential',
+    access: 'confidential',
     email: 'erivera@example.com',
     detail: 'Shift team',
   ),
@@ -87,7 +87,7 @@ const _user = MockUser(
     id: 'jdoe',
     name: 'J. Doe',
     kind: PrincipalKind.person,
-    clearance: 'confidential',
+    access: 'confidential',
     email: 'jdoe@example.com',
   ),
   groupIds: {'g-ops-logistics', 'g-plant-mx', 'g-plant-shift'},
@@ -426,7 +426,7 @@ List<Dataset> _handcrafted() => [
         ownerId: 'jdoe',
         createdAt: _ago(2),
       ),
-      // Not listed for jdoe: cleared to CONFIDENTIAL, and not in the audience.
+      // Not listed for jdoe: access up to CONFIDENTIAL, and not in the audience.
       Dataset(
         namespace: 'ops',
         slug: 'security-assessments-2026',
@@ -540,6 +540,8 @@ DatasetsStore sampleStore() => DatasetsStore(
       presets: presets,
       pinned: {'ops/maintenance-trend-data'},
       trays: const {
+        'seal-kits': ['ops/pump-service-manuals'],
+        'staffing-memo': ['plant/shift-planning-playbook'],
         'pump-pressure': ['ops/pump-service-manuals', 'jdoe/pump-quickref'],
         'peak-plan': [
           'plant/shift-planning-playbook',
@@ -548,7 +550,18 @@ DatasetsStore sampleStore() => DatasetsStore(
       },
     );
 
-/// The rooms behind the presets, with a conversation in two of them.
+/// The server's label catalogue. The colours are what the server stores.
+const _labels = [
+  ThreadLabel(id: 1, name: 'Follow-up', color: '#E07A1F'),
+  ThreadLabel(id: 2, name: 'Vendors', color: '#2F8F83'),
+  ThreadLabel(id: 3, name: 'Drafts', color: '#808080'),
+  ThreadLabel(id: 4, name: 'Training', color: '#6A5ACD'),
+];
+
+ThreadLabel _label(String name) => _labels.firstWhere((l) => l.name == name);
+
+/// The rooms behind the presets, with a conversation in two of them, and
+/// three conversations that belong to no room.
 StaticSoliplexApi datasetsApi() {
   final today = DateTime.now();
   final yesterday = today.subtract(const Duration(days: 1));
@@ -600,8 +613,50 @@ StaticSoliplexApi datasetsApi() {
           },
           acceptsThreadUploads: true,
         ),
+      // Never listed as a room: it is where a conversation started outside
+      // any room is kept.
+      Room(
+        id: conversationsRoomId,
+        name: 'Conversations',
+        description: 'Conversations that belong to no room.',
+        welcomeMessage: 'No room, no preset: the agent starts with no '
+            'datasets. Add the ones this conversation needs in the thread '
+            'panel before you send.',
+        suggestions: const [
+          'Draft a reply to a supplier about a late delivery',
+          'Turn these notes into a checklist',
+        ],
+        acceptsThreadUploads: true,
+      ),
     ],
+    labels: _labels,
     threads: {
+      conversationsRoomId: [
+        ThreadInfo(
+          id: 'seal-kits',
+          roomId: conversationsRoomId,
+          name: 'Seal kits for P-100 and P-200',
+          createdAt: today.subtract(const Duration(minutes: 45)).toUtc(),
+          lastActivity: today.subtract(const Duration(minutes: 40)).toUtc(),
+          labels: [_label('Vendors'), _label('Follow-up')],
+        ),
+        ThreadInfo(
+          id: 'supplier-reply',
+          roomId: conversationsRoomId,
+          name: 'Reply to the bearing supplier',
+          createdAt: at(yesterday, 16, 30),
+          lastActivity: at(yesterday, 16, 32),
+          labels: [_label('Vendors'), _label('Drafts')],
+        ),
+        ThreadInfo(
+          id: 'staffing-memo',
+          roomId: conversationsRoomId,
+          name: 'Holiday staffing memo',
+          createdAt: at(yesterday, 11, 0),
+          lastActivity: at(yesterday, 11, 4),
+          labels: [_label('Drafts')],
+        ),
+      ],
       'plant-mx': [
         ThreadInfo(
           id: 'pump-pressure',
@@ -609,6 +664,7 @@ StaticSoliplexApi datasetsApi() {
           name: 'Pump pressure troubleshooting',
           createdAt: at(yesterday, 9, 0),
           lastActivity: at(yesterday, 9, 1),
+          labels: [_label('Follow-up')],
         ),
       ],
       'ops-planning': [
@@ -623,6 +679,28 @@ StaticSoliplexApi datasetsApi() {
       'public-research': [],
     },
     histories: {
+      'seal-kits': exchange(
+        'seals',
+        'Do the P-100 and P-200 take the same mechanical seal kit?',
+        'No: the pump service manuals list a different shaft diameter for '
+            'each, so the kits differ. The P-200 kit also adds a second '
+            'O-ring for the larger housing.',
+      ),
+      'supplier-reply': exchange(
+        'supplier',
+        'Draft a polite reply asking the bearing supplier for a new '
+            'delivery date.',
+        'Here is a short draft that thanks them for the update, asks for a '
+            'confirmed date by Friday, and offers a partial delivery as a '
+            'fallback.',
+      ),
+      'staffing-memo': exchange(
+        'memo',
+        'Write a short memo on holiday cover for the shift teams.',
+        'Following the shift planning playbook, the memo asks each team '
+            'lead to name a cover person by the 10th and keeps one '
+            'qualified technician per shift.',
+      ),
       'pump-pressure': exchange(
         'pump',
         'P-100 discharge pressure drops slowly after start-up. Where do I '

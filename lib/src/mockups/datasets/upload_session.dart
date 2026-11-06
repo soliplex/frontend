@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'classification_levels.dart';
+import 'sensitivity_levels.dart';
 import 'model.dart';
 
 enum UploadStep { choose, scan, review }
@@ -114,7 +114,7 @@ class UploadSession extends ChangeNotifier {
     } else {
       f
         ..status = ScanStatus.clean
-        ..advisory = 'No markings above ${levelLabel(ceiling)} detected '
+        ..advisory = 'Nothing above ${levelLabel(ceiling)} detected '
             '(advisory).';
     }
   }
@@ -179,7 +179,7 @@ List<StagedFile> sampleUpload(String datasetLevel) => [
         name: 'service-manual-excerpt.pdf',
         sizeBytes: 1500000,
         declaredLevel: datasetLevel,
-        simulatedFlag: 'Possible CONFIDENTIAL markings on page 4 (advisory — '
+        simulatedFlag: 'Possible CONFIDENTIAL content on page 4 (advisory — '
             'not a determination). Review the file before keeping it.',
       ),
       StagedFile(

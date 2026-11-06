@@ -2,59 +2,94 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'package:soliplex_client/soliplex_client.dart' show ThreadInfo;
+
 import '../../../core/routes.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../modules/auth/server_entry.dart';
+import '../../../modules/lobby/global_threads_state.dart';
+import '../../../modules/lobby/ui/global_threads_view.dart'
+    show ThreadRowAction;
 import '../../../modules/lobby/ui/room_grid_layout.dart';
+import '../../../shared/thread_properties_dialog.dart';
+import '../../../stores/labels_state.dart';
+import '../../chat/static_backend.dart';
 import '../model.dart';
 import '../store.dart';
 import 'catalog_view.dart';
 import 'common.dart';
+import 'threads/threads_view.dart';
 
-/// The lobby with datasets beside rooms: rooms are presets to start from,
-/// datasets the catalog to pick from. The switch is in the URL, so coming
-/// back from a dataset lands on the catalog.
+/// What the lobby shows; kept in the URL's `view` parameter, so coming back
+/// from a dataset or a thread lands where the user left.
+enum LobbyView {
+  rooms,
+  threads,
+  datasets;
+
+  static LobbyView parse(String? value) =>
+      values.where((v) => v.name == value).firstOrNull ?? rooms;
+
+  String get location =>
+      this == rooms ? AppRoutes.lobby : '${AppRoutes.lobby}?view=$name';
+}
+
+/// The lobby with threads and datasets beside rooms: rooms are presets to
+/// start from, threads every conversation wherever it lives, datasets the
+/// catalog to pick from.
 class DatasetsLobbyScreen extends StatelessWidget {
   const DatasetsLobbyScreen({
-    required this.serverAlias,
-    required this.showDatasets,
+    required this.entry,
+    required this.view,
     super.key,
   });
 
-  final String serverAlias;
-  final bool showDatasets;
+  final ServerEntry entry;
+  final LobbyView view;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final narrow =
-        MediaQuery.sizeOf(context).width < SoliplexBreakpoints.tablet;
-    final toggle = SegmentedButton<bool>(
-      segments: const [
-        ButtonSegment(
-          value: false,
-          label: Text('Rooms'),
-          icon: Icon(Icons.meeting_room_outlined),
-        ),
-        ButtonSegment(
-          value: true,
-          label: Text('Datasets'),
-          icon: Icon(Icons.dataset_outlined),
-        ),
+    final width = MediaQuery.sizeOf(context).width;
+    final narrow = width < SoliplexBreakpoints.tablet;
+    // Three segments beside the title and the create button need a desktop's
+    // width; below it the switch takes a row of its own.
+    final toggleOwnRow = width < SoliplexBreakpoints.desktop;
+    final toggle = SegmentedButton<LobbyView>(
+      segments: [
+        for (final (value, label, icon) in const [
+          (LobbyView.rooms, 'Rooms', Icons.meeting_room_outlined),
+          (LobbyView.threads, 'Threads', Icons.forum_outlined),
+          (LobbyView.datasets, 'Datasets', Icons.dataset_outlined),
+        ])
+          ButtonSegment(
+            value: value,
+            label: Text(label),
+            // On a phone the labels alone fit; icons would push them over.
+            icon: narrow ? null : Icon(icon),
+          ),
       ],
-      selected: {showDatasets},
+      selected: {view},
       showSelectedIcon: false,
-      onSelectionChanged: (s) =>
-          context.go(s.first ? '/lobby?view=datasets' : AppRoutes.lobby),
+      onSelectionChanged: (s) => context.go(s.first.location),
     );
-    final newDataset = narrow
+    final (label, icon, location) = view == LobbyView.datasets
+        ? ('New dataset', Icons.add, '/datasets/new')
+        : (
+            'New conversation',
+            Icons.add_comment_outlined,
+            '${conversationsLocation()}?new',
+          );
+    final create = narrow
         ? IconButton.filled(
-            tooltip: 'New dataset',
-            icon: const Icon(Icons.add),
-            onPressed: () => context.go('/datasets/new'),
+            tooltip: label,
+            icon: Icon(icon),
+            onPressed: () => context.go(location),
           )
         : SoliplexButton.filled(
-            onPressed: () => context.go('/datasets/new'),
-            icon: const Icon(Icons.add),
-            child: const Text('New dataset'),
+            onPressed: () => context.go(location),
+            icon: Icon(icon),
+            child: Text(label),
           );
     return Scaffold(
       body: SafeArea(
@@ -73,15 +108,13 @@ class DatasetsLobbyScreen extends StatelessWidget {
                   Expanded(
                     child: Text('Lobby', style: theme.textTheme.headlineMedium),
                   ),
-                  if (!narrow) toggle,
-                  if (showDatasets) ...[
-                    const SizedBox(width: SoliplexSpacing.s3),
-                    newDataset,
-                  ],
+                  if (!toggleOwnRow) toggle,
+                  const SizedBox(width: SoliplexSpacing.s3),
+                  create,
                 ],
               ),
             ),
-            if (narrow)
+            if (toggleOwnRow)
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: SoliplexSpacing.s4,
@@ -91,15 +124,98 @@ class DatasetsLobbyScreen extends StatelessWidget {
               ),
             const Divider(height: 1),
             Expanded(
-              child: showDatasets
-                  ? CatalogView(
-                      onOpen: (d) => context.go('/datasets/${d.id}'),
-                    )
-                  : _RoomGrid(serverAlias: serverAlias),
+              child: switch (view) {
+                LobbyView.rooms => _RoomGrid(serverAlias: entry.alias),
+                LobbyView.threads => _ThreadsView(entry: entry),
+                LobbyView.datasets => CatalogView(
+                    onOpen: (d) => context.go('/datasets/${d.id}'),
+                  ),
+              },
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Every thread the user has, in rooms or not: the app's own cross-room
+/// listing state on the static backend, under a copy of its view that can
+/// tell the two apart. A conversation outside any room reads "No room"
+/// where a thread names its room.
+class _ThreadsView extends StatefulWidget {
+  const _ThreadsView({required this.entry});
+
+  final ServerEntry entry;
+
+  @override
+  State<_ThreadsView> createState() => _ThreadsViewState();
+}
+
+class _ThreadsViewState extends State<_ThreadsView> {
+  late final _labels = LabelsState(entryResolver: (_) => widget.entry)
+    ..setServer(widget.entry.serverId);
+  late final _threads = GlobalThreadsState(entryResolver: (_) => widget.entry)
+    ..setServer(widget.entry.serverId);
+
+  @override
+  void dispose() {
+    _threads.dispose();
+    _labels.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onAction(ThreadInfo thread, ThreadRowAction action) async {
+    switch (action) {
+      // Properties edits the name too, so rename needs no dialog of its own.
+      case ThreadRowAction.properties || ThreadRowAction.rename:
+        await showDialog<void>(
+          context: context,
+          builder: (_) => ThreadPropertiesDialog(
+            thread: thread,
+            labels: _labels.catalogue,
+            onSave: ({
+              required name,
+              required description,
+              required labelIds,
+            }) =>
+                _threads.saveProperties(
+              thread,
+              name: name,
+              description: description,
+              labelIds: labelIds,
+            ),
+          ),
+        );
+      case ThreadRowAction.delete:
+        final confirmed = await showConfirmDialog(
+          context,
+          title: 'Delete thread?',
+          message: 'This removes "${thread.name}" and its messages.',
+          confirmLabel: 'Delete',
+          isDestructive: true,
+        );
+        if (confirmed) await _threads.delete(thread);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = DatasetsScope.of(context);
+    return ThreadsView(
+      state: _threads,
+      labels: _labels,
+      api: widget.entry.connection.api as StaticSoliplexApi,
+      roomNames: {
+        for (final p in store.presets.values) p.roomId: p.name,
+      },
+      roomlessId: conversationsRoomId,
+      onThreadTap: (roomId, threadId) => context.go(
+        roomId == conversationsRoomId
+            ? conversationsLocation(threadId)
+            : AppRoutes.thread(widget.entry.alias, roomId, threadId),
+      ),
+      onThreadAction: _onAction,
     );
   }
 }

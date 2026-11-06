@@ -115,19 +115,21 @@ the routes below) to open straight on a screen.
 
 | Route                              | Screen                                                                 |
 | ---------------------------------- | ---------------------------------------------------------------------- |
-| `/lobby`, `/lobby?view=datasets`   | Room presets, or the dataset catalog with search and facets.           |
+| `/lobby`, `/lobby?view=threads`, `/lobby?view=datasets` | Room presets, every thread wherever it lives, or the dataset catalog with search and facets. |
 | `/datasets/new`                    | Create a dataset: namespace, name, level, optional tags.               |
 | `/datasets/<namespace>/<name>`     | A dataset's files and ingestion. Anyone with access uploads and marks files outdated; the owner shares and deprecates. |
 | `/datasets/<namespace>/<name>/upload` | Choose files, scan, review and commit.                              |
 | `/room/mock/<room>[/thread/<id>]`  | The chat mockup's room screen, its panel showing the thread's datasets. |
+| `/conversations[/thread/<id>][?new]` | Conversations outside any room, with no room rail; `?new` opens on a fresh one. |
 
 The rules it assumes:
 
 - **Levels.** A room's level is a ceiling the deployer sets. A thread may use
   datasets at or below it; the picker shows the rest locked.
-- **Access.** A dataset is listed only when the user is cleared for its level
-  *and* is in its audience. Clearance alone is not need-to-know.
-- **No enforcement.** Nothing checks classification, so uploads and shares end
+- **Access.** A dataset is listed only when the user's access reaches its
+  level *and* the user is in its audience. A high enough level alone is not
+  enough.
+- **No enforcement.** Nothing checks sensitivity, so uploads and shares end
   with an attestation and the scan's results are worded as advisory.
 - **Fixed after the first message.** A new thread starts from the room's
   defaults and can change them until its first message; after that they are
@@ -142,7 +144,7 @@ The rules it assumes:
 
 | File                         | What it is                                                                                |
 | ---------------------------- | ----------------------------------------------------------------------------------------- |
-| `classification_levels.dart` | The marking vocabulary: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED. The only file allowed hex colors. |
+| `sensitivity_levels.dart` | The sensitivity levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED. The only file allowed hex colors. |
 | `model.dart`                 | Datasets, files and their ingestion states, tags, principals, room presets.               |
 | `store.dart`                 | `DatasetsStore`: the catalog query, access rule, thread trays, simulated ingestion.       |
 | `upload_session.dart`        | One upload: staged files, the simulated scan, what committing adds.                       |
@@ -153,3 +155,69 @@ The chat screen takes the datasets through `ThreadDatasetsSeam`
 (`chat/thread_panel/panel_section.dart`): it replaces the panel's Databases
 segment and adds a summary row above the composer. Without one, the chat
 mockup is unchanged.
+
+### Conversations outside rooms
+
+The same mockup prototypes a conversation that belongs to no room. *New
+conversation* in the lobby opens one on the conversations page: the chat
+screen with no room rail, its sidebar listing only conversations outside
+rooms, and a link back to the lobby.
+
+The lobby's Threads view lists them beside room threads. It is a copy of the
+app's cross-room listing (`ui/threads/`) on the app's own
+`GlobalThreadsState`, adding what a listing of both kinds needs:
+
+- a trailing icon on each row, a door for a thread in a room and a bubble
+  for one outside;
+- a scope filter under *Show*: *All*, *In rooms*, *No room*, set apart by a
+  rule from *Group by*;
+- `in:room` in the search box beside `@label`, completed the same way, with
+  `in:none` for conversations outside rooms;
+- `@no-label` for threads carrying no label, alone or any-of beside other
+  labels;
+- label chips on each row, at most three and then "+N"; tapping one adds it
+  to the search;
+- *Group by: Room*, with section headers and conversations outside rooms
+  first. It groups only the pages already loaded, so a section can grow as
+  the list scrolls.
+
+The scope and `in:` filters need a `room_ids` parameter on
+`GET /v1/agui/threads`, any-of like `label_ids`. Under A the client sends the
+hidden room's id for "No room" and every other room's for "In rooms"; under B
+the parameter needs a value for no room, such as `room_ids=none`.
+`@no-label` is the app's own: `unlabeled=true`, OR-ed with `label_ids`. The
+mockup fakes the room filter with `StaticSoliplexApi.roomFilter`.
+
+What a conversation outside a room assumes:
+
+- **No preset.** It starts with no datasets, picked in the thread panel and
+  fixed after the first message, like any thread. The agent and its skills
+  would be the installation's default; the mockup does not model them.
+- **No ceiling.** Its level is that of the most restrictive dataset it uses,
+  so it rises as datasets are added, and the band follows. It can never pass
+  the user's own access, because the catalog lists nothing beyond it.
+- **Labels, not rooms, group it.** It is found through the conversations
+  page, and through the Threads view with its label and room filters.
+
+Two backend shapes could carry it, and the mockup follows the first:
+
+| | A. A hidden room | B. Threads without a room |
+| --- | --- | --- |
+| Model | The installation provides one room that the room list never shows. | `Thread.room_id` becomes nullable. |
+| Routes | None new: every `/v1/rooms/{room_id}/…` route (runs, uploads, labels, feedback) works as is. | Roomless twins of the thread, run, upload and label routes. |
+| Thread listing | Unchanged; the client maps the hidden room's id to "No room". | `room_id: null` in `GET /v1/agui/threads`. |
+| Agent | The hidden room's agent config. | An installation-level default, such as a `default_agent_config_id`. |
+| Frontend | The room screen without its rail as the conversations page; the rail and room list hide the room. | A nullable room id through `ThreadInfo`, `ThreadKey`, `RoomState` and the routes. |
+| Cost | A room that is not really a room: its stats and uploads mix every user's conversations. | A migration and a second set of routes. |
+
+A is the cheaper first step. B is cleaner if rooms later become folders that
+a thread can move in and out of.
+
+Open questions:
+
+- A thread's level is derived on the client from its datasets. Should the
+  backend store it, so the thread listing and other clients can show it?
+- Can a conversation move into a room, or a room thread move out? A move would
+  change its preset and its ceiling partway through.
+- "In rooms" under A sends every room's id. With many rooms, an exclusion
+  parameter, or a `scope` parameter, would be shorter.

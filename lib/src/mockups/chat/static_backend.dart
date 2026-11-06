@@ -90,8 +90,10 @@ class StaticSoliplexApi extends SoliplexApi {
     required this.threads,
     required this.histories,
     this.documents = const {},
+    List<ThreadLabel> labels = const [],
     this.isAdmin = true,
-  }) : super(
+  })  : labels = [...labels],
+        super(
           transport: HttpTransport(client: _NoNetworkClient()),
           urlBuilder: UrlBuilder('https://mock.soliplex.local/api/v1'),
         );
@@ -104,6 +106,11 @@ class StaticSoliplexApi extends SoliplexApi {
   /// Thread id → its history.
   final Map<String, ThreadHistory> histories;
 
+  /// MOCKUP: the rooms [getAllThreads] keeps, or null for all of them. Set
+  /// by the datasets mockup's threads list ahead of a fetch; it stands in
+  /// for a `room_ids` query parameter the real endpoint does not have yet.
+  Set<String>? roomFilter;
+
   /// Room id → its RAG corpus.
   final Map<String, List<RagDocument>> documents;
 
@@ -111,6 +118,9 @@ class StaticSoliplexApi extends SoliplexApi {
   /// thread. Both feed the composer's attached-files panel.
   final Map<String, List<FileUpload>> roomUploads = {};
   final Map<String, List<FileUpload>> threadUploads = {};
+
+  /// The server's label catalogue.
+  final List<ThreadLabel> labels;
 
   /// Whether upload controls show; the app gates them on admin status.
   final bool isAdmin;
@@ -316,6 +326,122 @@ class StaticSoliplexApi extends SoliplexApi {
   @override
   Future<String> getMcpToken(String roomId, {CancelToken? cancelToken}) async =>
       'mock-mcp-token';
+
+  // ---- Threads across rooms, and labels ----------------------------------
+
+  /// Every room's threads, most recent activity first, filtered the way the
+  /// backend filters: every label in [labelIds], and [query] in the name.
+  /// The cursor is an offset in disguise; nothing here reorders mid-listing.
+  @override
+  Future<ThreadPage> getAllThreads({
+    int limit = 50,
+    String? cursor,
+    List<int>? labelIds,
+    bool unlabeled = false,
+    String? query,
+    CancelToken? cancelToken,
+  }) async {
+    final needle = query?.trim().toLowerCase() ?? '';
+    final all = [
+      for (final MapEntry(key: roomId, value: list) in threads.entries)
+        for (final t in list)
+          if ((roomFilter?.contains(roomId) ?? true) &&
+              _labelsMatch(t, labelIds ?? const [], unlabeled: unlabeled) &&
+              t.name.toLowerCase().contains(needle))
+            t,
+    ]..sort((a, b) => (b.lastActivity ?? b.createdAt)
+        .compareTo(a.lastActivity ?? a.createdAt));
+    final start = int.tryParse(cursor ?? '') ?? 0;
+    final end = (start + limit).clamp(0, all.length);
+    return ThreadPage(
+      threads: all.sublist(start, end),
+      nextCursor: end < all.length ? '$end' : null,
+    );
+  }
+
+  /// Any-of, like the real endpoint, with [unlabeled] one more
+  /// alternative: no filter passes everything.
+  bool _labelsMatch(
+    ThreadInfo thread,
+    List<int> labelIds, {
+    required bool unlabeled,
+  }) {
+    if (labelIds.isEmpty && !unlabeled) return true;
+    if (unlabeled && thread.labels.isEmpty) return true;
+    return thread.labels.any((l) => labelIds.contains(l.id));
+  }
+
+  @override
+  Future<ThreadInfo> setThreadLabels(
+    String roomId,
+    String threadId, {
+    required List<int> labelIds,
+    CancelToken? cancelToken,
+  }) async {
+    final list = threads[roomId]!;
+    final i = list.indexWhere((t) => t.id == threadId);
+    list[i] = list[i].copyWith(
+      labels: [
+        for (final l in labels)
+          if (labelIds.contains(l.id)) l,
+      ],
+    );
+    return list[i];
+  }
+
+  @override
+  Future<List<ThreadLabel>> getLabels({CancelToken? cancelToken}) async => [
+        for (final l in labels)
+          ThreadLabel(
+            id: l.id,
+            name: l.name,
+            color: l.color,
+            usageCount: threads.values
+                .expand((list) => list)
+                .where((t) => t.labels.any((x) => x.id == l.id))
+                .length,
+          ),
+      ];
+
+  @override
+  Future<ThreadLabel> createLabel({
+    required String name,
+    String? color,
+    CancelToken? cancelToken,
+  }) async {
+    final next = labels.fold(0, (max, l) => l.id > max ? l.id : max) + 1;
+    final label = ThreadLabel(id: next, name: name, color: color ?? '#808080');
+    labels.add(label);
+    return label;
+  }
+
+  @override
+  Future<ThreadLabel> updateLabel(
+    int labelId, {
+    String? name,
+    String? color,
+    CancelToken? cancelToken,
+  }) async {
+    final i = labels.indexWhere((l) => l.id == labelId);
+    final old = labels[i];
+    return labels[i] = ThreadLabel(
+      id: old.id,
+      name: name ?? old.name,
+      color: color ?? old.color,
+    );
+  }
+
+  @override
+  Future<void> deleteLabel(int labelId, {CancelToken? cancelToken}) async {
+    labels.removeWhere((l) => l.id == labelId);
+    for (final list in threads.values) {
+      for (var i = 0; i < list.length; i++) {
+        list[i] = list[i].copyWith(
+          labels: [...list[i].labels.where((l) => l.id != labelId)],
+        );
+      }
+    }
+  }
 
   @override
   Future<bool> getIsAdminUser({CancelToken? cancelToken}) async => isAdmin;

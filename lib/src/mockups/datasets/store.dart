@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import 'classification_levels.dart';
+import 'sensitivity_levels.dart';
 import 'model.dart';
 
 enum CatalogSort {
@@ -88,10 +88,10 @@ class DatasetsStore extends ChangeNotifier {
 
   // ---- Access ------------------------------------------------------------
 
-  /// Cleared for its level, and the owner or in its audience — directly or
-  /// through a group. Clearance alone is not need-to-know.
+  /// Its level within the user's access, and the owner or in its audience —
+  /// directly or through a group. A high enough level alone is not enough.
   bool canAccess(Dataset d) {
-    if (levelRank(user.clearance) < levelRank(d.level)) return false;
+    if (levelRank(user.access) < levelRank(d.level)) return false;
     if (d.ownerId == user.id) return true;
     return d.audience.contains(user.id) ||
         d.audience.any(user.groupIds.contains);
@@ -180,7 +180,7 @@ class DatasetsStore extends ChangeNotifier {
     return entries;
   }
 
-  /// What to show for a facet value: owners by name, levels by marking.
+  /// What to show for a facet value: owners by name, levels by label.
   String facetLabel(Facet facet, String value) => switch (facet) {
         Facet.owner => principals[value]?.name ?? value,
         Facet.level => levelLabel(value),
@@ -237,6 +237,19 @@ class DatasetsStore extends ChangeNotifier {
     final p = presets[roomId];
     return p != null && !isWithin(d.level, p.ceiling);
   }
+
+  /// The most a thread in [roomId] may use: the room's ceiling, or, outside
+  /// any room, whatever the user can access.
+  String ceilingFor(String roomId) => presets[roomId]?.ceiling ?? user.access;
+
+  /// The level a thread runs at. A room's thread runs at the room's
+  /// ceiling; a conversation outside any room has no ceiling, so it runs at
+  /// the most restrictive dataset it uses, and rises as datasets are added.
+  String levelOf(String roomId, String? threadId) =>
+      presets[roomId]?.ceiling ??
+      highestLevel(
+        [for (final id in trayFor(roomId, threadId)) byId(id)?.level].nonNulls,
+      );
 
   /// The datasets a new thread in [roomId] will start with: the room's
   /// defaults, as edited since.

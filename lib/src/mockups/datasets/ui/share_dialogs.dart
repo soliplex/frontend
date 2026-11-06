@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import '../classification_levels.dart';
+import '../sensitivity_levels.dart';
 import '../model.dart';
 import '../store.dart';
 import 'common.dart';
@@ -171,9 +171,9 @@ class _ShareDialogState extends State<_ShareDialog> {
   DatasetTags get _tags => DatasetTags(
       keywords: _keywords, systems: _systems, affiliations: _affiliations);
 
-  bool _cleared(Principal p) =>
+  bool _hasAccess(Principal p) =>
       p.kind == PrincipalKind.group ||
-      isWithin(widget.dataset.level, p.clearance ?? 'public');
+      isWithin(widget.dataset.level, p.access ?? 'public');
 
   @override
   Widget build(BuildContext context) {
@@ -256,8 +256,8 @@ class _ShareDialogState extends State<_ShareDialog> {
               children: [
                 section(
                   'Who gets it',
-                  'People and groups. There is no "everyone" — clearance alone '
-                      'is not need-to-know.',
+                  'People and groups. There is no "everyone": access to a level '
+                      'alone does not open a dataset.',
                 ),
                 SoliplexInput(
                   hintText: 'Search people and groups',
@@ -272,7 +272,7 @@ class _ShareDialogState extends State<_ShareDialog> {
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     value: _audience.contains(p.id),
-                    onChanged: _cleared(p)
+                    onChanged: _hasAccess(p)
                         ? (v) => setState(
                               () => v ?? false
                                   ? _audience.add(p.id)
@@ -286,13 +286,13 @@ class _ShareDialogState extends State<_ShareDialog> {
                     ),
                     title: Text(p.name),
                     subtitle: Text(
-                      _cleared(p)
+                      _hasAccess(p)
                           ? [
                               if (p.detail != null) p.detail!,
-                              if (p.clearance != null)
-                                'cleared ${levelLabel(p.clearance!)}',
+                              if (p.access != null)
+                                'access to ${levelLabel(p.access!)}',
                             ].join(' · ')
-                          : "Clearance below $level — wouldn't have access",
+                          : "Access below $level — wouldn't have access",
                     ),
                   ),
                 section(
@@ -330,11 +330,11 @@ class _ShareDialogState extends State<_ShareDialog> {
                   onChanged: (v) => setState(() => _attested = v ?? false),
                   title: Text(
                     'I confirm everyone selected is authorized to receive '
-                    'information up to $level and has a need to know.',
+                    'information up to $level and needs this dataset.',
                     style: theme.textTheme.bodyMedium,
                   ),
                   subtitle: const Text(
-                    "Soliplex doesn't enforce classification or need-to-know.",
+                    "Soliplex doesn't enforce levels or audiences.",
                   ),
                 ),
                 const SizedBox(height: SoliplexSpacing.s3),
