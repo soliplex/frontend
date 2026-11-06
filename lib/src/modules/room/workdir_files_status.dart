@@ -27,6 +27,11 @@ class WorkdirFilesFailed extends WorkdirFilesStatus {
   final bool retrying;
 }
 
+/// What a workspace file's 404 tells the user. The server answers one when
+/// the file is gone and when the workspace is not served at all, and the
+/// client cannot tell the two apart, so the text is true of both.
+const workdirFileUnavailable = "File isn't available anymore";
+
 /// Fixed user-facing text for a failed listing. Never renders the error's own
 /// message: it can carry backend text, URLs or tokens.
 String workdirErrorMessage(Object error) {

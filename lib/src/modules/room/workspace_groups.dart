@@ -5,7 +5,8 @@ import 'file_sort.dart';
 
 /// A folder of a workspace listing, and everything below it.
 ///
-/// A folder whose only content is one folder merges with it into one: `raw/archive/2023` rather than three folders opened in turn.
+/// A folder whose only content is one folder merges with it into one:
+/// `raw/archive/2023` rather than three folders opened in turn.
 @immutable
 class WorkspaceFolder {
   const WorkspaceFolder({

@@ -173,14 +173,16 @@ void main() {
   testWidgets(
       "a row's download icon is primary, and its failure the error "
       'colour until a tap retries', (tester) async {
-    var runs = 0;
+    final retry = Completer<DownloadOutcome>();
+    var failed = false;
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
       onDownload: (_) async {
-        runs++;
-        return const DownloadFailed('File no longer exists');
+        if (failed) return retry.future;
+        failed = true;
+        return const DownloadFailed("File isn't available anymore");
       },
     )));
     await tester.pump();
@@ -194,15 +196,19 @@ void main() {
     await tester.pump();
 
     expect(colorOf(Icons.error_outline), colors.error);
-    final failed =
-        find.byTooltip('Download failed: File no longer exists. Tap to retry.');
-    expect(failed, findsOneWidget);
+    final failure = find.byTooltip(
+        "Download failed: File isn't available anymore. Tap to retry.");
+    expect(failure, findsOneWidget);
     await tester.pump(const Duration(minutes: 1));
-    expect(failed, findsOneWidget, reason: 'it stays until retried');
+    expect(failure, findsOneWidget, reason: 'it stays until retried');
 
-    await tester.tap(failed);
+    await tester.tap(failure);
     await tester.pump();
-    expect(runs, 2);
+    expect(find.byType(FileRowActionProgress), findsOneWidget);
+    expect(failure, findsNothing);
+
+    retry.complete(const DownloadSaved());
+    await tester.pump(const Duration(seconds: 2));
   });
 
   group('a download under way stays with its file', () {
@@ -312,7 +318,7 @@ void main() {
     expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
   });
 
-  testWidgets('preview shows "no longer exists" without Retry on 404',
+  testWidgets("preview says the file isn't available, without Retry, on 404",
       (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('plot.png')]),
@@ -328,7 +334,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('File no longer exists'), findsOneWidget);
+    expect(find.text("File isn't available anymore"), findsOneWidget);
     // Retry on a permanent 404 just refetches the same 404 — no Retry.
     expect(find.text('Retry'), findsNothing);
   });
@@ -1109,10 +1115,12 @@ void main() {
     });
 
     testWidgets('keeps the failure colour until a tap retries', (tester) async {
-      var runs = 0;
+      final retry = Completer<DownloadOutcome>();
+      var failed = false;
       await openPreview(tester, ['a.md'], onDownload: (_) async {
-        runs++;
-        return const DownloadFailed('File no longer exists');
+        if (failed) return retry.future;
+        failed = true;
+        return const DownloadFailed("File isn't available anymore");
       });
 
       await tester.tap(titleBarDownload);
@@ -1134,15 +1142,20 @@ void main() {
           ?.color;
       expect(icon.color, error);
       expect(painted, error);
-      final failed = _inPreview(
-        find.byTooltip('Download failed: File no longer exists. Tap to retry.'),
+      final failure = _inPreview(
+        find.byTooltip(
+            "Download failed: File isn't available anymore. Tap to retry."),
       );
-      expect(failed, findsOneWidget);
+      expect(failure, findsOneWidget);
       await tester.pump(const Duration(minutes: 1));
 
-      await tester.tap(failed);
+      await tester.tap(failure);
       await tester.pump();
-      expect(runs, 2);
+      expect(_inPreview(find.byTooltip('Downloading')), findsOneWidget);
+      expect(failure, findsNothing);
+
+      retry.complete(const DownloadSaved());
+      await tester.pump(const Duration(seconds: 2));
     });
 
     testWidgets('a screen reader hears the download under way once',
@@ -1230,38 +1243,51 @@ void main() {
 
     testWidgets('a failed download offers a retry, and says why until then',
         (tester) async {
-      var runs = 0;
+      final retry = Completer<DownloadOutcome>();
+      var failed = false;
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
         onDownload: (_) async {
-          runs++;
-          return const DownloadFailed('File no longer exists');
+          if (failed) return retry.future;
+          failed = true;
+          return const DownloadFailed("File isn't available anymore");
         },
         onFetchBytes: (_) async => Uint8List(0),
       )));
       await tester.pump();
       await tester.tap(find.byIcon(Icons.visibility_outlined));
       await tester.pumpAndSettle();
+      final button = find.byType(SoliplexButton);
+      // Its height, not its left edge: the centred label changes width.
+      final idle = tester.getTopLeft(button).dy;
 
       await tester.tap(find.text('Download'));
       await tester.pump();
 
+      expect(tester.getTopLeft(button).dy, idle,
+          reason: 'the reason under it moves nothing');
+
       expect(find.text('Retry download'), findsOneWidget);
       expect(_inButton(find.byIcon(Icons.error_outline)), findsOneWidget);
-      expect(find.text('File no longer exists'), findsOneWidget);
+      expect(find.text("File isn't available anymore"), findsOneWidget);
       expect(
-        tester.getTopLeft(find.text('File no longer exists')).dy,
+        tester.getTopLeft(find.text("File isn't available anymore")).dy,
         greaterThan(tester.getBottomLeft(find.byType(SoliplexButton)).dy),
         reason: 'under the button',
       );
       await tester.pump(const Duration(minutes: 1));
-      expect(find.text('File no longer exists'), findsOneWidget,
+      expect(find.text("File isn't available anymore"), findsOneWidget,
           reason: 'it stays until retried');
 
       await tester.tap(find.text('Retry download'));
       await tester.pump();
-      expect(runs, 2);
+      expect(tester.widget<SoliplexButton>(button).isLoading, isTrue);
+      expect(find.text("File isn't available anymore"), findsNothing);
+      expect(tester.getTopLeft(button).dy, idle);
+
+      retry.complete(const DownloadSaved());
+      await tester.pump(const Duration(seconds: 2));
     });
 
     testWidgets('its tooltip leaves the failure reason in view',
@@ -1269,7 +1295,8 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
-        onDownload: (_) async => const DownloadFailed('File no longer exists'),
+        onDownload: (_) async =>
+            const DownloadFailed("File isn't available anymore"),
         onFetchBytes: (_) async => Uint8List(0),
       )));
       await tester.pump();
@@ -1284,7 +1311,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
 
       final bubble = tester.getRect(find.text('Save a copy of plot.png'));
-      final reason = tester.getRect(find.text('File no longer exists'));
+      final reason = tester.getRect(find.text("File isn't available anymore"));
       expect(bubble.overlaps(reason), isFalse);
       await mouse.moveTo(Offset.zero);
       await tester.pump(const Duration(seconds: 2));
@@ -1437,20 +1464,53 @@ void main() {
       expect(isCut(tester, find.text('/models/')), isFalse);
     });
 
+    // In the test font every glyph is as wide as the font size, so a cut
+    // head's room for a character and its ellipsis is two glyphs.
+    double glyph(WidgetTester tester, Finder text) =>
+        tester.widget<Text>(text).style!.fontSize! *
+        MediaQuery.textScalerOf(tester.element(text)).scale(1);
+
+    testWidgets(
+        "a last folder's cut head keeps room for a character and its "
+        'ellipsis, even before its end is cut', (tester) async {
+      // Room for `p…/e…`, and part of `_11_05/`.
+      await pumpRow(tester,
+          width: 300, name: 'project/experiment_run_2026_11_05/out.csv');
+
+      final head = find.text('/experiment_run_2026');
+      expect(isCut(tester, head), isTrue);
+      expect(isCut(tester, find.text('_11_05/')), isTrue,
+          reason: 'the room the head keeps is what cuts the end');
+      expect(tester.getSize(head).width,
+          greaterThanOrEqualTo(2 * glyph(tester, head)));
+    });
+
+    testWidgets("a cut head's room grows with the text size", (tester) async {
+      await pumpRow(tester,
+          width: 440,
+          textScale: 2,
+          name: 'project/experiment_run_2026_11_05/out.csv');
+
+      for (final text in ['project', '/experiment_run_2026']) {
+        final head = find.text(text);
+        expect(isCut(tester, head), isTrue, reason: text);
+        expect(tester.getSize(head).width,
+            greaterThanOrEqualTo(2 * glyph(tester, head)),
+            reason: text);
+      }
+    });
+
     testWidgets('a last folder too long alone keeps its end', (tester) async {
       // Room for `p…/…_11_05/`, not for the last folder whole.
       await pumpRow(tester,
           width: 400, name: 'project/experiment_run_2026_11_05/out.csv');
 
-      expect(isCut(tester, find.text('project')), isTrue);
       // Wide enough for a character and its ellipsis, as an ellipsis alone
-      // does not paint, so the cut path does not start at a bare `/`; in the
-      // test font every glyph is as wide as the font size.
+      // does not paint, so the cut path does not start at a bare `/`.
       final project = find.text('project');
-      expect(
-        tester.getSize(project).width,
-        greaterThanOrEqualTo(2 * tester.widget<Text>(project).style!.fontSize!),
-      );
+      expect(isCut(tester, project), isTrue);
+      expect(tester.getSize(project).width,
+          greaterThanOrEqualTo(2 * glyph(tester, project)));
       expect(isCut(tester, find.text('/experiment_run_2026')), isTrue);
       expect(isCut(tester, find.text('_11_05/')), isFalse);
       expect(isCut(tester, find.text('out.csv')), isFalse);
@@ -1463,13 +1523,7 @@ void main() {
       await pumpRow(tester,
           width: 260, name: 'crm_app/backend/models/quarterly_customer.py');
 
-      final head = find.text('quarterly_cu');
-      expect(isCut(tester, head), isTrue);
-      expect(
-        tester.getSize(head).width,
-        greaterThanOrEqualTo(2 * tester.widget<Text>(head).style!.fontSize!),
-        reason: 'room for a character and its ellipsis',
-      );
+      expect(isCut(tester, find.text('quarterly_cu')), isTrue);
       expect(isCut(tester, find.text('stomer.py')), isFalse);
       expect(
         tester.getSize(findFolderPath(directory)).width,

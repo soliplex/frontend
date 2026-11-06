@@ -43,8 +43,8 @@ final class DownloadFailed implements DownloadOutcome, DownloadFeedbackState {
 
 /// Each file's download in one thread's workspace: idle, under way, then its
 /// outcome. A save shows for 2 s before the file is idle again; a failure
-/// shows until the file is downloaded again, so its reason stays to read. A
-/// save the user cancels goes straight back to idle.
+/// shows until a retry starts or these downloads are cleared, so its reason
+/// stays to read. A save the user cancels goes straight back to idle.
 ///
 /// Every affordance that downloads a file reads its state here and starts it
 /// here, so a file row and the preview show one download, and a file starts
@@ -53,8 +53,8 @@ class FileDownloads {
   FileDownloads(this._download);
 
   /// Downloads a file; must report routine failures as [DownloadFailed]
-  /// rather than throw. Its `isCleared` says whether
-  /// these downloads were cleared since, so nobody is left to want the file.
+  /// rather than throw. Its `isCleared` says whether these downloads were
+  /// cleared since, so nobody is left to want the file.
   final Future<DownloadOutcome> Function(
     WorkdirFile file,
     bool Function() isCleared,

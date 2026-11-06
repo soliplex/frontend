@@ -38,7 +38,7 @@ void main() {
   test('a failed download shows its failure and its reason', () {
     fakeAsync((async) {
       final downloads = FileDownloads(
-        (_, __) async => const DownloadFailed('File no longer exists'),
+        (_, __) async => const DownloadFailed("File isn't available anymore"),
       );
       addTearDown(downloads.dispose);
 
@@ -48,17 +48,17 @@ void main() {
       expect(
         downloads.stateOf(a),
         isA<DownloadFailed>()
-            .having((f) => f.reason, 'reason', 'File no longer exists'),
+            .having((f) => f.reason, 'reason', "File isn't available anymore"),
       );
     });
   });
 
-  test('a failure shows until the file is downloaded again', () {
+  test('a failure shows until a retry starts', () {
     fakeAsync((async) {
       var runs = 0;
       final downloads = FileDownloads((_, __) async {
         runs++;
-        return const DownloadFailed('File no longer exists');
+        return const DownloadFailed("File isn't available anymore");
       });
       addTearDown(downloads.dispose);
 
@@ -106,7 +106,7 @@ void main() {
       pending.complete(const DownloadSaved());
       async.flushMicrotasks();
       downloads.start(a);
-      expect(started, ['a.csv', 'b.csv'], reason: 'its outcome still shows');
+      expect(started, ['a.csv', 'b.csv'], reason: 'its save still shows');
 
       async.elapse(const Duration(seconds: 2));
       downloads.start(a);
@@ -167,7 +167,7 @@ void main() {
       expect(started, [a], reason: 'it is the same file, still downloading');
       expect(downloads.stateOf(rewritten), const DownloadRunning());
 
-      pending.complete(const DownloadFailed('File no longer exists'));
+      pending.complete(const DownloadFailed("File isn't available anymore"));
       async.flushMicrotasks();
       expect(downloads.stateOf(rewritten), isA<DownloadFailed>());
     });

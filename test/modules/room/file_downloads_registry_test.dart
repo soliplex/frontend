@@ -58,7 +58,7 @@ void main() {
     for (final (error, reason) in <(Object, String)>[
       (
         const NotFoundException(message: 'No workdir file'),
-        'File no longer exists',
+        "File isn't available anymore",
       ),
       (const NetworkException(message: 'down'), "Couldn't reach the server"),
       (const AuthException(message: 'expired'), 'Sign in again'),
@@ -67,16 +67,17 @@ void main() {
         "You don't have access to this file",
       ),
       (
-        const ApiException(message: 'HTTP 503', statusCode: 503),
+        const ApiException(message: 'HTTP 500', statusCode: 500),
         'Server is temporarily unavailable',
       ),
       (
-        const ApiException(message: 'HTTP 400', statusCode: 400),
+        const ApiException(message: 'HTTP 499', statusCode: 499),
         "The server couldn't send the file",
       ),
       (StateError('broken'), 'Something went wrong'),
     ]) {
-      test('${error.runtimeType} reads "$reason"', () {
+      final status = error is ApiException ? ' ${error.statusCode}' : '';
+      test('${error.runtimeType}$status reads "$reason"', () {
         expect(downloadFailureReason(error), reason);
       });
     }

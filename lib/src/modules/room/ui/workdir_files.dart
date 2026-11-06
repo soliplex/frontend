@@ -11,6 +11,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/zoomable_image.dart';
 import '../file_downloads.dart';
+import '../workdir_files_status.dart' show workdirFileUnavailable;
 import 'file_list_row.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';
@@ -116,11 +117,10 @@ class WorkdirFileRow extends StatelessWidget {
 /// name.
 ///
 /// The name is what a reader scans the list for, so the directory gives
-/// way first: it is cut into whatever width the name leaves, keeping its last
-/// folder (see [FolderPath]), and gets none once the name fills the row.
-/// Wraps in a
-/// [FullNameTooltip], so the full [path] shows on hover or long press and
-/// the text is not selectable.
+/// way first: it is cut into whatever width the name leaves, keeping its
+/// last folder (see [FolderPath]), and gets none once the name fills the
+/// row. Wraps in a [FullNameTooltip], so the full [path] shows on hover or
+/// long press and the text is not selectable.
 class NameAndDirectory extends StatelessWidget {
   const NameAndDirectory({
     super.key,
@@ -199,10 +199,12 @@ class NameAndDirectory extends StatelessWidget {
 ///
 /// The end of a name is the most informative part of a cut one: names an
 /// agent writes often differ only just before the extension, as dates and
-/// versions do. So the end [splitForCut] keeps stays whole while it fits:
+/// versions do. So the end [splitForCut] keeps stays whole while it fits
+/// beside the room the cut head keeps (see [_TwoPartLine]):
 /// `quarterly_report_final.xlsx` reads `quarterly_r…_final.xlsx`. Flutter
-/// lays out and ellipsizes both parts, so the cut follows the text scale and
-/// bold-text settings. Announces the whole name to a screen reader.
+/// lays out and ellipsizes both parts, and that room is measured as a
+/// [Text] paints it, so the cut follows the text scale and bold-text
+/// settings. Announces the whole name to a screen reader.
 class FileName extends StatelessWidget {
   FileName(this.name, {super.key, this.style})
       : assert(!name.contains('/'), 'FileName takes a basename, not a path');
@@ -231,8 +233,9 @@ class FileName extends StatelessWidget {
 /// A folder's path on one line that, when cut, keeps its last folder whole:
 /// `project/src/core` reads `project/s…/core`, and `raw/archive/2023`
 /// reads `raw/a…/2023`. A last folder too long alone loses its middle, as a
-/// [FileName] does: `…/experiment_r…_11_05`. The folders above it give way
-/// first, then the last folder's head (see [splitPathForCut]).
+/// [FileName] does: `p…/experiment_r…_11_05`. The folders above it give way
+/// first, down to their first character and an ellipsis, then the last
+/// folder's head (see [splitPathForCut]).
 ///
 /// Leaves the path's announcement to its row, which names the whole path.
 class FolderPath extends StatelessWidget {
@@ -268,9 +271,9 @@ class FolderPath extends StatelessWidget {
 }
 
 /// [head] in [style], then [end], on one line: when the line is too narrow,
-/// [head] is cut first, and [end] only once it alone is wider than the line.
-/// A cut [head] keeps room for its first character and an ellipsis, so the
-/// line shows it was cut rather than starting at [end]: a slot as wide as
+/// [head] is cut first, down to its first character and an ellipsis, and
+/// [end] only once it is wider than the line less that room. The room keeps
+/// the cut showing rather than the line starting at [end]: a slot as wide as
 /// the ellipsis alone paints nothing.
 class _TwoPartLine extends StatelessWidget {
   const _TwoPartLine({
@@ -599,7 +602,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             ),
             const SizedBox(height: SoliplexSpacing.s3),
             Text(
-              'File no longer exists',
+              workdirFileUnavailable,
               style: theme.textTheme.bodyMedium,
             ),
           ],

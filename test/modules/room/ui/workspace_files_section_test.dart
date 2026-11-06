@@ -501,7 +501,71 @@ void main() {
           );
         });
 
-        testWidgets("a folder past the indent shows its parent's path",
+        group('a folder past four levels, narrow', () {
+          // Every folder holds a file, so no chain merges.
+          const folders = [
+            'alpha_folder',
+            'beta_folder',
+            'gamma_folder',
+            'delta_folder',
+            'epsilon_folder',
+            'zeta_folder_with_a_long_name',
+          ];
+          final deep = [
+            for (var i = 1; i <= folders.length; i++)
+              '${folders.take(i).join('/')}/x$i',
+          ];
+          final openAll = {
+            for (var i = 2; i <= folders.length; i++)
+              folders.take(i).join('/'): true,
+          };
+          bool isCut(WidgetTester tester, String text) => tester
+              .renderObject<RenderParagraph>(find.text(text))
+              .didExceedMaxLines;
+
+          testWidgets('cuts its parent path, keeping the last folder',
+              (tester) async {
+            tester.view.physicalSize = const Size(760, 900);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.reset);
+            await tester.pumpWidget(_grouped(deep, toggles: openAll));
+
+            expect(tester.takeException(), isNull);
+            expect(isCut(tester, 'zeta_folder_with_a_lon'), isFalse);
+            expect(isCut(tester, 'g_name'), isFalse);
+            expect(
+              isCut(
+                  tester,
+                  'alpha_folder/beta_folder/gamma_folder/'
+                  'delta_folder'),
+              isTrue,
+            );
+            expect(isCut(tester, 'folder/'), isFalse);
+          });
+
+          testWidgets(
+              'cuts its name in the middle, leaving no room for the '
+              'path', (tester) async {
+            tester.view.physicalSize = const Size(320, 900);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.reset);
+            await tester.pumpWidget(_grouped(deep, toggles: openAll));
+
+            expect(tester.takeException(), isNull);
+            expect(isCut(tester, 'zeta_folder_with_a_lon'), isTrue);
+            expect(isCut(tester, 'g_name'), isFalse);
+            expect(
+              tester
+                  .getSize(findFolderPath(
+                      'alpha_folder/beta_folder/gamma_folder/delta_folder/'
+                      'epsilon_folder'))
+                  .width,
+              moreOrLessEquals(0, epsilon: 0.01),
+            );
+          });
+        });
+
+        testWidgets("a folder past four levels shows its parent's path",
             (tester) async {
           await tester.pumpWidget(_grouped(listing, toggles: open));
 
