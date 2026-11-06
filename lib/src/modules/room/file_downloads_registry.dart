@@ -112,7 +112,7 @@ class FileDownloadsRegistry {
 /// real failure so the caller can render the right inline feedback.
 ///
 /// Once [isUnwanted] says nobody is left to want the file, it opens no save
-/// dialog and reports no failure, returning [DownloadOutcome.cancelled]: its
+/// dialog and reports no failure, returning [DownloadCancelled]: its
 /// downloads were cleared (see [FileDownloadsRegistry]), or its user signed
 /// out while it was fetched. A dialog already open saves whatever its user
 /// chooses.
@@ -148,7 +148,7 @@ Future<DownloadOutcome> downloadWorkdirFile({
       error: e,
       stackTrace: st,
     );
-    return DownloadOutcome.failed;
+    return DownloadFailed(downloadFailureReason(e));
   }
   if (isUnwanted()) return _dropped(roomId, threadId, file);
   try {
@@ -158,7 +158,7 @@ Future<DownloadOutcome> downloadWorkdirFile({
         'workdir file download cancelled roomId=$roomId threadId=$threadId '
         'name=${file.filename}',
       );
-      return DownloadOutcome.cancelled;
+      return const DownloadCancelled();
     }
     if (isWeb) {
       // The browser triggers the download immediately and saveFile
@@ -175,7 +175,7 @@ Future<DownloadOutcome> downloadWorkdirFile({
         'name=${file.filename} bytes=${bytes.length}',
       );
     }
-    return DownloadOutcome.success;
+    return const DownloadSaved();
   } catch (e, st) {
     // Attached whole: a save failure is the platform's, the save dialog's
     // error, the web saver's fixed-text refusal of an empty file or a name
@@ -187,14 +187,27 @@ Future<DownloadOutcome> downloadWorkdirFile({
       stackTrace: st,
       attributes: {'filename': file.filename},
     );
-    return DownloadOutcome.failed;
+    return const DownloadFailed("Couldn't save the file");
   }
 }
+
+/// Why fetching a file to download failed, as fixed text for the user: the
+/// error's own message can carry backend text.
+String downloadFailureReason(Object error) => switch (error) {
+      NotFoundException() => 'File no longer exists',
+      NetworkException() => "Couldn't reach the server",
+      AuthException() => 'Sign in again',
+      PermissionDeniedException() => "You don't have access to this file",
+      ApiException(:final statusCode) when statusCode >= 500 =>
+        'Server is temporarily unavailable',
+      ApiException() => "The server couldn't send the file",
+      _ => 'Something went wrong',
+    };
 
 DownloadOutcome _dropped(String roomId, String threadId, WorkdirFile file) {
   _logger.debug(
     'workdir download dropped, nobody left to want it '
     'roomId=$roomId threadId=$threadId name=${file.filename}',
   );
-  return DownloadOutcome.cancelled;
+  return const DownloadCancelled();
 }

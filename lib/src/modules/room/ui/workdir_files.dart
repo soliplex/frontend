@@ -11,7 +11,6 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/zoomable_image.dart';
 import '../file_downloads.dart';
-import '../workspace_groups.dart' show isToolingPath;
 import 'file_list_row.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';
@@ -64,13 +63,7 @@ class WorkdirFileRow extends StatelessWidget {
     // icon doesn't imply their content can be shown.
     final leadingIcon =
         canPreview ? kind.rowIcon : Icons.insert_drive_file_outlined;
-    // Muted so tooling output reads as apart from the agent's files; its
-    // directory, its own name, or the muted folder row it sits under says
-    // why.
-    final nameStyle = isToolingPath(file.filename)
-        ? theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)
-        : theme.textTheme.bodySmall;
+    final nameStyle = theme.textTheme.bodySmall;
     return InkWell(
       onTap: onOpenPreview,
       borderRadius: BorderRadius.circular(context.radii.sm),
@@ -100,15 +93,14 @@ class WorkdirFileRow extends StatelessWidget {
           Watch((context) {
             final state = downloads.stateOf(file);
             final (icon, tooltip) = state.affordance;
-            if (state == DownloadFeedbackState.downloading) {
+            if (state is DownloadRunning) {
               return FileRowActionProgress(label: tooltip);
             }
             return FileRowAction(
               icon: icon,
               tooltip: tooltip,
-              onTap: state == DownloadFeedbackState.idle
-                  ? () => downloads.start(file)
-                  : null,
+              onTap:
+                  downloads.canStart(file) ? () => downloads.start(file) : null,
               color: state.outcomeColor(theme.colorScheme) ??
                   theme.colorScheme.primary,
             );
@@ -124,8 +116,9 @@ class WorkdirFileRow extends StatelessWidget {
 /// name.
 ///
 /// The name is what a reader scans the list for, so the directory gives
-/// way first: it is end-ellipsized into whatever width the name leaves,
-/// and gets none once the name fills the row. Wraps in a
+/// way first: it is cut into whatever width the name leaves, keeping its last
+/// folder (see [FolderPath]), and gets none once the name fills the row.
+/// Wraps in a
 /// [FullNameTooltip], so the full [path] shows on hover or long press and
 /// the text is not selectable.
 class NameAndDirectory extends StatelessWidget {
@@ -184,12 +177,10 @@ class NameAndDirectory extends StatelessWidget {
                         child: Padding(
                           padding:
                               const EdgeInsets.only(left: SoliplexSpacing.s2),
-                          child: Text(
-                            '$directory/',
+                          child: FolderPath(
+                            directory,
+                            endsWithSlash: true,
                             style: directoryStyle,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -227,49 +218,158 @@ class FileName extends StatelessWidget {
     return Semantics(
       label: name,
       child: ExcludeSemantics(
-        child: LayoutBuilder(
-          builder: (context, constraints) => Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(child: _line(head)),
-              ConstrainedBox(
-                // A slot narrower than the end cuts it rather than
-                // overflowing.
-                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                child: _line(end),
-              ),
-            ],
-          ),
+        child: _TwoPartLine(
+          head: head,
+          style: style,
+          end: _cutLine(end, style),
         ),
       ),
     );
   }
-
-  Text _line(String text) => Text(
-        text,
-        style: style,
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        // As wide as the text it paints: a cut line would otherwise keep
-        // its slot's width, leaving a gap between the ellipsis and the end.
-        textWidthBasis: TextWidthBasis.longestLine,
-      );
 }
 
-/// How many of a stem's last characters a cut name keeps with its extension.
-const _keptStemCharacters = 6;
+/// A folder's path on one line that, when cut, keeps its last folder whole:
+/// `project/src/core` reads `project/s…/core`, and `raw/archive/2023`
+/// reads `raw/a…/2023`. A last folder too long alone loses its middle, as a
+/// [FileName] does: `…/experiment_r…_11_05`. The folders above it give way
+/// first, then the last folder's head (see [splitPathForCut]).
+///
+/// Leaves the path's announcement to its row, which names the whole path.
+class FolderPath extends StatelessWidget {
+  const FolderPath(
+    this.path, {
+    super.key,
+    required this.endsWithSlash,
+    this.style,
+  });
+
+  /// One folder's name, or a path of folders.
+  final String path;
+
+  /// Whether a `/` follows the last folder, so the path reads as the folder
+  /// holding what comes before it on the row.
+  final bool endsWithSlash;
+
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final (above, lastHead, lastTail) = splitPathForCut(path);
+    return _TwoPartLine(
+      head: above,
+      style: style,
+      end: _TwoPartLine(
+        head: lastHead,
+        style: style,
+        end: _cutLine(endsWithSlash ? '$lastTail/' : lastTail, style),
+      ),
+    );
+  }
+}
+
+/// [head] in [style], then [end], on one line: when the line is too narrow,
+/// [head] is cut first, and [end] only once it alone is wider than the line.
+/// A cut [head] keeps room for its first character and an ellipsis, so the
+/// line shows it was cut rather than starting at [end]: a slot as wide as
+/// the ellipsis alone paints nothing.
+class _TwoPartLine extends StatelessWidget {
+  const _TwoPartLine({
+    required this.head,
+    required this.style,
+    required this.end,
+  });
+
+  final String head;
+  final TextStyle? style;
+  final Widget end;
+
+  @override
+  Widget build(BuildContext context) {
+    final kept = head.isEmpty
+        ? 0.0
+        : _width(context, '${head.characters.first}\u2026', style);
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: _cutLine(head, style)),
+          ConstrainedBox(
+            // A slot narrower than the end cuts it rather than overflowing.
+            constraints: BoxConstraints(
+              maxWidth: math.max(0, constraints.maxWidth - kept),
+            ),
+            child: end,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The width of [text] as a [Text] in [style] paints it here: with the
+/// ambient style, text scale and bold-text setting it inherits.
+double _width(BuildContext context, String text, TextStyle? style) {
+  var effective = DefaultTextStyle.of(context).style.merge(style);
+  if (MediaQuery.boldTextOf(context)) {
+    effective = effective.merge(const TextStyle(fontWeight: FontWeight.bold));
+  }
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: effective),
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  // Rounded up, so the head's slot is never a fraction short of the text.
+  final width = painter.width.ceilToDouble();
+  painter.dispose();
+  return width;
+}
+
+Text _cutLine(String text, TextStyle? style) => Text(
+      text,
+      style: style,
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.ellipsis,
+      // As wide as the text it paints: a cut line would otherwise keep its
+      // slot's width, leaving a gap between the ellipsis and the end.
+      textWidthBasis: TextWidthBasis.longestLine,
+    );
+
+/// How many of a name's last characters a cut keeps, before any extension.
+const _keptEndCharacters = 6;
 
 /// Splits the basename [name] into the head a cut shortens and the end it
-/// keeps: the last [_keptStemCharacters] characters of the stem, then the
-/// extension (see [splitExtension]). Counts characters as a reader sees
-/// them, so no emoji or accented letter is split.
+/// keeps: the last [_keptEndCharacters] characters of the stem, then the
+/// extension (see [splitExtension]).
 (String, String) splitForCut(String name) {
   final (stem, extension) = splitExtension(name);
-  final characters = stem.characters;
-  final head = characters.skipLast(_keptStemCharacters).string;
-  final tail = characters.takeLast(_keptStemCharacters).string;
+  final (head, tail) = _splitEnd(stem);
   return (head, '$tail$extension');
+}
+
+/// Splits the folder path [path] into the parts a cut gives up in turn: the
+/// folders above the last, then the last folder's head, while its last
+/// [_keptEndCharacters] characters stay. A folder name has no extension to
+/// split off: `v1.2` is a version. The `/` before the last folder starts
+/// its head, or its kept end when the head is empty, so it shows whenever
+/// the folders above it do.
+(String, String, String) splitPathForCut(String path) {
+  final slash = path.lastIndexOf('/');
+  final (head, tail) = _splitEnd(path.substring(slash + 1));
+  if (slash < 0) return ('', head, tail);
+  final above = path.substring(0, slash);
+  return head.isEmpty ? (above, '', '/$tail') : (above, '/$head', tail);
+}
+
+/// Splits [text] before its last [_keptEndCharacters] characters, counting
+/// characters as a reader sees them, so no emoji or accented letter is split.
+(String, String) _splitEnd(String text) {
+  final characters = text.characters;
+  return (
+    characters.skipLast(_keptEndCharacters).string,
+    characters.takeLast(_keptEndCharacters).string,
+  );
 }
 
 /// Splits the basename [name] into its stem and its extension, dot included.
@@ -821,7 +921,8 @@ class _CannotPreview extends StatelessWidget {
 }
 
 /// The labelled Download button of a preview page that cannot show [file],
-/// showing [file]'s download in [downloads].
+/// showing [file]'s download in [downloads], and under it why a failed one
+/// failed.
 class _DownloadButton extends StatelessWidget {
   const _DownloadButton({required this.file, required this.downloads});
 
@@ -830,16 +931,39 @@ class _DownloadButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Watch((context) {
       final state = downloads.stateOf(file);
       final (icon, label) = state.buttonAffordance;
-      return SoliplexButton.filled(
-        onPressed: state == DownloadFeedbackState.idle
-            ? () => downloads.start(file)
-            : null,
-        isLoading: state == DownloadFeedbackState.downloading,
-        icon: Icon(icon),
-        child: Text(label),
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: 'Save a copy of ${file.basename}',
+            // Above, so a pointer still over the button after a failed
+            // download leaves the reason under it in view.
+            preferBelow: false,
+            child: SoliplexButton.filled(
+              onPressed:
+                  downloads.canStart(file) ? () => downloads.start(file) : null,
+              isLoading: state is DownloadRunning,
+              icon: Icon(icon),
+              child: Text(label),
+            ),
+          ),
+          const SizedBox(height: SoliplexSpacing.s2),
+          // Always laid out, empty but for a failure, so the page around
+          // it, centred, does not move when a reason comes and goes.
+          Text(
+            switch (state) {
+              DownloadFailed(:final reason) => reason,
+              DownloadIdle() || DownloadRunning() || DownloadSaved() => '',
+            },
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.error),
+            textAlign: TextAlign.center,
+          ),
+        ],
       );
     });
   }
@@ -878,15 +1002,14 @@ class _TitleBarDownload extends StatelessWidget {
         // A spinner in the button's place keeps the button's size, so Close
         // does not move; the button's tooltip already names it to a screen
         // reader.
-        icon: state == DownloadFeedbackState.downloading
+        icon: state is DownloadRunning
             ? ExcludeSemantics(child: ProgressRing(label: label))
             : Icon(icon, color: color),
         tooltip: label,
         visualDensity: _titleBarActionDensity,
         style: IconButton.styleFrom(tapTargetSize: _titleBarActionTapTarget),
-        onPressed: state == DownloadFeedbackState.idle
-            ? () => downloads.start(file)
-            : null,
+        onPressed:
+            downloads.canStart(file) ? () => downloads.start(file) : null,
       );
     });
   }

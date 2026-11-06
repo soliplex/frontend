@@ -92,7 +92,7 @@ void main() {
     ('stored.csv', find.text('stored.csv')),
     ('failed.csv', find.text('failed.csv')),
     ('summary.md', findFileName('summary.md')),
-    ('reports', find.text('reports')),
+    ('reports', findFolderPath('reports')),
   ]) {
     testWidgets('a mouse drag across $name selects nothing', (tester) async {
       await _pump(tester);
@@ -117,11 +117,11 @@ void main() {
   );
 
   // Each name is on screen once; its tooltip shows it a second time.
-  for (final (name, shown) in [
-    ('stored.csv', 'stored.csv'),
-    ('failed.csv', 'failed.csv'),
-    ('summary.md', 'reports/summary.md'),
-    ('reports', 'reports'),
+  for (final (name, target, shown) in [
+    ('stored.csv', find.text('stored.csv'), 'stored.csv'),
+    ('failed.csv', find.text('failed.csv'), 'failed.csv'),
+    ('summary.md', findFileName('summary.md'), 'reports/summary.md'),
+    ('reports', findFolderPath('reports'), 'reports'),
   ]) {
     testWidgets(
       'a long press on $name shows its tooltip',
@@ -129,10 +129,7 @@ void main() {
         await _pump(tester);
         final onScreen = find.text(shown).evaluate().length;
 
-        await _longPress(
-          tester,
-          name == 'summary.md' ? findFileName(name) : find.text(name),
-        );
+        await _longPress(tester, target);
 
         expect(find.text(shown), findsNWidgets(onScreen + 1));
         expect(_selecting(), isFalse);

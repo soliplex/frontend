@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -158,7 +159,7 @@ void main() {
         ),
       ]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => Uint8List(0),
     )));
 
@@ -169,34 +170,18 @@ void main() {
     );
   });
 
-  testWidgets("a tooling file's name is muted", (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      // A root `.git` file is a worktree's pointer: a tooling path that
-      // shows as a row of its own.
-      status: WorkdirFilesLoaded([_file('.git'), _file('notes.txt')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => Uint8List(0),
-    )));
-    final muted = Theme.of(tester.element(findFileName('notes.txt')))
-        .colorScheme
-        .onSurfaceVariant;
-
-    expect(tester.widget<FileName>(findFileName('.git')).style?.color, muted);
-    expect(
-      tester.widget<FileName>(findFileName('notes.txt')).style?.color,
-      isNot(muted),
-    );
-  });
-
   testWidgets(
       "a row's download icon is primary, and its failure the error "
-      'colour', (tester) async {
+      'colour until a tap retries', (tester) async {
+    var runs = 0;
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('report.pdf')]),
       onRetry: () {},
       onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) async => DownloadOutcome.failed,
+      onDownload: (_) async {
+        runs++;
+        return const DownloadFailed('File no longer exists');
+      },
     )));
     await tester.pump();
     final colors =
@@ -209,7 +194,15 @@ void main() {
     await tester.pump();
 
     expect(colorOf(Icons.error_outline), colors.error);
-    await tester.pump(const Duration(seconds: 2));
+    final failed =
+        find.byTooltip('Download failed: File no longer exists. Tap to retry.');
+    expect(failed, findsOneWidget);
+    await tester.pump(const Duration(minutes: 1));
+    expect(failed, findsOneWidget, reason: 'it stays until retried');
+
+    await tester.tap(failed);
+    await tester.pump();
+    expect(runs, 2);
   });
 
   group('a download under way stays with its file', () {
@@ -256,7 +249,7 @@ void main() {
         findsOneWidget,
       );
 
-      download.complete(DownloadOutcome.success);
+      download.complete(const DownloadSaved());
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
     });
@@ -290,7 +283,7 @@ void main() {
         SemanticsRole.status,
       );
 
-      completer.complete(DownloadOutcome.success);
+      completer.complete(const DownloadSaved());
       await tester.pumpAndSettle();
     } finally {
       semantics.dispose();
@@ -303,7 +296,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => _tinyPng,
     )));
     await tester.pump();
@@ -324,7 +317,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => throw const NotFoundException(
         message: 'gone',
         resource: '/x',
@@ -346,7 +339,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('plot.png'), _file('report.pdf')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => _tinyPng,
     )));
     await tester.pump();
@@ -366,7 +359,7 @@ void main() {
       onRetry: () {},
       onDownload: (_) async {
         downloads++;
-        return DownloadOutcome.success;
+        return const DownloadSaved();
       },
       onFetchBytes: (_) async {
         fetches++;
@@ -393,7 +386,7 @@ void main() {
       onRetry: () {},
       onDownload: (_) async {
         downloads++;
-        return DownloadOutcome.success;
+        return const DownloadSaved();
       },
       onFetchBytes: (_) async => Uint8List(0),
     )));
@@ -442,7 +435,7 @@ void main() {
         warnIfMissed: false);
     expect(downloads, 1);
 
-    pending.complete(DownloadOutcome.success);
+    pending.complete(const DownloadSaved());
     await tester.pump();
     expect(_inPreview(find.byTooltip('Saved')), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
@@ -453,7 +446,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('script.py')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async =>
           Uint8List.fromList(utf8.encode('print("hi")\n')),
     )));
@@ -472,7 +465,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('NOTES.md')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async =>
           Uint8List.fromList(utf8.encode('# Heading\n\nbody')),
     )));
@@ -492,7 +485,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('data.json')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async =>
           Uint8List.fromList(utf8.encode('{"a":1,"b":[2,3]}')),
     )));
@@ -515,7 +508,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('chart.svg')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => Uint8List.fromList(utf8.encode(svg)),
     )));
     await tester.pump();
@@ -538,7 +531,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('boundary.png')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => atCap,
     )));
     await tester.pump();
@@ -555,7 +548,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('huge.log')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => overCap,
     )));
     await tester.pump();
@@ -574,7 +567,7 @@ void main() {
       onRetry: () {},
       onDownload: (file) async {
         saved.add(file.filename);
-        return DownloadOutcome.success;
+        return const DownloadSaved();
       },
       onFetchBytes: (_) async => Uint8List(5 * 1024 * 1024 + 1),
     )));
@@ -600,7 +593,7 @@ void main() {
         _file('notes.md'),
       ]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => _tinyPng,
     )));
     await tester.pump();
@@ -641,7 +634,7 @@ void main() {
 
       expect(find.byType(WorkdirPreviewPage), findsNothing);
       expect(calls, hasLength(1));
-      download.complete(DownloadOutcome.success);
+      download.complete(const DownloadSaved());
       await tester.pump();
       await tester.pump(const Duration(seconds: 2));
     });
@@ -650,7 +643,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       final calls = <int>[];
       final download = await startDownload(tester, calls);
-      download.complete(DownloadOutcome.success);
+      download.complete(const DownloadSaved());
       await tester.pump();
 
       // A screen reader hears it disabled, and offers nothing to activate.
@@ -685,7 +678,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
       )));
       await tester.pump();
@@ -714,7 +707,7 @@ void main() {
           _file('c.md'),
         ]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
       )));
       await tester.pump();
@@ -739,7 +732,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded(many),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
       )));
       await tester.pump();
@@ -769,7 +762,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async {
           attempts++;
           if (attempts < 3) throw Exception('boom-$attempts');
@@ -801,7 +794,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (file) async {
           fetchCounts[file.filename] = (fetchCounts[file.filename] ?? 0) + 1;
           return Uint8List.fromList(utf8.encode('hi'));
@@ -829,7 +822,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
       )));
       await tester.pump();
@@ -851,7 +844,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
       )));
       await tester.pump();
@@ -878,7 +871,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async => Uint8List(0),
       )));
       await tester.pump();
@@ -903,7 +896,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('config.txt')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async =>
             Uint8List.fromList(const [0xFF, 0xFE, 0xFD, 0xFC]),
       )));
@@ -926,7 +919,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async =>
             Uint8List.fromList(const [0x00, 0x01, 0x02, 0x03]),
       )));
@@ -948,7 +941,7 @@ void main() {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('chart.svg')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
+        onDownload: (_) async => const DownloadSaved(),
         onFetchBytes: (_) async =>
             Uint8List.fromList('not actually svg'.codeUnits),
       )));
@@ -1002,7 +995,7 @@ void main() {
       final saved = <String>[];
       await openPreview(tester, ['a.md', 'b.md'], index: 1, onDownload: (f) {
         saved.add(f.filename);
-        return Future.value(DownloadOutcome.success);
+        return Future.value(const DownloadSaved());
       });
 
       await tester.tap(titleBarDownload);
@@ -1023,7 +1016,7 @@ void main() {
 
       expect(find.byTooltip('Downloading'), findsOneWidget);
       expect(tester.getRect(find.byTooltip('Close')), idle);
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       await tester.pump(const Duration(seconds: 2));
     },
         // Material sizes buttons smaller on desktop.
@@ -1048,7 +1041,7 @@ void main() {
       await tester.pump();
       expect(downloads, 1);
 
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       await tester.pump();
       expect(find.byTooltip('Saved'), findsOneWidget);
       expect(find.widgetWithText(SoliplexButton, 'Saved'), findsOneWidget);
@@ -1064,7 +1057,7 @@ void main() {
         saved.add(f.filename);
         return f.filename == 'a.md'
             ? pending.future
-            : Future.value(DownloadOutcome.success);
+            : Future.value(const DownloadSaved());
       });
 
       await tester.tap(titleBarDownload);
@@ -1086,7 +1079,7 @@ void main() {
       await tester.pump();
       expect(saved, ['a.md', 'b.md']);
 
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       await tester.pump(const Duration(seconds: 2));
     });
 
@@ -1107,7 +1100,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byTooltip('Close'));
       await tester.pump(const Duration(milliseconds: 500));
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       await tester.pump();
 
       expect(find.byType(WorkdirPreviewPage), findsNothing);
@@ -1115,10 +1108,12 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
-    testWidgets('keeps the failure colour while it cannot be pressed',
-        (tester) async {
-      await openPreview(tester, ['a.md'],
-          onDownload: (_) async => DownloadOutcome.failed);
+    testWidgets('keeps the failure colour until a tap retries', (tester) async {
+      var runs = 0;
+      await openPreview(tester, ['a.md'], onDownload: (_) async {
+        runs++;
+        return const DownloadFailed('File no longer exists');
+      });
 
       await tester.tap(titleBarDownload);
       await tester.pump();
@@ -1139,14 +1134,15 @@ void main() {
           ?.color;
       expect(icon.color, error);
       expect(painted, error);
-      expect(
-        tester
-            .widget<IconButton>(
-                find.widgetWithIcon(IconButton, Icons.error_outline))
-            .onPressed,
-        isNull,
+      final failed = _inPreview(
+        find.byTooltip('Download failed: File no longer exists. Tap to retry.'),
       );
-      await tester.pump(const Duration(seconds: 2));
+      expect(failed, findsOneWidget);
+      await tester.pump(const Duration(minutes: 1));
+
+      await tester.tap(failed);
+      await tester.pump();
+      expect(runs, 2);
     });
 
     testWidgets('a screen reader hears the download under way once',
@@ -1175,7 +1171,7 @@ void main() {
       } finally {
         semantics.dispose();
       }
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       await tester.pump(const Duration(seconds: 2));
     });
   });
@@ -1208,16 +1204,40 @@ void main() {
       expect(tester.widget<SoliplexButton>(button).isLoading, isTrue);
       expect(tester.getSize(button), idle);
 
-      completer.complete(DownloadOutcome.success);
+      completer.complete(const DownloadSaved());
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
     });
 
-    testWidgets('a failed download says Download failed', (tester) async {
+    testWidgets('says what it does', (tester) async {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
         onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.failed,
+        onFetchBytes: (_) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.ancestor(
+          of: find.byType(SoliplexButton),
+          matching: find.byTooltip('Save a copy of plot.png'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a failed download offers a retry, and says why until then',
+        (tester) async {
+      var runs = 0;
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('plot.png')]),
+        onRetry: () {},
+        onDownload: (_) async {
+          runs++;
+          return const DownloadFailed('File no longer exists');
+        },
         onFetchBytes: (_) async => Uint8List(0),
       )));
       await tester.pump();
@@ -1227,8 +1247,46 @@ void main() {
       await tester.tap(find.text('Download'));
       await tester.pump();
 
-      expect(find.text('Download failed'), findsOneWidget);
+      expect(find.text('Retry download'), findsOneWidget);
       expect(_inButton(find.byIcon(Icons.error_outline)), findsOneWidget);
+      expect(find.text('File no longer exists'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('File no longer exists')).dy,
+        greaterThan(tester.getBottomLeft(find.byType(SoliplexButton)).dy),
+        reason: 'under the button',
+      );
+      await tester.pump(const Duration(minutes: 1));
+      expect(find.text('File no longer exists'), findsOneWidget,
+          reason: 'it stays until retried');
+
+      await tester.tap(find.text('Retry download'));
+      await tester.pump();
+      expect(runs, 2);
+    });
+
+    testWidgets('its tooltip leaves the failure reason in view',
+        (tester) async {
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('plot.png')]),
+        onRetry: () {},
+        onDownload: (_) async => const DownloadFailed('File no longer exists'),
+        onFetchBytes: (_) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+      await mouse.moveTo(tester.getCenter(find.byType(SoliplexButton)));
+      await tester.pump(const Duration(seconds: 1));
+
+      final bubble = tester.getRect(find.text('Save a copy of plot.png'));
+      final reason = tester.getRect(find.text('File no longer exists'));
+      expect(bubble.overlaps(reason), isFalse);
+      await mouse.moveTo(Offset.zero);
       await tester.pump(const Duration(seconds: 2));
     });
   });
@@ -1247,7 +1305,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('plot.png')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => _tinyPng,
     )));
     await tester.pump();
@@ -1269,7 +1327,7 @@ void main() {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('a.md'), _file('b.md'), _file('c.md')]),
       onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
+      onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
     )));
     await tester.pump();
@@ -1316,7 +1374,7 @@ void main() {
   group('nested paths', () {
     const path = 'crm_app/backend/models/customer.py';
     // A flat list shows each file's directory; Folders shows it as rows.
-    const directory = 'crm_app/backend/models/';
+    const directory = 'crm_app/backend/models';
 
     Future<void> pumpRow(
       WidgetTester tester, {
@@ -1335,7 +1393,7 @@ void main() {
                 child: _workspace(
                   status: WorkdirFilesLoaded([_file(name)]),
                   onRetry: () {},
-                  onDownload: (_) async => DownloadOutcome.success,
+                  onDownload: (_) async => const DownloadSaved(),
                   onFetchBytes: (_) async => Uint8List(0),
                   sort: FileSort.nameAToZ,
                 ),
@@ -1357,33 +1415,66 @@ void main() {
 
       expect(find.text(path), findsNothing);
       expect(findFileName('customer.py'), findsOneWidget);
-      expect(find.text(directory), findsOneWidget);
+      expect(findFolderPath(directory), findsOneWidget);
+      expect(find.text('/models/'), findsOneWidget);
       Color? painted(String text) => tester
           .renderObject<RenderParagraph>(find.text(text))
           .text
           .style
           ?.color;
-      expect(painted(directory), isNot(painted('stomer.py')));
+      expect(painted('/models/'), isNot(painted('stomer.py')));
     });
 
-    testWidgets('a narrow row cuts the directory, never the basename',
-        (tester) async {
-      await pumpRow(tester, width: 320);
+    testWidgets(
+        'a narrow row cuts the directory, keeping its last folder, '
+        'never the basename', (tester) async {
+      // Room for `/models/`, not for the whole directory.
+      await pumpRow(tester, width: 420);
 
       expect(isCut(tester, find.text('cu')), isFalse);
       expect(isCut(tester, find.text('stomer.py')), isFalse);
-      expect(isCut(tester, find.text(directory)), isTrue);
+      expect(isCut(tester, find.text('crm_app/backend')), isTrue);
+      expect(isCut(tester, find.text('/models/')), isFalse);
+    });
+
+    testWidgets('a last folder too long alone keeps its end', (tester) async {
+      // Room for `p…/…_11_05/`, not for the last folder whole.
+      await pumpRow(tester,
+          width: 400, name: 'project/experiment_run_2026_11_05/out.csv');
+
+      expect(isCut(tester, find.text('project')), isTrue);
+      // Wide enough for a character and its ellipsis, as an ellipsis alone
+      // does not paint, so the cut path does not start at a bare `/`; in the
+      // test font every glyph is as wide as the font size.
+      final project = find.text('project');
+      expect(
+        tester.getSize(project).width,
+        greaterThanOrEqualTo(2 * tester.widget<Text>(project).style!.fontSize!),
+      );
+      expect(isCut(tester, find.text('/experiment_run_2026')), isTrue);
+      expect(isCut(tester, find.text('_11_05/')), isFalse);
+      expect(isCut(tester, find.text('out.csv')), isFalse);
     });
 
     testWidgets(
         'a row too narrow for the basename hides the directory '
         'and keeps its end', (tester) async {
-      // Room for `stomer.py`, not for `customer.py`.
-      await pumpRow(tester, width: 216);
+      // Room for `q…stomer.py`, not for `quarterly_customer.py`.
+      await pumpRow(tester,
+          width: 260, name: 'crm_app/backend/models/quarterly_customer.py');
 
-      expect(isCut(tester, find.text('cu')), isTrue);
+      final head = find.text('quarterly_cu');
+      expect(isCut(tester, head), isTrue);
+      expect(
+        tester.getSize(head).width,
+        greaterThanOrEqualTo(2 * tester.widget<Text>(head).style!.fontSize!),
+        reason: 'room for a character and its ellipsis',
+      );
       expect(isCut(tester, find.text('stomer.py')), isFalse);
-      expect(tester.getSize(find.text(directory)).width, 0);
+      expect(
+        tester.getSize(findFolderPath(directory)).width,
+        moreOrLessEquals(0, epsilon: 0.01),
+      );
     });
 
     testWidgets('a cut name stops short of the preview button', (tester) async {

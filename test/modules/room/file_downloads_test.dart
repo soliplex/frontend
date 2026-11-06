@@ -14,54 +14,80 @@ void main() {
   final a = _file('a.csv');
   final b = _file('b.csv');
 
-  test('a download shows under way, then its outcome for 2 s, then idle', () {
+  test('a download shows under way, then its save for 2 s, then idle', () {
     fakeAsync((async) {
       final pending = Completer<DownloadOutcome>();
       final downloads = FileDownloads((_, __) => pending.future);
       addTearDown(downloads.dispose);
 
       downloads.start(a);
-      expect(downloads.stateOf(a), DownloadFeedbackState.downloading);
-      expect(downloads.stateOf(b), DownloadFeedbackState.idle);
+      expect(downloads.stateOf(a), const DownloadRunning());
+      expect(downloads.stateOf(b), const DownloadIdle());
 
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       async.flushMicrotasks();
-      expect(downloads.stateOf(a), DownloadFeedbackState.success);
+      expect(downloads.stateOf(a), const DownloadSaved());
 
       async.elapse(const Duration(milliseconds: 1999));
-      expect(downloads.stateOf(a), DownloadFeedbackState.success);
+      expect(downloads.stateOf(a), const DownloadSaved());
       async.elapse(const Duration(milliseconds: 1));
-      expect(downloads.stateOf(a), DownloadFeedbackState.idle);
+      expect(downloads.stateOf(a), const DownloadIdle());
     });
   });
 
-  test('a failed download shows its failure', () {
+  test('a failed download shows its failure and its reason', () {
     fakeAsync((async) {
-      final downloads = FileDownloads((_, __) async => DownloadOutcome.failed);
+      final downloads = FileDownloads(
+        (_, __) async => const DownloadFailed('File no longer exists'),
+      );
       addTearDown(downloads.dispose);
 
       downloads.start(a);
       async.flushMicrotasks();
 
-      expect(downloads.stateOf(a), DownloadFeedbackState.error);
+      expect(
+        downloads.stateOf(a),
+        isA<DownloadFailed>()
+            .having((f) => f.reason, 'reason', 'File no longer exists'),
+      );
+    });
+  });
+
+  test('a failure shows until the file is downloaded again', () {
+    fakeAsync((async) {
+      var runs = 0;
+      final downloads = FileDownloads((_, __) async {
+        runs++;
+        return const DownloadFailed('File no longer exists');
+      });
+      addTearDown(downloads.dispose);
+
+      downloads.start(a);
+      async.flushMicrotasks();
+      async.elapse(const Duration(minutes: 1));
+      expect(downloads.stateOf(a), isA<DownloadFailed>());
+
+      downloads.start(a);
+      expect(downloads.stateOf(a), const DownloadRunning());
+      async.flushMicrotasks();
+      expect(runs, 2);
     });
   });
 
   test('a cancelled save goes straight back to idle', () {
     fakeAsync((async) {
       final downloads =
-          FileDownloads((_, __) async => DownloadOutcome.cancelled);
+          FileDownloads((_, __) async => const DownloadCancelled());
       addTearDown(downloads.dispose);
 
       downloads.start(a);
       async.flushMicrotasks();
 
-      expect(downloads.stateOf(a), DownloadFeedbackState.idle);
+      expect(downloads.stateOf(a), const DownloadIdle());
     });
   });
 
-  test('a file starts no second download while one runs or its outcome shows',
-      () {
+  test('a file starts no second download while one runs or its save shows', () {
     fakeAsync((async) {
       final pending = Completer<DownloadOutcome>();
       final started = <String>[];
@@ -77,7 +103,7 @@ void main() {
         ..start(b);
       expect(started, ['a.csv', 'b.csv']);
 
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       async.flushMicrotasks();
       downloads.start(a);
       expect(started, ['a.csv', 'b.csv'], reason: 'its outcome still shows');
@@ -100,7 +126,11 @@ void main() {
       downloads.start(a);
       async.flushMicrotasks();
 
-      expect(downloads.stateOf(a), DownloadFeedbackState.error);
+      expect(
+        downloads.stateOf(a),
+        isA<DownloadFailed>()
+            .having((f) => f.reason, 'reason', 'Something went wrong'),
+      );
       final record = sink.records.singleWhere(
         (r) => r.level == LogLevel.error,
       );
@@ -135,11 +165,11 @@ void main() {
         ..start(a)
         ..start(rewritten);
       expect(started, [a], reason: 'it is the same file, still downloading');
-      expect(downloads.stateOf(rewritten), DownloadFeedbackState.downloading);
+      expect(downloads.stateOf(rewritten), const DownloadRunning());
 
-      pending.complete(DownloadOutcome.failed);
+      pending.complete(const DownloadFailed('File no longer exists'));
       async.flushMicrotasks();
-      expect(downloads.stateOf(rewritten), DownloadFeedbackState.error);
+      expect(downloads.stateOf(rewritten), isA<DownloadFailed>());
     });
   });
 
@@ -171,7 +201,7 @@ void main() {
     final started = <WorkdirFile>[];
     final downloads = FileDownloads((file, _) async {
       started.add(file);
-      return DownloadOutcome.success;
+      return const DownloadSaved();
     })
       ..dispose();
 
@@ -188,11 +218,11 @@ void main() {
       final downloads = FileDownloads(
         (_, __) => Completer<DownloadOutcome>().future,
       )..start(a);
-      expect(downloads.stateOf(a), DownloadFeedbackState.downloading);
+      expect(downloads.stateOf(a), const DownloadRunning());
 
       downloads.dispose();
 
-      expect(downloads.stateOf(a), DownloadFeedbackState.idle);
+      expect(downloads.stateOf(a), const DownloadIdle());
     });
   });
 
@@ -202,17 +232,17 @@ void main() {
       final downloads = FileDownloads((_, __) => pending.future)..start(a);
 
       downloads.dispose();
-      pending.complete(DownloadOutcome.success);
+      pending.complete(const DownloadSaved());
       async.flushMicrotasks();
 
-      expect(downloads.stateOf(a), DownloadFeedbackState.idle);
+      expect(downloads.stateOf(a), const DownloadIdle());
       expect(async.pendingTimers, isEmpty);
     });
   });
 
   test('dispose cancels an outcome waiting to clear', () {
     fakeAsync((async) {
-      final downloads = FileDownloads((_, __) async => DownloadOutcome.success)
+      final downloads = FileDownloads((_, __) async => const DownloadSaved())
         ..start(a);
       async.flushMicrotasks();
 

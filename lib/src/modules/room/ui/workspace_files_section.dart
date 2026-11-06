@@ -35,11 +35,10 @@ class FilePanelSectionLabel extends StatelessWidget {
 
 /// The files panel's list of the thread's sandbox workspace, in [sort]'s
 /// order. Under folders: the workspace's folder tree, each folder a row that
-/// opens and closes its files and folders, which sit indented below it, up
-/// to four levels deep.
+/// opens and closes its files and folders, which sit indented below it:
+/// fully for four levels, then by a little at each level.
 /// Under the other keys: every file as a row of its own, showing its
-/// directory, with tooling files last. Renders nothing while loading or when
-/// empty.
+/// directory. Renders nothing while loading or when empty.
 class WorkspaceFilesSection extends StatelessWidget {
   const WorkspaceFilesSection({
     super.key,
@@ -68,9 +67,10 @@ class WorkspaceFilesSection extends StatelessWidget {
   /// Called with the path of a folder the reader opens or closes.
   final void Function(String folder, {required bool expanded}) onFolderToggled;
 
-  /// The levels a folder's contents indent, past which they line up with
-  /// the level above: each indent takes width from the names.
-  static const _indentedLevels = 4;
+  /// The levels whose contents indent fully. Past them each level indents
+  /// by a little, which keeps a depth cue at every level while giving the
+  /// names most of the width.
+  static const _fullyIndentedLevels = 4;
 
   @override
   Widget build(BuildContext context) {
@@ -128,16 +128,11 @@ class WorkspaceFilesSection extends StatelessWidget {
           ..._folder(context, child, parent: folder, depth: depth),
       ];
 
-  /// The real files, then the tooling files, each part paging its own
-  /// previews, so paging from the last real file does not walk into tooling
-  /// output.
-  List<Widget> _flat(BuildContext context, List<WorkdirFile> listing) {
-    final flat = flatWorkspace(listing, sort);
-    return [
-      ..._rows(context, flat.files, directoryOf: (f) => f.directory),
-      ..._rows(context, flat.tooling, directoryOf: (f) => f.directory),
-    ];
-  }
+  List<Widget> _flat(BuildContext context, List<WorkdirFile> listing) => _rows(
+        context,
+        flatWorkspace(listing, sort),
+        directoryOf: (f) => f.directory,
+      );
 
   List<Widget> _folder(
     BuildContext context,
@@ -151,8 +146,9 @@ class WorkspaceFilesSection extends StatelessWidget {
       _FolderRow(
         name: folder.name,
         path: folder.path,
-        // Past the last indent, a row's place no longer shows where it is.
-        parentPath: depth > _indentedLevels ? parent.path : null,
+        // Past the full indents, a row's place shows its depth, but no
+        // longer which folder holds it.
+        parentPath: depth > _fullyIndentedLevels ? parent.path : null,
         count: folder.fileCount,
         latestChange: folder.latestChange,
         expanded: expanded,
@@ -161,7 +157,9 @@ class WorkspaceFilesSection extends StatelessWidget {
       if (expanded)
         Padding(
           padding: EdgeInsets.only(
-            left: depth < _indentedLevels ? SoliplexSpacing.s4 : 0,
+            left: depth < _fullyIndentedLevels
+                ? SoliplexSpacing.s4
+                : SoliplexSpacing.s1,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,10 +233,7 @@ class _FolderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    // Muted as a tooling file's name is, and for the same reason.
-    final nameStyle = isToolingPath(path)
-        ? theme.textTheme.bodySmall?.copyWith(color: muted)
-        : theme.textTheme.bodySmall;
+    final nameStyle = theme.textTheme.bodySmall;
     final countLabel = '$count ${count == 1 ? 'file' : 'files'}';
     final latestChange = this.latestChange;
     final details = latestChange == null
@@ -266,13 +261,7 @@ class _FolderRow extends StatelessWidget {
             ),
             content: NameAndDirectory(
               path: path,
-              name: Text(
-                name,
-                style: nameStyle,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-              ),
+              name: FolderPath(name, endsWithSlash: false, style: nameStyle),
               directory: parentPath,
               style: nameStyle,
             ),

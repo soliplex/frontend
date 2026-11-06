@@ -23,6 +23,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- Files inside a `.git` or `__pycache__` folder, at any depth, and files
+  named `.git`, are left out of the workspace: the files panel in every
+  sort, folder counts, the files button's count, the workspace notice, and
+  the preview's pages. A workspace holding only such files reads as empty.
 - A file row's action buttons take taps across the row's full height.
 - A time a minute or more ahead of the device's clock, as clock skew gives,
   shows its date rather than "Just now", in file lists, thread tiles and
@@ -35,13 +39,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   Its open-and-close chevron moved to the right of the row, in line with the
   download buttons, pointing down while closed and up while open.
 - Under Folders, every workspace folder opens and closes, not only the
-  top-level ones. Each folder lists its own files, then its folders, with
-  `.git` and `__pycache__` last. Top-level folders start open; nested
-  folders, and tooling folders at any depth, start closed, and each stays as
+  top-level ones. Each folder lists its own files, then its folders.
+  Top-level folders start open and nested folders closed, and each stays as
   the reader left it across sorts. A chain of folders that each hold only one
-  folder shows as one row, such as `raw/archive/2023`, unless that folder is
-  `.git` or `__pycache__`. Each level indents, up to four; a folder deeper
-  than that shows its parent's path after its name. Under Folders, a file's
+  folder shows as one row, such as `raw/archive/2023`. Each level indents,
+  four levels fully and each deeper level by a little, so a file always sits
+  inside its folder's row; a folder deeper than four levels shows its
+  parent's path after its name. Under Folders, a file's
   row does not show its directory, and its preview pages through the files
   of its own folder only. Show on the workspace notice opens every folder
   above the new files.
@@ -56,9 +60,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   the Download button of a page that cannot show the file, and the file's
   row show one download of the file, which stays with it while paging, when
   the list refreshes, and when you leave its room and come back: a file
-  starts no second download while one runs or its outcome shows. A failed
-  download says "Download failed", and tapping a row's download button
-  while it runs or its outcome shows does nothing. A download still
+  starts no second download while one runs or its save shows. A failed
+  download says why: the file no longer exists, the server could not be
+  reached, the user must sign in again, has no access, or the save failed.
+  The failure stays until the user taps to retry it. A row's and the title
+  bar's download buttons say why in their tooltip; the button of a page
+  that cannot show the file reads "Retry download" with the reason under
+  it, and its tooltip says what it saves. Tapping a row's download button
+  while it runs or its save shows does nothing. A download still
   fetching opens no save dialog once its server is removed, another user
   signs in on it, or its user signs out.
 - The file preview's title shows the file's whole name and directory,
@@ -67,14 +76,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   preview scrolls within that space.
 - A file name cut short in a workspace or upload list shortens its middle,
   keeping its extension and the six characters before it, or its last six
-  when it has no extension, or a long one: `output_2026…5_1432.csv`.
+  when it has no extension, or a long one: `output_2026…5_1432.csv`. A
+  folder name cut short keeps its last six characters, with no extension
+  split off (`experiment_r…_11_05`). A folder path cut short, a file's
+  directory or a merged chain of folders, keeps its last folder whole
+  (`project/s…/core/`), and cuts that folder's middle when it is too long
+  alone.
 
 ### Fixed
 
 - A screen reader announces a disabled sort option by its name before the
   reason it is disabled: "Size: None of these files has a size".
-- The workspace's `.git` and `__pycache__` folder rows are muted under
-  Folders, as tooling file names are.
 - A failure to save the file sort is logged with the sort being saved.
 
 ## [0.115.0+102] - 2026-11-05

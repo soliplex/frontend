@@ -6,27 +6,54 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.downloads');
 
-/// Result of a workdir-file download attempt. [cancelled] saved nothing
-/// and nothing failed: the user cancelled the save, or nobody was left to
-/// want the file. It is kept apart from [failed] so the UI shows no error
-/// for it.
-enum DownloadOutcome { success, cancelled, failed }
+/// Result of a workdir-file download attempt.
+sealed class DownloadOutcome {}
 
-/// Where a file's download stands in [FileDownloads].
-enum DownloadFeedbackState { idle, downloading, success, error }
+/// Where a file's download stands in [FileDownloads]. An outcome that
+/// shows, [DownloadSaved] or [DownloadFailed], is a state as it is.
+sealed class DownloadFeedbackState {}
+
+/// No download runs, and no outcome shows.
+final class DownloadIdle implements DownloadFeedbackState {
+  const DownloadIdle();
+}
+
+final class DownloadRunning implements DownloadFeedbackState {
+  const DownloadRunning();
+}
+
+/// The file was saved, or on the web handed to the browser.
+final class DownloadSaved implements DownloadOutcome, DownloadFeedbackState {
+  const DownloadSaved();
+}
+
+/// Nothing was saved and nothing failed: the user cancelled the save, or
+/// nobody was left to want the file. Kept apart from [DownloadFailed] so
+/// the UI shows no error for it.
+final class DownloadCancelled implements DownloadOutcome {
+  const DownloadCancelled();
+}
+
+final class DownloadFailed implements DownloadOutcome, DownloadFeedbackState {
+  const DownloadFailed(this.reason);
+
+  /// Why, in words for the user: fixed text, never the error's own.
+  final String reason;
+}
 
 /// Each file's download in one thread's workspace: idle, under way, then its
-/// outcome for 2 s before it is idle again. A save the user cancels goes
-/// straight back to idle.
+/// outcome. A save shows for 2 s before the file is idle again; a failure
+/// shows until the file is downloaded again, so its reason stays to read. A
+/// save the user cancels goes straight back to idle.
 ///
 /// Every affordance that downloads a file reads its state here and starts it
 /// here, so a file row and the preview show one download, and a file starts
-/// no second one while one runs or its outcome shows.
+/// no second one while one runs or its save shows.
 class FileDownloads {
   FileDownloads(this._download);
 
-  /// Downloads a file; must report routine failures as
-  /// [DownloadOutcome.failed] rather than throw. Its `isCleared` says whether
+  /// Downloads a file; must report routine failures as [DownloadFailed]
+  /// rather than throw. Its `isCleared` says whether
   /// these downloads were cleared since, so nobody is left to want the file.
   final Future<DownloadOutcome> Function(
     WorkdirFile file,
@@ -43,9 +70,17 @@ class FileDownloads {
   /// [file]'s state; read inside a `Watch`, it rebuilds when any file's
   /// download changes.
   DownloadFeedbackState stateOf(WorkdirFile file) =>
-      _states.value[file.filename] ?? DownloadFeedbackState.idle;
+      _states.value[file.filename] ?? const DownloadIdle();
 
-  /// Downloads [file], unless its download runs or its outcome shows.
+  /// Whether [start] would download [file]: it is idle, or its download
+  /// failed, which a new one retries. Read inside a `Watch`, it rebuilds as
+  /// [stateOf] does.
+  bool canStart(WorkdirFile file) => switch (stateOf(file)) {
+        DownloadIdle() || DownloadFailed() => true,
+        DownloadRunning() || DownloadSaved() => false,
+      };
+
+  /// Downloads [file], unless its download runs or its save shows.
   /// Starts nothing once disposed, when nobody is left to want the file.
   Future<void> start(WorkdirFile file) async {
     if (_isDisposed) {
@@ -55,9 +90,9 @@ class FileDownloads {
       );
       return;
     }
-    if (stateOf(file) != DownloadFeedbackState.idle) return;
+    if (!canStart(file)) return;
     final path = file.filename;
-    _set(path, DownloadFeedbackState.downloading);
+    _set(path, const DownloadRunning());
     DownloadOutcome outcome;
     try {
       outcome = await _download(file, () => _isDisposed);
@@ -71,30 +106,30 @@ class FileDownloads {
           'failure': describeFailure(e),
         },
       );
-      outcome = DownloadOutcome.failed;
+      outcome = const DownloadFailed('Something went wrong');
     }
     // The outcome is logged; nothing is left to show it.
     if (_isDisposed) return;
     switch (outcome) {
-      case DownloadOutcome.cancelled:
-        _set(path, DownloadFeedbackState.idle);
-      case DownloadOutcome.success:
-        _showOutcome(path, DownloadFeedbackState.success);
-      case DownloadOutcome.failed:
-        _showOutcome(path, DownloadFeedbackState.error);
+      case DownloadCancelled():
+        _set(path, const DownloadIdle());
+      case DownloadSaved():
+        _showSaved(path, outcome);
+      case DownloadFailed():
+        _set(path, outcome);
     }
   }
 
-  void _showOutcome(String path, DownloadFeedbackState outcome) {
+  void _showSaved(String path, DownloadSaved outcome) {
     _set(path, outcome);
     _outcomeTimers[path] = Timer(const Duration(seconds: 2), () {
       _outcomeTimers.remove(path);
-      _set(path, DownloadFeedbackState.idle);
+      _set(path, const DownloadIdle());
     });
   }
 
   void _set(String path, DownloadFeedbackState state) {
-    _states.value = state == DownloadFeedbackState.idle
+    _states.value = state is DownloadIdle
         ? ({..._states.value}..remove(path))
         : {..._states.value, path: state};
   }

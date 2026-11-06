@@ -89,16 +89,6 @@ void main() {
         find.text('Added x.csv and 1 more to the workspace'), findsOneWidget);
   });
 
-  testWidgets('files added under .git or __pycache__ are left out of the count',
-      (tester) async {
-    await enterWith(tester, ['a.csv']);
-
-    status.value = _loaded(['a.csv', '.git/HEAD', 'reports/chart.png']);
-    await tester.pump();
-
-    expect(find.text('Added chart.png to the workspace'), findsOneWidget);
-  });
-
   testWidgets('several added files name the first and count the rest',
       (tester) async {
     await enterWith(tester, ['a.csv']);

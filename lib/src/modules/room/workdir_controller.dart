@@ -8,6 +8,14 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import 'workdir_files_status.dart';
 import 'workspace_groups.dart';
 
+/// Folders that tools, not the agent's task, fill: Git's repository and
+/// CPython's bytecode cache. Their files are left out of every listing, as is
+/// a file of that name, such as the `.git` file a Git worktree writes.
+const _ignoredFolders = {'.git', '__pycache__'};
+
+bool _isIgnored(WorkdirFile file) =>
+    file.filename.split('/').any(_ignoredFolders.contains);
+
 class _ThreadFiles {
   final signal = Signal<WorkdirFilesStatus>(const WorkdirFilesLoading());
   final folderToggles = Signal<Map<String, bool>>(const {});
@@ -42,8 +50,9 @@ class WorkdirController {
     return _threads.putIfAbsent(threadId, _ThreadFiles.new);
   }
 
-  /// The thread's workspace listing. Starts [WorkdirFilesLoading]; call
-  /// [refresh] to fetch.
+  /// The thread's workspace listing, without the files of ignored folders
+  /// (see [_ignoredFolders]), so every reader counts and shows the same
+  /// files. Starts [WorkdirFilesLoading]; call [refresh] to fetch.
   ReadonlySignal<WorkdirFilesStatus> files(String threadId) =>
       _thread(threadId).signal;
 
@@ -131,9 +140,11 @@ class WorkdirController {
       );
       if (token.isCancelled) return;
       entry.fetchToken = null;
-      _emitLoaded(entry, listed);
+      final shown = listed.where((f) => !_isIgnored(f)).toList();
+      _emitLoaded(entry, shown);
       _logger.debug(
-        'workdir list loaded threadId=$threadId count=${listed.length}',
+        'workdir list loaded threadId=$threadId count=${shown.length} '
+        'ignored=${listed.length - shown.length}',
       );
     } on NotFoundException {
       if (token.isCancelled) return;

@@ -9,7 +9,7 @@ FileDownloads testDownloads([
 ]) {
   final downloads = FileDownloads(
     (file, _) =>
-        save == null ? Future.value(DownloadOutcome.success) : save(file),
+        save == null ? Future.value(const DownloadSaved()) : save(file),
   );
   addTearDown(downloads.dispose);
   return downloads;

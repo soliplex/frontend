@@ -110,7 +110,7 @@ void main() {
     ]);
 
     final folder = find
-        .ancestor(of: find.text('reports'), matching: find.byType(InkWell))
+        .ancestor(of: findFolderPath('reports'), matching: find.byType(InkWell))
         .first;
     final heights = {
       'room upload': _height(tester, _uploadRow('room.csv')),
@@ -147,7 +147,7 @@ void main() {
     ]);
 
     final folder = find
-        .ancestor(of: find.text('reports'), matching: find.byType(InkWell))
+        .ancestor(of: findFolderPath('reports'), matching: find.byType(InkWell))
         .first;
     final oneLine = _height(tester, _uploadRow('room.csv'));
     expect(oneLine, FileRowAction.extent);

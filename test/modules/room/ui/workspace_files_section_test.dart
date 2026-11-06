@@ -102,7 +102,7 @@ void main() {
       WorkdirFilesLoaded([_file('a.csv'), _file('b.png')]),
       onDownload: (file) async {
         downloaded.add(file);
-        return DownloadOutcome.success;
+        return const DownloadSaved();
       },
     ));
 
@@ -179,14 +179,14 @@ void main() {
 
   group('folders', () {
     Finder folder(String name) =>
-        find.ancestor(of: find.text(name), matching: find.byType(InkWell));
+        find.ancestor(of: findFolderPath(name), matching: find.byType(InkWell));
 
     testWidgets('root files come before the folders', (tester) async {
       await tester.pumpWidget(_grouped(['crm_app/README.md', 'notes.txt']));
 
       expect(
         tester.getTopLeft(findFileName('notes.txt')).dy,
-        lessThan(tester.getTopLeft(find.text('crm_app')).dy),
+        lessThan(tester.getTopLeft(findFolderPath('crm_app')).dy),
       );
     });
 
@@ -197,7 +197,7 @@ void main() {
       // size are.
       await tester.pumpWidget(_grouped(['reports/a.csv', 'reports/b.csv']));
 
-      final name = tester.getRect(find.text('reports'));
+      final name = tester.getRect(findFolderPath('reports'));
       final count = tester.getRect(find.text('2 files'));
       expect(count.top, greaterThanOrEqualTo(name.bottom - 1));
       expect(count.left, name.left);
@@ -269,7 +269,8 @@ void main() {
       });
     });
 
-    testWidgets('a narrow folder row shortens the name and keeps the count',
+    testWidgets(
+        'a narrow folder row cuts the middle of the name and keeps the count',
         (tester) async {
       tester.view.physicalSize = const Size(200, 600);
       tester.view.devicePixelRatio = 1;
@@ -277,13 +278,31 @@ void main() {
       const folder = 'quarterly_financial_reports_archive';
       await tester.pumpWidget(_grouped(['$folder/a.csv', '$folder/b.csv']));
 
-      final name = tester.renderObject<RenderParagraph>(find.text(folder));
+      bool isCut(String text) => tester
+          .renderObject<RenderParagraph>(find.text(text))
+          .didExceedMaxLines;
       final count = tester.renderObject<RenderParagraph>(find.text('2 files'));
-      expect(name.didExceedMaxLines, isTrue);
+      expect(isCut('quarterly_financial_reports_a'), isTrue);
+      expect(isCut('rchive'), isFalse);
       expect(
         count.size.width,
         greaterThanOrEqualTo(count.getMaxIntrinsicWidth(double.infinity)),
       );
+    });
+
+    testWidgets('a narrow merged chain keeps its last folder', (tester) async {
+      tester.view.physicalSize = const Size(200, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _grouped(['raw_material_archive/2023/a.csv', 'notes.txt']),
+      );
+
+      bool isCut(String text) => tester
+          .renderObject<RenderParagraph>(find.text(text))
+          .didExceedMaxLines;
+      expect(isCut('raw_material_archive'), isTrue);
+      expect(isCut('/2023'), isFalse);
     });
 
     testWidgets('tapping a folder closes it, and tapping again opens it',
@@ -366,34 +385,6 @@ void main() {
       );
     });
 
-    testWidgets("a tooling folder's name is muted", (tester) async {
-      await tester.pumpWidget(
-        _grouped(['.git/HEAD', '__pycache__/x.pyc', 'reports/a.csv']),
-      );
-      final muted = Theme.of(tester.element(find.text('reports')))
-          .colorScheme
-          .onSurfaceVariant;
-      Color? color(String name) =>
-          tester.widget<Text>(find.text(name)).style?.color;
-
-      expect(color('.git'), muted);
-      expect(color('__pycache__'), muted);
-      expect(color('reports'), isNot(muted));
-    });
-
-    testWidgets('a folder inside a tooling folder is muted', (tester) async {
-      await tester.pumpWidget(
-        _grouped(['.git/HEAD', '.git/refs/main'], toggles: {'.git': true}),
-      );
-
-      expect(
-        tester.widget<Text>(find.text('refs')).style?.color,
-        Theme.of(tester.element(find.text('refs')))
-            .colorScheme
-            .onSurfaceVariant,
-      );
-    });
-
     testWidgets('a screen reader hears a folder, its count and its state',
         (tester) async {
       await tester.pumpWidget(
@@ -432,7 +423,7 @@ void main() {
       testWidgets('a chain of single folders shows as one row', (tester) async {
         await tester.pumpWidget(_grouped(['raw/archive/2023/a.csv']));
 
-        expect(find.text('raw/archive/2023'), findsOneWidget);
+        expect(findFolderPath('raw/archive/2023'), findsOneWidget);
         expect(findFileName('a.csv'), findsOneWidget,
             reason: 'the chain is a top-level row, so it starts open');
       });
@@ -466,12 +457,13 @@ void main() {
       group('deeper than four levels', () {
         // Every folder holds a file, so no chain merges.
         const listing = [
-          'a/x',
-          'a/b/x',
-          'a/b/c/x',
-          'a/b/c/d/x',
-          'a/b/c/d/e/x',
-          'a/b/c/d/e/f/x',
+          'a/xa',
+          'a/b/xb',
+          'a/b/c/xc',
+          'a/b/c/d/xd',
+          'a/b/c/d/e/xe',
+          'a/b/c/d/e/f/xf',
+          'a/b/c/d/e/f/g/xg',
         ];
         const open = {
           'a/b': true,
@@ -479,27 +471,44 @@ void main() {
           'a/b/c/d': true,
           'a/b/c/d/e': true,
           'a/b/c/d/e/f': true,
+          'a/b/c/d/e/f/g': true,
         };
         double indentOf(WidgetTester tester, String name) =>
             tester.getTopLeft(find.text(name)).dx -
             tester.getTopLeft(find.text('a')).dx;
 
-        testWidgets('each level indents, up to four', (tester) async {
+        testWidgets('each level indents, by less past four', (tester) async {
           await tester.pumpWidget(_grouped(listing, toggles: open));
 
           for (final (level, name) in ['b', 'c', 'd', 'e'].indexed) {
             expect(indentOf(tester, name), (level + 1) * SoliplexSpacing.s4,
                 reason: name);
           }
-          expect(indentOf(tester, 'f'), 4 * SoliplexSpacing.s4);
+          expect(indentOf(tester, 'f'),
+              4 * SoliplexSpacing.s4 + SoliplexSpacing.s1);
+          expect(indentOf(tester, 'g'),
+              4 * SoliplexSpacing.s4 + 2 * SoliplexSpacing.s1);
+        });
+
+        testWidgets('a file past four levels sits inside its folder',
+            (tester) async {
+          await tester.pumpWidget(_grouped(listing, toggles: open));
+
+          expect(
+            tester.getTopLeft(findFileName('xg')).dx -
+                tester.getTopLeft(find.text('g')).dx,
+            SoliplexSpacing.s1,
+          );
         });
 
         testWidgets("a folder past the indent shows its parent's path",
             (tester) async {
           await tester.pumpWidget(_grouped(listing, toggles: open));
 
-          expect(find.text('a/b/c/d/e/'), findsOneWidget);
-          expect(find.text('a/b/c/d/'), findsNothing,
+          expect(findFolderPath('a/b/c/d/e'), findsOneWidget);
+          expect(find.text('/e/'), findsOneWidget,
+              reason: 'the parent path keeps its last folder whole');
+          expect(findFolderPath('a/b/c/d'), findsNothing,
               reason: 'e still has an indent of its own');
         });
       });
@@ -541,41 +550,21 @@ void main() {
   group('flat options', () {
     const listing = [
       'src-b/another/dir/file-b',
-      '.git/HEAD',
       'a.txt',
       'src-a/main.py',
     ];
 
-    testWidgets(
-        'a flat option lists every file with its directory and tooling last',
+    testWidgets('a flat option lists every file with its directory',
         (tester) async {
       await tester.pumpWidget(_host(_sorted(listing, FileSort.nameAToZ)));
 
-      // No folder rows: every file is its own row, `.git` included.
+      // No folder rows: every file is its own row.
       expect(find.textContaining('files'), findsNothing);
-      expect(find.text('src-b/another/dir/'), findsOneWidget);
-      final head = tester.getTopLeft(findFileName('HEAD')).dy;
-      for (final real in ['a.txt', 'file-b', 'main.py']) {
-        expect(tester.getTopLeft(findFileName(real)).dy, lessThan(head),
-            reason: '$real comes before tooling');
-      }
+      expect(findFolderPath('src-b/another/dir'), findsOneWidget);
       expect(
         tester.getTopLeft(findFileName('a.txt')).dy,
         lessThan(tester.getTopLeft(findFileName('file-b')).dy),
       );
-    });
-
-    testWidgets('preview from a flat list pages through the real files only',
-        (tester) async {
-      await tester.pumpWidget(_host(_sorted(
-        ['a.txt', 'b.txt', '__pycache__/notes.txt'],
-        FileSort.nameAToZ,
-      )));
-
-      await tester.tap(findFileName('b.txt'));
-      await tester.pumpAndSettle();
-
-      expect(findPreviewTitle('2 / 2'), findsOneWidget);
     });
   });
 }
