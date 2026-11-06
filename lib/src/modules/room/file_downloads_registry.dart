@@ -11,6 +11,7 @@ import '../auth/server_entry.dart';
 import 'file_downloads.dart';
 import 'per_server_cache.dart';
 import 'workdir_controller.dart' show warnWorkdirFetchFailed;
+import 'workdir_files_status.dart' show workdirFileUnavailable;
 
 final _logger = LogManager.instance.getLogger('workdir_files');
 
@@ -194,7 +195,7 @@ Future<DownloadOutcome> downloadWorkdirFile({
 /// Why fetching a file to download failed, as fixed text for the user: the
 /// error's own message can carry backend text.
 String downloadFailureReason(Object error) => switch (error) {
-      NotFoundException() => 'File no longer exists',
+      NotFoundException() => workdirFileUnavailable,
       NetworkException() => "Couldn't reach the server",
       AuthException() => 'Sign in again',
       PermissionDeniedException() => "You don't have access to this file",

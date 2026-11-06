@@ -24,9 +24,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Changed
 
 - Files inside a `.git` or `__pycache__` folder, at any depth, and files
-  named `.git`, are left out of the workspace: the files panel in every
-  sort, folder counts, the files button's count, the workspace notice, and
-  the preview's pages. A workspace holding only such files reads as empty.
+  named `.git` or `__pycache__`, are left out of the workspace: the files
+  panel in every sort, folder counts, the files button's count, the
+  workspace notice, and the preview's pages. A workspace holding only such
+  files reads as empty.
+- A workspace file the server no longer serves reads "File isn't available
+  anymore" in the preview, rather than "File no longer exists": the server
+  answers the same way when the whole workspace is not served.
 - A file row's action buttons take taps across the row's full height.
 - A time a minute or more ahead of the device's clock, as clock skew gives,
   shows its date rather than "Just now", in file lists, thread tiles and
@@ -45,10 +49,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   folder shows as one row, such as `raw/archive/2023`. Each level indents,
   four levels fully and each deeper level by a little, so a file always sits
   inside its folder's row; a folder deeper than four levels shows its
-  parent's path after its name. Under Folders, a file's
-  row does not show its directory, and its preview pages through the files
-  of its own folder only. Show on the workspace notice opens every folder
-  above the new files.
+  parent's path after its name. Under Folders, a file's row does not show
+  its directory, and its preview pages through the files of its own folder
+  only. Show on the workspace notice opens every folder above the new
+  files.
 - A Collapse all folders button sits at the right of the files panel's sort
   bar, and closes every workspace folder at once. It shows when the
   workspace has folders, and is disabled, saying why, under Name, Modified
@@ -61,15 +65,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   row show one download of the file, which stays with it while paging, when
   the list refreshes, and when you leave its room and come back: a file
   starts no second download while one runs or its save shows. A failed
-  download says why: the file no longer exists, the server could not be
-  reached, the user must sign in again, has no access, or the save failed.
-  The failure stays until the user taps to retry it. A row's and the title
-  bar's download buttons say why in their tooltip; the button of a page
-  that cannot show the file reads "Retry download" with the reason under
-  it, and its tooltip says what it saves. Tapping a row's download button
-  while it runs or its save shows does nothing. A download still
-  fetching opens no save dialog once its server is removed, another user
-  signs in on it, or its user signs out.
+  download says why, such as that the file isn't available anymore, the
+  server could not be reached or is temporarily unavailable, the user must
+  sign in again or has no access, or the save failed. The failure stays
+  until the user taps to retry it, or until the downloads are cleared, as
+  when its server is removed or another user signs in on it. A row's and
+  the title bar's download buttons say why in their tooltip; the button of
+  a page that cannot show the file reads "Retry download" with the reason
+  under it. That button's tooltip says what it saves. Tapping a row's
+  download button while it runs or its save shows does nothing. A download
+  still fetching opens no save dialog once its server is removed, another
+  user signs in on it, or its user signs out.
 - The file preview's title shows the file's whole name and directory,
   wrapping onto as many lines as they need, after a `_`, `-`, `.` or `/`
   where it can, with no tooltip. A title taller than a third of the
