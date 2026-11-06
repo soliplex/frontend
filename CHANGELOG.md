@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.116.0+103] - 2026-11-06
 
 ### Added
 
@@ -94,6 +94,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A screen reader announces a disabled sort option by its name before the
   reason it is disabled: "Size: None of these files has a size".
 - A failure to save the file sort is logged with the sort being saved.
+- A text message event for a message other than the one streaming is
+  logged as a warning naming the event, its message id and the stream
+  state, rather than dropped silently.
 
 ## [0.115.0+102] - 2026-11-05
 
