@@ -42,7 +42,7 @@ class WorkdirFileRow extends StatelessWidget {
   final WorkdirFile file;
 
   /// The directory the row shows after [file]'s name, or `null` to show
-  /// none, as a row under its folder's row does.
+  /// none, as every row under Folders does.
   final String? directory;
 
   final Future<DownloadOutcome> Function() onTap;
@@ -145,7 +145,8 @@ class NameAndDirectory extends StatelessWidget {
   /// The entry's path from the workspace root.
   final String path;
 
-  /// The entry's name on one line, in [style].
+  /// The entry's name, which the caller keeps to one line and draws in
+  /// [style].
   final Widget name;
 
   final String? directory;

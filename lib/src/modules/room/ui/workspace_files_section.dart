@@ -34,7 +34,8 @@ class FilePanelSectionLabel extends StatelessWidget {
 
 /// The files panel's list of the thread's sandbox workspace, in [sort]'s
 /// order. Under folders: the workspace's folder tree, each folder a row that
-/// opens and closes its files and folders, which sit indented below it.
+/// opens and closes its files and folders, which sit indented below it, up
+/// to four levels deep.
 /// Under the other keys: every file as a row of its own, showing its
 /// directory, with tooling files last. Renders nothing while loading or when
 /// empty.
@@ -111,8 +112,8 @@ class WorkspaceFilesSection extends StatelessWidget {
         depth: 0,
       );
 
-  /// [folder]'s files, then its folders, as rows with [depth] folders above
-  /// them.
+  /// [folder]'s files, then its folders, as rows with [depth] folder rows
+  /// above them: a merged chain is one row.
   List<Widget> _contents(
     BuildContext context,
     WorkspaceFolder folder, {

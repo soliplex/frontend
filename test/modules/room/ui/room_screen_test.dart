@@ -5846,6 +5846,11 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// The right edge of the files panel's content, inside its margin and
+    /// its padding.
+    double panelInnerRight(WidgetTester tester) =>
+        tester.getRect(find.byKey(filePanelKey)).right - 2 * SoliplexSpacing.s2;
+
     List<String> rowsInOrder(WidgetTester tester, List<String> names) =>
         [...names]..sort((a, b) => tester
             .getTopLeft(find.text(a))
@@ -5926,6 +5931,34 @@ void main() {
         expect(findFileName('a.csv'), findsNothing);
       });
 
+      testWidgets('reads disabled once it has closed them', (tester) async {
+        await openPanel(tester, threadId: 'thread-1');
+
+        await tester.tap(find.byIcon(Icons.unfold_less));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.bySemanticsLabel('Collapse all folders: No folder is open'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('leaves the sort bar the full row without folders',
+          (tester) async {
+        api.nextWorkdirFiles = [
+          WorkdirFile(
+            filename: 'notes.txt',
+            url: Uri.parse('https://example.com/notes.txt'),
+          ),
+        ];
+        await openPanel(tester, threadId: 'thread-1');
+
+        expect(
+          tester.getRect(find.byType(FileSortBar)).right,
+          panelInnerRight(tester),
+        );
+      });
+
       for (final (width, textScale) in [
         (320.0, 1.0),
         (1200.0, 1.0),
@@ -5943,11 +5976,14 @@ void main() {
           );
 
           final bar = tester.getRect(find.byType(FileSortBar));
-          final collapse = tester.getRect(find.byType(CollapseFoldersButton));
+          final collapse = tester.getRect(find.descendant(
+            of: find.byType(CollapseFoldersButton),
+            matching: find.byType(InkWell),
+          ));
           expect(collapse.height, bar.height);
           expect(collapse.top, bar.top);
-          expect(collapse.left, greaterThan(bar.right));
-          expect(collapse.right, lessThanOrEqualTo(width));
+          expect(collapse.left - bar.right, SoliplexSpacing.s2);
+          expect(collapse.right, panelInnerRight(tester));
         });
       }
     });
