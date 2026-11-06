@@ -6,8 +6,8 @@ import '../file_sort.dart';
 import '../workspace_groups.dart';
 
 /// Closes every folder of the workspace [listing], drawn as one segment in
-/// the style of the sort bar it sits beside. Shows nothing for a workspace
-/// without folders.
+/// the style of the sort bar it sits beside, an s2 gap to its left. Shows
+/// nothing, and takes no space, for a workspace without folders.
 ///
 /// Disabled, with the reason in its tooltip and to a screen reader, while
 /// [sort] shows no folders or no folder is open: the way the sort bar
@@ -45,41 +45,44 @@ class CollapseFoldersButton extends StatelessWidget {
             : null;
     final scheme = Theme.of(context).colorScheme;
     final radius = BorderRadius.circular(context.radii.md);
-    return Tooltip(
-      message: unavailable ?? _label,
-      // The label below already says it; announced twice otherwise.
-      excludeFromSemantics: true,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: unavailable == null
-              ? () => onCollapse(openFolders(root, folderToggles))
-              : null,
-          borderRadius: radius,
-          child: Semantics(
-            button: true,
-            enabled: unavailable == null,
-            label: unavailable == null ? _label : '$_label: $unavailable',
-            excludeSemantics: true,
-            child: Container(
-              // Fills the height its row gives it, the sort bar's, with the
-              // icon centred.
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                border: Border.all(color: scheme.outline),
-                borderRadius: radius,
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: SoliplexSpacing.s2,
-                vertical: SoliplexSpacing.s1,
-              ),
-              child: Icon(
-                Icons.unfold_less,
-                size: 16,
-                // Material's disabled foreground, as the sort bar's.
-                color: unavailable == null
-                    ? scheme.onSurface
-                    : scheme.onSurface.withValues(alpha: 0.38),
+    return Padding(
+      padding: const EdgeInsets.only(left: SoliplexSpacing.s2),
+      child: Tooltip(
+        message: unavailable ?? _label,
+        // The label below already says it; announced twice otherwise.
+        excludeFromSemantics: true,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: unavailable == null
+                ? () => onCollapse(openFolders(root, folderToggles))
+                : null,
+            borderRadius: radius,
+            child: Semantics(
+              button: true,
+              enabled: unavailable == null,
+              label: unavailable == null ? _label : '$_label: $unavailable',
+              excludeSemantics: true,
+              child: Container(
+                // Fills the height its row gives it, the sort bar's, with the
+                // icon centred.
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border.all(color: scheme.outline),
+                  borderRadius: radius,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SoliplexSpacing.s2,
+                  vertical: SoliplexSpacing.s1,
+                ),
+                child: Icon(
+                  Icons.unfold_less,
+                  size: 16,
+                  // Material's disabled foreground, as the sort bar's.
+                  color: unavailable == null
+                      ? scheme.onSurface
+                      : scheme.onSurface.withValues(alpha: 0.38),
+                ),
               ),
             ),
           ),

@@ -2365,8 +2365,8 @@ class _RoomScreenState extends State<RoomScreen> {
           onDelete: null,
         ),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))
-        // Only the section reads the toggles, so a folder tap rebuilds it
-        // alone rather than the whole room.
+        // The section and the collapse button read the toggles in scopes of
+        // their own, so a folder tap rebuilds them rather than the whole room.
         Watch(
           (context) => WorkspaceFilesSection(
             status: workspaceStatus,
@@ -2408,7 +2408,7 @@ class _RoomScreenState extends State<RoomScreen> {
             children: [
               // Above the scrolling lists, so it stays in view as they
               // scroll: it orders all of them. The collapse button is pinned
-              // at its right; on a narrow screen the bar scrolls under it.
+              // at its right; on a narrow screen the bar scrolls beside it.
               // The row takes the bar's height, which the button fills.
               IntrinsicHeight(
                 child: Row(
@@ -2425,20 +2425,16 @@ class _RoomScreenState extends State<RoomScreen> {
                       ),
                     ),
                     if (threadId != null)
-                      Padding(
-                        padding:
-                            const EdgeInsets.only(left: SoliplexSpacing.s2),
-                        // Reads the toggles in its own scope, as the
-                        // workspace section does.
-                        child: Watch(
-                          (context) => CollapseFoldersButton(
-                            listing: workspace,
-                            sort: sort,
-                            folderToggles:
-                                _workdirs.folderToggles(threadId).value,
-                            onCollapse: (folders) =>
-                                _workdirs.closeFolders(threadId, folders),
-                          ),
+                      // Reads the toggles in its own scope, as the workspace
+                      // section does.
+                      Watch(
+                        (context) => CollapseFoldersButton(
+                          listing: workspace,
+                          sort: sort,
+                          folderToggles:
+                              _workdirs.folderToggles(threadId).value,
+                          onCollapse: (folders) =>
+                              _workdirs.closeFolders(threadId, folders),
                         ),
                       ),
                   ],

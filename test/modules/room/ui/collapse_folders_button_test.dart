@@ -111,6 +111,27 @@ void main() {
     expect(find.byTooltip('No folder is open'), findsOneWidget);
   });
 
+  testWidgets('leaves alone an open folder inside a closed one',
+      (tester) async {
+    await tester.pumpWidget(_panel(
+      ['src/main.py', 'src/lib/util.py'],
+      toggles: {'src': false, 'src/lib': true},
+    ));
+    expect(
+      semantics(tester).label,
+      'Collapse all folders: No folder is open',
+      reason: 'nothing open is in view',
+    );
+
+    await tester.tap(find.byIcon(Icons.unfold_less));
+    await tester.pump();
+    await tester.tap(find.text('src'));
+    await tester.pump();
+
+    expect(findFileName('util.py'), findsOneWidget,
+        reason: 'lib stays open behind its closed parent');
+  });
+
   testWidgets('is disabled, saying why, under a flat order', (tester) async {
     await tester.pumpWidget(_panel(['src/main.py'], sort: FileSort.nameAToZ));
 

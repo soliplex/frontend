@@ -578,6 +578,22 @@ void main() {
       expect(find.text('2 / 3 · reports/'), findsOneWidget);
     });
 
+    testWidgets("the preview pages through a nested folder's own files",
+        (tester) async {
+      await tester.pumpWidget(_grouped([
+        'reports/c.txt',
+        'reports/sub/f.txt',
+        'reports/sub/g.txt',
+      ], toggles: {
+        'reports/sub': true,
+      }));
+
+      await tester.tap(findFileName('g.txt'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 / 2 · reports/sub/'), findsOneWidget);
+    });
+
     testWidgets('the preview pages through the root files only',
         (tester) async {
       await tester.pumpWidget(_grouped(['a.txt', 'b.txt', 'reports/c.txt']));

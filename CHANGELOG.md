@@ -39,9 +39,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `.git` and `__pycache__` last. Top-level folders start open; nested
   folders, and tooling folders at any depth, start closed, and each stays as
   the reader left it across sorts. A chain of folders that each hold only one
-  folder shows as one row, such as `raw/archive/2023`. Each level indents,
-  up to four; a folder deeper than that shows its parent's path after its
-  name. A file's row no longer shows its directory, and its preview pages
+  folder shows as one row, such as `raw/archive/2023`, unless that folder is
+  `.git` or `__pycache__`. Each level indents, up to four; a folder deeper
+  than that shows its parent's path after its name. A file's row no longer shows its directory, and its preview pages
   through the files of its own folder only. Show on the workspace notice
   opens every folder above the new files.
 - A Collapse all folders button sits at the right of the files panel's sort

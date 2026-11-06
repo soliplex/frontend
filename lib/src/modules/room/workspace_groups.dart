@@ -157,8 +157,8 @@ List<String> ancestorsOf(WorkdirFile file) {
 String _lastSegment(String path) => path.substring(path.lastIndexOf('/') + 1);
 
 /// Whether the folder at [path] is open: as the reader last set it in
-/// [toggles], or else open only for a [topLevel] folder that is not tooling
-/// output, which is rarely what a reader opens the workspace for.
+/// [toggles]; where they have not, open only when it is [topLevel] and not
+/// tooling output, which is rarely what a reader opens the workspace for.
 bool isFolderExpanded(
   Map<String, bool> toggles,
   String path, {
@@ -167,8 +167,8 @@ bool isFolderExpanded(
     toggles[path] ?? (topLevel && !isToolingPath(path));
 
 /// The paths of every folder in [root]'s tree that is open, by [toggles] or
-/// by default, at any depth: those inside a closed folder too, which show
-/// open again when it reopens.
+/// by default, at any depth. That includes folders inside a closed one,
+/// hidden now, which show open again when it reopens.
 List<String> openFolders(WorkspaceFolder root, Map<String, bool> toggles) {
   final open = <String>[];
   void visit(WorkspaceFolder folder, {required bool topLevel}) {

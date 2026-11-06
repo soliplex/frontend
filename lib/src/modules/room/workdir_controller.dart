@@ -82,8 +82,9 @@ class WorkdirController {
 
   /// The folders of the thread's listing the reader has opened or closed, by
   /// path from the workspace root, mapped to whether each is open. A folder
-  /// not in it shows its default (see [isFolderExpanded]). Kept apart from the listing, so a refresh leaves it
-  /// as the reader set it; it lasts as long as this controller.
+  /// not in it shows its default (see [isFolderExpanded]). Kept apart from
+  /// the listing, so a refresh leaves it as the reader set it; it lasts as
+  /// long as this controller.
   ReadonlySignal<Map<String, bool>> folderToggles(String threadId) =>
       _thread(threadId).folderToggles;
 
@@ -113,10 +114,11 @@ class WorkdirController {
   }
 
   /// Opens every folder above each of [files], so a reader shown them finds
-  /// them whatever they closed before. Folders already open are left
-  /// untouched, so the panel does not rebuild for nothing; a folder deeper
-  /// than the top level counts as closed unless toggled, even when a merged
-  /// chain shows it open on a top-level row.
+  /// them whatever they closed before. Folders already open by
+  /// [isFolderExpanded] are left untouched, so the panel does not rebuild for
+  /// nothing. That test takes each folder's own depth: the deepest folder of
+  /// a merged top-level chain, such as `raw/archive`, counts as nested and so
+  /// closed unless toggled, and is recorded open though its row shows open.
   void openFoldersOf(String threadId, Iterable<WorkdirFile> files) {
     final toggles = _thread(threadId).folderToggles;
     final folders = {
