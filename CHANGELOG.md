@@ -10,6 +10,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- The lobby and a room's rail show rooms added to or removed from the server
+  without a reload: both re-fetch the room list every 30 seconds while the app
+  is visible, and once when it becomes visible again. A re-fetch keeps the
+  current list on screen while it runs and when it fails.
 - Every stored file in the file lists shows when it was last modified and its
   size, as `5m ago · 2.4 KB`, on a muted line under its name. Hovering over
   that line, or a long press on touch, shows the exact local time. When the
