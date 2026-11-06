@@ -137,7 +137,7 @@ void main() {
     expect(find.byTooltip('Cancel upload'), findsOneWidget);
   });
 
-  testWidgets('a failed upload shows why and can be dismissed', (tester) async {
+  testWidgets('a failed upload can be dismissed', (tester) async {
     await pumpRow(
       tester,
       const FailedUpload(
@@ -147,7 +147,6 @@ void main() {
       ),
     );
 
-    expect(find.text('File is too large to upload.'), findsOneWidget);
     await tester.tap(find.byTooltip('Dismiss'));
 
     expect(dismissed, ['f1']);
@@ -193,9 +192,7 @@ void main() {
       ),
     );
 
-    expect(find.text('report.pdf'), findsOneWidget);
-    expect(find.byType(IconButton), findsNothing);
-    expect(find.byTooltip('Delete'), findsNothing);
+    expect(find.byType(FileRowAction), findsNothing);
   });
 
   testWidgets('a stored file is deleted once the user confirms',

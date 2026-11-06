@@ -11,11 +11,11 @@ final Logger _logger =
 ///
 /// A value belongs to the [ServerEntry] it was made for, and is served to
 /// that entry alone: an entry's connection is not another's, even for one
-/// server. It is disposed when `servers` changes to no longer list its entry
+/// server. It is disposed when `servers` changes and stops listing its entry
 /// (the user removed the server, or removed and re-added it), when
 /// [evictServer] drops its server (a different user signed in), or when the
 /// cache is disposed. So a value made for an entry already gone lasts until
-/// `servers` next changes or the cache is disposed.
+/// one of those happens.
 class PerServerCache<K, V> {
   PerServerCache({
     required ReadonlySignal<Map<String, ServerEntry>> servers,

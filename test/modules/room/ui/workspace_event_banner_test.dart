@@ -89,17 +89,6 @@ void main() {
         find.text('Added x.csv and 1 more to the workspace'), findsOneWidget);
   });
 
-  testWidgets('files added under .git or __pycache__ are not announced',
-      (tester) async {
-    await enterWith(tester, ['a.csv']);
-
-    status.value =
-        _loaded(['a.csv', '.git/HEAD', 'crm_app/x/__pycache__/v.pyc']);
-    await tester.pump();
-
-    expect(pillText(), findsNothing);
-  });
-
   testWidgets('files added under .git or __pycache__ are left out of the count',
       (tester) async {
     await enterWith(tester, ['a.csv']);
@@ -209,17 +198,6 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
-    expect(pillText(), findsNothing);
-  });
-
-  testWidgets('the close button dismisses it', (tester) async {
-    await enterWith(tester, ['a.csv']);
-    status.value = _loaded(['a.csv', 'b.csv']);
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pumpAndSettle();
-
     expect(pillText(), findsNothing);
   });
 

@@ -31,11 +31,13 @@ void main() {
   });
 
   test('defaults to folders, A to Z', () async {
+    final errors = _captureErrors();
     final preference = FileSortPreference();
 
     await preference.load();
 
     expect(preference.sort.value, FileSort.foldersAToZ);
+    expect(errors(), isEmpty);
   });
 
   test('loads a stored choice', () async {
@@ -51,11 +53,13 @@ void main() {
 
   test('an unknown stored value reads as the default', () async {
     SharedPreferences.setMockInitialValues({'soliplex_file_sort': 'bogus'});
+    final errors = _captureErrors();
     final preference = FileSortPreference();
 
     await preference.load();
 
     expect(preference.sort.value, FileSort.foldersAToZ);
+    expect(errors(), isEmpty, reason: 'a renamed value resets silently');
   });
 
   test('a failed read leaves the default and logs', () async {
@@ -73,10 +77,10 @@ void main() {
   test('setSort applies at once and persists', () async {
     final preference = FileSortPreference();
 
-    final saved = await preference.setSort(FileSort.newestFirst);
+    final saving = preference.setSort(FileSort.newestFirst);
 
-    expect(saved, isTrue);
     expect(preference.sort.value, FileSort.newestFirst);
+    expect(await saving, isTrue);
     final reloaded = FileSortPreference();
     await reloaded.load();
     expect(reloaded.sort.value, FileSort.newestFirst);

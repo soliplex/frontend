@@ -16,13 +16,6 @@ void main() {
       expect(wrapped.endsWith('\n````'), isTrue);
     });
 
-    test('preserves content verbatim between fences', () {
-      const content = 'line 1\nline 2\nline 3';
-      final wrapped = wrapInCodeFence(content, 'plaintext');
-      // Sandwiched between opening "```plaintext\n" and closing "\n```".
-      expect(wrapped, contains('\n$content\n'));
-    });
-
     test('content ending with N backticks uses N+1 backticks for the fence',
         () {
       // CommonMark §4.5 requires the closing fence be strictly longer

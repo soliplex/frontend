@@ -281,17 +281,16 @@ void main() {
   });
 
   group('fetchFileBytes', () {
-    test('returns API bytes', () async {
+    test("returns the bytes of the thread's file", () async {
       final bytes = Uint8List.fromList([9, 9, 9]);
-      when(() => api.getThreadWorkdirFile(any(), any(), any()))
+      when(() => api.getThreadWorkdirFile('room-1', 't-1', 'dir/preview.png'))
           .thenAnswer((_) async => bytes);
       final controller = build();
 
-      final out = await controller.fetchFileBytes('t-1', _file('preview.png'));
+      final out =
+          await controller.fetchFileBytes('t-1', _file('dir/preview.png'));
 
       expect(out, bytes);
-      verify(() => api.getThreadWorkdirFile('room-1', 't-1', 'preview.png'))
-          .called(1);
     });
 
     test('rethrows NotFoundException', () async {

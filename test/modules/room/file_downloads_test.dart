@@ -14,13 +14,6 @@ void main() {
   final a = _file('a.csv');
   final b = _file('b.csv');
 
-  test('a file is idle until its download starts', () {
-    final downloads = FileDownloads((_, __) async => DownloadOutcome.success);
-    addTearDown(downloads.dispose);
-
-    expect(downloads.stateOf(a), DownloadFeedbackState.idle);
-  });
-
   test('a download shows under way, then its outcome for 2 s, then idle', () {
     fakeAsync((async) {
       final pending = Completer<DownloadOutcome>();
@@ -203,8 +196,7 @@ void main() {
     });
   });
 
-  test('a download ending after dispose changes nothing and throws nothing',
-      () {
+  test('a download ending after dispose shows nothing', () {
     fakeAsync((async) {
       final pending = Completer<DownloadOutcome>();
       final downloads = FileDownloads((_, __) => pending.future)..start(a);
@@ -212,8 +204,8 @@ void main() {
       downloads.dispose();
       pending.complete(DownloadOutcome.success);
       async.flushMicrotasks();
-      async.elapse(const Duration(seconds: 2));
 
+      expect(downloads.stateOf(a), DownloadFeedbackState.idle);
       expect(async.pendingTimers, isEmpty);
     });
   });

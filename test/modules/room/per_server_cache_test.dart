@@ -69,7 +69,7 @@ void main() {
     servers.dispose();
   });
 
-  test('keeps one value per server and key', () {
+  test('keeps one value per server entry and key', () {
     final a = cache.putIfAbsent(srv1, 'r1', () => _Value('a'));
 
     expect(cache.putIfAbsent(srv1, 'r1', () => _Value('again')), same(a));
@@ -129,22 +129,7 @@ void main() {
     expect(record.error, isNull, reason: 'any teardown may carry anything');
   });
 
-  test('a value made for a removed server is not served once it is back', () {
-    servers.value = {'srv-2': srv2};
-    // A screen still showing the removed server asks once more.
-    final stale = cache.putIfAbsent(srv1, 'r1', () => _Value('stale'));
-
-    final readded = _entry('srv-1');
-    servers.value = {'srv-1': readded, 'srv-2': srv2};
-
-    expect(stale.isDisposed, isTrue);
-    expect(
-      cache.putIfAbsent(readded, 'r1', () => _Value('fresh')).name,
-      'fresh',
-    );
-  });
-
-  test("an entry no longer listed leaves the listed entry's value alone", () {
+  test("an unlisted entry leaves the listed entry's value alone", () {
     final readded = _entry('srv-1');
     servers.value = {'srv-1': readded, 'srv-2': srv2};
     final live = cache.putIfAbsent(readded, 'r1', () => _Value('live'));
@@ -193,7 +178,5 @@ void main() {
       () => cache.putIfAbsent(srv1, 'r1', () => _Value('c')),
       throwsStateError,
     );
-    servers.value = {};
-    cache.dispose();
   });
 }

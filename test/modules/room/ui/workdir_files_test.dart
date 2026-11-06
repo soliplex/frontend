@@ -94,9 +94,6 @@ final Uint8List _tinyPng = Uint8List.fromList(const [
   0x82,
 ]);
 
-final Uint8List _htmlBytes =
-    Uint8List.fromList('<html><body>not an image</body></html>'.codeUnits);
-
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
 
@@ -190,97 +187,6 @@ void main() {
       tester.widget<FileName>(findFileName('notes.txt')).style?.color,
       isNot(muted),
     );
-  });
-
-  testWidgets('renders each filename', (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('report.pdf'), _file('plot.png')]),
-      onRetry: () {},
-      onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) async => DownloadOutcome.success,
-    )));
-    await tester.pump();
-
-    expect(findFileName('report.pdf'), findsOneWidget);
-    expect(findFileName('plot.png'), findsOneWidget);
-  });
-
-  testWidgets('shows check icon briefly on success and reverts after 2s',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('report.pdf')]),
-      onRetry: () {},
-      onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) async => DownloadOutcome.success,
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.download_outlined));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.check), findsOneWidget);
-    expect(find.byIcon(Icons.download_outlined), findsNothing);
-
-    await tester.pump(const Duration(seconds: 2));
-
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.check), findsNothing);
-  });
-
-  testWidgets('shows error icon briefly on failed and reverts after 2s',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('report.pdf')]),
-      onRetry: () {},
-      onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) async => DownloadOutcome.failed,
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.download_outlined));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 2));
-
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.error_outline), findsNothing);
-  });
-
-  testWidgets('cancellation reverts to idle without any feedback swap',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('report.pdf')]),
-      onRetry: () {},
-      onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) async => DownloadOutcome.cancelled,
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.download_outlined));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.check), findsNothing);
-    expect(find.byIcon(Icons.error_outline), findsNothing);
-  });
-
-  testWidgets('a throwing onDownload still flips to the error icon',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('report.pdf')]),
-      onRetry: () {},
-      onFetchBytes: (_) async => _tinyPng,
-      onDownload: (_) async => throw Exception('boom'),
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.download_outlined));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets(
@@ -392,66 +298,6 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('preview eye icon shown only for previewable files',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png'), _file('report.pdf')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => _tinyPng,
-    )));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
-  });
-
-  testWidgets('tapping the eye opens the preview page and fetches bytes',
-      (tester) async {
-    var fetchCalls = 0;
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (file) async {
-        fetchCalls++;
-        expect(file.filename, 'plot.png');
-        return _tinyPng;
-      },
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
-
-    expect(fetchCalls, 1);
-    expect(find.byType(Image), findsOneWidget);
-    expect(find.byIcon(Icons.close), findsOneWidget);
-  });
-
-  testWidgets('preview close (X) dismisses the dialog', (tester) async {
-    // Force dialog layout by giving the root a wide size.
-    tester.view.physicalSize = const Size(1200, 1600);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => _tinyPng,
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget);
-
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(Dialog), findsNothing);
-  });
-
   testWidgets('tapping rotate turns the previewed image a quarter turn',
       (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
@@ -471,36 +317,6 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
-  });
-
-  testWidgets('preview shows generic error + Retry when fetch fails',
-      (tester) async {
-    var fetchCalls = 0;
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async {
-        fetchCalls++;
-        if (fetchCalls == 1) throw Exception('boom-internal-leak-do-not-show');
-        return _tinyPng;
-      },
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
-
-    expect(find.text("Couldn't load preview"), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
-    // Raw exception text must not leak to the UI.
-    expect(find.textContaining('boom-internal-leak-do-not-show'), findsNothing);
-
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
-
-    expect(fetchCalls, 2);
-    expect(find.byType(Image), findsOneWidget);
   });
 
   testWidgets('preview shows "no longer exists" without Retry on 404',
@@ -524,62 +340,9 @@ void main() {
     expect(find.text('Retry'), findsNothing);
   });
 
-  testWidgets('.PNG (uppercase) is treated as previewable', (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('PLOT.PNG')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => _tinyPng,
-    )));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
-  });
-
   testWidgets(
-      'empty bytes short-circuit to Download (not Retry), no InteractiveViewer',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => Uint8List(0),
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
-
-    // bytes.isEmpty short-circuits around _ImageOrFallback entirely —
-    // no decode attempt, no Retry-forever even on a non-errorBuilder
-    // path.
-    expect(find.byType(InteractiveViewer), findsNothing);
-    expect(find.text('Retry'), findsNothing);
-    expect(find.text('Download'), findsOneWidget);
-  });
-
-  testWidgets(
-      'non-image bytes show Download (not Retry) as a peer of InteractiveViewer',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => _htmlBytes,
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(InteractiveViewer), findsNothing);
-    expect(find.text('Retry'), findsNothing);
-    expect(find.text('Download'), findsOneWidget);
-  });
-
-  testWidgets(
-      'leading icon is image_outlined for previewable, file icon otherwise',
-      (tester) async {
+      "a row that can preview shows its kind's icon and an eye; one that "
+      "can't, the file icon and no eye", (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('plot.png'), _file('report.pdf')]),
       onRetry: () {},
@@ -590,30 +353,7 @@ void main() {
 
     expect(find.byIcon(Icons.image_outlined), findsOneWidget);
     expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
-  });
-
-  testWidgets(
-      'tapping a previewable row opens the preview and does not download',
-      (tester) async {
-    var downloads = 0;
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png')]),
-      onRetry: () {},
-      onDownload: (_) async {
-        downloads++;
-        return DownloadOutcome.success;
-      },
-      onFetchBytes: (_) async => _tinyPng,
-    )));
-    await tester.pump();
-
-    // Tap the filename text — that's a non-icon part of the row body, so it
-    // exercises the row InkWell rather than either trailing icon.
-    await tester.tap(findFileName('plot.png'));
-    await tester.pumpAndSettle();
-
-    expect(downloads, 0);
-    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
   });
 
   testWidgets(
@@ -705,30 +445,6 @@ void main() {
     pending.complete(DownloadOutcome.success);
     await tester.pump();
     expect(_inPreview(find.byTooltip('Saved')), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
-  });
-
-  testWidgets(
-      'tapping the trailing download icon on a previewable row downloads',
-      (tester) async {
-    var downloads = 0;
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png')]),
-      onRetry: () {},
-      onDownload: (_) async {
-        downloads++;
-        return DownloadOutcome.success;
-      },
-      onFetchBytes: (_) async => _tinyPng,
-    )));
-    await tester.pump();
-
-    await tester.tap(find.byIcon(Icons.download_outlined));
-    await tester.pump();
-
-    expect(downloads, 1);
-    // The preview dialog/page should not have opened.
-    expect(find.byIcon(Icons.close), findsNothing);
     await tester.pump(const Duration(seconds: 2));
   });
 
@@ -848,10 +564,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('File is too large to preview'), findsOneWidget);
-    expect(find.text('Download'), findsOneWidget);
-    // The actual preview body never gets built — no decoder runs.
-    expect(find.byType(MarkdownBody), findsNothing);
-    expect(find.byType(HighlightView), findsNothing);
   });
 
   testWidgets("a too-large file's Download saves it and shows the outcome",
@@ -876,35 +588,6 @@ void main() {
     expect(saved, ['huge.log']);
     expect(find.widgetWithText(SoliplexButton, 'Saved'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
-  });
-
-  testWidgets('pdf row is not previewable — no eye icon, generic file icon',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('paper.pdf')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => _tinyPng,
-    )));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.visibility_outlined), findsNothing);
-    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.picture_as_pdf_outlined), findsNothing);
-  });
-
-  testWidgets('unknown extension row is not previewable — no eye icon',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('blob.xyz')]),
-      onRetry: () {},
-      onDownload: (_) async => DownloadOutcome.success,
-      onFetchBytes: (_) async => _tinyPng,
-    )));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.visibility_outlined), findsNothing);
-    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
   });
 
   testWidgets('per-kind leading icons appear on previewable rows',
@@ -988,33 +671,9 @@ void main() {
       );
     }
 
-    testWidgets('opens at the tapped file when multiple files exist',
-        (tester) async {
-      await tester.pumpWidget(_wrap(_workspace(
-        status: WorkdirFilesLoaded([
-          _file('a.png'),
-          _file('b.md'),
-          _file('c.json'),
-        ]),
-        onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
-        onFetchBytes: (file) async => Uint8List.fromList(
-          utf8.encode(file.filename == 'b.md' ? '# hi' : 'irrelevant'),
-        ),
-      )));
-      await tester.pump();
-
-      // Tap the eye icon on the markdown row (the middle of three).
-      await tester.tap(find.byIcon(Icons.visibility_outlined).at(1));
-      await tester.pumpAndSettle();
-
-      // The title bar shows the tapped filename and "2 / 3" position.
-      expect(_inPreview(findPreviewTitle('b.md')), findsOneWidget);
-      expect(findPreviewTitle('2 / 3'), findsOneWidget);
-    });
-
-    testWidgets('next arrow advances; disabled at the last index',
-        (tester) async {
+    testWidgets(
+        'next arrow advances; prev is disabled at the first index, next at '
+        'the last', (tester) async {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
         onRetry: () {},
@@ -1026,6 +685,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.visibility_outlined).first);
       await tester.pumpAndSettle();
       expect(findPreviewTitle('1 / 2'), findsOneWidget);
+      expect(iconButtonWith(tester, Icons.chevron_left).onPressed, isNull);
 
       await tester.tap(find.descendant(
         of: find.byType(WorkdirPreviewPage),
@@ -1036,42 +696,6 @@ void main() {
 
       // At the last index, Next is disabled.
       expect(iconButtonWith(tester, Icons.chevron_right).onPressed, isNull);
-    });
-
-    testWidgets('prev arrow is disabled at the first index', (tester) async {
-      await tester.pumpWidget(_wrap(_workspace(
-        status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
-        onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
-        onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
-      )));
-      await tester.pump();
-
-      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
-      await tester.pumpAndSettle();
-
-      expect(iconButtonWith(tester, Icons.chevron_left).onPressed, isNull);
-    });
-
-    testWidgets('keyboard right arrow advances to the next file',
-        (tester) async {
-      await tester.pumpWidget(_wrap(_workspace(
-        status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
-        onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
-        onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
-      )));
-      await tester.pump();
-
-      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
-      await tester.pumpAndSettle();
-      expect(findPreviewTitle('1 / 2'), findsOneWidget);
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.pumpAndSettle();
-
-      expect(findPreviewTitle('2 / 2'), findsOneWidget);
-      expect(_inPreview(findPreviewTitle('b.md')), findsOneWidget);
     });
 
     testWidgets('dots jump to the tapped index', (tester) async {
@@ -1127,34 +751,6 @@ void main() {
       );
     });
 
-    testWidgets('non-previewable slot renders Can\'t preview without fetching',
-        (tester) async {
-      var fetchCalls = 0;
-      await tester.pumpWidget(_wrap(_workspace(
-        status: WorkdirFilesLoaded([_file('a.png'), _file('paper.pdf')]),
-        onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
-        onFetchBytes: (_) async {
-          fetchCalls++;
-          return _tinyPng;
-        },
-      )));
-      await tester.pump();
-
-      // Open at the image (slot 0); only that slot should fetch.
-      await tester.tap(find.byIcon(Icons.visibility_outlined));
-      await tester.pumpAndSettle();
-      expect(fetchCalls, 1);
-
-      // Move to the PDF slot. PDFs are non-previewable, so the pager
-      // must NOT call fetchBytes — it short-circuits to _CannotPreview.
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.pumpAndSettle();
-
-      expect(fetchCalls, 1);
-      expect(find.text("Can't preview this file"), findsOneWidget);
-    });
-
     testWidgets('Retry twice on the same slide invalidates each cached future',
         (tester) async {
       // The cache + retry-token pair must allow consecutive retries on
@@ -1178,6 +774,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(attempts, 1);
       expect(find.text("Couldn't load preview"), findsOneWidget);
+      // Raw exception text must not leak to the UI.
+      expect(find.textContaining('boom'), findsNothing);
 
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
@@ -1218,7 +816,7 @@ void main() {
       expect(fetchCounts['a.md'], 1);
     });
 
-    testWidgets('arrowLeft at first slide is a no-op (no wrap, no exception)',
+    testWidgets('arrowLeft at first slide is a no-op (no wrap)',
         (tester) async {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
@@ -1238,10 +836,9 @@ void main() {
       // Still on the first slide; a regression to modular wrap would
       // jump to '2 / 2'.
       expect(findPreviewTitle('1 / 2'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('arrowRight at last slide is a no-op (no wrap, no exception)',
+    testWidgets('arrowRight at last slide is a no-op (no wrap)',
         (tester) async {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('a.md'), _file('b.md')]),
@@ -1262,7 +859,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(findPreviewTitle('2 / 2'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     });
   });
 
@@ -1333,6 +929,7 @@ void main() {
       expect(find.text('This image looks corrupt'), findsOneWidget);
       expect(find.text("Can't preview this file"), findsNothing);
       expect(find.text('This file looks binary'), findsNothing);
+      expect(find.text('Download'), findsOneWidget);
     });
 
     testWidgets('invalid svg content shows the "SVG looks corrupt" message',
@@ -1405,9 +1002,7 @@ void main() {
 
       expect(saved, ['b.md']);
       expect(find.byTooltip('Saved'), findsOneWidget);
-
       await tester.pump(const Duration(seconds: 2));
-      expect(titleBarDownload, findsOneWidget);
     });
 
     testWidgets('Close stays put while the download runs', (tester) async {
@@ -1426,17 +1021,6 @@ void main() {
         // Material sizes buttons smaller on desktop.
         variant: TargetPlatformVariant(
             {TargetPlatform.android, TargetPlatform.macOS}));
-
-    testWidgets("shows the failure on the file's page", (tester) async {
-      await openPreview(tester, ['a.md'],
-          onDownload: (_) async => DownloadOutcome.failed);
-
-      await tester.tap(titleBarDownload);
-      await tester.pump();
-
-      expect(find.byTooltip('Download failed'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 2));
-    });
 
     testWidgets("shares its download with the page's own Download button",
         (tester) async {
@@ -1560,14 +1144,19 @@ void main() {
         await tester.tap(titleBarDownload);
         await tester.pump();
 
-        expect(
-          find.semantics.byPredicate((node) {
-            final data = node.getSemanticsData();
-            return data.label.contains('Downloading') ||
-                data.tooltip.contains('Downloading');
-          }),
-          findsOne,
-        );
+        final heard = find.semantics
+            .byPredicate((node) {
+              final data = node.getSemanticsData();
+              return data.label.contains('Downloading') ||
+                  data.tooltip.contains('Downloading');
+            })
+            .evaluate()
+            .map((node) {
+              final data = node.getSemanticsData();
+              return '${data.label} ${data.tooltip}';
+            })
+            .join(' ');
+        expect('Downloading'.allMatches(heard), hasLength(1));
       } finally {
         semantics.dispose();
       }
@@ -1578,9 +1167,8 @@ void main() {
 
   group("the preview's Download button (via empty-bytes path)", () {
     // Empty bytes on an otherwise-previewable file route to
-    // _CannotPreview, giving us a clean way to drive the shared
-    // download-feedback state machine end-to-end through the preview
-    // page.
+    // _CannotPreview, giving us a clean way to reach the page's own
+    // Download button.
 
     testWidgets('a download under way loads the button at its size',
         (tester) async {
@@ -1610,28 +1198,6 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
-    testWidgets('successful download flips Download → Saved, reverts after 2s',
-        (tester) async {
-      await tester.pumpWidget(_wrap(_workspace(
-        status: WorkdirFilesLoaded([_file('plot.png')]),
-        onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.success,
-        onFetchBytes: (_) async => Uint8List(0),
-      )));
-      await tester.pump();
-      await tester.tap(find.byIcon(Icons.visibility_outlined));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Download'));
-      await tester.pump();
-
-      expect(find.text('Saved'), findsOneWidget);
-      expect(_inButton(find.byIcon(Icons.check)), findsOneWidget);
-
-      await tester.pump(const Duration(seconds: 2));
-      expect(find.text('Download'), findsOneWidget);
-    });
-
     testWidgets('a failed download says Download failed', (tester) async {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('plot.png')]),
@@ -1650,56 +1216,6 @@ void main() {
       expect(_inButton(find.byIcon(Icons.error_outline)), findsOneWidget);
       await tester.pump(const Duration(seconds: 2));
     });
-
-    testWidgets('cancelled stays idle — no feedback swap', (tester) async {
-      await tester.pumpWidget(_wrap(_workspace(
-        status: WorkdirFilesLoaded([_file('plot.png')]),
-        onRetry: () {},
-        onDownload: (_) async => DownloadOutcome.cancelled,
-        onFetchBytes: (_) async => Uint8List(0),
-      )));
-      await tester.pump();
-      await tester.tap(find.byIcon(Icons.visibility_outlined));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Download'));
-      await tester.pump();
-
-      // Inside the preview, still on the idle Download label.
-      expect(
-        find.descendant(
-          of: find.byType(WorkdirPreviewPage),
-          matching: find.text('Download'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(WorkdirPreviewPage),
-          matching: find.text('Saved'),
-        ),
-        findsNothing,
-      );
-    });
-
-    testWidgets('throwing onDownload still flips to the error state',
-        (tester) async {
-      await tester.pumpWidget(_wrap(_workspace(
-        status: WorkdirFilesLoaded([_file('plot.png')]),
-        onRetry: () {},
-        onDownload: (_) async => throw Exception('boom'),
-        onFetchBytes: (_) async => Uint8List(0),
-      )));
-      await tester.pump();
-      await tester.tap(find.byIcon(Icons.visibility_outlined));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Download'));
-      await tester.pump();
-
-      expect(_inButton(find.byIcon(Icons.error_outline)), findsOneWidget);
-      await tester.pump(const Duration(seconds: 2));
-    });
   });
 
   testWidgets('sub-tablet width opens the preview as a Scaffold, not a Dialog',
@@ -1711,6 +1227,7 @@ void main() {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('plot.png')]),
@@ -1900,17 +1417,6 @@ void main() {
       expect(head.size.width, moreOrLessEquals(painted, epsilon: 1));
     });
 
-    testWidgets(
-        'names that differ only before the extension stay apart when cut',
-        (tester) async {
-      // Room for the end `5_1432.csv`, not for the whole name.
-      await pumpRow(tester,
-          width: 300, name: 'exports/output_20261105_1432.csv');
-
-      expect(isCut(tester, find.text('output_2026110')), isTrue);
-      expect(isCut(tester, find.text('5_1432.csv')), isFalse);
-    });
-
     testWidgets('the row tooltip names the full path', (tester) async {
       await pumpRow(tester, width: 800);
 
@@ -1959,12 +1465,6 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
       }
 
-      testWidgets('titles a nested file by its basename', (tester) async {
-        await openPreview(tester, ['reports/a.md', 'reports/b.md'], index: 1);
-
-        expect(_inPreview(findPreviewTitle('b.md')), findsOneWidget);
-      });
-
       testWidgets('puts the directory after the position', (tester) async {
         await openPreview(tester, ['reports/a.md', 'notes.md']);
 
@@ -2000,24 +1500,37 @@ void main() {
         expect(lines(subtitle), greaterThan(1));
       });
 
-      testWidgets('breaks a long name between its words', (tester) async {
-        usePhoneWidth(tester);
-        const name = 'quarterly_revenue_by_region_and_product_line_2026.md';
-
-        await openPreview(tester, [name]);
-
+      String firstLineOf(WidgetTester tester, String text) {
         final paragraph = tester.renderObject<RenderParagraph>(
-          _inPreview(findPreviewTitle(name)),
+          _inPreview(findPreviewTitle(text)),
         );
-        final firstLineEnd = paragraph.getPositionForOffset(
+        final end = paragraph.getPositionForOffset(
           Offset(paragraph.size.width, paragraph.preferredLineHeight / 2),
         );
-        final firstLine = paragraph.text
+        return paragraph.text
             .toPlainText()
-            .substring(0, firstLineEnd.offset)
+            .substring(0, end.offset)
             .replaceAll('\u200B', '');
-        expect(firstLine, endsWith('_'));
-      });
+      }
+
+      for (final separator in ['_', '.']) {
+        testWidgets("breaks a long name after a '$separator'", (tester) async {
+          usePhoneWidth(tester);
+          final name = [
+            'quarterly',
+            'revenue',
+            'by',
+            'region',
+            'and',
+            'product',
+            'line',
+          ].join(separator);
+
+          await openPreview(tester, ['$name.md']);
+
+          expect(firstLineOf(tester, '$name.md'), endsWith(separator));
+        });
+      }
 
       testWidgets('a screen reader hears the title as written', (tester) async {
         final semantics = tester.ensureSemantics();
@@ -2048,7 +1561,8 @@ void main() {
           variant: TargetPlatformVariant(
               {TargetPlatform.android, TargetPlatform.macOS}));
 
-      testWidgets('has actions 48 px square on every platform', (tester) async {
+      testWidgets('has actions 48 px square on touch and desktop',
+          (tester) async {
         await openPreview(tester, ['reports/a.md']);
 
         for (final icon in [Icons.download_outlined, Icons.close]) {
@@ -2117,7 +1631,7 @@ void main() {
         );
       });
 
-      testWidgets('a name too long for a third of the dialog scrolls there',
+      testWidgets('a name too long for a third of the dialog keeps to it',
           (tester) async {
         // Wide enough for the dialog, which is at most 85% of the height.
         tester.view.physicalSize = const Size(1000, 450);

@@ -153,10 +153,8 @@ class RoomAppModule extends AppModule {
   @override
   Future<void> onDispose() async {
     _userSwitchTeardown.dispose();
-    // Before the runtime's disposal, which can throw: an upload or download
-    // left alive would go on after the module is gone.
+    await runtimeManager.dispose();
     _uploadRegistry.dispose();
     _downloadRegistry.dispose();
-    await runtimeManager.dispose();
   }
 }

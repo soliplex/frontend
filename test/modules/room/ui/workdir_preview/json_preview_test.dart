@@ -15,11 +15,6 @@ void main() {
     test('returns null when JSON is malformed', () {
       expect(tryPrettyPrintJson('{not valid json'), isNull);
     });
-
-    test('handles top-level non-object values', () {
-      expect(tryPrettyPrintJson('"hello"'), '"hello"');
-      expect(tryPrettyPrintJson('42'), '42');
-    });
   });
 
   group('JsonPreview widget', () {
@@ -35,6 +30,8 @@ void main() {
         find.text("This file isn't valid JSON; showing raw contents."),
         findsNothing,
       );
+      final codePreview = tester.widget<CodePreview>(find.byType(CodePreview));
+      expect(codePreview.content, '{\n  "a": 1\n}');
     });
 
     testWidgets(

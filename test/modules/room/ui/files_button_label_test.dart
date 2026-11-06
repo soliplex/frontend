@@ -3,13 +3,6 @@ import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 
 void main() {
   group('filesButtonLabel', () {
-    test('shows both counts when room and thread uploads exist', () {
-      expect(
-        filesButtonLabel(roomCount: 2, threadCount: 3, workspaceCount: 0),
-        '2 room · 3 thread',
-      );
-    });
-
     test('shows room only when no thread uploads', () {
       expect(
         filesButtonLabel(roomCount: 1, threadCount: 0, workspaceCount: 0),

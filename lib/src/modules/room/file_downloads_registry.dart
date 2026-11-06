@@ -34,12 +34,13 @@ Future<String?> _defaultSaveFile({
   return FilePicker.saveFile(fileName: fileName, bytes: bytes);
 }
 
-/// Each thread's file downloads, per server and room.
+/// Each thread's file downloads, per server entry and room.
 ///
 /// The room module keeps it, not the room screen, so a download outlives the
 /// visit to its room that started it: coming back shows it under way or its
 /// outcome, and a file starts no second download. Its downloads are cleared
-/// when their server is removed or a different user signs in on it.
+/// when their server is removed (or removed and re-added), when a different
+/// user signs in on it, and when the registry is disposed.
 ///
 /// [saveFile] and [isWeb] are injected so tests can drive both branches of
 /// the cancel logic (web returns null on success, native returns null on
@@ -60,7 +61,7 @@ class FileDownloadsRegistry {
   final bool _isWeb;
   final PerServerCache<(String, String), FileDownloads> _downloads;
 
-  /// The downloads of [threadId] in [roomId] on [entry]'s server. Throws
+  /// The downloads of [threadId] in [roomId] for [entry]. Throws
   /// [StateError] once the registry is disposed.
   FileDownloads downloadsFor({
     required ServerEntry entry,
@@ -71,9 +72,9 @@ class FileDownloadsRegistry {
         entry,
         (roomId, threadId),
         () => FileDownloads((file, isCleared) async {
-          // Signing out ends a download, even if the user signs back in
-          // before it would have saved. A server not signed in, as with no
-          // auth, has no sign-out to watch for.
+          // Signing out keeps a download from saving, even if the user signs
+          // back in before it would have saved. A server not signed in, as
+          // with no auth, has no sign-out to watch for.
           var signedIn = false;
           var signedOut = false;
           final unsubscribe = entry.auth.session.subscribe((session) {
@@ -112,9 +113,9 @@ class FileDownloadsRegistry {
 ///
 /// Once [isUnwanted] says nobody is left to want the file, it opens no save
 /// dialog and reports no failure, returning [DownloadOutcome.cancelled]: its
-/// downloads were cleared (the server removed, or another user signed in on
-/// it), or its user signed out while it was fetched. A dialog already open
-/// saves whatever its user chooses.
+/// downloads were cleared (see [FileDownloadsRegistry]), or its user signed
+/// out while it was fetched. A dialog already open saves whatever its user
+/// chooses.
 Future<DownloadOutcome> downloadWorkdirFile({
   required SoliplexApi api,
   required String roomId,
@@ -136,7 +137,7 @@ Future<DownloadOutcome> downloadWorkdirFile({
       file.filename,
     );
   } catch (e, st) {
-    // A fetch the clearing or the sign-out cut short is no failure.
+    // A fetch failing once nobody wants the file is no failure to report.
     if (isUnwanted()) return _dropped(roomId, threadId, file);
     warnWorkdirFetchFailed(
       _logger,
