@@ -647,10 +647,18 @@ void main() {
     });
 
     testWidgets('while its outcome shows', (tester) async {
+      final semantics = tester.ensureSemantics();
       final calls = <int>[];
       final download = await startDownload(tester, calls);
       download.complete(DownloadOutcome.success);
       await tester.pump();
+
+      // A screen reader hears it disabled, and offers nothing to activate.
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Saved')),
+        isSemantics(isEnabled: false, hasTapAction: false),
+      );
+      semantics.dispose();
 
       await tester.tap(find.byIcon(Icons.check));
       await tester.pump();
@@ -1131,6 +1139,13 @@ void main() {
           ?.color;
       expect(icon.color, error);
       expect(painted, error);
+      expect(
+        tester
+            .widget<IconButton>(
+                find.widgetWithIcon(IconButton, Icons.error_outline))
+            .onPressed,
+        isNull,
+      );
       await tester.pump(const Duration(seconds: 2));
     });
 
@@ -1498,6 +1513,11 @@ void main() {
         expect(isCut(tester, subtitle), isFalse);
         expect(lines(title), greaterThan(1));
         expect(lines(subtitle), greaterThan(1));
+        expect(
+          tester.getCenter(find.byTooltip('Close')).dy,
+          lessThan(tester.getCenter(title).dy),
+          reason: 'the actions stay at the top of a tall title, not its middle',
+        );
       });
 
       String firstLineOf(WidgetTester tester, String text) {
@@ -1535,11 +1555,11 @@ void main() {
       testWidgets('a screen reader hears the title as written', (tester) async {
         final semantics = tester.ensureSemantics();
         try {
-          await openPreview(tester, ['reports/q_1.md', 'notes.md']);
+          await openPreview(tester, ['v1.2/q_1.md', 'notes.md']);
 
           expect(_inPreview(find.bySemanticsLabel('q_1.md')), findsOneWidget);
           expect(
-            _inPreview(find.bySemanticsLabel('1 / 2 · reports/')),
+            _inPreview(find.bySemanticsLabel('1 / 2 · v1.2/')),
             findsOneWidget,
           );
         } finally {

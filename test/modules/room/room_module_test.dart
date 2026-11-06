@@ -138,6 +138,56 @@ void main() {
     );
   });
 
+  testWidgets('disposing it disposes its upload and download registries',
+      (tester) async {
+    final serverManager = _createManager();
+    final disposing = RoomAppModule(
+      serverManager: serverManager,
+      runtimeManager: AgentRuntimeManager(
+        platform: TestPlatformConstraints(),
+        toolRegistryResolver: (_) async => const ToolRegistry(),
+        logger: testLogger(),
+        forwardedPropsFor: (_) => () => const {},
+        servers: emptyServers(),
+      ),
+      registry: registry,
+      roomReadMarkers: RoomReadMarkers(),
+      serverReadMarkers: ServerReadMarkers(),
+      documentSelections: DocumentSelections(),
+      databaseSelections: DatabaseSelections(),
+      appName: 'Soliplex',
+      fileSort: FileSortPreference(),
+    );
+    serverManager.addServer(
+      serverId: 'srv-1',
+      serverUrl: Uri.parse('https://example.test'),
+      requiresAuth: false,
+      alias: 'srv',
+    );
+    final router = GoRouter(
+      initialLocation: '/room/srv/room-1',
+      routes: disposing.build().routes,
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pump();
+    final screen = tester.widget<RoomScreen>(find.byType(RoomScreen));
+    await tester.pumpWidget(const SizedBox());
+
+    await disposing.onDispose();
+
+    final entry = serverManager.servers.value['srv-1']!;
+    expect(
+      () => screen.uploadRegistry.trackerFor(entry: entry, roomId: 'room-1'),
+      throwsStateError,
+    );
+    expect(
+      () => screen.downloadRegistry
+          .downloadsFor(entry: entry, roomId: 'room-1', threadId: 't'),
+      throwsStateError,
+    );
+  });
+
   // The module is the only production site that supplies `appName` to the room
   // screen, and the compiler enforces only that it is supplied, not that the
   // module's own name is what reaches it. Every fixture in this repo is named
