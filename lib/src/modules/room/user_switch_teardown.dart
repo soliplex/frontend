@@ -53,8 +53,9 @@ final Logger _logger =
 /// unauthenticated bucket for persistent state (see
 /// `AuthSession.currentUserId`).
 ///
-/// Owned by [RoomAppModule]. Server removal is `RemovedServerCleanup`'s job,
-/// in `StoresAppModule`.
+/// Owned by [RoomAppModule]. Server removal is not its job: the caches that
+/// watch the server list clear themselves, and `RemovedServerCleanup`, in
+/// `StoresAppModule`, clears the rest.
 class UserSwitchTeardown {
   UserSwitchTeardown({
     required ReadonlySignal<Map<String, ServerEntry>> servers,

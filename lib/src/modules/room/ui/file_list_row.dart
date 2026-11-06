@@ -226,18 +226,21 @@ class FileRowAction extends StatelessWidget {
       child: Tooltip(
         message: tooltip,
         excludeFromSemantics: true,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(context.radii.sm),
-          child: Padding(
-            padding: const EdgeInsets.all(SoliplexSpacing.s2),
-            // Keeps the icon its own size when the row stretches the
-            // target taller than one line.
-            child: Center(
-              child: Icon(
-                icon,
-                size: _iconSize,
-                color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+        child: _ActionArea(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(context.radii.sm),
+            child: Padding(
+              padding: const EdgeInsets.all(SoliplexSpacing.s2),
+              // Keeps the icon its own size when the row stretches the
+              // target taller than one line.
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: _iconSize,
+                  color:
+                      color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ),
@@ -245,6 +248,24 @@ class FileRowAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// An action's place in a [FileListRow], which keeps a tap there from the
+/// entry beneath it even while the action is disabled or under way: the
+/// entry's own tap does something the action did not offer.
+class _ActionArea extends StatelessWidget {
+  const _ActionArea({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        // An enabled action's own tap, nearer the pointer, wins over this.
+        onTap: () {},
+        child: child,
+      );
 }
 
 /// A file's or folder's name, as a file manager shows one: it labels the
@@ -279,9 +300,11 @@ class FileRowActionProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: FileRowAction.extent,
-      child: Center(child: ProgressRing(label: label)),
+    return _ActionArea(
+      child: SizedBox.square(
+        dimension: FileRowAction.extent,
+        child: Center(child: ProgressRing(label: label)),
+      ),
     );
   }
 }

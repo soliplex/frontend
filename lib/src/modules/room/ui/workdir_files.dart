@@ -61,7 +61,7 @@ class WorkdirFileRow extends StatelessWidget {
     final kind = PreviewKind.from(file.filename);
     final canPreview = kind.canRender;
     // Rows that can't preview show the generic file icon so the leading
-    // icon doesn't imply a preview is available.
+    // icon doesn't imply their content can be shown.
     final leadingIcon =
         canPreview ? kind.rowIcon : Icons.insert_drive_file_outlined;
     // Muted so tooling output reads as apart from the agent's files; its
@@ -846,7 +846,7 @@ class _DownloadButton extends StatelessWidget {
 }
 
 /// [text] with a place to break a line after each `_`, `-`, `.` and `/`, so
-/// a name too long for its line breaks between its words, not inside one.
+/// a name too long for its line breaks between its words where it can.
 String _breakableAtSeparators(String text) =>
     text.replaceAllMapped(RegExp(r'[_\-./]'), (m) => '${m[0]}\u200B');
 

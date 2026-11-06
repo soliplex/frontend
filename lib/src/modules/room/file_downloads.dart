@@ -6,9 +6,10 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.downloads');
 
-/// Result of a workdir-file download attempt. Distinguishes user-
-/// initiated cancellation from real failure so the UI can render the
-/// right inline feedback.
+/// Result of a workdir-file download attempt. [cancelled] saved nothing
+/// and nothing failed: the user cancelled the save, or nobody was left to
+/// want the file. It is kept apart from [failed] so the UI shows no error
+/// for it.
 enum DownloadOutcome { success, cancelled, failed }
 
 /// Where a file's download stands in [FileDownloads].
@@ -25,8 +26,12 @@ class FileDownloads {
   FileDownloads(this._download);
 
   /// Downloads a file; must report routine failures as
-  /// [DownloadOutcome.failed] rather than throw.
-  final Future<DownloadOutcome> Function(WorkdirFile file) _download;
+  /// [DownloadOutcome.failed] rather than throw. Its `isCleared` says whether
+  /// these downloads were cleared since, so nobody is left to want the file.
+  final Future<DownloadOutcome> Function(
+    WorkdirFile file,
+    bool Function() isCleared,
+  ) _download;
 
   /// The files not idle, by path, so a file absent from it is idle. A path,
   /// not the listed [WorkdirFile], so a refresh that reports the file with a
@@ -35,22 +40,27 @@ class FileDownloads {
   final _outcomeTimers = <String, Timer>{};
   bool _isDisposed = false;
 
-  /// Whether these downloads were cleared, so none of them shows any more.
-  bool get isDisposed => _isDisposed;
-
-  /// [file]'s state; read inside a `Watch`, it rebuilds when that changes.
+  /// [file]'s state; read inside a `Watch`, it rebuilds when any file's
+  /// download changes.
   DownloadFeedbackState stateOf(WorkdirFile file) =>
       _states.value[file.filename] ?? DownloadFeedbackState.idle;
 
   /// Downloads [file], unless its download runs or its outcome shows.
-  /// Does nothing once disposed, when nothing is left to show it.
+  /// Starts nothing once disposed, when nobody is left to want the file.
   Future<void> start(WorkdirFile file) async {
-    if (_isDisposed || stateOf(file) != DownloadFeedbackState.idle) return;
+    if (_isDisposed) {
+      _logger.debug(
+        'download not started, its downloads cleared',
+        attributes: {'filename': file.filename},
+      );
+      return;
+    }
+    if (stateOf(file) != DownloadFeedbackState.idle) return;
     final path = file.filename;
     _set(path, DownloadFeedbackState.downloading);
     DownloadOutcome outcome;
     try {
-      outcome = await _download(file);
+      outcome = await _download(file, () => _isDisposed);
     } catch (e, st) {
       // A broken contract, so it may carry anything: its text stays out.
       _logger.error(
@@ -63,7 +73,7 @@ class FileDownloads {
       );
       outcome = DownloadOutcome.failed;
     }
-    // [_download] has logged the outcome; nothing is left to show it.
+    // The outcome is logged; nothing is left to show it.
     if (_isDisposed) return;
     switch (outcome) {
       case DownloadOutcome.cancelled:
@@ -89,11 +99,14 @@ class FileDownloads {
         : {..._states.value, path: state};
   }
 
+  /// Clears these downloads: every file reads idle and none starts again.
+  /// The state stays readable, not disposed, as a screen that still shows
+  /// these downloads may read it until it is rebuilt or goes away.
   void dispose() {
     _isDisposed = true;
     for (final timer in _outcomeTimers.values) {
       timer.cancel();
     }
-    _states.dispose();
+    _states.value = const {};
   }
 }

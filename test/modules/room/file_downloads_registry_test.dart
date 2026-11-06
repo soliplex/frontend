@@ -8,12 +8,14 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_frontend/src/modules/auth/admin_status.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../helpers/fakes.dart' show FakeTokenRefreshService;
+import '../../helpers/test_server_entry.dart' show testAccessToken;
 
 class _FakeHttpClient extends Fake implements SoliplexHttpClient {}
 
@@ -57,7 +59,7 @@ void main() {
       WorkdirFile file, {
       SaveFile saveFile = _saveToTmp,
       bool isWeb = false,
-      bool isCleared = false,
+      bool isUnwanted = false,
     }) =>
         downloadWorkdirFile(
           api: api,
@@ -66,7 +68,7 @@ void main() {
           file: file,
           saveFile: saveFile,
           isWeb: isWeb,
-          isCleared: () => isCleared,
+          isUnwanted: () => isUnwanted,
         );
 
     test('returns success on native when saveFile returns a path', () async {
@@ -159,14 +161,14 @@ void main() {
       );
     });
 
-    test('saves nothing once its downloads were cleared', () async {
+    test('opens no save dialog once nobody wants the file', () async {
       when(() => api.getThreadWorkdirFile(any(), any(), any()))
           .thenAnswer((_) async => Uint8List(1));
       final saved = <String>[];
 
       final outcome = await download(
         _file('output.csv'),
-        isCleared: true,
+        isUnwanted: true,
         saveFile: ({required String fileName, required Uint8List bytes}) async {
           saved.add(fileName);
           return '/tmp/$fileName';
@@ -206,6 +208,7 @@ void main() {
           isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500),
         );
         expect(record.attributes['filename'], 'dir/output.csv');
+        expect(record.message, contains('roomId=room-1'));
       });
 
       test("a vanished file as a warning, unlike a preview's debug-level 404",
@@ -236,14 +239,26 @@ void main() {
         expect(record.attributes['filename'], 'dir/output.csv');
       });
 
-      test('a download dropped once cleared, at debug', () async {
+      test(
+          'a fetch failing once nobody wants the file as a drop, not a '
+          'failure', () async {
+        when(() => api.getThreadWorkdirFile(any(), any(), any()))
+            .thenThrow(const NetworkException(message: 'connection closed'));
+
+        final outcome = await download(_file('output.csv'), isUnwanted: true);
+
+        expect(outcome, DownloadOutcome.cancelled);
+        expect(sink.records.where((r) => r.level >= LogLevel.warning), isEmpty);
+      });
+
+      test('a download dropped once unwanted, at debug', () async {
         final level = LogManager.instance.minimumLevel;
         LogManager.instance.minimumLevel = LogLevel.debug;
         addTearDown(() => LogManager.instance.minimumLevel = level);
         when(() => api.getThreadWorkdirFile(any(), any(), any()))
             .thenAnswer((_) async => Uint8List(1));
 
-        await download(_file('dir/output.csv'), isCleared: true);
+        await download(_file('dir/output.csv'), isUnwanted: true);
 
         expect(
           sink.records.map((r) => r.message),
@@ -308,8 +323,7 @@ void main() {
         final fetch = Completer<Uint8List>();
         when(() => api.getThreadWorkdirFile(any(), any(), any()))
             .thenAnswer((_) => fetch.future);
-        final before = downloads();
-        unawaited(before.start(_file('output.csv')));
+        unawaited(downloads().start(_file('output.csv')));
 
         clear();
         fetch.complete(Uint8List.fromList([1]));
@@ -317,12 +331,85 @@ void main() {
 
         expect(saved, isEmpty, reason: 'nobody there asked for the file');
         expect(async.pendingTimers, isEmpty);
-        expect(
-          downloads().stateOf(_file('output.csv')),
-          DownloadFeedbackState.idle,
-        );
       });
     }
+
+    test('on the web, a download handed to the browser shows as saved',
+        () async {
+      when(() => api.getThreadWorkdirFile(any(), any(), any()))
+          .thenAnswer((_) async => Uint8List.fromList([1]));
+      final web = FileDownloadsRegistry(
+        servers: servers,
+        saveFile: ({required String fileName, required Uint8List bytes}) =>
+            Future.value(),
+        isWeb: true,
+      );
+      addTearDown(web.dispose);
+      final downloads =
+          web.downloadsFor(entry: entry, roomId: 'room-1', threadId: 't-1');
+
+      await downloads.start(_file('output.csv'));
+
+      expect(
+        downloads.stateOf(_file('output.csv')),
+        DownloadFeedbackState.success,
+      );
+    });
+
+    void signIn() => entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://auth.example.com/.well-known/openid',
+            clientId: 'test-client',
+          ),
+          tokens: AuthTokens(
+            accessToken: testAccessToken(),
+            refreshToken: 'refresh',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+    test('signing out while a download fetches saves nothing', () async {
+      signIn();
+      final fetch = Completer<Uint8List>();
+      when(() => api.getThreadWorkdirFile(any(), any(), any()))
+          .thenAnswer((_) => fetch.future);
+      final download = downloads().start(_file('output.csv'));
+
+      entry.auth.logout();
+      fetch.complete(Uint8List.fromList([1]));
+      await download;
+
+      expect(saved, isEmpty);
+      expect(
+        downloads().stateOf(_file('output.csv')),
+        DownloadFeedbackState.idle,
+      );
+    });
+
+    test('signing out and back in while a download fetches saves nothing',
+        () async {
+      signIn();
+      final fetch = Completer<Uint8List>();
+      when(() => api.getThreadWorkdirFile(any(), any(), any()))
+          .thenAnswer((_) => fetch.future);
+      final download = downloads().start(_file('output.csv'));
+
+      entry.auth.logout();
+      signIn();
+      fetch.complete(Uint8List.fromList([1]));
+      await download;
+
+      expect(saved, isEmpty, reason: 'signing out ended it');
+    });
+
+    test('a server never signed in, as with no auth, still saves', () async {
+      when(() => api.getThreadWorkdirFile(any(), any(), any()))
+          .thenAnswer((_) async => Uint8List.fromList([1]));
+
+      await downloads().start(_file('output.csv'));
+
+      expect(saved, ['output.csv']);
+    });
 
     test(
         "removing a server clears its downloads, and saves nothing they'd "
@@ -330,7 +417,7 @@ void main() {
       expectClearedMidDownload(() => servers.value = {});
     });
 
-    test("a different user signing in clears the server's downloads", () {
+    test("evicting a server, as a user switch does, clears its downloads", () {
       expectClearedMidDownload(() => registry.evictServer('srv-1'));
     });
   });

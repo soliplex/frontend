@@ -7,7 +7,10 @@ import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 FileDownloads testDownloads([
   Future<DownloadOutcome> Function(WorkdirFile file)? save,
 ]) {
-  final downloads = FileDownloads(save ?? (_) async => DownloadOutcome.success);
+  final downloads = FileDownloads(
+    (file, _) =>
+        save == null ? Future.value(DownloadOutcome.success) : save(file),
+  );
   addTearDown(downloads.dispose);
   return downloads;
 }

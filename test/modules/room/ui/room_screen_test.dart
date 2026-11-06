@@ -3226,8 +3226,11 @@ void main() {
       await tester.pump();
       expect(spinner(), findsOneWidget);
 
+      // Another room, then away from rooms altogether, so the screen that
+      // started the download is gone.
       await tester.pumpWidget(screen(null, roomId: 'room-2'));
       await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpWidget(const SizedBox());
       await tester.pumpWidget(screen('thread-1'));
       await tester.pump(const Duration(milliseconds: 500));
       await openFiles();
@@ -3236,6 +3239,34 @@ void main() {
       bytes.complete(Uint8List(1));
       await tester.pump();
       expect(find.byTooltip('Saved'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets(
+        "a download shows in its own thread, not in another's file of "
+        'the same name', (tester) async {
+      wideView(tester);
+      api.nextWorkdirFiles = [file('report.csv')];
+      final bytes = api.workdirFileBytes = Completer<Uint8List>();
+      Future<void> openFiles() async {
+        await tester.tap(find.byTooltip('1 in workspace'));
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+
+      await tester.pumpWidget(screen('thread-1'));
+      await tester.pumpAndSettle();
+      await openFiles();
+      await tester.tap(find.byTooltip('Download'));
+      await tester.pump();
+      expect(find.byType(FileRowActionProgress), findsOneWidget);
+
+      await tester.pumpWidget(screen('thread-2'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await openFiles();
+
+      expect(find.byType(FileRowActionProgress), findsNothing);
+      expect(find.byTooltip('Download'), findsOneWidget);
+      bytes.complete(Uint8List(1));
       await tester.pump(const Duration(seconds: 2));
     });
 
