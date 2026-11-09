@@ -183,27 +183,30 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     final messenger = ScaffoldMessenger.of(context);
     void say(String text) =>
         messenger.showSnackBar(SnackBar(content: Text(text)));
+    // Kept outside the try, so a failed save can still show what was read.
+    RoomPolicy? fresh;
     try {
-      final fresh = await _read();
+      fresh = await _read();
       if (fresh == null) {
         if (mounted) setState(() => _load = const _Loaded(null));
         say('This room became public in the meantime. Nothing was changed.');
         return;
       }
-      switch (planEdit(fresh, edit)) {
+      final read = fresh;
+      switch (planEdit(read, edit)) {
         case RowChanged(:final subject):
-          if (mounted) setState(() => _load = _Loaded(fresh));
+          if (mounted) setState(() => _load = _Loaded(read));
           say(
             '${displayName(subject)} changed since you opened this. Check it '
             'and try again.',
           );
         case NoChange():
-          if (mounted) setState(() => _load = _Loaded(fresh));
+          if (mounted) setState(() => _load = _Loaded(read));
           say('Nothing to change: the list already says so.');
         case SaveEdit(:final next):
           await widget.api.setRoomPolicy(next, cancelToken: _cancelToken);
           if (mounted) setState(() => _load = _Loaded(next));
-          say(done(fresh));
+          say(done(read));
       }
     } on CancelledException {
       return;
@@ -222,6 +225,11 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
         },
         stackTrace: stackTrace,
       );
+      // The list shows the policy as last read, not as first shown: another
+      // administrator's change is not hidden behind a failed save.
+      if (fresh case final read? when mounted) {
+        setState(() => _load = _Loaded(read));
+      }
       say(
         e is ApiException && e.statusCode == 422
             ? 'The server refused this change. Nothing was changed.'
