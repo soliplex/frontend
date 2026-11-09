@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/members/members_card.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/members/room_access.dart';
 
@@ -426,6 +427,23 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('late@example.com'), findsOneWidget);
+  });
+
+  testWidgets('logs the status and the reason of a failure', (tester) async {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    const failure =
+        ApiException(message: 'Internal Server Error', statusCode: 500);
+    final api = _PolicyApi(_team())..readError = failure;
+    await _show(tester, api);
+    await _open(tester);
+
+    final record =
+        sink.records.singleWhere((r) => r.message == 'Room policy read failed');
+    expect(record.error, same(failure));
+    expect(record.attributes['statusCode'], 500);
+    expect(record.attributes['roomId'], 'ops');
   });
 
   testWidgets('searches a long list', (tester) async {
