@@ -444,8 +444,6 @@ class _FailedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final style = Theme.of(context).textTheme;
     final (title, detail) = switch (failure) {
       _Failure.serverError => (
           "The server couldn't read this room's access",
@@ -485,42 +483,10 @@ class _FailedBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(SoliplexSpacing.s3),
-          decoration: BoxDecoration(
-            color: scheme.errorContainer,
-            borderRadius: BorderRadius.circular(context.radii.md),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 18,
-                color: scheme.onErrorContainer,
-              ),
-              const SizedBox(width: SoliplexSpacing.s2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: style.titleSmall
-                          ?.copyWith(color: scheme.onErrorContainer),
-                    ),
-                    const SizedBox(height: SoliplexSpacing.s1),
-                    Text(
-                      detail,
-                      style: style.bodySmall
-                          ?.copyWith(color: scheme.onErrorContainer),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        AccessNotice(
+          tone: NoticeTone.error,
+          title: title,
+          text: detail,
         ),
         for (final command in commands) ...[
           const SizedBox(height: SoliplexSpacing.s2),
