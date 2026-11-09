@@ -161,6 +161,11 @@ enum MemberFilter {
   return (matching: matching, shown: shown);
 }
 
+/// Whether [claims] name the viewer in a way an entry can match, so the card
+/// can find and lock the viewer's own rows.
+bool canIdentifyViewer(Map<String, dynamic>? claims) =>
+    claims?['email'] is String || claims?['preferred_username'] is String;
+
 /// The card's reading of a policy and the edits it makes. Each edit returns a
 /// whole policy, because saving replaces the stored one.
 extension RoomPolicyEdits on RoomPolicy {

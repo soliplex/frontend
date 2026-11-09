@@ -12,6 +12,9 @@ TextStyle? mutedStyle(BuildContext context, TextStyle? base) =>
 
 /// How much a notice asks of the reader.
 enum NoticeTone {
+  /// Worth knowing.
+  info,
+
   /// Worth a second look.
   warning,
 
@@ -44,6 +47,11 @@ class AccessNotice extends StatelessWidget {
     // An error has a container surface of its own, which a failure uses
     // rather than the danger colour.
     final (background, foreground, defaultIcon) = switch (tone) {
+      NoticeTone.info => (
+          colors.infoContainer,
+          colors.onInfoContainer,
+          Icons.info_outline,
+        ),
       NoticeTone.warning => (
           colors.warningContainer,
           colors.onWarningContainer,
