@@ -116,6 +116,51 @@ final class MemberRow {
   }
 }
 
+/// The groups the list's chips narrow it to.
+enum MemberFilter {
+  all('All'),
+  admin('Admin'),
+  member('Member'),
+  reader('Reader'),
+  rules('Login rules');
+
+  const MemberFilter(this.label);
+
+  final String label;
+
+  bool matches(MemberRow row) => switch (this) {
+        MemberFilter.all => true,
+        MemberFilter.admin => row.role == RoomRole.admin,
+        MemberFilter.member => row.role == RoomRole.member,
+        MemberFilter.reader => row.role == RoomRole.reader,
+        MemberFilter.rules => row.group == RowGroup.rules,
+      };
+}
+
+/// What [filter] and [search] leave of [rows] as `matching`, and the first
+/// [limit] of those as `shown`; all of them when [limit] is null.
+///
+/// [search] matches anywhere in a row's name, ignoring case.
+({List<MemberRow> matching, List<MemberRow> shown}) visibleRows(
+  List<MemberRow> rows, {
+  MemberFilter filter = MemberFilter.all,
+  String search = '',
+  int? limit,
+}) {
+  final needle = search.trim().toLowerCase();
+  final matching = [
+    for (final row in rows)
+      if (filter.matches(row) &&
+          (needle.isEmpty ||
+              displayName(row.subject).toLowerCase().contains(needle)))
+        row,
+  ];
+  final shown = limit == null || matching.length <= limit
+      ? matching
+      : matching.sublist(0, limit);
+  return (matching: matching, shown: shown);
+}
+
 /// The card's reading of a policy and the edits it makes. Each edit returns a
 /// whole policy, because saving replaces the stored one.
 extension RoomPolicyEdits on RoomPolicy {

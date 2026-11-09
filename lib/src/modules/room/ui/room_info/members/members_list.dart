@@ -16,31 +16,13 @@ const double _addBesideStateFrom = 480;
 /// From this width, a member's details and controls share one line.
 const double _tileSideBySideFrom = 420;
 
-enum _Filter {
-  all('All'),
-  admin('Admin'),
-  member('Member'),
-  reader('Reader'),
-  rules('Login rules');
-
-  const _Filter(this.label);
-
-  final String label;
-
+extension on MemberFilter {
   IconData? get icon => switch (this) {
-        _Filter.all => null,
-        _Filter.admin => RoomRole.admin.icon,
-        _Filter.member => RoomRole.member.icon,
-        _Filter.reader => RoomRole.reader.icon,
-        _Filter.rules => Icons.rule,
-      };
-
-  bool matches(MemberRow row) => switch (this) {
-        _Filter.all => true,
-        _Filter.admin => row.role == RoomRole.admin,
-        _Filter.member => row.role == RoomRole.member,
-        _Filter.reader => row.role == RoomRole.reader,
-        _Filter.rules => row.group == RowGroup.rules,
+        MemberFilter.all => null,
+        MemberFilter.admin => RoomRole.admin.icon,
+        MemberFilter.member => RoomRole.member.icon,
+        MemberFilter.reader => RoomRole.reader.icon,
+        MemberFilter.rules => Icons.rule,
       };
 }
 
@@ -72,7 +54,7 @@ class _MembersListState extends State<MembersList> {
 
   final _searchController = TextEditingController();
   String _search = '';
-  _Filter _filter = _Filter.all;
+  MemberFilter _filter = MemberFilter.all;
   bool _showAll = false;
 
   @override
@@ -87,16 +69,13 @@ class _MembersListState extends State<MembersList> {
     final policy = widget.policy;
     final rows = policy.rows;
     final searchable = rows.length >= _searchFrom;
-    final visible = rows
-        .where(_filter.matches)
-        .where(
-          (r) =>
-              _search.isEmpty ||
-              displayName(r.subject).toLowerCase().contains(_search),
-        )
-        .toList();
-    final truncated = !_showAll && visible.length > _pageSize;
-    final shown = truncated ? visible.take(_pageSize).toList() : visible;
+    final (matching: visible, :shown) = visibleRows(
+      rows,
+      filter: _filter,
+      search: _search,
+      limit: _showAll ? null : _pageSize,
+    );
+    final truncated = shown.length < visible.length;
     final hasDeny = rows.any((r) => r.hasDeny);
     final muted = mutedStyle(context, theme.textTheme.bodySmall);
 
@@ -209,7 +188,7 @@ class _MembersListState extends State<MembersList> {
             hintText: 'Search people and rules',
             leadingIcon: const Icon(Icons.search),
             onChanged: (v) => setState(() {
-              _search = v.trim().toLowerCase();
+              _search = v;
             }),
           ),
           const SizedBox(height: SoliplexSpacing.s2),
@@ -217,7 +196,7 @@ class _MembersListState extends State<MembersList> {
             spacing: SoliplexSpacing.s2,
             runSpacing: SoliplexSpacing.s1,
             children: [
-              for (final filter in _Filter.values)
+              for (final filter in MemberFilter.values)
                 SoliplexChip.filter(
                   label: Text(
                     '${filter.label} ${rows.where(filter.matches).length}',
@@ -263,7 +242,7 @@ class _MembersListState extends State<MembersList> {
                     _searchController.clear();
                     setState(() {
                       _search = '';
-                      _filter = _Filter.all;
+                      _filter = MemberFilter.all;
                     });
                   },
                   child: const Text('Clear search and filters'),
