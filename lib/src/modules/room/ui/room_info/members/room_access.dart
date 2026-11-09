@@ -251,6 +251,12 @@ final class SaveEdit extends EditPlan {
   final RoomPolicy next;
 }
 
+/// Save nothing: the edit would leave the policy as it is, as when everyone
+/// being added has been listed since.
+final class NoChange extends EditPlan {
+  const NoChange();
+}
+
 /// Save nothing: [subject]'s entries are no longer what the user decided on.
 final class RowChanged extends EditPlan {
   const RowChanged(this.subject);
@@ -264,21 +270,29 @@ final class RowChanged extends EditPlan {
 /// exactly those the user saw. Another administrator may have removed the
 /// subject, added a deny, or changed the role since, and the user's decision
 /// was not made on that.
-EditPlan planEdit(RoomPolicy fresh, MemberEdit edit) => switch (edit) {
-      AddPeople(:final people, :final role) =>
-        SaveEdit(fresh.add(people.where((s) => !fresh.lists(s)), role)),
-      SetRole(:final row, :final role) => _asSeen(fresh, row)
-          ? SaveEdit(fresh.setRole(row.subject, role))
-          : RowChanged(row.subject),
-      RemoveMember(:final row) => _asSeen(fresh, row)
-          ? SaveEdit(fresh.remove(row.subject))
-          : RowChanged(row.subject),
-    };
+EditPlan planEdit(RoomPolicy fresh, MemberEdit edit) {
+  final plan = switch (edit) {
+    AddPeople(:final people, :final role) =>
+      SaveEdit(fresh.add(people.where((s) => !fresh.lists(s)), role)),
+    SetRole(:final row, :final role) => _asSeen(fresh, row)
+        ? SaveEdit(fresh.setRole(row.subject, role))
+        : RowChanged(row.subject),
+    RemoveMember(:final row) => _asSeen(fresh, row)
+        ? SaveEdit(fresh.remove(row.subject))
+        : RowChanged(row.subject),
+  };
+  return plan is SaveEdit && _sameEntries(plan.next.entries, fresh.entries)
+      ? const NoChange()
+      : plan;
+}
 
 bool _asSeen(RoomPolicy fresh, MemberRow seen) {
   final now = fresh.rows.where((r) => r.subject == seen.subject).firstOrNull;
   if (now == null || !now.editable) return false;
-  final (a, b) = (now.entries, seen.entries);
+  return _sameEntries(now.entries, seen.entries);
+}
+
+bool _sameEntries(List<AccessEntry> a, List<AccessEntry> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;

@@ -162,7 +162,10 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
   ///
   /// The edit is planned against that read, so a row changed in the meantime
   /// is shown as it now is rather than overwritten.
-  Future<void> _write(MemberEdit edit, String done) async {
+  Future<void> _write(
+    MemberEdit edit,
+    String Function(RoomPolicy fresh) done,
+  ) async {
     setState(() => _saving = true);
     final messenger = ScaffoldMessenger.of(context);
     void say(String text) =>
@@ -181,10 +184,13 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
             '${displayName(subject)} changed since you opened this. Check it '
             'and try again.',
           );
+        case NoChange():
+          if (mounted) setState(() => _load = _Loaded(fresh));
+          say('Nothing to change: the list already says so.');
         case SaveEdit(:final next):
           await widget.api.setRoomPolicy(next, cancelToken: _cancelToken);
           if (mounted) setState(() => _load = _Loaded(next));
-          say(done);
+          say(done(fresh));
       }
     } on CancelledException {
       return;
@@ -222,7 +228,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
         )) {
       return;
     }
-    await _write(SetRole(row, role), '$name is now ${role.label}.');
+    await _write(SetRole(row, role), (_) => '$name is now ${role.label}.');
   }
 
   Future<void> _remove(MemberRow row, RoomPolicy policy) async {
@@ -243,7 +249,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       danger: true,
     );
     if (!confirmed) return;
-    await _write(RemoveMember(row), 'Removed $name.');
+    await _write(RemoveMember(row), (_) => 'Removed $name.');
   }
 
   Future<bool> _confirm({
@@ -306,9 +312,16 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     final (:people, :role) = request;
     await _write(
       AddPeople(people, role),
-      people.length == 1
-          ? 'Added ${people.single.value} as ${role.label}.'
-          : 'Added ${people.length} people as ${role.label}.',
+      // Counts only those not listed since the dialog opened.
+      (fresh) {
+        final added = [
+          for (final s in people)
+            if (!fresh.lists(s)) s
+        ];
+        return added.length == 1
+            ? 'Added ${added.single.value} as ${role.label}.'
+            : 'Added ${added.length} people as ${role.label}.';
+      },
     );
   }
 
