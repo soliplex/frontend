@@ -419,13 +419,14 @@ class _MemberTile extends StatelessWidget {
       builder: (context, constraints) {
         // Too narrow to hold an address beside its controls, and an address
         // is the thing that must stay readable.
-        if (constraints.maxWidth < 420) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-            child: Row(
-              children: [
-                _Avatar(subject: subject, denied: row.hasDeny),
-                const SizedBox(width: SoliplexSpacing.s3),
+        final narrow = constraints.maxWidth < 420;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
+          child: Row(
+            children: [
+              _Avatar(subject: subject, denied: row.hasDeny),
+              const SizedBox(width: SoliplexSpacing.s3),
+              if (narrow)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,20 +438,12 @@ class _MemberTile extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
+                )
+              else ...[
+                Expanded(child: detail(withYou: true)),
+                const SizedBox(width: SoliplexSpacing.s2),
+                actions(aligned: true),
               ],
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-          child: Row(
-            children: [
-              _Avatar(subject: subject, denied: row.hasDeny),
-              const SizedBox(width: SoliplexSpacing.s3),
-              Expanded(child: detail(withYou: true)),
-              const SizedBox(width: SoliplexSpacing.s2),
-              actions(aligned: true),
             ],
           ),
         );
