@@ -5,6 +5,7 @@ import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
+import 'package:soliplex_client/src/domain/room_policy.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
@@ -884,3 +885,109 @@ QuizAnswerResult quizAnswerResultFromJson(Map<String, dynamic> json) {
     _ => throw FormatException('Invalid correct value: $correct'),
   };
 }
+
+// ============================================================
+// Room policy mappers
+// ============================================================
+
+/// Creates a [RoomPolicy] from the body of `GET /v1/rooms/{room_id}/authz`.
+///
+/// Strict, because a policy is written back whole: an entry this client could
+/// not read would be dropped by the next save. So an unknown effect or
+/// permission, or an entry without exactly one subject, throws a
+/// [FormatException] naming the field, never its value. An absent
+/// `default_allow_deny`, `allow_deny` or `permission` takes the server's own
+/// default (`deny`, `deny`, `read`).
+RoomPolicy roomPolicyFromJson(Map<String, dynamic> json) {
+  final entries = json['acl_entries'] ?? const <Object?>[];
+  if (entries is! List) {
+    throw const FormatException('room policy acl_entries is not a list');
+  }
+  return RoomPolicy(
+    roomId: _requireString(json, 'room_id', 'room policy'),
+    defaultEffect: _accessEffect(json['default_allow_deny'], 'room policy'),
+    entries: [
+      for (final (index, entry) in entries.indexed)
+        if (entry is Map<String, dynamic>)
+          _accessEntryFromJson(entry, 'room policy entry $index')
+        else
+          throw FormatException('room policy entry $index is not an object'),
+    ],
+  );
+}
+
+/// The body `POST /v1/rooms/{room_id}/authz` takes, which replaces the room's
+/// whole policy. Each entry names only its own subject, as the server requires.
+Map<String, dynamic> roomPolicyToJson(RoomPolicy policy) => {
+      'room_id': policy.roomId,
+      'default_allow_deny': policy.defaultEffect.name,
+      'acl_entries': [
+        for (final entry in policy.entries)
+          {
+            'allow_deny': entry.effect.name,
+            'permission': entry.permission.name,
+            ..._accessSubjectToJson(entry.subject),
+          },
+      ],
+    };
+
+AccessEntry _accessEntryFromJson(Map<String, dynamic> json, String context) {
+  final permission = json['permission'] ?? 'read';
+  final known = AccessPermission.values.where((p) => p.name == permission);
+  if (known.isEmpty) {
+    throw FormatException('$context has an unknown permission');
+  }
+  return AccessEntry(
+    _accessSubjectFromJson(json, context),
+    known.single,
+    effect: _accessEffect(json['allow_deny'], context),
+  );
+}
+
+AccessEffect _accessEffect(Object? value, String context) => switch (value) {
+      null || 'deny' => AccessEffect.deny,
+      'allow' => AccessEffect.allow,
+      _ => throw FormatException('$context has an unknown allow/deny'),
+    };
+
+AccessSubject _accessSubjectFromJson(
+  Map<String, dynamic> json,
+  String context,
+) {
+  String? text(String field) {
+    final value = json[field];
+    if (value == null) return null;
+    if (value is! String) {
+      throw FormatException('$context field "$field" is not a string');
+    }
+    return value;
+  }
+
+  final username = text('preferred_username');
+  final email = text('email');
+  final jsonPath = text('json_path');
+  final subjects = [
+    if (json['everyone'] == true) const AccessSubject.everyone(),
+    if (json['authenticated'] == true) const AccessSubject.authenticated(),
+    if (username != null) AccessSubject.preferredUsername(username),
+    if (email != null) AccessSubject.email(email),
+    if (jsonPath != null) AccessSubject.jsonPath(jsonPath),
+  ];
+  if (subjects.length != 1) {
+    throw FormatException(
+      '$context names ${subjects.length} subjects, not exactly one',
+    );
+  }
+  return subjects.single;
+}
+
+Map<String, Object> _accessSubjectToJson(AccessSubject subject) =>
+    switch (subject.kind) {
+      AccessSubjectKind.everyone => {'everyone': true},
+      AccessSubjectKind.authenticated => {'authenticated': true},
+      AccessSubjectKind.preferredUsername => {
+          'preferred_username': subject.value!,
+        },
+      AccessSubjectKind.email => {'email': subject.value!},
+      AccessSubjectKind.jsonPath => {'json_path': subject.value!},
+    };

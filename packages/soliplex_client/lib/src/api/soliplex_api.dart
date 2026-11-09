@@ -11,6 +11,7 @@ import 'package:soliplex_client/src/domain/file_upload.dart';
 import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
+import 'package:soliplex_client/src/domain/room_policy.dart';
 import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
@@ -1205,6 +1206,64 @@ class SoliplexApi {
       );
     }
     return isAdmin;
+  }
+
+  /// The room's access policy, or `null` when it has none. A room without a
+  /// policy can be read by anyone, signed in or not.
+  ///
+  /// Only server administrators may ask. Each call writes an audit record
+  /// server-side.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] is empty
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the user is not a server administrator
+  ///   (403)
+  /// - [NotFoundException] if the server has no such room or endpoint (404)
+  /// - [ApiException] for other server errors, including the 500 a stored
+  ///   rule that no longer compiles causes
+  /// - [MalformedResponseException] if the policy holds anything this client
+  ///   cannot read, which [setRoomPolicy] would otherwise drop
+  /// - [NetworkException] if connection fails
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<RoomPolicy?> getRoomPolicy(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    return _transport.request<RoomPolicy?>(
+      'GET',
+      _urlBuilder.build(pathSegments: ['rooms', roomId, 'authz']),
+      cancelToken: cancelToken,
+      fromJson: roomPolicyFromJson,
+    );
+  }
+
+  /// Replaces the room's whole access policy with [policy].
+  ///
+  /// The server keeps no version, so this overwrites whatever another
+  /// administrator saved since [policy] was read.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if the policy's room ID is empty
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the user is not a server administrator
+  ///   (403)
+  /// - [ApiException] for other server errors, including the 422 an entry the
+  ///   server refuses causes
+  /// - [NetworkException] if connection fails
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<void> setRoomPolicy(
+    RoomPolicy policy, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(policy.roomId, 'roomId');
+    await _transport.request<void>(
+      'POST',
+      _urlBuilder.build(pathSegments: ['rooms', policy.roomId, 'authz']),
+      body: roomPolicyToJson(policy),
+      cancelToken: cancelToken,
+    );
   }
 
   // ============================================================
