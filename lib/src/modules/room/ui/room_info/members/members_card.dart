@@ -135,14 +135,17 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     } on CancelledException {
       rethrow;
     } on SoliplexException catch (e, stackTrace) {
+      // `error: e` is safe here, as in AdminStatus: an ApiException carries
+      // the status and the server's own reason, a NetworkException the host,
+      // and the transport builds a MalformedResponseException's message
+      // without the body. None holds a credential or a member's address.
       final failure = failureOf(e);
-      // describeFailure, not error: a malformed body's source window would
-      // carry members' addresses into the exportable log.
       _logger.warning(
         'Room policy read failed',
+        error: e,
         attributes: {
           'roomId': widget.roomId,
-          'failure': describeFailure(e),
+          if (e is ApiException) 'statusCode': e.statusCode,
           'kind': failure.name,
         },
         stackTrace: stackTrace,
@@ -198,9 +201,14 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       if (mounted) setState(() => _load = _Failed(e.failure));
       say("Couldn't read this room's access, so nothing was changed.");
     } on SoliplexException catch (e, stackTrace) {
+      // Safe to forward whole, as for the read.
       _logger.warning(
         'Room policy save failed',
-        attributes: {'roomId': widget.roomId, 'failure': describeFailure(e)},
+        error: e,
+        attributes: {
+          'roomId': widget.roomId,
+          if (e is ApiException) 'statusCode': e.statusCode,
+        },
         stackTrace: stackTrace,
       );
       say(
