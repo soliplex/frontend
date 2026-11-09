@@ -15,6 +15,7 @@ export 'quiz.dart';
 export 'rag_document.dart';
 export 'room.dart';
 export 'room_agent.dart';
+export 'room_policy.dart';
 export 'room_skill.dart';
 export 'room_stats.dart';
 export 'room_tool.dart';
