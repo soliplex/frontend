@@ -95,6 +95,34 @@ void main() {
       }
     });
 
+    test('refuses an unknown key, which a save would drop', () {
+      expect(
+        () => roomPolicyFromJson({'room_id': 'ops', 'version': 3}),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            'room policy has an unknown field "version"',
+          ),
+        ),
+      );
+      expect(
+        () => roomPolicyFromJson({
+          'room_id': 'ops',
+          'acl_entries': [
+            {'email': 'a@b.example', 'note': 'who knows'},
+          ],
+        }),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('"note"'), isNot(contains('who knows'))),
+          ),
+        ),
+      );
+    });
+
     test('names the field, never the value', () {
       expect(
         () => roomPolicyFromJson({

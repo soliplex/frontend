@@ -893,12 +893,13 @@ QuizAnswerResult quizAnswerResultFromJson(Map<String, dynamic> json) {
 /// Creates a [RoomPolicy] from the body of `GET /v1/rooms/{room_id}/authz`.
 ///
 /// Strict, because a policy is written back whole: an entry this client could
-/// not read would be dropped by the next save. So an unknown effect or
-/// permission, or an entry without exactly one subject, throws a
+/// not read would be dropped by the next save. So an unknown key, an unknown
+/// effect or permission, or an entry without exactly one subject, throws a
 /// [FormatException] naming the field, never its value. An absent
 /// `default_allow_deny`, `allow_deny` or `permission` takes the server's own
 /// default (`deny`, `deny`, `read`).
 RoomPolicy roomPolicyFromJson(Map<String, dynamic> json) {
+  _refuseUnknownKeys(json, _roomPolicyKeys, 'room policy');
   final entries = json['acl_entries'] ?? const <Object?>[];
   if (entries is! List) {
     throw const FormatException('room policy acl_entries is not a list');
@@ -932,6 +933,7 @@ Map<String, dynamic> roomPolicyToJson(RoomPolicy policy) => {
     };
 
 AccessEntry _accessEntryFromJson(Map<String, dynamic> json, String context) {
+  _refuseUnknownKeys(json, _accessEntryKeys, context);
   final permission = json['permission'] ?? 'read';
   final known = AccessPermission.values.where((p) => p.name == permission);
   if (known.isEmpty) {
@@ -942,6 +944,33 @@ AccessEntry _accessEntryFromJson(Map<String, dynamic> json, String context) {
     known.single,
     effect: _accessEffect(json['allow_deny'], context),
   );
+}
+
+/// The keys `RoomPolicy` and `ACLEntry` have on the backend.
+const _roomPolicyKeys = {'room_id', 'default_allow_deny', 'acl_entries'};
+const _accessEntryKeys = {
+  'allow_deny',
+  'permission',
+  'everyone',
+  'authenticated',
+  'preferred_username',
+  'email',
+  'json_path',
+};
+
+/// A key this client does not know would be dropped by the next save, so it
+/// makes the policy unreadable rather than silently lost. The key is a field
+/// name the server chose, never a value.
+void _refuseUnknownKeys(
+  Map<String, dynamic> json,
+  Set<String> known,
+  String context,
+) {
+  for (final key in json.keys) {
+    if (!known.contains(key)) {
+      throw FormatException('$context has an unknown field "$key"');
+    }
+  }
 }
 
 AccessEffect _accessEffect(Object? value, String context) => switch (value) {
