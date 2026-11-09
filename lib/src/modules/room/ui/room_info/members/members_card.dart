@@ -121,6 +121,9 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     try {
       final policy = await _read();
       if (mounted) setState(() => _load = _Loaded(policy));
+    } on CancelledException {
+      // Only dispose cancels, so there is nothing left to show it on.
+      return;
     } on _ReadFailed catch (e) {
       if (mounted) setState(() => _load = _Failed(e.failure));
     }

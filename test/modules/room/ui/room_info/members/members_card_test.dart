@@ -507,6 +507,8 @@ class _GatedApi extends _PolicyApi {
     CancelToken? cancelToken,
   }) async {
     await gate.future;
+    // As the transport does: the token is checked once the answer arrives.
+    cancelToken?.throwIfCancelled();
     return super.getRoomPolicy(roomId, cancelToken: cancelToken);
   }
 }
