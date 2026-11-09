@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.116.1+104] - 2026-11-09
 
 ### Added
 
@@ -20,6 +20,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   that makes it private. When the server cannot read a room's access, as a
   login rule naming a check it no longer has causes, the card gives the server
   commands that list and remove the entry, with the room filled in.
+- **Library consumers:** `SoliplexApi.getRoomPolicy` reads a room's access
+  policy (`null` when it has none) and `SoliplexApi.setRoomPolicy` replaces
+  it whole; both are for server administrators. `RoomPolicy`, `AccessEntry`,
+  `AccessSubject`, `AccessSubjectKind`, `AccessPermission` and `AccessEffect`
+  model it. A policy holding a key, effect or permission the client does not
+  know, or an entry without exactly one subject, throws
+  `MalformedResponseException` rather than being dropped by the next save.
 
 ## [0.116.0+103] - 2026-11-06
 
