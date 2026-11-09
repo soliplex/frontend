@@ -306,8 +306,16 @@ enum MembersFailure {
   /// answers 500 with no detail.
   serverError,
 
-  /// The policy holds something this app cannot read, so a save would drop it.
+  /// The answer could not be read: the policy holds something this app does
+  /// not know, which a save would drop, or something other than the server
+  /// answered, such as a sign-in portal's page.
   unreadable,
+
+  /// The session has expired.
+  session,
+
+  /// The server could not be reached.
+  network,
 
   /// The server refused, though it said the user administers it.
   forbidden,
@@ -315,7 +323,7 @@ enum MembersFailure {
   /// The server has no such endpoint or room.
   missing,
 
-  /// Anything else: the network, the session.
+  /// Anything else.
   other,
 }
 
@@ -325,6 +333,8 @@ MembersFailure failureOf(Object error) => switch (error) {
       MalformedResponseException() => MembersFailure.unreadable,
       PermissionDeniedException() => MembersFailure.forbidden,
       NotFoundException() => MembersFailure.missing,
+      AuthException() => MembersFailure.session,
+      NetworkException() => MembersFailure.network,
       _ => MembersFailure.other,
     };
 

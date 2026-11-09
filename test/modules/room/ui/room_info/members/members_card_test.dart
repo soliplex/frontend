@@ -307,7 +307,7 @@ void main() {
   for (final (error, title) in [
     (
       const MalformedResponseException(message: 'bad'),
-      "This room's access holds entries this app can't read",
+      "The server's answer about this room's access couldn't be read",
     ),
     (
       const PermissionDeniedException(message: 'no'),
@@ -319,7 +319,11 @@ void main() {
     ),
     (
       const NetworkException(message: 'down'),
-      "Couldn't read this room's access",
+      "Couldn't reach the server",
+    ),
+    (
+      const AuthException(message: 'expired', statusCode: 401),
+      'Your session has expired',
     ),
   ]) {
     testWidgets('explains ${error.runtimeType}', (tester) async {
