@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- Room info has a Members card for server administrators. It lists who can
+  open the room: people by email or username, login rules, and entries set
+  elsewhere, which it shows as stored and keeps on every save. Administrators
+  add people as Reader or Member, change a role, and remove people and rules.
+  Their own row is locked. The card reads nothing until opened, and reads the
+  room again just before each save, which replaces the room's whole policy.
+- A room without a policy shows as public, read-only, with the server command
+  that makes it private. When the server cannot read a room's access, as a
+  login rule naming a check it no longer has causes, the card gives the server
+  commands that list and remove the entry, with the room filled in.
+
 ## [0.116.0+103] - 2026-11-06
 
 ### Added

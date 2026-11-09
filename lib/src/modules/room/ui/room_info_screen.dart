@@ -21,6 +21,7 @@ import 'room_info/client_tools_card.dart';
 import 'room_info/documents_card.dart';
 import 'room_info/expandable_list_card.dart';
 import 'room_info/features_card.dart';
+import 'room_info/members/members_card.dart';
 import 'room_info/quizzes_card.dart';
 import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
@@ -219,6 +220,12 @@ class _RoomInfoBody extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
+            MembersCard(
+              api: api,
+              roomId: roomId,
+              isAdmin: serverEntry.adminStatus.read,
+              viewerClaims: () => serverEntry.auth.currentUserClaims.value,
+            ),
             _AgentCard(
               agent: room.agent,
               unreadable: room.agentUnreadable,
