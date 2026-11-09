@@ -88,9 +88,7 @@ class _MembersListState extends State<MembersList> {
     final truncated = !_showAll && visible.length > _pageSize;
     final shown = truncated ? visible.take(_pageSize).toList() : visible;
     final hasDeny = rows.any((r) => r.hasDeny);
-    final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final muted = mutedStyle(context, theme.textTheme.bodySmall);
 
     Widget section(RowGroup group, String title, String? help) {
       final inGroup = shown.where((r) => r.group == group).toList();
@@ -143,9 +141,7 @@ class _MembersListState extends State<MembersList> {
           Text(
             'Nobody is listed, so nobody can open this room.',
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: mutedStyle(context, theme.textTheme.bodyMedium),
           ),
           const SizedBox(height: SoliplexSpacing.s2),
           Align(child: _AddButton(onPressed: widget.onAdd)),
@@ -250,9 +246,7 @@ class _MembersListState extends State<MembersList> {
               children: [
                 Text(
                   'Nobody matches this search.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                  style: mutedStyle(context, theme.textTheme.bodyMedium),
                 ),
                 SoliplexButton.text(
                   onPressed: () {
@@ -310,9 +304,7 @@ class _Posture extends StatelessWidget {
         if (!open)
           Text(
             'Only the people and rules below can open this room.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: mutedStyle(context, theme.textTheme.bodySmall),
           ),
       ],
     );
@@ -382,9 +374,7 @@ class _MemberTile extends StatelessWidget {
                 subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                style: mutedStyle(context, theme.textTheme.bodySmall),
               ),
           ],
         );
@@ -555,9 +545,7 @@ class _RoleMenuState extends State<_RoleMenu> {
                       const SizedBox(height: SoliplexSpacing.s1),
                       Text(
                         role.description,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                        style: mutedStyle(context, theme.textTheme.bodySmall),
                       ),
                     ],
                   ),

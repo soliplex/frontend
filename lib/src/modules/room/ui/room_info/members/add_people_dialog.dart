@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'members_widgets.dart';
 import 'role_visuals.dart';
 import 'room_access.dart';
 
@@ -181,9 +182,7 @@ class _AddPeopleDialogState extends State<AddPeopleDialog> {
                   skipped > 0
                       ? '${addable.length} to add, $skipped skipped.'
                       : '',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                  style: mutedStyle(context, theme.textTheme.bodySmall),
                 ),
               ),
               SoliplexButton.text(
