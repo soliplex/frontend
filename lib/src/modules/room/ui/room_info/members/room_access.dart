@@ -211,6 +211,34 @@ extension RoomPolicyEdits on RoomPolicy {
       ]);
 }
 
+/// Why the policy could not be shown.
+enum MembersFailure {
+  /// Usually a stored rule naming a check the server no longer has: the API
+  /// answers 500 with no detail.
+  serverError,
+
+  /// The policy holds something this app cannot read, so a save would drop it.
+  unreadable,
+
+  /// The server refused, though it said the user administers it.
+  forbidden,
+
+  /// The server has no such endpoint or room.
+  missing,
+
+  /// Anything else: the network, the session.
+  other,
+}
+
+/// Which [MembersFailure] a failed read of the policy is.
+MembersFailure failureOf(Object error) => switch (error) {
+      ApiException(statusCode: 500) => MembersFailure.serverError,
+      MalformedResponseException() => MembersFailure.unreadable,
+      PermissionDeniedException() => MembersFailure.forbidden,
+      NotFoundException() => MembersFailure.missing,
+      _ => MembersFailure.other,
+    };
+
 /// The installation argument every `room-authz` command takes. It is a path
 /// on the server, so the app never knows it.
 const installationPlaceholder = '<installation>';

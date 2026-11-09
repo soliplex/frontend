@@ -62,25 +62,6 @@ class _MembersCardState extends State<MembersCard> {
   }
 }
 
-/// Why the policy could not be shown.
-enum _Failure {
-  /// Usually a stored rule naming a check the server no longer has: the API
-  /// answers 500 with no detail.
-  serverError,
-
-  /// The policy holds something this app cannot read, so a save would drop it.
-  unreadable,
-
-  /// The server refused, though it said the user administers it.
-  forbidden,
-
-  /// The server has no such endpoint or room.
-  missing,
-
-  /// Anything else: the network, the session.
-  other,
-}
-
 sealed class _Load {
   const _Load();
 }
@@ -96,7 +77,7 @@ final class _Loading extends _Load {
 final class _Failed extends _Load {
   const _Failed(this.failure);
 
-  final _Failure failure;
+  final MembersFailure failure;
 }
 
 final class _Loaded extends _Load {
@@ -154,13 +135,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     } on CancelledException {
       rethrow;
     } on SoliplexException catch (e, stackTrace) {
-      final failure = switch (e) {
-        ApiException(statusCode: 500) => _Failure.serverError,
-        MalformedResponseException() => _Failure.unreadable,
-        PermissionDeniedException() => _Failure.forbidden,
-        NotFoundException() => _Failure.missing,
-        _ => _Failure.other,
-      };
+      final failure = failureOf(e);
       // describeFailure, not error: a malformed body's source window would
       // carry members' addresses into the exportable log.
       _logger.warning(
@@ -427,7 +402,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
 final class _ReadFailed implements Exception {
   const _ReadFailed(this.failure);
 
-  final _Failure failure;
+  final MembersFailure failure;
 }
 
 class _FailedBody extends StatelessWidget {
@@ -437,14 +412,14 @@ class _FailedBody extends StatelessWidget {
     required this.onRetry,
   });
 
-  final _Failure failure;
+  final MembersFailure failure;
   final String roomId;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final (title, detail) = switch (failure) {
-      _Failure.serverError => (
+      MembersFailure.serverError => (
           "The server couldn't read this room's access",
           'This usually means a login rule names a check the server no '
               "longer has. It can't be repaired here. The first command "
@@ -452,31 +427,31 @@ class _FailedBody extends StatelessWidget {
               'into the second. Use --deny in place of --allow if the entry '
               'is a deny.',
         ),
-      _Failure.unreadable => (
+      MembersFailure.unreadable => (
           "This room's access holds entries this app can't read",
           'Editing it here could drop them, so it is left alone. This '
               'command shows them:',
         ),
-      _Failure.forbidden => (
+      MembersFailure.forbidden => (
           "The server didn't let you read this room's access",
           'Only server administrators can. Try again after signing in '
               'again.',
         ),
-      _Failure.missing => (
+      MembersFailure.missing => (
           "This server can't show room access",
           'It may be running a version without it.',
         ),
-      _Failure.other => (
+      MembersFailure.other => (
           "Couldn't read this room's access",
           'Check your connection and try again.',
         ),
     };
     final commands = switch (failure) {
-      _Failure.serverError => [
+      MembersFailure.serverError => [
           showPolicyCommand(roomId),
           deleteStaleRuleCommand(roomId),
         ],
-      _Failure.unreadable => [showPolicyCommand(roomId)],
+      MembersFailure.unreadable => [showPolicyCommand(roomId)],
       _ => const <String>[],
     };
     return Column(

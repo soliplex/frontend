@@ -220,4 +220,31 @@ void main() {
       expect(visibleRows(rows).shown, hasLength(4));
     });
   });
+
+  test('failureOf names what a failed read means', () {
+    expect(
+      failureOf(const ApiException(message: 'x', statusCode: 500)),
+      MembersFailure.serverError,
+    );
+    expect(
+      failureOf(const ApiException(message: 'x', statusCode: 502)),
+      MembersFailure.other,
+    );
+    expect(
+      failureOf(const MalformedResponseException(message: 'x')),
+      MembersFailure.unreadable,
+    );
+    expect(
+      failureOf(const PermissionDeniedException(message: 'x')),
+      MembersFailure.forbidden,
+    );
+    expect(
+      failureOf(const NotFoundException(message: 'x')),
+      MembersFailure.missing,
+    );
+    expect(
+      failureOf(const NetworkException(message: 'x')),
+      MembersFailure.other,
+    );
+  });
 }
