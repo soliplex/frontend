@@ -176,6 +176,9 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     MemberEdit edit,
     String Function(RoomPolicy fresh) done,
   ) async {
+    // Every caller arrives here from a dialog, which the card may not have
+    // outlived.
+    if (!mounted) return;
     setState(() => _saving = true);
     final messenger = ScaffoldMessenger.of(context);
     void say(String text) =>
