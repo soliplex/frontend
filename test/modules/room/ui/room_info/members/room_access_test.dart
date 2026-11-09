@@ -163,4 +163,61 @@ void main() {
       );
     });
   });
+
+  group('visibleRows', () {
+    final rows = _policy([
+      AccessEntry(_email('Ann'), _read),
+      AccessEntry(_email('bob'), _read),
+      AccessEntry(_email('bob'), _write),
+      const AccessEntry(_rule, _read),
+      AccessEntry(_email('cy'), _read),
+      AccessEntry(_email('cy'), _write),
+      AccessEntry(_email('cy'), _admin),
+    ]).rows;
+    List<String> names(List<MemberRow> rows) =>
+        [for (final r in rows) displayName(r.subject)];
+
+    test('filters by role and by rule', () {
+      expect(
+        names(visibleRows(rows, filter: MemberFilter.reader).matching),
+        ['Ann@example.com', 'is_staff'],
+      );
+      expect(
+        names(visibleRows(rows, filter: MemberFilter.member).matching),
+        ['bob@example.com'],
+      );
+      expect(
+        names(visibleRows(rows, filter: MemberFilter.admin).matching),
+        ['cy@example.com'],
+      );
+      expect(
+        names(visibleRows(rows, filter: MemberFilter.rules).matching),
+        ['is_staff'],
+      );
+      expect(visibleRows(rows).matching, hasLength(4));
+    });
+
+    test('searches names, ignoring case and outer spaces', () {
+      expect(
+        names(visibleRows(rows, search: '  ANN ').matching),
+        ['Ann@example.com'],
+      );
+      expect(
+        names(visibleRows(rows, search: 'staff').matching),
+        ['is_staff'],
+      );
+      expect(
+        visibleRows(rows, filter: MemberFilter.member, search: 'ann').matching,
+        isEmpty,
+      );
+    });
+
+    test('shows the first page of what matches', () {
+      final page = visibleRows(rows, limit: 2);
+      expect(page.matching, hasLength(4));
+      expect(names(page.shown), ['Ann@example.com', 'bob@example.com']);
+      expect(visibleRows(rows, limit: 4).shown, hasLength(4));
+      expect(visibleRows(rows).shown, hasLength(4));
+    });
+  });
 }
