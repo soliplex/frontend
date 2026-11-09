@@ -254,8 +254,8 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
                   'longer open it.'
               : 'They can no longer open this room, unless a login rule still '
                   'lets them in.',
-      action: row.isRule ? 'Remove rule' : 'Remove',
-      icon: row.isRule ? Icons.playlist_remove : Icons.person_remove_outlined,
+      action: row.removeLabel,
+      icon: row.removeIcon,
       danger: true,
     );
     if (!confirmed) return;
