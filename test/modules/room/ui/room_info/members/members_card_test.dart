@@ -64,7 +64,11 @@ RoomPolicy _team({AccessEffect defaultEffect = AccessEffect.deny}) =>
       ],
     );
 
-Widget _card(_PolicyApi api, {Future<bool?> Function()? isAdmin}) =>
+Widget _card(
+  _PolicyApi api, {
+  Future<bool?> Function()? isAdmin,
+  Map<String, dynamic>? claims = const {'email': 'me@example.com'},
+}) =>
     MaterialApp(
       theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
       home: Scaffold(
@@ -73,7 +77,7 @@ Widget _card(_PolicyApi api, {Future<bool?> Function()? isAdmin}) =>
             api: api,
             roomId: 'ops',
             isAdmin: isAdmin ?? () async => true,
-            viewerClaims: () => {'email': 'me@example.com'},
+            viewerClaims: () => claims,
           ),
         ),
       ),
@@ -83,12 +87,13 @@ Future<void> _show(
   WidgetTester tester,
   _PolicyApi api, {
   Future<bool?> Function()? isAdmin,
+  Map<String, dynamic>? claims = const {'email': 'me@example.com'},
   Size size = const Size(900, 1400),
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(_card(api, isAdmin: isAdmin));
+  await tester.pumpWidget(_card(api, isAdmin: isAdmin, claims: claims));
   await tester.pumpAndSettle();
 }
 
@@ -473,6 +478,23 @@ void main() {
 
     expect(find.text("Couldn't save. Nothing was changed."), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
+  testWidgets("says when it can't tell which entry is yours", (tester) async {
+    final api = _PolicyApi(_team());
+    await _show(tester, api, claims: null);
+    await _open(tester);
+
+    expect(find.textContaining("can't tell which entry is yours"), findsOne);
+    expect(find.text('You'), findsNothing);
+  });
+
+  testWidgets('says nothing about that when it can', (tester) async {
+    await _show(tester, _PolicyApi(_team()));
+    await _open(tester);
+
+    expect(
+        find.textContaining("can't tell which entry is yours"), findsNothing);
   });
 
   testWidgets('searches a long list', (tester) async {

@@ -164,6 +164,16 @@ class _MembersListState extends State<MembersList> {
             );
           },
         ),
+        // Without a claim to match, no row can be locked as the viewer's, and
+        // access may in any case come through a rule the app can't evaluate.
+        if (!canIdentifyViewer(widget.viewerClaims)) ...[
+          const SizedBox(height: SoliplexSpacing.s3),
+          const AccessNotice(
+            tone: NoticeTone.info,
+            text: "This card can't tell which entry is yours, so it won't stop "
+                'you removing your own access.',
+          ),
+        ],
         if (policy.defaultEffect == AccessEffect.allow) ...[
           const SizedBox(height: SoliplexSpacing.s3),
           const AccessNotice(

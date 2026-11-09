@@ -333,4 +333,11 @@ void main() {
       ]);
     });
   });
+
+  test('canIdentifyViewer needs an email or a username claim', () {
+    expect(canIdentifyViewer({'email': 'a@example.com'}), isTrue);
+    expect(canIdentifyViewer({'preferred_username': 'u1'}), isTrue);
+    expect(canIdentifyViewer({'sub': 'x', 'email': 42}), isFalse);
+    expect(canIdentifyViewer(null), isFalse);
+  });
 }
