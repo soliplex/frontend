@@ -3,6 +3,7 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../room_info_widgets.dart';
 import 'add_people_dialog.dart';
 import 'members_list.dart';
 import 'members_widgets.dart';
@@ -355,13 +356,8 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        count == null ? 'MEMBERS' : 'MEMBERS ($count)',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
+                      child: SectionTitle(
+                          count == null ? 'MEMBERS' : 'MEMBERS ($count)'),
                     ),
                     Tooltip(
                       message: 'Only server administrators see this card',

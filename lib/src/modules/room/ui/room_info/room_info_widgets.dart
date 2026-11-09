@@ -20,19 +20,31 @@ class SectionCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-              ),
+              SectionTitle(title),
               const SizedBox(height: SoliplexSpacing.s2),
               ...children,
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A Room info card's title, for cards that build their own frame.
+class SectionTitle extends StatelessWidget {
+  const SectionTitle(this.title, {super.key});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
     );
   }
 }
