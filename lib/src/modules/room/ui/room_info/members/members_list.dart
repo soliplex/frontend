@@ -406,10 +406,8 @@ class _MemberTile extends StatelessWidget {
             ],
             if (row.editable && !isYou)
               IconButton(
-                icon: Icon(
-                  isRule ? Icons.playlist_remove : Icons.person_remove_outlined,
-                ),
-                tooltip: isRule ? 'Remove rule' : 'Remove',
+                icon: Icon(row.removeIcon),
+                tooltip: row.removeLabel,
                 onPressed: onRemove,
                 // Quiet at rest, because there is one on every row; the
                 // destructive colour arrives as the pointer does.

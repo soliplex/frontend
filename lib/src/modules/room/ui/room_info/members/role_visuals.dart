@@ -29,6 +29,14 @@ extension RoleVisuals on RoomRole {
       };
 }
 
+/// How removing a row is offered, on the row and in its confirmation.
+extension RemoveVisuals on MemberRow {
+  IconData get removeIcon =>
+      isRule ? Icons.playlist_remove : Icons.person_remove_outlined;
+
+  String get removeLabel => isRule ? 'Remove rule' : 'Remove';
+}
+
 class RoleBadge extends StatelessWidget {
   const RoleBadge(this.role, {super.key});
 
