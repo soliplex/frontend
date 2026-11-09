@@ -340,7 +340,7 @@ void main() {
     });
   }
 
-  testWidgets('says so when a save fails, and keeps the list', (
+  testWidgets('says so when a save fails, and shows the policy as last read', (
     tester,
   ) async {
     final api = _PolicyApi(_team())
@@ -348,6 +348,11 @@ void main() {
     await _show(tester, api);
     await _open(tester);
 
+    // Another administrator adds someone while the list is open.
+    api.policy = api.policy!.add(
+      [const AccessSubject.email('new@example.com')],
+      RoomRole.reader,
+    );
     await tester.tap(find.byTooltip('Remove rule'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(SoliplexButton, 'Remove rule'));
@@ -358,6 +363,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('is_staff'), findsOneWidget);
+    // Shown as read just before the save, not as first opened.
+    expect(find.text('new@example.com'), findsOneWidget);
   });
 
   testWidgets('stops when the room became public before a save', (
