@@ -211,6 +211,81 @@ extension RoomPolicyEdits on RoomPolicy {
       ]);
 }
 
+/// A change the card asks for, as decided on the list the user saw.
+sealed class MemberEdit {
+  const MemberEdit();
+}
+
+/// Gives [row]'s subject [role] in place of the role the user saw.
+final class SetRole extends MemberEdit {
+  const SetRole(this.row, this.role);
+
+  final MemberRow row;
+  final RoomRole role;
+}
+
+/// Removes [row]'s subject, as the user saw it.
+final class RemoveMember extends MemberEdit {
+  const RemoveMember(this.row);
+
+  final MemberRow row;
+}
+
+/// Adds [people] as [role], skipping anyone listed since.
+final class AddPeople extends MemberEdit {
+  const AddPeople(this.people, this.role);
+
+  final List<AccessSubject> people;
+  final RoomRole role;
+}
+
+/// What to do with a [MemberEdit] against the policy as it is now.
+sealed class EditPlan {
+  const EditPlan();
+}
+
+/// Save [next].
+final class SaveEdit extends EditPlan {
+  const SaveEdit(this.next);
+
+  final RoomPolicy next;
+}
+
+/// Save nothing: [subject]'s entries are no longer what the user decided on.
+final class RowChanged extends EditPlan {
+  const RowChanged(this.subject);
+
+  final AccessSubject subject;
+}
+
+/// Plans [edit] against [fresh], read just before saving.
+///
+/// A role change or a removal goes ahead only while the row's entries are
+/// exactly those the user saw. Another administrator may have removed the
+/// subject, added a deny, or changed the role since, and the user's decision
+/// was not made on that.
+EditPlan planEdit(RoomPolicy fresh, MemberEdit edit) => switch (edit) {
+      AddPeople(:final people, :final role) =>
+        SaveEdit(fresh.add(people.where((s) => !fresh.lists(s)), role)),
+      SetRole(:final row, :final role) => _asSeen(fresh, row)
+          ? SaveEdit(fresh.setRole(row.subject, role))
+          : RowChanged(row.subject),
+      RemoveMember(:final row) => _asSeen(fresh, row)
+          ? SaveEdit(fresh.remove(row.subject))
+          : RowChanged(row.subject),
+    };
+
+bool _asSeen(RoomPolicy fresh, MemberRow seen) {
+  final now = fresh.rows.where((r) => r.subject == seen.subject).firstOrNull;
+  if (now == null || !now.editable) return false;
+  final (a, b) = (now.entries, seen.entries);
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
 /// Why the policy could not be shown.
 enum MembersFailure {
   /// Usually a stored rule naming a check the server no longer has: the API

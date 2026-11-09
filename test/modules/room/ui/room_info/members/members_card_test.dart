@@ -372,6 +372,34 @@ void main() {
     );
   });
 
+  testWidgets('saves nothing when the row changed since it was shown', (
+    tester,
+  ) async {
+    final api = _PolicyApi(_team());
+    await _show(tester, api);
+    await _open(tester);
+
+    // Another administrator demotes jdoe while the list is open.
+    api.policy = api.policy!.withEntries([
+      for (final e in api.policy!.entries)
+        if (e != AccessEntry(_email('jdoe'), _write)) e,
+    ]);
+    await tester.tap(find.byTooltip('Remove').at(0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
+    await tester.pumpAndSettle();
+
+    expect(api.saved, isEmpty);
+    expect(
+      find.text(
+        'jdoe@example.com changed since you opened this. Check it and try '
+        'again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Reader'), findsWidgets);
+  });
+
   testWidgets('searches a long list', (tester) async {
     final api = _PolicyApi(
       RoomPolicy(

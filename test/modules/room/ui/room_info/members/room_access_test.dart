@@ -247,4 +247,78 @@ void main() {
       MembersFailure.other,
     );
   });
+
+  group('planEdit', () {
+    final seen = _policy([
+      AccessEntry(_email('a'), _read),
+      AccessEntry(_email('a'), _write),
+      AccessEntry(_email('b'), _read),
+    ]);
+    MemberRow rowOf(RoomPolicy policy, String name) =>
+        policy.rows.firstWhere((r) => r.subject == _email(name));
+
+    test('saves when the row is as the user saw it', () {
+      final plan = planEdit(seen, SetRole(rowOf(seen, 'b'), RoomRole.member));
+      expect(
+        (plan as SaveEdit).next.entries,
+        seen.setRole(_email('b'), RoomRole.member).entries,
+      );
+      expect(
+        planEdit(seen, RemoveMember(rowOf(seen, 'a'))),
+        isA<SaveEdit>(),
+      );
+    });
+
+    test('stops when the subject was removed since', () {
+      final fresh = seen.remove(_email('b'));
+      expect(
+        planEdit(fresh, SetRole(rowOf(seen, 'b'), RoomRole.member)),
+        isA<RowChanged>().having((p) => p.subject, 'subject', _email('b')),
+      );
+      expect(
+          planEdit(fresh, RemoveMember(rowOf(seen, 'b'))), isA<RowChanged>());
+    });
+
+    test('stops when a deny was added since, so it is never dropped', () {
+      final fresh = seen.withEntries([
+        ...seen.entries,
+        AccessEntry(_email('a'), _admin, effect: AccessEffect.deny),
+      ]);
+      expect(
+          planEdit(fresh, RemoveMember(rowOf(seen, 'a'))), isA<RowChanged>());
+      expect(
+        planEdit(fresh, SetRole(rowOf(seen, 'a'), RoomRole.reader)),
+        isA<RowChanged>(),
+      );
+    });
+
+    test('stops when the role changed since', () {
+      final fresh = seen.setRole(_email('a'), RoomRole.reader);
+      expect(
+        planEdit(fresh, SetRole(rowOf(seen, 'a'), RoomRole.admin)),
+        isA<RowChanged>(),
+      );
+    });
+
+    test('stops a promotion over a deny', () {
+      final fresh = seen.withEntries([
+        AccessEntry(_email('b'), _write, effect: AccessEffect.deny),
+        ...seen.entries,
+      ]);
+      expect(
+        planEdit(fresh, SetRole(rowOf(seen, 'b'), RoomRole.member)),
+        isA<RowChanged>(),
+      );
+    });
+
+    test('adds only people not listed since', () {
+      final plan = planEdit(
+        seen,
+        AddPeople([_email('a'), _email('n')], RoomRole.reader),
+      );
+      expect((plan as SaveEdit).next.entries.sublist(seen.entries.length), [
+        AccessEntry(_email('n'), _read),
+      ]);
+    });
+  });
 }
