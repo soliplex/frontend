@@ -6,36 +6,79 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../../../shared/copy_button.dart';
 
-/// A warning on a tinted surface, in the card's flow.
+/// How much a notice asks of the reader.
+enum NoticeTone {
+  /// Worth a second look.
+  warning,
+
+  /// Something failed.
+  error,
+}
+
+/// A message on a tinted surface, in the card's flow, with an optional title.
 class AccessNotice extends StatelessWidget {
-  const AccessNotice(
-      {required this.text, this.icon = Icons.warning_amber, super.key});
+  const AccessNotice({
+    required this.text,
+    this.title,
+    this.tone = NoticeTone.warning,
+    this.icon,
+    super.key,
+  });
 
   final String text;
-  final IconData icon;
+  final String? title;
+  final NoticeTone tone;
+
+  /// Defaults to the tone's own icon.
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final colors = SoliplexTheme.of(context).colors;
+    final style = Theme.of(context).textTheme;
+    // An error has a container surface of its own, which a failure uses
+    // rather than the danger colour.
+    final (background, foreground, defaultIcon) = switch (tone) {
+      NoticeTone.warning => (
+          colors.warningContainer,
+          colors.onWarningContainer,
+          Icons.warning_amber,
+        ),
+      NoticeTone.error => (
+          scheme.errorContainer,
+          scheme.onErrorContainer,
+          Icons.error_outline,
+        ),
+    };
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(SoliplexSpacing.s3),
       decoration: BoxDecoration(
-        color: colors.warningContainer,
+        color: background,
         borderRadius: BorderRadius.circular(context.radii.md),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: colors.onWarningContainer),
+          Icon(icon ?? defaultIcon, size: 18, color: foreground),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: colors.onWarningContainer),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title case final title?) ...[
+                  Text(
+                    title,
+                    style: style.titleSmall?.copyWith(color: foreground),
+                  ),
+                  const SizedBox(height: SoliplexSpacing.s1),
+                ],
+                Text(
+                  text,
+                  style: style.bodySmall?.copyWith(color: foreground),
+                ),
+              ],
             ),
           ),
         ],
