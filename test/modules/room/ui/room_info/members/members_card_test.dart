@@ -446,6 +446,31 @@ void main() {
     expect(record.attributes['roomId'], 'ops');
   });
 
+  testWidgets('ends a read that fails outside the client in the failed state', (
+    tester,
+  ) async {
+    final api = _PolicyApi(_team())..readError = StateError('closed');
+    await _show(tester, api);
+    await _open(tester);
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Try again'), findsOneWidget);
+  });
+
+  testWidgets('says so when a save fails outside the client', (tester) async {
+    final api = _PolicyApi(_team())..saveError = StateError('closed');
+    await _show(tester, api);
+    await _open(tester);
+
+    await tester.tap(find.byTooltip('Remove rule'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SoliplexButton, 'Remove rule'));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Couldn't save. Nothing was changed."), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
   testWidgets('searches a long list', (tester) async {
     final api = _PolicyApi(
       RoomPolicy(

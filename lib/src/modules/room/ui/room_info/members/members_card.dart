@@ -137,18 +137,22 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       );
     } on CancelledException {
       rethrow;
-    } on SoliplexException catch (e, stackTrace) {
-      // `error: e` is safe here, as in AdminStatus: an ApiException carries
-      // the status and the server's own reason, a NetworkException the host,
-      // and the transport builds a MalformedResponseException's message
-      // without the body. None holds a credential or a member's address.
+    } catch (e, stackTrace) {
+      // Bare, as in AdminStatus: a closed client's StateError or a refresh
+      // failure must end in the failed state too, not a spinner. `error: e`
+      // is safe for a SoliplexException: an ApiException carries the status
+      // and the server's own reason, a NetworkException the host, and the
+      // transport builds a MalformedResponseException's message without the
+      // body. Anything else is free to carry a value, so only its shape is
+      // kept.
       final failure = failureOf(e);
       _logger.warning(
         'Room policy read failed',
-        error: e,
+        error: e is SoliplexException ? e : null,
         attributes: {
           'roomId': widget.roomId,
           if (e is ApiException) 'statusCode': e.statusCode,
+          if (e is! SoliplexException) 'failure': describeFailure(e),
           'kind': failure.name,
         },
         stackTrace: stackTrace,
@@ -203,14 +207,15 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     } on _ReadFailed catch (e) {
       if (mounted) setState(() => _load = _Failed(e.failure));
       say("Couldn't read this room's access, so nothing was changed.");
-    } on SoliplexException catch (e, stackTrace) {
-      // Safe to forward whole, as for the read.
+    } catch (e, stackTrace) {
+      // Bare and reduced as for the read.
       _logger.warning(
         'Room policy save failed',
-        error: e,
+        error: e is SoliplexException ? e : null,
         attributes: {
           'roomId': widget.roomId,
           if (e is ApiException) 'statusCode': e.statusCode,
+          if (e is! SoliplexException) 'failure': describeFailure(e),
         },
         stackTrace: stackTrace,
       );
