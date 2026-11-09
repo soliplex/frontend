@@ -6,6 +6,16 @@ import 'members_widgets.dart';
 import 'role_visuals.dart';
 import 'room_access.dart';
 
+// Widths of the card's own content, not of the screen: the card sits in a
+// padded column beside other cards, so SoliplexBreakpoints would measure the
+// wrong thing.
+
+/// From this width, Add people sits beside the room's state.
+const double _addBesideStateFrom = 480;
+
+/// From this width, a member's details and controls share one line.
+const double _tileSideBySideFrom = 420;
+
 enum _Filter {
   all('All'),
   admin('Admin'),
@@ -156,7 +166,7 @@ class _MembersListState extends State<MembersList> {
           builder: (context, constraints) {
             // Beside the room's state when there is room for both, as the
             // primary action of everything below it.
-            if (constraints.maxWidth < 480) {
+            if (constraints.maxWidth < _addBesideStateFrom) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -412,14 +422,14 @@ class _MemberTile extends StatelessWidget {
               )
             else if (aligned)
               // Keeps the role chips in one column down the list.
-              const SizedBox(width: 48, height: 48),
+              const SizedBox.square(dimension: kMinInteractiveDimension),
           ],
         );
     return LayoutBuilder(
       builder: (context, constraints) {
         // Too narrow to hold an address beside its controls, and an address
         // is the thing that must stay readable.
-        final narrow = constraints.maxWidth < 420;
+        final narrow = constraints.maxWidth < _tileSideBySideFrom;
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
           child: Row(

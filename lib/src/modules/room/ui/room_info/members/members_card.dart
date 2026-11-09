@@ -10,6 +10,9 @@ import 'members_widgets.dart';
 import 'role_visuals.dart';
 import 'room_access.dart';
 
+/// A confirmation's content width, which keeps its text from running wide.
+const double _confirmWidth = 400;
+
 final Logger _logger = LogManager.instance.getLogger('soliplex.room_members');
 
 /// Who can open this room, for a server administrator.
@@ -276,7 +279,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       builder: (context) => AlertDialog(
         title: Text(title),
         content: SizedBox(
-          width: 400,
+          width: _confirmWidth,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

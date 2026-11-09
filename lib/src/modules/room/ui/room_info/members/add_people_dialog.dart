@@ -6,6 +6,10 @@ import 'members_widgets.dart';
 import 'role_visuals.dart';
 import 'room_access.dart';
 
+/// The dialog's largest size, where the screen leaves room for it.
+const double _dialogMaxWidth = 560;
+const double _dialogMaxHeight = 680;
+
 /// What the dialog asks the card to add.
 typedef AddPeopleRequest = ({List<AccessSubject> people, RoomRole role});
 
@@ -26,7 +30,10 @@ Future<AddPeopleRequest?> showAddPeopleDialog(
       return Dialog(
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 680),
+          constraints: const BoxConstraints(
+            maxWidth: _dialogMaxWidth,
+            maxHeight: _dialogMaxHeight,
+          ),
           child: child,
         ),
       );
