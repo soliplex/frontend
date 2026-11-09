@@ -159,10 +159,10 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
   /// Reads again just before writing, because a save replaces the whole
   /// policy with no version check. That narrows the window for overwriting
   /// another administrator's edit; only the API could close it.
-  Future<void> _write(
-    RoomPolicy Function(RoomPolicy fresh) edit,
-    String done,
-  ) async {
+  ///
+  /// The edit is planned against that read, so a row changed in the meantime
+  /// is shown as it now is rather than overwritten.
+  Future<void> _write(MemberEdit edit, String done) async {
     setState(() => _saving = true);
     final messenger = ScaffoldMessenger.of(context);
     void say(String text) =>
@@ -174,10 +174,18 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
         say('This room became public in the meantime. Nothing was changed.');
         return;
       }
-      final next = edit(fresh);
-      await widget.api.setRoomPolicy(next, cancelToken: _cancelToken);
-      if (mounted) setState(() => _load = _Loaded(next));
-      say(done);
+      switch (planEdit(fresh, edit)) {
+        case RowChanged(:final subject):
+          if (mounted) setState(() => _load = _Loaded(fresh));
+          say(
+            '${displayName(subject)} changed since you opened this. Check it '
+            'and try again.',
+          );
+        case SaveEdit(:final next):
+          await widget.api.setRoomPolicy(next, cancelToken: _cancelToken);
+          if (mounted) setState(() => _load = _Loaded(next));
+          say(done);
+      }
     } on CancelledException {
       return;
     } on _ReadFailed catch (e) {
@@ -214,10 +222,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
         )) {
       return;
     }
-    await _write(
-      (p) => p.setRole(row.subject, role),
-      '$name is now ${role.label}.',
-    );
+    await _write(SetRole(row, role), '$name is now ${role.label}.');
   }
 
   Future<void> _remove(MemberRow row, RoomPolicy policy) async {
@@ -238,7 +243,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       danger: true,
     );
     if (!confirmed) return;
-    await _write((p) => p.remove(row.subject), 'Removed $name.');
+    await _write(RemoveMember(row), 'Removed $name.');
   }
 
   Future<bool> _confirm({
@@ -300,8 +305,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     if (request == null) return;
     final (:people, :role) = request;
     await _write(
-      // Skips anyone listed since the dialog opened.
-      (p) => p.add(people.where((s) => !p.lists(s)), role),
+      AddPeople(people, role),
       people.length == 1
           ? 'Added ${people.single.value} as ${role.label}.'
           : 'Added ${people.length} people as ${role.label}.',
