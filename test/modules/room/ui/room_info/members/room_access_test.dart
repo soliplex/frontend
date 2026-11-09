@@ -244,8 +244,13 @@ void main() {
     );
     expect(
       failureOf(const NetworkException(message: 'x')),
-      MembersFailure.other,
+      MembersFailure.network,
     );
+    expect(
+      failureOf(const AuthException(message: 'x', statusCode: 401)),
+      MembersFailure.session,
+    );
+    expect(failureOf(StateError('closed')), MembersFailure.other);
   });
 
   group('planEdit', () {

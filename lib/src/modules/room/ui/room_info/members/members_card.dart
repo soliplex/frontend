@@ -461,9 +461,18 @@ class _FailedBody extends StatelessWidget {
               'is a deny.',
         ),
       MembersFailure.unreadable => (
-          "This room's access holds entries this app can't read",
-          'Editing it here could drop them, so it is left alone. This '
-              'command shows them:',
+          "The server's answer about this room's access couldn't be read",
+          "It may hold entries this app doesn't know, or something other "
+              'than the server answered. Nothing can be changed here. This '
+              'command shows what is stored:',
+        ),
+      MembersFailure.session => (
+          'Your session has expired',
+          'Sign in again, then try again.',
+        ),
+      MembersFailure.network => (
+          "Couldn't reach the server",
+          'Check your connection and try again.',
         ),
       MembersFailure.forbidden => (
           "The server didn't let you read this room's access",
@@ -476,7 +485,7 @@ class _FailedBody extends StatelessWidget {
         ),
       MembersFailure.other => (
           "Couldn't read this room's access",
-          'Check your connection and try again.',
+          'Try again.',
         ),
     };
     final commands = switch (failure) {
