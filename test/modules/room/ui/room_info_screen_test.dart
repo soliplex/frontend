@@ -47,6 +47,9 @@ const _testRoom = Room(
   },
 );
 
+// The members card shows branded badges, which read the Soliplex theme.
+final _theme = lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light);
+
 Widget _buildScreen({
   Room? room,
   FakeSoliplexApi? api,
@@ -60,6 +63,7 @@ Widget _buildScreen({
     servers: Signal<Map<String, ServerEntry>>({entry.serverId: entry}),
   );
   return MaterialApp(
+    theme: _theme,
     home: RoomInfoScreen(
       serverEntry: entry,
       roomId: 'room-1',
@@ -92,6 +96,7 @@ Widget _buildScreen({
   );
   return (
     widget: MaterialApp(
+      theme: _theme,
       home: RoomInfoScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -1087,6 +1092,23 @@ void main() {
         1,
         reason: 'info-screen must not refetch when tracker is already Loaded',
       );
+    });
+    group('members card', () {
+      testWidgets('shows for a server administrator', (tester) async {
+        await tester.pumpWidget(_buildScreen());
+        await tester.pumpAndSettle();
+
+        expect(find.text('MEMBERS'), findsOneWidget);
+      });
+
+      testWidgets('is absent for everyone else', (tester) async {
+        await tester.pumpWidget(
+          _buildScreen(api: FakeSoliplexApi()..nextIsAdminUser = false),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('MEMBERS'), findsNothing);
+      });
     });
   });
 }
