@@ -6,6 +6,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../../../shared/copy_button.dart';
 
+/// [base] in the muted colour the card uses for help and secondary text.
+TextStyle? mutedStyle(BuildContext context, TextStyle? base) =>
+    base?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+
 /// How much a notice asks of the reader.
 enum NoticeTone {
   /// Worth a second look.
