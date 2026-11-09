@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/members/members_card.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/room_info/members/room_access.dart';
 
 import '../../../../../helpers/fakes.dart';
 
@@ -398,6 +399,33 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Reader'), findsWidgets);
+  });
+
+  testWidgets('says so when everyone being added was listed since', (
+    tester,
+  ) async {
+    final api = _PolicyApi(_team());
+    await _show(tester, api);
+    await _open(tester);
+
+    await tester.tap(find.text('Add people'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'late@example.com');
+    await tester.pumpAndSettle();
+    // Another administrator adds the same person first.
+    api.policy = api.policy!.add(
+      [const AccessSubject.email('late@example.com')],
+      RoomRole.reader,
+    );
+    await tester.tap(find.text('Add person'));
+    await tester.pumpAndSettle();
+
+    expect(api.saved, isEmpty);
+    expect(
+      find.text('Nothing to change: the list already says so.'),
+      findsOneWidget,
+    );
+    expect(find.text('late@example.com'), findsOneWidget);
   });
 
   testWidgets('searches a long list', (tester) async {

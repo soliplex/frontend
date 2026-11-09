@@ -311,6 +311,13 @@ void main() {
       );
     });
 
+    test('changes nothing when everyone was listed since', () {
+      expect(
+        planEdit(seen, AddPeople([_email('a'), _email('b')], RoomRole.reader)),
+        isA<NoChange>(),
+      );
+    });
+
     test('adds only people not listed since', () {
       final plan = planEdit(
         seen,
