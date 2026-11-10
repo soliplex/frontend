@@ -683,14 +683,39 @@ void main() {
     testWidgets('leaves out a check whose name a rule cannot hold', (
       tester,
     ) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
       final api = _PolicyApi(_team())
         ..checks = const [LoginCheck('has-dash'), LoginCheck('ok_name')];
       await _show(tester, api);
       await _open(tester);
       await openRules(tester);
+      // Rebuilds don't log it again.
+      await tester.tap(find.text('ok_name'));
+      await tester.pumpAndSettle();
 
       expect(find.text('ok_name'), findsOneWidget);
       expect(find.text('has-dash'), findsNothing);
+      final record = sink.records.singleWhere(
+        (r) => r.message == 'Login checks a rule cannot name',
+      );
+      expect(record.attributes['names'], ['has-dash']);
+    });
+
+    testWidgets("says when no check's name can be stored as a rule", (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team())..checks = const [LoginCheck('has-dash')];
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      expect(
+        find.textContaining("names this app can't store as a rule"),
+        findsOneWidget,
+      );
+      expect(find.textContaining('no checks registered'), findsNothing);
     });
 
     testWidgets('searches a long list of checks', (tester) async {

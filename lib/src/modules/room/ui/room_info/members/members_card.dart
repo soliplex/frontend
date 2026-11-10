@@ -149,6 +149,18 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
   Future<List<LoginCheck>> _fetchChecks() async {
     try {
       final checks = await widget.api.getLoginChecks(cancelToken: _cancelToken);
+      // Logged here, once per read, rather than in the dialog's build. Check
+      // names are identifiers the server registers, not credentials.
+      final unusable = [
+        for (final c in checks)
+          if (ruleFor(c.name) == null) c.name,
+      ];
+      if (unusable.isNotEmpty) {
+        _logger.info(
+          'Login checks a rule cannot name',
+          attributes: {'names': unusable},
+        );
+      }
       if (mounted) setState(() => _knownChecks = checks);
       return checks;
     } catch (e, stackTrace) {
