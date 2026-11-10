@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.116.2+105] - 2026-11-10
 
 ### Added
 
@@ -15,6 +15,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   registered, each with its description, and given the Reader or Member role.
   Rule rows show what their check does. A server older than the list of checks
   (soliplex 0.92) gets a note that rules are added with `soliplex-cli` there.
+  A server with no checks registered says so, and a failed read of the
+  checks offers Try again.
 - **Library consumers:** `SoliplexApi.getLoginChecks` lists the checks a
   login rule can call, as `LoginCheck` (name and optional description), from
   `GET /v1/installation/jsonpath_functions`. Server administrators only.
