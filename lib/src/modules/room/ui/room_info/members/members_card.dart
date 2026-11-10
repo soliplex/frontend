@@ -108,8 +108,8 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
   _Load _load = const _NotLoaded();
   bool _saving = false;
 
-  /// Asked once per card and kept, except after a failure, so the dialog can
-  /// try again.
+  /// Asked at most once per card, failure included, so the card never asks
+  /// again unprompted. Only the dialog's Try again replaces it.
   Future<List<LoginCheck>>? _checks;
 
   /// Their descriptions, once known, for the rule rows.
@@ -144,13 +144,14 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
 
   Future<List<LoginCheck>> _loadChecks() => _checks ??= _fetchChecks();
 
+  Future<List<LoginCheck>> _reloadChecks() => _checks = _fetchChecks();
+
   Future<List<LoginCheck>> _fetchChecks() async {
     try {
       final checks = await widget.api.getLoginChecks(cancelToken: _cancelToken);
       if (mounted) setState(() => _knownChecks = checks);
       return checks;
     } catch (e, stackTrace) {
-      _checks = null;
       // As for the policy read: a SoliplexException carries no value worth
       // hiding, anything else is reduced to its shape.
       if (e is! CancelledException) {
@@ -384,6 +385,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       context,
       policy: policy,
       loadChecks: _loadChecks,
+      reloadChecks: _reloadChecks,
     );
     if (request == null) return;
     final (:subjects, :role) = request;

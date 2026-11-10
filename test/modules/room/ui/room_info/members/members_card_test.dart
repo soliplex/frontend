@@ -614,6 +614,34 @@ void main() {
       expect(find.text('Checked at sign-in'), findsOneWidget);
     });
 
+    testWidgets('asks again for failed checks only on Try again', (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team())
+        ..checksError = const ApiException(message: 'x', statusCode: 500);
+      await _show(tester, api);
+      await _open(tester);
+      expect(api.checkReads, 1);
+
+      // A save shows the policy again, which must not ask again.
+      await tester.tap(find.text('Reader').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Member').last);
+      await tester.pumpAndSettle();
+      expect(api.saved, hasLength(1));
+      expect(api.checkReads, 1);
+
+      await openRules(tester);
+      expect(find.text("Couldn't load the server's checks."), findsOneWidget);
+      expect(api.checkReads, 1);
+
+      api.checksError = null;
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+      expect(api.checkReads, 2);
+      expect(find.text('has_badge'), findsOneWidget);
+    });
+
     testWidgets('adds a rule picked from the server\'s checks', (
       tester,
     ) async {

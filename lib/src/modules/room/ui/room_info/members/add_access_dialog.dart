@@ -15,17 +15,24 @@ typedef AddAccessRequest = ({List<AccessSubject> subjects, RoomRole role});
 
 /// A dialog when there is room and the whole screen when not.
 ///
-/// [loadChecks] is asked only when the user turns to login rules.
+/// [loadChecks] is asked only when the user turns to login rules, and may
+/// answer with a read already made. [reloadChecks] asks the server again,
+/// for Try again.
 Future<AddAccessRequest?> showAddAccessDialog(
   BuildContext context, {
   required RoomPolicy policy,
   required Future<List<LoginCheck>> Function() loadChecks,
+  required Future<List<LoginCheck>> Function() reloadChecks,
 }) {
   final narrow = MediaQuery.sizeOf(context).width < SoliplexBreakpoints.tablet;
   return showDialog<AddAccessRequest>(
     context: context,
     builder: (context) {
-      final child = AddAccessDialog(policy: policy, loadChecks: loadChecks);
+      final child = AddAccessDialog(
+        policy: policy,
+        loadChecks: loadChecks,
+        reloadChecks: reloadChecks,
+      );
       if (narrow) return Dialog.fullscreen(child: child);
       return Dialog(
         clipBehavior: Clip.antiAlias,
@@ -61,11 +68,13 @@ class AddAccessDialog extends StatefulWidget {
   const AddAccessDialog({
     required this.policy,
     required this.loadChecks,
+    required this.reloadChecks,
     super.key,
   });
 
   final RoomPolicy policy;
   final Future<List<LoginCheck>> Function() loadChecks;
+  final Future<List<LoginCheck>> Function() reloadChecks;
 
   @override
   State<AddAccessDialog> createState() => _AddAccessDialogState();
@@ -80,16 +89,17 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
 
   void _setMode(_Mode mode) => setState(() {
         _mode = mode;
-        if (mode == _Mode.rule) _checks ??= _askChecks();
+        if (mode == _Mode.rule) _checks ??= _handled(widget.loadChecks());
       });
 
   void _retryChecks() => setState(() {
-        _checks = _askChecks();
+        _checks = _handled(widget.reloadChecks());
       });
 
   // Marked handled at once: a quick failure can land before the pane's
   // FutureBuilder subscribes, and the pane shows it either way.
-  Future<List<LoginCheck>> _askChecks() => widget.loadChecks()..ignore();
+  static Future<List<LoginCheck>> _handled(Future<List<LoginCheck>> checks) =>
+      checks..ignore();
 
   // A typo guard, not validation: the server stores any string.
   static final _emailShape = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
