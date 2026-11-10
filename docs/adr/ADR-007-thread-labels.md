@@ -84,7 +84,7 @@ a wrong answer in the client costs a 403, never a write.
 
 ### 3.4 Auto-labelling reuses title generation
 
-Phase 3 mirrors `soliplex.titles` (`soliplex.auto_labels`):
+Phase 3 mirrors `soliplex.titles` (`soliplex.labels`):
 
 - A throwaway pydantic-ai agent runs after the stream's end sentinel. It
   therefore never delays the reply.
@@ -176,7 +176,7 @@ through a few places:
 
 1. **Backend catalogue read.** `GET /v1/agui/labels` (`ThreadStorage.list_labels`)
    gains a filter on the caller.
-2. **Auto-labelling.** `auto_labels.maybe_apply_labels` reads the catalogue
+2. **Auto-labelling.** `labels.maybe_apply_labels` reads the catalogue
    with `list_labels()` in one place. Applying the same filter there, for the
    thread's owner, keeps the assistant from attaching a label its owner could
    not see.
