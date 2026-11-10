@@ -441,11 +441,17 @@ class _RulePaneState extends State<_RulePane> {
           for (final c in all)
             if (ruleFor(c.name) != null) c,
         ];
-        if (checks.isEmpty) {
+        if (all.isEmpty) {
           return const AccessNotice(
             text: 'The server has no checks registered, so there is nothing '
                 'to build a rule from. Checks are registered in the '
                 "server's configuration.",
+          );
+        }
+        if (checks.isEmpty) {
+          return const AccessNotice(
+            text: "The server's checks have names this app can't store as a "
+                'rule, so login rules can only be added with soliplex-cli.',
           );
         }
         final query = _search.trim().toLowerCase();
