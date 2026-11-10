@@ -893,7 +893,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      // Listed already, so picking it leaves nothing to add.
+      // Listed already, so it can't be picked.
       await tester.tap(inDialog('is_staff'));
       await tester.pumpAndSettle();
       expect(addRule(tester), isNull);

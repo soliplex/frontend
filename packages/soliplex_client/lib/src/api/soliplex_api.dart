@@ -1275,7 +1275,7 @@ class SoliplexApi {
             throw FormatException('login check $index is not an object'),
       ];
     } on FormatException catch (e) {
-      // The mappers' messages name fields, never values.
+      // These messages name fields and entry indexes, never values.
       throw MalformedResponseException(message: e.message);
     }
   }
