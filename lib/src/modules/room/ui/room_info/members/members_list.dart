@@ -10,7 +10,7 @@ import 'room_access.dart';
 // padded column beside other cards, so SoliplexBreakpoints would measure the
 // wrong thing.
 
-/// From this width, Add people sits beside the room's state.
+/// From this width, Add access sits beside the room's state.
 const double _addBesideStateFrom = 480;
 
 /// From this width, a member's details and controls share one line.
@@ -33,9 +33,13 @@ class MembersList extends StatefulWidget {
       required this.onAdd,
       required this.onChangeRole,
       required this.onRemove,
+      this.checks,
       super.key});
 
   final RoomPolicy policy;
+
+  /// The server's checks, once read, so a rule row can say what it does.
+  final List<LoginCheck>? checks;
   final Map<String, dynamic>? viewerClaims;
   final VoidCallback onAdd;
   final void Function(MemberRow row, RoomRole role) onChangeRole;
@@ -111,6 +115,13 @@ class _MembersListState extends State<MembersList> {
             _MemberTile(
               key: ValueKey(row.subject),
               row: row,
+              description: switch (ruleName(row.subject)) {
+                final name? => widget.checks
+                    ?.where((c) => c.name == name)
+                    .firstOrNull
+                    ?.description,
+                null => null,
+              },
               isYou: row.isViewer(widget.viewerClaims),
               onChangeRole: (role) => widget.onChangeRole(row, role),
               onRemove: () => widget.onRemove(row),
@@ -274,8 +285,8 @@ class _AddButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SoliplexButton.filled(
         onPressed: onPressed,
-        icon: const Icon(Icons.person_add_alt_outlined, size: 18),
-        child: const Text('Add people'),
+        icon: const Icon(Icons.add, size: 18),
+        child: const Text('Add access'),
       );
 }
 
@@ -313,6 +324,7 @@ class _Posture extends StatelessWidget {
 class _MemberTile extends StatelessWidget {
   const _MemberTile({
     required this.row,
+    this.description,
     required this.isYou,
     required this.onChangeRole,
     required this.onRemove,
@@ -320,6 +332,9 @@ class _MemberTile extends StatelessWidget {
   });
 
   final MemberRow row;
+
+  /// What a rule's check does, in the server's words.
+  final String? description;
   final bool isYou;
   final ValueChanged<RoomRole> onChangeRole;
   final VoidCallback onRemove;
@@ -334,8 +349,9 @@ class _MemberTile extends StatelessWidget {
         subject.kind == AccessSubjectKind.preferredUsername;
     final subtitle = switch (subject.kind) {
       AccessSubjectKind.preferredUsername => 'Login username',
-      AccessSubjectKind.jsonPath =>
-        isRule ? 'Checked at sign-in' : 'Custom rule on login claims',
+      AccessSubjectKind.jsonPath => isRule
+          ? description ?? 'Checked at sign-in'
+          : 'Custom rule on login claims',
       AccessSubjectKind.authenticated => 'Any signed-in user',
       AccessSubjectKind.everyone => 'Anyone at all',
       AccessSubjectKind.email => null,

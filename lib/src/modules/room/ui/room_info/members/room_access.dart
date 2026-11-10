@@ -49,6 +49,15 @@ enum RoomRole {
 /// check applied to the login's claims.
 final _rulePath = RegExp(r'^\$\[\?([A-Za-z_][A-Za-z0-9_]*)\(\$\)\]$');
 
+/// A check name that fits the stored form, so [ruleFor] reads back.
+final _checkName = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
+
+/// The login rule that applies [check] to the login's claims, or `null` when
+/// the name would not read back as a rule.
+AccessSubject? ruleFor(String check) => _checkName.hasMatch(check)
+    ? AccessSubject.jsonPath('\$[?$check(\$)]')
+    : null;
+
 /// The check a JSONPath subject calls, or `null` when it is any other query.
 String? ruleName(AccessSubject subject) =>
     subject.kind == AccessSubjectKind.jsonPath
@@ -236,11 +245,11 @@ final class RemoveMember extends MemberEdit {
   final MemberRow row;
 }
 
-/// Adds [people] as [role], skipping anyone listed since.
-final class AddPeople extends MemberEdit {
-  const AddPeople(this.people, this.role);
+/// Adds [subjects], people or rules, as [role], skipping any listed since.
+final class AddMembers extends MemberEdit {
+  const AddMembers(this.subjects, this.role);
 
-  final List<AccessSubject> people;
+  final List<AccessSubject> subjects;
   final RoomRole role;
 }
 
@@ -277,8 +286,8 @@ final class RowChanged extends EditPlan {
 /// was not made on that.
 EditPlan planEdit(RoomPolicy fresh, MemberEdit edit) {
   final plan = switch (edit) {
-    AddPeople(:final people, :final role) =>
-      SaveEdit(fresh.add(people.where((s) => !fresh.lists(s)), role)),
+    AddMembers(:final subjects, :final role) =>
+      SaveEdit(fresh.add(subjects.where((s) => !fresh.lists(s)), role)),
     SetRole(:final row, :final role) => _asSeen(fresh, row)
         ? SaveEdit(fresh.setRole(row.subject, role))
         : RowChanged(row.subject),

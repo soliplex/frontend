@@ -1239,6 +1239,46 @@ class SoliplexApi {
     );
   }
 
+  /// The checks the server has registered for login rules, by name.
+  ///
+  /// Only server administrators may ask. Each call writes an audit record
+  /// server-side.
+  ///
+  /// Throws:
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the user is not a server administrator
+  ///   (403)
+  /// - [NotFoundException] if the server predates the endpoint (404)
+  /// - [ApiException] for other server errors
+  /// - [MalformedResponseException] if the answer is not a list of checks
+  /// - [NetworkException] if connection fails
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<List<LoginCheck>> getLoginChecks({CancelToken? cancelToken}) async {
+    final response = await _transport.request<Object?>(
+      'GET',
+      _urlBuilder.build(pathSegments: ['installation', 'jsonpath_functions']),
+      cancelToken: cancelToken,
+    );
+    if (response is! List) {
+      throw MalformedResponseException(
+        message: 'login checks response is a ${response.runtimeType}, '
+            'not a list',
+      );
+    }
+    try {
+      return [
+        for (final (index, entry) in response.indexed)
+          if (entry is Map<String, dynamic>)
+            loginCheckFromJson(entry)
+          else
+            throw FormatException('login check $index is not an object'),
+      ];
+    } on FormatException catch (e) {
+      // The mappers' messages name fields, never values.
+      throw MalformedResponseException(message: e.message);
+    }
+  }
+
   /// Replaces the room's whole access policy with [policy].
   ///
   /// The server keeps no version, so this overwrites whatever another

@@ -149,3 +149,30 @@ class RoomPolicy {
         entries: entries,
       );
 }
+
+/// A check the server has registered for login rules: a function a
+/// [AccessSubjectKind.jsonPath] subject can call on the login's claims.
+@immutable
+class LoginCheck {
+  /// Creates a check called [name].
+  const LoginCheck(this.name, {this.description});
+
+  /// What a rule calls the check by.
+  final String name;
+
+  /// The first paragraph of the check's own documentation, or `null` when it
+  /// has none.
+  final String? description;
+
+  @override
+  bool operator ==(Object other) =>
+      other is LoginCheck &&
+      other.name == name &&
+      other.description == description;
+
+  @override
+  int get hashCode => Object.hash(name, description);
+
+  @override
+  String toString() => 'LoginCheck($name)';
+}

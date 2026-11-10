@@ -4,7 +4,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../room_info_widgets.dart';
-import 'add_people_dialog.dart';
+import 'add_access_dialog.dart';
 import 'members_list.dart';
 import 'members_widgets.dart';
 import 'role_visuals.dart';
@@ -108,6 +108,13 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
   _Load _load = const _NotLoaded();
   bool _saving = false;
 
+  /// Asked once per card and kept, except after a failure, so the dialog can
+  /// try again.
+  Future<List<LoginCheck>>? _checks;
+
+  /// Their descriptions, once known, for the rule rows.
+  List<LoginCheck>? _knownChecks;
+
   @override
   void dispose() {
     _cancelToken.cancel();
@@ -120,13 +127,54 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     setState(() => _load = const _Loading());
     try {
       final policy = await _read();
-      if (mounted) setState(() => _load = _Loaded(policy));
+      _show(policy);
     } on CancelledException {
       // Only dispose cancels, so there is nothing left to show it on.
       return;
     } on _ReadFailed catch (e) {
       if (mounted) setState(() => _load = _Failed(e.failure));
     }
+  }
+
+  void _show(RoomPolicy? policy) {
+    if (!mounted) return;
+    setState(() => _load = _Loaded(policy));
+    _describeRules(policy);
+  }
+
+  Future<List<LoginCheck>> _loadChecks() => _checks ??= _fetchChecks();
+
+  Future<List<LoginCheck>> _fetchChecks() async {
+    try {
+      final checks = await widget.api.getLoginChecks(cancelToken: _cancelToken);
+      if (mounted) setState(() => _knownChecks = checks);
+      return checks;
+    } catch (e, stackTrace) {
+      _checks = null;
+      // As for the policy read: a SoliplexException carries no value worth
+      // hiding, anything else is reduced to its shape.
+      if (e is! CancelledException) {
+        _logger.warning(
+          'Login checks read failed',
+          error: e is SoliplexException ? e : null,
+          attributes: {
+            if (e is ApiException) 'statusCode': e.statusCode,
+            if (e is! SoliplexException) 'failure': describeFailure(e),
+          },
+          stackTrace: stackTrace,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  /// Rule rows show what their check does, so the checks are asked for as
+  /// soon as a policy holding a rule is shown. A failure only leaves the
+  /// rows without descriptions.
+  void _describeRules(RoomPolicy? policy) {
+    if (_knownChecks != null || _checks != null) return;
+    if (policy == null || !policy.rows.any((r) => r.isRule)) return;
+    _loadChecks().ignore();
   }
 
   Future<RoomPolicy?> _read() async {
@@ -188,24 +236,24 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
     try {
       fresh = await _read();
       if (fresh == null) {
-        if (mounted) setState(() => _load = const _Loaded(null));
+        _show(null);
         say('This room became public in the meantime. Nothing was changed.');
         return;
       }
       final read = fresh;
       switch (planEdit(read, edit)) {
         case RowChanged(:final subject):
-          if (mounted) setState(() => _load = _Loaded(read));
+          _show(read);
           say(
             '${displayName(subject)} changed since you opened this. Check it '
             'and try again.',
           );
         case NoChange():
-          if (mounted) setState(() => _load = _Loaded(read));
+          _show(read);
           say('Nothing to change: the list already says so.');
         case SaveEdit(:final next):
           await widget.api.setRoomPolicy(next, cancelToken: _cancelToken);
-          if (mounted) setState(() => _load = _Loaded(next));
+          _show(next);
           say(done(read));
       }
     } on CancelledException {
@@ -227,9 +275,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       );
       // The list shows the policy as last read, not as first shown: another
       // administrator's change is not hidden behind a failed save.
-      if (fresh case final read? when mounted) {
-        setState(() => _load = _Loaded(read));
-      }
+      if (fresh case final read?) _show(read);
       say(
         e is ApiException && e.statusCode == 422
             ? 'The server refused this change. Nothing was changed.'
@@ -334,20 +380,28 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
   }
 
   Future<void> _add(RoomPolicy policy) async {
-    final request = await showAddPeopleDialog(context, policy: policy);
+    final request = await showAddAccessDialog(
+      context,
+      policy: policy,
+      loadChecks: _loadChecks,
+    );
     if (request == null) return;
-    final (:people, :role) = request;
+    final (:subjects, :role) = request;
     await _write(
-      AddPeople(people, role),
+      AddMembers(subjects, role),
       // Counts only those not listed since the dialog opened.
       (fresh) {
         final added = [
-          for (final s in people)
-            if (!fresh.lists(s)) s
+          for (final s in subjects)
+            if (!fresh.lists(s)) s,
         ];
-        return added.length == 1
-            ? 'Added ${added.single.value} as ${role.label}.'
-            : 'Added ${added.length} people as ${role.label}.';
+        if (added.length == 1) {
+          final subject = added.single;
+          return subject.kind == AccessSubjectKind.jsonPath
+              ? 'Added the ${displayName(subject)} rule as ${role.label}.'
+              : 'Added ${displayName(subject)} as ${role.label}.';
+        }
+        return 'Added ${added.length} people as ${role.label}.';
       },
     );
   }
@@ -428,6 +482,7 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
                       ignoring: _saving,
                       child: MembersList(
                         policy: policy,
+                        checks: _knownChecks,
                         viewerClaims: widget.viewerClaims(),
                         onAdd: () => _add(policy),
                         onChangeRole: _changeRole,

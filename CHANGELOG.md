@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- The Members card adds login rules as well as people. Add access now offers
+  People or Login rule; a rule is picked from the checks the server has
+  registered, each with its description, and given the Reader or Member role.
+  Rule rows show what their check does. A server older than the list of checks
+  (soliplex 0.92) gets a note that rules are added with `soliplex-cli` there.
+- **Library consumers:** `SoliplexApi.getLoginChecks` lists the checks a
+  login rule can call, as `LoginCheck` (name and optional description), from
+  `GET /v1/installation/jsonpath_functions`. Server administrators only.
+
 ## [0.116.1+104] - 2026-11-09
 
 ### Added

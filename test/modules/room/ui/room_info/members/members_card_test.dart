@@ -19,6 +19,19 @@ class _PolicyApi extends FakeSoliplexApi {
   Object? saveError;
   int reads = 0;
   final saved = <RoomPolicy>[];
+  List<LoginCheck> checks = const [
+    LoginCheck('is_staff', description: 'Match staff logins.'),
+    LoginCheck('has_badge'),
+  ];
+  Object? checksError;
+  int checkReads = 0;
+
+  @override
+  Future<List<LoginCheck>> getLoginChecks({CancelToken? cancelToken}) async {
+    checkReads++;
+    if (checksError case final error?) throw error;
+    return checks;
+  }
 
   @override
   Future<RoomPolicy?> getRoomPolicy(
@@ -154,7 +167,7 @@ void main() {
     await _show(tester, api);
     await _open(tester);
 
-    await tester.tap(find.text('Add people'));
+    await tester.tap(find.text('Add access'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextField).last,
@@ -185,7 +198,7 @@ void main() {
     await _show(tester, api);
     await _open(tester);
 
-    await tester.tap(find.text('Add people'));
+    await tester.tap(find.text('Add access'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Member').last);
     await tester.pumpAndSettle();
@@ -274,7 +287,7 @@ void main() {
     await _open(tester);
 
     expect(find.text('Public'), findsOneWidget);
-    expect(find.text('Add people'), findsNothing);
+    expect(find.text('Add access'), findsNothing);
     expect(
       find.text('soliplex-cli room-authz make-private <installation> ops'),
       findsOneWidget,
@@ -425,7 +438,7 @@ void main() {
     await _show(tester, api);
     await _open(tester);
 
-    await tester.tap(find.text('Add people'));
+    await tester.tap(find.text('Add access'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'late@example.com');
     await tester.pumpAndSettle();
@@ -551,6 +564,162 @@ void main() {
     gate.complete();
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  group('login rules', () {
+    Future<void> openRules(WidgetTester tester) async {
+      await tester.tap(find.text('Add access'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Login rule'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a rule row says what its check does', (tester) async {
+      final api = _PolicyApi(_team());
+      await _show(tester, api);
+      await _open(tester);
+
+      expect(api.checkReads, 1);
+      expect(find.text('Match staff logins.'), findsOneWidget);
+      expect(find.text('Checked at sign-in'), findsNothing);
+    });
+
+    testWidgets('checks are not asked for a room without rules', (
+      tester,
+    ) async {
+      final api = _PolicyApi(
+        RoomPolicy(
+          roomId: 'ops',
+          defaultEffect: AccessEffect.deny,
+          entries: [AccessEntry(_email('me'), _read)],
+        ),
+      );
+      await _show(tester, api);
+      await _open(tester);
+      expect(api.checkReads, 0);
+
+      await openRules(tester);
+      expect(api.checkReads, 1);
+      expect(find.text('is_staff'), findsOneWidget);
+    });
+
+    testWidgets('a rule row keeps its plain subtitle when checks fail', (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team())
+        ..checksError = const ApiException(message: 'x', statusCode: 500);
+      await _show(tester, api);
+      await _open(tester);
+
+      expect(find.text('Checked at sign-in'), findsOneWidget);
+    });
+
+    testWidgets('adds a rule picked from the server\'s checks', (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team());
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      expect(find.text('Pick a check.'), findsOneWidget);
+      expect(find.text('No description given'), findsOneWidget);
+      expect(
+        find.text('Match staff logins. · already Reader'),
+        findsOneWidget,
+      );
+      // Listed already, so it can't be picked.
+      await tester.tap(find.text('Match staff logins. · already Reader'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pick a check.'), findsOneWidget);
+
+      await tester.tap(find.text('has_badge'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pick a check.'), findsNothing);
+      await tester.tap(find.text('Add rule'));
+      await tester.pumpAndSettle();
+
+      expect(api.saved.single.entries.sublist(_team().entries.length), const [
+        AccessEntry(AccessSubject.jsonPath(r'$[?has_badge($)]'), _read),
+        AccessEntry(AccessSubject.jsonPath(r'$[?has_badge($)]'), _write),
+      ]);
+      expect(find.text('Added the has_badge rule as Member.'), findsOneWidget);
+      // Read once for the rows; the dialog reused it.
+      expect(api.checkReads, 1);
+    });
+
+    testWidgets('leaves out a check whose name a rule cannot hold', (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team())
+        ..checks = const [LoginCheck('has-dash'), LoginCheck('ok_name')];
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      expect(find.text('ok_name'), findsOneWidget);
+      expect(find.text('has-dash'), findsNothing);
+    });
+
+    testWidgets('searches a long list of checks', (tester) async {
+      final api = _PolicyApi(_team())
+        ..checks = [
+          for (var i = 0; i < 7; i++) LoginCheck('check_$i'),
+          const LoginCheck('is_staff', description: 'Match staff logins.'),
+        ];
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      final search = find.widgetWithText(TextField, 'Search checks');
+      await tester.enterText(search, 'STAFF');
+      await tester.pumpAndSettle();
+      expect(find.text('check_0'), findsNothing);
+      expect(find.text('is_staff'), findsWidgets);
+
+      await tester.enterText(search, 'zzz');
+      await tester.pumpAndSettle();
+      expect(find.text('No check matches this search.'), findsOneWidget);
+    });
+
+    testWidgets('says when the server has no checks', (tester) async {
+      final api = _PolicyApi(_team())..checks = const [];
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      expect(
+        find.textContaining('The server has no checks registered'),
+        findsOneWidget,
+      );
+      expect(find.text('Add rule'), findsOneWidget);
+    });
+
+    testWidgets('says when the server is too old to list checks', (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team())
+        ..checksError = const NotFoundException(message: 'x');
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      expect(find.textContaining("can't list its checks"), findsOneWidget);
+    });
+
+    testWidgets('tries the checks again after a failure', (tester) async {
+      final api = _PolicyApi(_team())
+        ..checksError = const NetworkException(message: 'x');
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      expect(find.text("Couldn't load the server's checks."), findsOneWidget);
+      api.checksError = null;
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+      expect(find.text('has_badge'), findsOneWidget);
+    });
   });
 }
 
