@@ -375,6 +375,12 @@ void main() {
         ({'name': 'x'}, 'login checks response is a _Map'),
         (['x'], 'login check 0 is not an object'),
         (
+          [
+            {'name': 3},
+          ],
+          'login check 0 JSON missing required "name" field',
+        ),
+        (
           [fine, <String, dynamic>{}],
           'login check 1 JSON missing required "name" field',
         ),
@@ -400,6 +406,17 @@ void main() {
           reason: '$body',
         );
       }
+    });
+
+    test('passes the cancel token on', () async {
+      answer(<Object?>[]);
+      final token = CancelToken();
+
+      await api.getLoginChecks(cancelToken: token);
+
+      verify(
+        () => transport.request<Object?>('GET', uri, cancelToken: token),
+      ).called(1);
     });
 
     test('a check compares by name and description', () {

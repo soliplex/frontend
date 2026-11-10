@@ -866,6 +866,127 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('has_badge'), findsOneWidget);
     });
+
+    // The rule rows behind the dialog carry the same names.
+    Finder inDialog(String text) => find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text(text),
+        );
+
+    VoidCallback? addRule(WidgetTester tester) => tester
+        .widget<SoliplexButton>(find.widgetWithText(SoliplexButton, 'Add rule'))
+        .onPressed;
+
+    testWidgets('adds a rule with the role picked', (tester) async {
+      final api = _PolicyApi(_team());
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+      expect(addRule(tester), isNull);
+
+      await tester.tap(find.byType(SoliplexDropdown<RoomRole>));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(MenuItemButton).hitTestable(),
+          matching: find.text('Reader'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Listed already, so picking it leaves nothing to add.
+      await tester.tap(inDialog('is_staff'));
+      await tester.pumpAndSettle();
+      expect(addRule(tester), isNull);
+
+      await tester.tap(find.text('has_badge'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add rule'));
+      await tester.pumpAndSettle();
+
+      expect(api.saved.single.entries.sublist(_team().entries.length), const [
+        AccessEntry(AccessSubject.jsonPath(r'$[?has_badge($)]'), _read),
+      ]);
+      expect(find.text('Added the has_badge rule as Reader.'), findsOneWidget);
+    });
+
+    testWidgets('logs a failed checks read by its shape alone', (
+      tester,
+    ) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      const serverError = ApiException(message: 'x', statusCode: 500);
+      for (final error in <Object>[serverError, StateError('closed')]) {
+        sink.clear();
+        final api = _PolicyApi(_team())..checksError = error;
+        await _show(tester, api);
+        await _open(tester);
+
+        final record = sink.records
+            .singleWhere((r) => r.message == 'Login checks read failed');
+        if (error is ApiException) {
+          expect(record.error, same(serverError));
+          expect(record.attributes['statusCode'], 500);
+        } else {
+          expect(record.error, isNull);
+          expect(record.attributes['failure'], isNotNull);
+        }
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('searches checks by description too', (tester) async {
+      final api = _PolicyApi(_team())
+        ..checks = [
+          for (var i = 0; i < 7; i++) LoginCheck('check_$i'),
+          const LoginCheck('is_staff', description: 'Match staff logins.'),
+        ];
+      await _show(tester, api);
+      await _open(tester);
+      await openRules(tester);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Search checks'),
+        'LOGINS',
+      );
+      await tester.pumpAndSettle();
+      expect(inDialog('is_staff'), findsOneWidget);
+      expect(inDialog('check_0'), findsNothing);
+    });
+
+    testWidgets('offers a search from seven usable checks', (tester) async {
+      for (final (count, shown) in [(6, findsNothing), (7, findsOneWidget)]) {
+        final api = _PolicyApi(_team())
+          ..checks = [
+            for (var i = 0; i < count; i++) LoginCheck('check_$i'),
+            // Not usable, so not counted.
+            const LoginCheck('has-dash'),
+          ];
+        await _show(tester, api);
+        await _open(tester);
+        await openRules(tester);
+
+        expect(
+          find.widgetWithText(TextField, 'Search checks'),
+          shown,
+          reason: '$count checks',
+        );
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets("a rule row whose check the server doesn't list stays plain", (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team())
+        ..checks = const [LoginCheck('has_badge', description: 'Badge.')];
+      await _show(tester, api);
+      await _open(tester);
+
+      expect(api.checkReads, 1);
+      expect(find.text('Checked at sign-in'), findsOneWidget);
+    });
   });
 }
 
