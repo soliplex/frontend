@@ -396,30 +396,43 @@ class _RulePaneState extends State<_RulePane> {
           );
         }
         if (snapshot.hasError) {
-          return snapshot.error is NotFoundException
-              ? const AccessNotice(
-                  text: "This server can't list its checks, so login rules "
-                      'can only be added with soliplex-cli until it is '
-                      'updated.',
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const AccessNotice(
-                      tone: NoticeTone.error,
-                      text: "Couldn't load the server's checks.",
-                    ),
-                    const SizedBox(height: SoliplexSpacing.s2),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: SoliplexButton.text(
-                        onPressed: widget.onRetry,
-                        icon: const Icon(Icons.refresh, size: 18),
-                        child: const Text('Try again'),
-                      ),
-                    ),
-                  ],
-                );
+          final message = switch (failureOf(snapshot.error!)) {
+            // Asking again won't change the server's version.
+            MembersFailure.missing => null,
+            MembersFailure.session =>
+              'Your session has expired. Sign in again, then try again.',
+            MembersFailure.forbidden =>
+              "The server didn't let you list its checks.",
+            MembersFailure.network =>
+              "Couldn't reach the server. Check your connection and try "
+                  'again.',
+            MembersFailure.unreadable =>
+              "The server's list of checks couldn't be read.",
+            MembersFailure.serverError ||
+            MembersFailure.other =>
+              "Couldn't load the server's checks.",
+          };
+          if (message == null) {
+            return const AccessNotice(
+              text: "This server can't list its checks, so login rules can "
+                  'only be added with soliplex-cli until it is updated.',
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AccessNotice(tone: NoticeTone.error, text: message),
+              const SizedBox(height: SoliplexSpacing.s2),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SoliplexButton.text(
+                  onPressed: widget.onRetry,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  child: const Text('Try again'),
+                ),
+              ),
+            ],
+          );
         }
         final all = snapshot.requireData;
         // A name that wouldn't read back as a rule couldn't be shown or
