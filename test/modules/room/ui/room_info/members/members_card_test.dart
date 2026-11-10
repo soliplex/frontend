@@ -737,11 +737,49 @@ void main() {
       await openRules(tester);
 
       expect(find.textContaining("can't list its checks"), findsOneWidget);
+      // Asking again won't change the server's version.
+      expect(find.text('Try again'), findsNothing);
+    });
+
+    testWidgets('says why the checks could not be read', (tester) async {
+      for (final (error, text) in <(Object, String)>[
+        (
+          const AuthException(message: 'x'),
+          'Your session has expired. Sign in again, then try again.',
+        ),
+        (
+          const PermissionDeniedException(message: 'x'),
+          "The server didn't let you list its checks.",
+        ),
+        (
+          const NetworkException(message: 'x'),
+          "Couldn't reach the server. Check your connection and try again.",
+        ),
+        (
+          const MalformedResponseException(message: 'x'),
+          "The server's list of checks couldn't be read.",
+        ),
+        (
+          const ApiException(message: 'x', statusCode: 500),
+          "Couldn't load the server's checks.",
+        ),
+        (StateError('closed'), "Couldn't load the server's checks."),
+      ]) {
+        final api = _PolicyApi(_team())..checksError = error;
+        await _show(tester, api);
+        await _open(tester);
+        await openRules(tester);
+
+        expect(find.text(text), findsOneWidget, reason: '$error');
+        expect(find.text('Try again'), findsOneWidget, reason: '$error');
+        // A fresh card for the next error.
+        await tester.pumpWidget(const SizedBox());
+      }
     });
 
     testWidgets('tries the checks again after a failure', (tester) async {
       final api = _PolicyApi(_team())
-        ..checksError = const NetworkException(message: 'x');
+        ..checksError = const ApiException(message: 'x', statusCode: 503);
       await _show(tester, api);
       await _open(tester);
       await openRules(tester);

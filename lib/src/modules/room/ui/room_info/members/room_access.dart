@@ -314,15 +314,17 @@ bool _sameEntries(List<AccessEntry> a, List<AccessEntry> b) {
   return true;
 }
 
-/// Why the policy could not be shown.
+/// Why a read for the members card failed: the policy's, or the login
+/// checks'.
 enum MembersFailure {
-  /// Usually a stored rule naming a check the server no longer has: the API
-  /// answers 500 with no detail.
+  /// The server failed. For the policy read this is usually a stored rule
+  /// naming a check the server no longer has: the API answers 500 with no
+  /// detail.
   serverError,
 
-  /// The answer could not be read: the policy holds something this app does
-  /// not know, which a save would drop, or something other than the server
-  /// answered, such as a sign-in portal's page.
+  /// The answer could not be read: it holds something this app does not
+  /// know (in a policy, something a save would drop), or something other
+  /// than the server answered, such as a sign-in portal's page.
   unreadable,
 
   /// The session has expired.
@@ -341,7 +343,7 @@ enum MembersFailure {
   other,
 }
 
-/// Which [MembersFailure] a failed read of the policy is.
+/// Which [MembersFailure] a failed members read is.
 MembersFailure failureOf(Object error) => switch (error) {
       ApiException(statusCode: 500) => MembersFailure.serverError,
       MalformedResponseException() => MembersFailure.unreadable,
