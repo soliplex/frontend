@@ -84,6 +84,11 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
   _Mode _mode = _Mode.people;
   RoomRole _role = RoomRole.member;
   List<_ParsedEmail> _emails = const [];
+
+  /// Owned here, so the addresses outlive the field while the rule pane is
+  /// shown: the button adds what [_emails] holds, which must be what the
+  /// field shows.
+  final _addresses = TextEditingController();
   Future<List<LoginCheck>>? _checks;
   String? _check;
 
@@ -100,6 +105,12 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
   // FutureBuilder subscribes, and the pane shows it either way.
   static Future<List<LoginCheck>> _handled(Future<List<LoginCheck>> checks) =>
       checks..ignore();
+
+  @override
+  void dispose() {
+    _addresses.dispose();
+    super.dispose();
+  }
 
   // A typo guard, not validation: the server stores any string.
   static final _emailShape = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
@@ -208,6 +219,7 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
                 else ...[
                   SoliplexInput(
                     label: 'Email addresses',
+                    controller: _addresses,
                     hintText:
                         'One or several, separated by commas or new lines',
                     helperText: 'Accounts are not checked. Access starts when '

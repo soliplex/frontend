@@ -590,6 +590,37 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    testWidgets('keeps typed addresses across a switch to rules and back', (
+      tester,
+    ) async {
+      final api = _PolicyApi(_team());
+      await _show(tester, api);
+      await _open(tester);
+      await tester.tap(find.text('Add access'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Email addresses'),
+        'new@example.com',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Login rule'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('People'));
+      await tester.pumpAndSettle();
+
+      // What the field shows is what the button adds.
+      expect(
+        tester
+            .widget<TextField>(
+                find.widgetWithText(TextField, 'Email addresses'))
+            .controller
+            ?.text,
+        'new@example.com',
+      );
+      expect(find.text('Add person'), findsOneWidget);
+    });
+
     testWidgets('a rule row says what its check does', (tester) async {
       final api = _PolicyApi(_team());
       await _show(tester, api);
