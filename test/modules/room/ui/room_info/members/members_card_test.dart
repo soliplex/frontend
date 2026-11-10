@@ -204,10 +204,22 @@ void main() {
 
     await tester.tap(find.text('Add access'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Member').last);
+    // The menu also builds its entries under the field, to size it; only
+    // the open menu's entries can be tapped.
+    Finder entries([String? label]) {
+      final buttons = find.byType(MenuItemButton).hitTestable();
+      return label == null
+          ? buttons
+          : find.descendant(of: buttons, matching: find.text(label));
+    }
+
+    expect(entries(), findsNothing);
+    await tester.tap(find.byType(SoliplexDropdown<RoomRole>));
     await tester.pumpAndSettle();
-    expect(find.text('Reader'), findsWidgets);
-    expect(find.text('Admin'), findsOneWidget); // boss's badge, behind
+
+    expect(entries('Reader'), findsOneWidget);
+    expect(entries('Member'), findsOneWidget);
+    expect(entries(), findsNWidgets(2));
   });
 
   testWidgets('changes a role in place', (tester) async {
