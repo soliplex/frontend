@@ -1239,7 +1239,8 @@ class SoliplexApi {
     );
   }
 
-  /// The checks the server has registered for login rules, by name.
+  /// The checks the server has registered for login rules, each with its
+  /// name and description.
   ///
   /// Only server administrators may ask. Each call writes an audit record
   /// server-side.

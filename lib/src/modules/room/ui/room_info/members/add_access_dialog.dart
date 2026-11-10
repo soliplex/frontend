@@ -16,8 +16,8 @@ typedef AddAccessRequest = ({List<AccessSubject> subjects, RoomRole role});
 /// A dialog when there is room and the whole screen when not.
 ///
 /// [loadChecks] is asked only when the user turns to login rules, and may
-/// answer with a read already made. [reloadChecks] asks the server again,
-/// for Try again.
+/// answer with a read already made, failed or not. [reloadChecks] asks the
+/// server again, for Try again.
 Future<AddAccessRequest?> showAddAccessDialog(
   BuildContext context, {
   required RoomPolicy policy,
