@@ -1269,7 +1269,7 @@ class SoliplexApi {
       return [
         for (final (index, entry) in response.indexed)
           if (entry is Map<String, dynamic>)
-            loginCheckFromJson(entry)
+            loginCheckFromJson(entry, 'login check $index')
           else
             throw FormatException('login check $index is not an object'),
       ];
