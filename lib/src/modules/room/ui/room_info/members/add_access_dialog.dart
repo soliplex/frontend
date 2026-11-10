@@ -90,7 +90,7 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
   /// field shows.
   final _addresses = TextEditingController();
   Future<List<LoginCheck>>? _checks;
-  String? _check;
+  AccessSubject? _rule;
 
   void _setMode(_Mode mode) => setState(() {
         _mode = mode;
@@ -156,8 +156,7 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
     final theme = Theme.of(context);
     final addable = _emails.where((e) => e.addable).toList();
     final skipped = _emails.length - addable.length;
-    final check = _check;
-    final rule = _mode == _Mode.rule && check != null ? ruleFor(check) : null;
+    final rule = _rule;
     final AddAccessRequest? request = switch (_mode) {
       _Mode.people when addable.isNotEmpty => (
           subjects: [for (final e in addable) AccessSubject.email(e.address)],
@@ -212,8 +211,8 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
                   _RulePane(
                     checks: _checks!,
                     policy: widget.policy,
-                    selected: _check,
-                    onSelected: (name) => setState(() => _check = name),
+                    selected: rule,
+                    onSelected: (picked) => setState(() => _rule = picked),
                     onRetry: _retryChecks,
                   )
                 else ...[
@@ -278,7 +277,7 @@ class _AddAccessDialogState extends State<AddAccessDialog> {
                   switch (_mode) {
                     _Mode.people when skipped > 0 =>
                       '${addable.length} to add, $skipped skipped.',
-                    _Mode.rule when check == null => 'Pick a check.',
+                    _Mode.rule when rule == null => 'Pick a check.',
                     _ => '',
                   },
                   style: mutedStyle(context, theme.textTheme.bodySmall),
@@ -378,8 +377,8 @@ class _RulePane extends StatefulWidget {
 
   final Future<List<LoginCheck>> checks;
   final RoomPolicy policy;
-  final String? selected;
-  final ValueChanged<String> onSelected;
+  final AccessSubject? selected;
+  final ValueChanged<AccessSubject> onSelected;
   final VoidCallback onRetry;
 
   @override
@@ -387,7 +386,7 @@ class _RulePane extends StatefulWidget {
 }
 
 class _RulePaneState extends State<_RulePane> {
-  /// Past this, the list earns a search.
+  /// From this many checks, the list earns a search.
   static const _searchFrom = 7;
 
   String _search = '';
@@ -451,7 +450,7 @@ class _RulePaneState extends State<_RulePane> {
         // changed here once added.
         final checks = [
           for (final c in all)
-            if (ruleFor(c.name) != null) c,
+            if (ruleFor(c.name) case final rule?) (check: c, rule: rule),
         ];
         if (all.isEmpty) {
           return const AccessNotice(
@@ -470,11 +469,11 @@ class _RulePaneState extends State<_RulePane> {
         final matching = [
           for (final c in checks)
             if (query.isEmpty ||
-                c.name.toLowerCase().contains(query) ||
-                (c.description?.toLowerCase().contains(query) ?? false))
+                c.check.name.toLowerCase().contains(query) ||
+                (c.check.description?.toLowerCase().contains(query) ?? false))
               c,
         ];
-        final rows = widget.policy.rows;
+        final listed = {for (final r in widget.policy.rows) r.subject: r};
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -502,37 +501,38 @@ class _RulePaneState extends State<_RulePane> {
                   style: muted,
                 ),
               ),
-            for (final c in matching)
-              Builder(
-                builder: (context) {
-                  final subject = ruleFor(c.name);
-                  final listed =
-                      rows.where((r) => r.subject == subject).firstOrNull;
-                  final isSelected = widget.selected == c.name;
-                  final description = c.description ?? 'No description given';
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    enabled: listed == null,
-                    selected: isSelected,
-                    leading: const Icon(Icons.rule),
-                    trailing: isSelected ? const Icon(Icons.check) : null,
-                    title: Text(
-                      c.name,
-                      style: context.monospaceOn(theme.textTheme.bodyMedium),
-                    ),
-                    subtitle: Text(
-                      listed == null
-                          ? description
-                          : '$description · already '
-                              '${listed.role?.label ?? 'listed'}',
-                    ),
-                    onTap: () => widget.onSelected(c.name),
-                  );
-                },
-              ),
+            for (final (:check, :rule) in matching)
+              _tile(context, check, rule, listed[rule]),
           ],
         );
       },
+    );
+  }
+
+  Widget _tile(
+    BuildContext context,
+    LoginCheck check,
+    AccessSubject rule,
+    MemberRow? listed,
+  ) {
+    final isSelected = widget.selected == rule;
+    final description = check.description ?? 'No description given';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      enabled: listed == null,
+      selected: isSelected,
+      leading: const Icon(Icons.rule),
+      trailing: isSelected ? const Icon(Icons.check) : null,
+      title: Text(
+        check.name,
+        style: context.monospaceOn(Theme.of(context).textTheme.bodyMedium),
+      ),
+      subtitle: Text(
+        listed == null
+            ? description
+            : '$description · already ${listed.role?.label ?? 'listed'}',
+      ),
+      onTap: () => widget.onSelected(rule),
     );
   }
 }

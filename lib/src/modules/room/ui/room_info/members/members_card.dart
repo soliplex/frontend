@@ -163,31 +163,31 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
       }
       if (mounted) setState(() => _knownChecks = checks);
       return checks;
+    } on CancelledException {
+      rethrow;
     } catch (e, stackTrace) {
       // As for the policy read: a SoliplexException carries no value worth
       // hiding, anything else is reduced to its shape.
-      if (e is! CancelledException) {
-        _logger.warning(
-          'Login checks read failed',
-          error: e is SoliplexException ? e : null,
-          attributes: {
-            if (e is ApiException) 'statusCode': e.statusCode,
-            if (e is! SoliplexException) 'failure': describeFailure(e),
-          },
-          stackTrace: stackTrace,
-        );
-      }
+      _logger.warning(
+        'Login checks read failed',
+        error: e is SoliplexException ? e : null,
+        attributes: {
+          if (e is ApiException) 'statusCode': e.statusCode,
+          if (e is! SoliplexException) 'failure': describeFailure(e),
+        },
+        stackTrace: stackTrace,
+      );
       rethrow;
     }
   }
 
   /// Rule rows show what their check does, so the checks are asked for as
-  /// soon as a policy holding a rule is shown. A failure only leaves the
-  /// rows without descriptions.
+  /// soon as a policy holding a rule is shown. A failure leaves the rows
+  /// without descriptions, and is what the dialog's Login rule pane shows
+  /// until Try again.
   void _describeRules(RoomPolicy? policy) {
-    if (_knownChecks != null || _checks != null) return;
-    if (policy == null || !policy.rows.any((r) => r.isRule)) return;
-    _loadChecks().ignore();
+    if (_checks != null || policy == null) return;
+    if (policy.rows.any((r) => r.isRule)) _loadChecks().ignore();
   }
 
   Future<RoomPolicy?> _read() async {

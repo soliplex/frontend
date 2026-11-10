@@ -45,12 +45,14 @@ enum RoomRole {
   }
 }
 
+/// A check name that fits the stored form, so [ruleFor] reads back.
+const _checkNamePattern = '[A-Za-z_][A-Za-z0-9_]*';
+
 /// The JSONPath a login rule is stored as: `$[?name($)]`, one registered
 /// check applied to the login's claims.
-final _rulePath = RegExp(r'^\$\[\?([A-Za-z_][A-Za-z0-9_]*)\(\$\)\]$');
+final _rulePath = RegExp('^' r'\$\[\?(' '$_checkNamePattern' r')\(\$\)\]$');
 
-/// A check name that fits the stored form, so [ruleFor] reads back.
-final _checkName = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
+final _checkName = RegExp('^$_checkNamePattern\$');
 
 /// The login rule that applies [check] to the login's claims, or `null` when
 /// the name would not read back as a rule.
