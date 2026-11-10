@@ -397,19 +397,19 @@ void main() {
         tester,
         rooms: const [Room(id: 'r1', name: 'General')],
         threads: [
-          _thread('t1', 'r1', name: 'Osprey Manual'),
+          _thread('t1', 'r1', name: 'Harbor Manual'),
           _thread('t2', 'r1', name: 'Unrelated'),
         ],
       );
       await _openThreadsTab(tester);
 
-      await tester.enterText(find.byType(TextField).last, 'osprey');
+      await tester.enterText(find.byType(TextField).last, 'harbor');
       // Past the debounce, so a word costs one request not five.
       await tester.pump(kThreadSearchDebounce);
       await tester.pumpAndSettle();
 
-      expect(api.allThreadsCalls.last.query, equals('osprey'));
-      expect(find.text('Osprey Manual'), findsOneWidget);
+      expect(api.allThreadsCalls.last.query, equals('harbor'));
+      expect(find.text('Harbor Manual'), findsOneWidget);
       expect(find.text('Unrelated'), findsNothing);
     });
 
@@ -601,7 +601,7 @@ void main() {
 
     testWidgets('completes a label whose name contains spaces', (tester) async {
       // The seeded catalogue really has names like this. Completing one
-      // unquoted would round-trip as label "v22" plus the word "Osprey"
+      // unquoted would round-trip as label "q4" plus the word "Roadmap"
       // — a different query from the one that was picked, and one that
       // matches no label at all.
       final api = await _pumpLobby(
@@ -609,16 +609,16 @@ void main() {
         rooms: const [Room(id: 'r1', name: 'General')],
         threads: [_thread('t1', 'r1', name: 'Alpha')],
         labels: const [
-          ThreadLabel(id: 4, name: 'V22 Osprey', color: '#42BED7'),
+          ThreadLabel(id: 4, name: 'Q4 Roadmap', color: '#42BED7'),
         ],
       );
       await _openThreadsTab(tester);
 
       final field = find.byType(TextField).last;
       await tester.tap(field);
-      await tester.enterText(field, '@osp');
+      await tester.enterText(field, '@road');
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(LabelChip, 'V22 Osprey'));
+      await tester.tap(find.widgetWithText(LabelChip, 'Q4 Roadmap'));
       await tester.pumpAndSettle();
 
       expect(api.allThreadsCalls.last.labelIds, equals([4]));
@@ -698,13 +698,13 @@ void main() {
         tester,
         rooms: const [Room(id: 'r1', name: 'General')],
         threads: [
-          _thread('t1', 'r1', name: 'Osprey Manual'),
+          _thread('t1', 'r1', name: 'Harbor Manual'),
           _thread('t2', 'r1', name: 'Unrelated'),
         ],
       );
       await _openThreadsTab(tester);
 
-      await tester.enterText(find.byType(TextField).last, 'osprey');
+      await tester.enterText(find.byType(TextField).last, 'harbor');
       await tester.pump(kThreadSearchDebounce);
       await tester.pumpAndSettle();
       expect(find.text('Unrelated'), findsNothing);

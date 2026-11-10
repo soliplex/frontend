@@ -14,7 +14,7 @@ bool isReservedLabelName(String name) =>
 
 /// A thread search split into its two independent halves.
 ///
-/// The search box takes both at once — `Osprey Manual @manuals` — and
+/// The search box takes both at once — `Harbor Manual @manuals` — and
 /// either alone. They are separate filters server-side (name contains,
 /// labels any-of), so they are kept separate here rather than being
 /// flattened into one string.
@@ -76,7 +76,7 @@ class ThreadQuery {
 ///
 /// A bare token runs to the next space or punctuation, so `@urgent,
 /// @manuals` terminates cleanly rather than swallowing the separator.
-/// Label names may contain spaces, though — "V22 Osprey" is an ordinary
+/// Label names may contain spaces, though — "Q4 Roadmap" is an ordinary
 /// name — and those have to be quoted, or the token would end mid-name
 /// and the remainder would silently become free text.
 final RegExp _labelToken = RegExp(r'@(?:"([^"]*)"|([^\s,;"]+))');
@@ -93,9 +93,9 @@ String formatLabelToken(String name) =>
 /// Both halves are optional and independent:
 ///
 /// ```text
-/// "Osprey Manual"             -> text only
-/// "@manuals @v22osprey"       -> labels only
-/// "Osprey @manuals"           -> both
+/// "Harbor Manual"             -> text only
+/// "@manuals @q4roadmap"       -> labels only
+/// "Harbor @manuals"           -> both
 /// "@no-label"                 -> threads without labels
 /// ```
 ///
@@ -125,7 +125,7 @@ ThreadQuery parseThreadQuery(String raw) {
     }
     // Replaced with a space, not with nothing: removing the token
     // outright would weld its neighbours together, turning
-    // "Osprey @manuals Manual" into "Osprey Manual" with no gap.
+    // "Harbor @manuals Manual" into "Harbor Manual" with no gap.
     return ' ';
   });
 
@@ -184,8 +184,8 @@ String? activeLabelToken(String raw, int cursor) {
 
   final at = raw.substring(0, cursor).lastIndexOf('@');
   // Quoted when the name needs it, so a name with spaces survives being
-  // re-read — otherwise completing "V22 Osprey" would produce a query
-  // meaning label "v22" plus the word "Osprey".
+  // re-read — otherwise completing "Q4 Roadmap" would produce a query
+  // meaning label "q4" plus the word "Roadmap".
   final replacement = '${formatLabelToken(name)} ';
   final text = raw.replaceRange(at, cursor, replacement);
 
