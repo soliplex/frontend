@@ -370,18 +370,34 @@ void main() {
     });
 
     test('refuses an answer that is not a list of checks', () async {
-      for (final body in <Object?>[
-        {'name': 'x'},
-        ['x'],
-        [<String, dynamic>{}],
-        [
-          {'name': 'x', 'description': 3},
-        ],
+      const fine = {'name': 'ok'};
+      for (final (body, message) in <(Object?, String)>[
+        ({'name': 'x'}, 'login checks response is a _Map'),
+        (['x'], 'login check 0 is not an object'),
+        (
+          [fine, <String, dynamic>{}],
+          'login check 1 JSON missing required "name" field',
+        ),
+        (
+          [
+            fine,
+            fine,
+            {'name': 'x', 'description': 3},
+          ],
+          'login check 2 description is not a string',
+        ),
       ]) {
         answer(body);
         await expectLater(
           api.getLoginChecks(),
-          throwsA(isA<MalformedResponseException>()),
+          throwsA(
+            isA<MalformedResponseException>().having(
+              (e) => e.message,
+              'message',
+              startsWith(message),
+            ),
+          ),
+          reason: '$body',
         );
       }
     });
