@@ -13,7 +13,7 @@ void main() {
 
     test('separates different seeds', () {
       final colors = <Color>{
-        for (final seed in ['Manuals', 'Urgent', 'Archived', 'Chinook'])
+        for (final seed in ['Manuals', 'Urgent', 'Archived', 'Backlog'])
           hashedHueColor(seed, Brightness.light),
       };
 

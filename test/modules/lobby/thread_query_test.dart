@@ -12,23 +12,23 @@ void main() {
     });
 
     test('treats input with no tokens as pure text', () {
-      final query = parseThreadQuery('Osprey Pilot Manual');
+      final query = parseThreadQuery('Harbor Pilot Manual');
 
-      expect(query.text, equals('Osprey Pilot Manual'));
+      expect(query.text, equals('Harbor Pilot Manual'));
       expect(query.labelNames, isEmpty);
     });
 
     test('treats input with only tokens as pure labels', () {
-      final query = parseThreadQuery('@manuals @v22osprey');
+      final query = parseThreadQuery('@manuals @q4roadmap');
 
       expect(query.text, isEmpty);
-      expect(query.labelNames, equals(['manuals', 'v22osprey']));
+      expect(query.labelNames, equals(['manuals', 'q4roadmap']));
     });
 
     test('splits text and labels when both are present', () {
-      final query = parseThreadQuery('Osprey Manual @manuals');
+      final query = parseThreadQuery('Harbor Manual @manuals');
 
-      expect(query.text, equals('Osprey Manual'));
+      expect(query.text, equals('Harbor Manual'));
       expect(query.labelNames, equals(['manuals']));
     });
 
@@ -48,10 +48,10 @@ void main() {
     });
 
     test('handles a token in the middle without welding words together', () {
-      // Removing the token outright would produce "OspreyManual".
-      final query = parseThreadQuery('Osprey @manuals Manual');
+      // Removing the token outright would produce "HarborManual".
+      final query = parseThreadQuery('Harbor @manuals Manual');
 
-      expect(query.text, equals('Osprey Manual'));
+      expect(query.text, equals('Harbor Manual'));
       expect(query.labelNames, equals(['manuals']));
     });
 
@@ -80,32 +80,32 @@ void main() {
     test('leaves a bare @ as text rather than an empty label', () {
       // This is what the user has typed the instant the autocomplete
       // opens; an empty name would filter to nothing.
-      final query = parseThreadQuery('Osprey @');
+      final query = parseThreadQuery('Harbor @');
 
       expect(query.labelNames, isEmpty);
-      expect(query.text, equals('Osprey @'));
+      expect(query.text, equals('Harbor @'));
     });
 
     test('collapses runs of whitespace in the remaining text', () {
-      final query = parseThreadQuery('  Osprey   @manuals    Manual  ');
+      final query = parseThreadQuery('  Harbor   @manuals    Manual  ');
 
-      expect(query.text, equals('Osprey Manual'));
+      expect(query.text, equals('Harbor Manual'));
     });
 
     test('reads a quoted token as one name', () {
-      // Label names may contain spaces — "V22 Osprey" is ordinary — and
+      // Label names may contain spaces — "Q4 Roadmap" is ordinary — and
       // an unquoted token would end mid-name, leaving the remainder to
       // become free text.
-      final query = parseThreadQuery('@"V22 Osprey" manual');
+      final query = parseThreadQuery('@"Q4 Roadmap" manual');
 
-      expect(query.labelNames, equals(['v22 osprey']));
+      expect(query.labelNames, equals(['q4 roadmap']));
       expect(query.text, equals('manual'));
     });
 
     test('mixes quoted and bare tokens', () {
-      final query = parseThreadQuery('@urgent @"V22 Osprey"');
+      final query = parseThreadQuery('@urgent @"Q4 Roadmap"');
 
-      expect(query.labelNames, equals(['urgent', 'v22 osprey']));
+      expect(query.labelNames, equals(['urgent', 'q4 roadmap']));
       expect(query.text, isEmpty);
     });
 
@@ -129,19 +129,19 @@ void main() {
 
     test('value equality ignores identity', () {
       expect(
-        parseThreadQuery('Osprey @manuals'),
-        equals(parseThreadQuery('Osprey @manuals')),
+        parseThreadQuery('Harbor @manuals'),
+        equals(parseThreadQuery('Harbor @manuals')),
       );
       expect(
-        parseThreadQuery('Osprey @manuals'),
-        isNot(equals(parseThreadQuery('Osprey @urgent'))),
+        parseThreadQuery('Harbor @manuals'),
+        isNot(equals(parseThreadQuery('Harbor @urgent'))),
       );
     });
   });
 
   group('activeLabelToken', () {
     test('returns the token being typed', () {
-      const raw = 'Osprey @man';
+      const raw = 'Harbor @man';
 
       expect(activeLabelToken(raw, raw.length), equals('man'));
     });
@@ -149,24 +149,24 @@ void main() {
     test('returns an empty string for a bare @', () {
       // A real state, not "no token": the menu is open and should be
       // showing every label.
-      const raw = 'Osprey @';
+      const raw = 'Harbor @';
 
       expect(activeLabelToken(raw, raw.length), equals(''));
     });
 
     test('returns null when there is no @ at all', () {
-      expect(activeLabelToken('Osprey', 6), isNull);
+      expect(activeLabelToken('Harbor', 6), isNull);
     });
 
     test('returns null once whitespace ends the token', () {
       // This is what closes the menu.
-      const raw = 'Osprey @manuals ';
+      const raw = 'Harbor @manuals ';
 
       expect(activeLabelToken(raw, raw.length), isNull);
     });
 
     test('returns null once punctuation ends the token', () {
-      const raw = 'Osprey @manuals,';
+      const raw = 'Harbor @manuals,';
 
       expect(activeLabelToken(raw, raw.length), isNull);
     });
@@ -191,13 +191,13 @@ void main() {
 
     test('keeps reading a quoted token across its spaces', () {
       // The menu has to stay open while a multi-word name is typed.
-      const raw = '@"V22 Osp';
+      const raw = '@"Q4 Road';
 
-      expect(activeLabelToken(raw, raw.length), equals('v22 osp'));
+      expect(activeLabelToken(raw, raw.length), equals('q4 road'));
     });
 
     test('returns null once the closing quote lands', () {
-      const raw = '@"V22 Osprey"';
+      const raw = '@"Q4 Roadmap"';
 
       expect(activeLabelToken(raw, raw.length), isNull);
     });
@@ -205,13 +205,13 @@ void main() {
 
   group('completeLabelToken', () {
     test('replaces the in-progress token and leaves a trailing space', () {
-      const raw = 'Osprey @man';
+      const raw = 'Harbor @man';
 
       final completed = completeLabelToken(raw, raw.length, 'manuals');
 
-      expect(completed?.text, equals('Osprey @manuals '));
+      expect(completed?.text, equals('Harbor @manuals '));
       // Cursor lands past the space, so typing continues naturally.
-      expect(completed?.cursor, equals('Osprey @manuals '.length));
+      expect(completed?.cursor, equals('Harbor @manuals '.length));
     });
 
     test('completes a bare @', () {
@@ -232,30 +232,30 @@ void main() {
     });
 
     test('returns null when there is nothing to complete', () {
-      expect(completeLabelToken('Osprey', 6, 'manuals'), isNull);
-      expect(completeLabelToken('Osprey @manuals ', 16, 'urgent'), isNull);
+      expect(completeLabelToken('Harbor', 6, 'manuals'), isNull);
+      expect(completeLabelToken('Harbor @manuals ', 16, 'urgent'), isNull);
     });
 
     test('quotes a name that contains spaces', () {
-      const raw = '@v22';
+      const raw = '@q4';
 
-      final completed = completeLabelToken(raw, raw.length, 'v22 osprey');
+      final completed = completeLabelToken(raw, raw.length, 'q4 roadmap');
 
-      // Unquoted this would round-trip as label "v22" plus the word
-      // "osprey" — a different query from the one the user picked.
-      expect(completed?.text, equals('@"v22 osprey" '));
+      // Unquoted this would round-trip as label "q4" plus the word
+      // "roadmap" — a different query from the one the user picked.
+      expect(completed?.text, equals('@"q4 roadmap" '));
       expect(
         parseThreadQuery(completed!.text).labelNames,
-        equals(['v22 osprey']),
+        equals(['q4 roadmap']),
       );
     });
 
     test('completes a quoted token in progress', () {
-      const raw = '@"v22 osp';
+      const raw = '@"q4 road';
 
-      final completed = completeLabelToken(raw, raw.length, 'v22 osprey');
+      final completed = completeLabelToken(raw, raw.length, 'q4 roadmap');
 
-      expect(completed?.text, equals('@"v22 osprey" '));
+      expect(completed?.text, equals('@"q4 roadmap" '));
     });
   });
 
@@ -265,7 +265,7 @@ void main() {
     });
 
     test('quotes anything the parser would otherwise split', () {
-      expect(formatLabelToken('v22 osprey'), equals('@"v22 osprey"'));
+      expect(formatLabelToken('q4 roadmap'), equals('@"q4 roadmap"'));
       expect(formatLabelToken('a,b'), equals('@"a,b"'));
     });
   });

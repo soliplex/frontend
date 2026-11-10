@@ -515,8 +515,8 @@ class _ChipGalleryState extends State<ChipGallery> {
             // the point: adjacent labels must not read as the same tag.
             for (final name in const [
               'Manuals',
-              'V22 Osprey',
-              'Chinook',
+              'Q4 Roadmap',
+              'Backlog',
               'Archived',
             ])
               SoliplexChip.colored(

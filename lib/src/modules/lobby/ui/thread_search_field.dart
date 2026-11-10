@@ -17,7 +17,7 @@ const Duration kThreadSearchDebounce = Duration(milliseconds: 300);
 
 /// The threads tab's search box: free text and `@label` in one field.
 ///
-/// `Osprey Manual @manuals` narrows by name and by label at once; either
+/// `Harbor Manual @manuals` narrows by name and by label at once; either
 /// half works alone. Typing `@` opens a menu of matching labels, which
 /// only ever *selects* — a user cannot coin a label from here, because
 /// only administrators may create one. The menu leads with `@no-label`,
