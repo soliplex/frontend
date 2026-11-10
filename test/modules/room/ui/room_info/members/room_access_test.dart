@@ -79,6 +79,15 @@ void main() {
     });
   });
 
+  test('ruleFor writes the one-check form, which reads back', () {
+    final rule = ruleFor('is_staff')!;
+    expect(rule, _rule);
+    expect(ruleName(rule), 'is_staff');
+    expect(ruleFor('has-dash'), isNull);
+    expect(ruleFor(r'x($) || y'), isNull);
+    expect(ruleFor(''), isNull);
+  });
+
   test('ruleName reads only the one-check form', () {
     expect(ruleName(_rule), 'is_staff');
     expect(ruleName(const AccessSubject.jsonPath(r'$[?a($) && b($)]')), isNull);
@@ -318,7 +327,7 @@ void main() {
 
     test('changes nothing when everyone was listed since', () {
       expect(
-        planEdit(seen, AddPeople([_email('a'), _email('b')], RoomRole.reader)),
+        planEdit(seen, AddMembers([_email('a'), _email('b')], RoomRole.reader)),
         isA<NoChange>(),
       );
     });
@@ -326,7 +335,7 @@ void main() {
     test('adds only people not listed since', () {
       final plan = planEdit(
         seen,
-        AddPeople([_email('a'), _email('n')], RoomRole.reader),
+        AddMembers([_email('a'), _email('n')], RoomRole.reader),
       );
       expect((plan as SaveEdit).next.entries.sublist(seen.entries.length), [
         AccessEntry(_email('n'), _read),

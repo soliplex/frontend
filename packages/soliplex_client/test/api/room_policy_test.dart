@@ -326,4 +326,75 @@ void main() {
       expect(const AccessSubject.email('a').toString(), isNot(contains('a@')));
     });
   });
+
+  group('login checks', () {
+    late MockHttpTransport transport;
+    late SoliplexApi api;
+    final uri = Uri.parse(
+      'https://api.example.com/api/v1/installation/jsonpath_functions',
+    );
+
+    setUp(() {
+      transport = MockHttpTransport();
+      when(() => transport.close()).thenReturn(null);
+      api = SoliplexApi(
+        transport: transport,
+        urlBuilder: UrlBuilder('https://api.example.com/api/v1'),
+      );
+    });
+
+    tearDown(() => api.close());
+
+    void answer(Object? body) => when(
+          () => transport.request<Object?>(
+            'GET',
+            uri,
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async => body);
+
+    test('reads names and descriptions, in order', () async {
+      answer([
+        {'name': 'has_badge', 'description': null},
+        {'name': 'is_staff', 'description': '  Match staff.  ', 'new': 1},
+        {'name': 'blank', 'description': ' '},
+        {'name': 'bare'},
+      ]);
+
+      expect(await api.getLoginChecks(), const [
+        LoginCheck('has_badge'),
+        LoginCheck('is_staff', description: 'Match staff.'),
+        LoginCheck('blank'),
+        LoginCheck('bare'),
+      ]);
+    });
+
+    test('refuses an answer that is not a list of checks', () async {
+      for (final body in <Object?>[
+        {'name': 'x'},
+        ['x'],
+        [<String, dynamic>{}],
+        [
+          {'name': 'x', 'description': 3},
+        ],
+      ]) {
+        answer(body);
+        await expectLater(
+          api.getLoginChecks(),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      }
+    });
+
+    test('a check compares by name and description', () {
+      const check = LoginCheck('is_staff', description: 'd');
+      expect(check, const LoginCheck('is_staff', description: 'd'));
+      expect(check, isNot(const LoginCheck('is_staff')));
+      expect(
+        check.hashCode,
+        const LoginCheck('is_staff', description: 'd').hashCode,
+      );
+      expect(check.toString(), 'LoginCheck(is_staff)');
+    });
+  });
 }

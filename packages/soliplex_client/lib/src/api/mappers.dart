@@ -917,6 +917,23 @@ RoomPolicy roomPolicyFromJson(Map<String, dynamic> json) {
   );
 }
 
+/// One entry of `GET /v1/installation/jsonpath_functions`.
+///
+/// Read only, never written back, so unknown keys are ignored. A missing or
+/// non-string `name`, or a `description` that is neither a string nor null,
+/// throws a [FormatException] naming the field.
+LoginCheck loginCheckFromJson(Map<String, dynamic> json) {
+  final description = json['description'];
+  if (description != null && description is! String) {
+    throw const FormatException('login check description is not a string');
+  }
+  final trimmed = (description as String?)?.trim();
+  return LoginCheck(
+    _requireString(json, 'name', 'login check'),
+    description: trimmed == null || trimmed.isEmpty ? null : trimmed,
+  );
+}
+
 /// The body `POST /v1/rooms/{room_id}/authz` takes, which replaces the room's
 /// whole policy. Each entry names only its own subject, as the server requires.
 Map<String, dynamic> roomPolicyToJson(RoomPolicy policy) => {
