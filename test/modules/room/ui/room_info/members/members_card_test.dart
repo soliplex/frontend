@@ -930,7 +930,8 @@ void main() {
           expect(record.attributes['statusCode'], 500);
         } else {
           expect(record.error, isNull);
-          expect(record.attributes['failure'], isNotNull);
+          // The type alone: the error's own text ('closed') never reaches it.
+          expect(record.attributes['failure'], 'StateError');
         }
         await tester.pumpWidget(const SizedBox());
       }
