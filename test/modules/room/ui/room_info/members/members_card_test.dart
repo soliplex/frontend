@@ -26,9 +26,13 @@ class _PolicyApi extends FakeSoliplexApi {
   Object? checksError;
   int checkReads = 0;
 
+  /// When set, the checks read waits for it.
+  Completer<void>? checksGate;
+
   @override
   Future<List<LoginCheck>> getLoginChecks({CancelToken? cancelToken}) async {
     checkReads++;
+    await checksGate?.future;
     if (checksError case final error?) throw error;
     return checks;
   }
@@ -743,8 +747,16 @@ void main() {
       await openRules(tester);
 
       expect(find.text("Couldn't load the server's checks."), findsOneWidget);
-      api.checksError = null;
+      api
+        ..checksError = null
+        ..checksGate = Completer<void>();
       await tester.tap(find.text('Try again'));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text("Couldn't load the server's checks."), findsNothing);
+      expect(find.text('Try again'), findsNothing);
+
+      api.checksGate!.complete();
       await tester.pumpAndSettle();
       expect(find.text('has_badge'), findsOneWidget);
     });
