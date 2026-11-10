@@ -387,6 +387,14 @@ class _RulePaneState extends State<_RulePane> {
     return FutureBuilder<List<LoginCheck>>(
       future: widget.checks,
       builder: (context, snapshot) {
+        // First, because a snapshot keeps the last future's error and data
+        // while a new one runs: a retry would otherwise show the old failure.
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.all(SoliplexSpacing.s6),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
         if (snapshot.hasError) {
           return snapshot.error is NotFoundException
               ? const AccessNotice(
@@ -413,13 +421,7 @@ class _RulePaneState extends State<_RulePane> {
                   ],
                 );
         }
-        final all = snapshot.data;
-        if (all == null) {
-          return const Padding(
-            padding: EdgeInsets.all(SoliplexSpacing.s6),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+        final all = snapshot.requireData;
         // A name that wouldn't read back as a rule couldn't be shown or
         // changed here once added.
         final checks = [
