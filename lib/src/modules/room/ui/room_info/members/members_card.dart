@@ -108,11 +108,12 @@ class _MembersCardBodyState extends State<_MembersCardBody> {
   _Load _load = const _NotLoaded();
   bool _saving = false;
 
-  /// Asked at most once per card, failure included, so the card never asks
-  /// again unprompted. Only the dialog's Try again replaces it.
+  /// Asked once per card and kept, failure included, so the card never asks
+  /// again on its own. Only the dialog's Try again replaces it.
   Future<List<LoginCheck>>? _checks;
 
-  /// Their descriptions, once known, for the rule rows.
+  /// What [_checks] answered, once it succeeds, so the rule rows can show
+  /// each check's description without waiting on it.
   List<LoginCheck>? _knownChecks;
 
   @override

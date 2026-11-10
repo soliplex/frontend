@@ -386,7 +386,7 @@ class _RulePane extends StatefulWidget {
 }
 
 class _RulePaneState extends State<_RulePane> {
-  /// From this many checks, the list earns a search.
+  /// From this many usable checks, the list earns a search.
   static const _searchFrom = 7;
 
   String _search = '';
@@ -446,8 +446,9 @@ class _RulePaneState extends State<_RulePane> {
           );
         }
         final all = snapshot.requireData;
-        // A name that wouldn't read back as a rule couldn't be shown or
-        // changed here once added.
+        // A name that wouldn't read back as a rule is left out: once added,
+        // it would list as a custom rule on login claims, which the card
+        // can't change.
         final checks = [
           for (final c in all)
             if (ruleFor(c.name) case final rule?) (check: c, rule: rule),
