@@ -922,10 +922,7 @@ RoomPolicy roomPolicyFromJson(Map<String, dynamic> json) {
 /// Read only, never written back, so unknown keys are ignored. A missing or
 /// non-string `name`, or a `description` that is neither a string nor null,
 /// throws a [FormatException] naming [context] and the field.
-LoginCheck loginCheckFromJson(
-  Map<String, dynamic> json, [
-  String context = 'login check',
-]) {
+LoginCheck loginCheckFromJson(Map<String, dynamic> json, String context) {
   final description = json['description'];
   if (description != null && description is! String) {
     throw FormatException('$context description is not a string');
