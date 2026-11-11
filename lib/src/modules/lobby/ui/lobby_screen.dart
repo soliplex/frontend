@@ -174,10 +174,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
   ) async {
     switch (action) {
       case ThreadRowAction.properties:
+        // The row may be older than the thread: the assistant labels it
+        // after its first run.
+        final current = await _threadsState.currentProperties(thread);
+        if (!mounted) return;
         await showDialog<void>(
           context: context,
           builder: (_) => ThreadPropertiesDialog(
-            thread: thread,
+            thread: current,
             labels: _labelsState.catalogue,
             onSave: ({
               required name,
@@ -185,7 +189,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               required labelIds,
             }) =>
                 _threadsState.saveProperties(
-              thread,
+              current,
               name: name,
               description: description,
               labelIds: labelIds,

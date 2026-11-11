@@ -170,7 +170,15 @@ class _ThreadPropertiesDialogState extends State<ThreadPropertiesDialog> {
 
   Widget _buildPicker(BuildContext context) {
     final theme = Theme.of(context);
-    final catalogue = widget.labels.value;
+    // The thread's own labels are offered even when the catalogue doesn't
+    // list them -- it failed to load, or a label was deleted -- so each
+    // one the thread carries can still be seen and removed.
+    final listed = {for (final label in widget.labels.value) label.id};
+    final catalogue = [
+      ...widget.labels.value,
+      for (final label in widget.thread.labels)
+        if (!listed.contains(label.id)) label,
+    ];
 
     if (catalogue.isEmpty) {
       return Text(

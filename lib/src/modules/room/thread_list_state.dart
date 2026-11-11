@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../stores/thread_properties.dart' as properties;
 import '../auth/auth_session.dart';
 
 final Logger _logger =
@@ -189,64 +190,69 @@ class ThreadListState {
     unawaited(_fetch());
   }
 
-  /// Saves a thread's name, description and labels together.
+  /// Reads [thread] again from the server and folds it into the list, for
+  /// the properties dialog to start from (see
+  /// [properties.currentThreadProperties]).
   ///
-  /// Unlike [renameThread] this takes the description as given rather
-  /// than re-sending the cached one: the properties dialog edits both,
-  /// so what it hands over already *is* the whole metadata row.
+  /// The room's row for a thread it has just started is a placeholder with
+  /// no name, so this is also what puts the assistant's title on it.
+  Future<ThreadInfo> currentProperties(ThreadInfo thread) async {
+    final current = await properties.currentThreadProperties(
+      _connection.api,
+      thread,
+      onAuthFailure: (error) =>
+          _funnelAuthException(error, op: 'currentThreadProperties'),
+    );
+    _fold(current);
+    return current;
+  }
+
+  /// Saves a thread's name, description and labels (see
+  /// [properties.saveThreadProperties]), and folds what was saved into the
+  /// list.
   ///
-  /// The results are folded into the held list rather than refetched.
-  /// The backend commits its transaction after sending the response, so
-  /// a listing requested straight after a write can still report the old
-  /// values.
-  Future<void> saveThreadProperties(
-    String threadId, {
+  /// [thread] is the copy the dialog started from. Returns null on success
+  /// or a sentence for the dialog.
+  ///
+  /// Folded rather than refetched: the backend commits its transaction
+  /// after sending the response, so a listing requested straight after a
+  /// write can still report the old values.
+  Future<String?> saveThreadProperties(
+    ThreadInfo thread, {
     required String name,
     required String description,
     required List<int> labelIds,
   }) async {
-    if (name.trim().isEmpty) {
-      throw const FormatException('Thread name must not be empty');
-    }
+    final saved = await properties.saveThreadProperties(
+      _connection.api,
+      thread,
+      name: name,
+      description: description,
+      initialLabelIds: {for (final label in thread.labels) label.id},
+      labelIds: labelIds.toSet(),
+      onAuthFailure: (error) =>
+          _funnelAuthException(error, op: 'saveThreadProperties'),
+    );
+    final updated = saved.thread;
+    if (updated != null) _fold(updated);
+    return saved.error;
+  }
+
+  /// Swaps [thread] into the list in place, or refetches when there is no
+  /// list to fold into.
+  void _fold(ThreadInfo thread) {
     if (_isDisposed) return;
-
-    try {
-      await _connection.api.updateThreadMetadata(
-        _roomId,
-        threadId,
-        name: name,
-        description: description.isNotEmpty ? description : null,
-      );
-      final updated = await _connection.api.setThreadLabels(
-        _roomId,
-        threadId,
-        labelIds: labelIds,
-      );
-
-      if (_isDisposed) return;
-      final latest = _threads.value;
-      if (latest is! ThreadsLoaded) {
-        // The list moved out from under the write; the server already
-        // has the change, so a fresh fetch reconciles.
-        unawaited(_fetch());
-        return;
-      }
-
-      _cancelInFlightFetch();
-      _threads.value = ThreadsLoaded([
-        for (final thread in latest.threads)
-          if (thread.id == threadId)
-            // The labels response carries no metadata, so the local copy
-            // takes the names from what was sent and the labels from
-            // what came back.
-            updated.copyWith(name: name, description: description)
-          else
-            thread,
-      ]);
-    } on AuthException catch (error) {
-      _funnelAuthException(error, op: 'saveThreadProperties');
+    final latest = _threads.value;
+    if (latest is! ThreadsLoaded) {
+      // The server already has the change, so a fresh fetch reconciles.
+      unawaited(_fetch());
       return;
     }
+    _cancelInFlightFetch();
+    _threads.value = ThreadsLoaded([
+      for (final held in latest.threads)
+        if (held.id == thread.id) thread else held,
+    ]);
   }
 
   Future<void> _fetch() async {

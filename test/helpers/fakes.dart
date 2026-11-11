@@ -608,6 +608,32 @@ class FakeSoliplexApi extends SoliplexApi {
     return updated;
   }
 
+  /// Thrown by [getThread] when set.
+  Exception? nextGetThreadError;
+
+  /// The thread ids [getThread] was asked for, in order.
+  final List<String> getThreadCalls = [];
+
+  /// Answers from [allThreads], then [nextThreads], so a thread a test
+  /// relabels behind the client's back (as the assistant would) reads back
+  /// with its new labels.
+  @override
+  Future<ThreadInfo> getThread(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    getThreadCalls.add(threadId);
+    if (nextGetThreadError != null) throw nextGetThreadError!;
+    final found = [...?allThreads, ...?nextThreads]
+        .where((thread) => thread.id == threadId)
+        .firstOrNull;
+    if (found == null) {
+      throw NotFoundException(message: 'No thread $threadId');
+    }
+    return found;
+  }
+
   @override
   Future<Map<String, RoomStats>> getRoomsStats({
     CancelToken? cancelToken,
