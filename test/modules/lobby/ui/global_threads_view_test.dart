@@ -748,6 +748,34 @@ void main() {
       expect(find.text('Thread 59'), findsOneWidget);
     });
 
+    testWidgets('a page too short to scroll still loads the rest',
+        (tester) async {
+      final threads = [
+        for (var i = 0; i < 10; i++) _thread('t$i', 'r1', name: 'Thread $i'),
+      ];
+      tester.view.physicalSize = const Size(1000, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      final manager = _createManager()
+        ..addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+      final api = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')]
+        ..allThreads = threads
+        ..allThreadsPageCap = 3;
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => api));
+      await tester.pumpAndSettle();
+
+      await _openThreadsTab(tester);
+
+      // Three rows can't scroll, so no drag; the rest arrives anyway.
+      expect(find.text('Thread 9'), findsOneWidget);
+      expect(api.allThreadsCalls.map((c) => c.cursor), [null, '3', '6', '9']);
+    });
+
     testWidgets('a failed later page keeps the list and offers a retry',
         (tester) async {
       final threads = [
@@ -770,6 +798,8 @@ void main() {
       expect(find.text('Could not load threads'), findsNothing);
 
       api.nextAllThreadsError = null;
+      await tester.ensureVisible(find.text('Retry'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       await tester.drag(find.byType(ListView).last, const Offset(0, -4000));
@@ -779,6 +809,7 @@ void main() {
 
       expect(find.text("Couldn't load more threads."), findsNothing);
       expect(find.text('Thread 59'), findsOneWidget);
+      expect(api.allThreadsCalls.map((c) => c.cursor), [null, '50', '50']);
     });
   });
 

@@ -345,6 +345,11 @@ class FakeSoliplexApi extends SoliplexApi {
   /// hold a page in flight to prove overlapping loads are refused.
   Completer<void>? allThreadsGate;
 
+  /// When set, [getAllThreads] returns at most this many threads per page,
+  /// whatever the limit asked for, as a backend that filters after paging
+  /// can.
+  int? allThreadsPageCap;
+
   final Map<String, List<Completer<void>>> _held = {};
 
   /// Holds the next call to [method] in flight until the returned
@@ -500,7 +505,7 @@ class FakeSoliplexApi extends SoliplexApi {
     }
 
     final start = cursor == null ? 0 : int.parse(cursor);
-    final end = (start + limit).clamp(0, all.length);
+    final end = (start + (allThreadsPageCap ?? limit)).clamp(0, all.length);
     return ThreadPage(
       threads: all.sublist(start, end),
       nextCursor: end < all.length ? '$end' : null,
