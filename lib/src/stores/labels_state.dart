@@ -185,6 +185,16 @@ class LabelsState {
         return;
       }
 
+      if (error is PermissionDeniedException) {
+        // A standing refusal, not a fault: shown without a Retry.
+        _logger.warning(
+          'Not allowed to read labels on $serverId',
+          error: error,
+        );
+        _labels.value = LabelsFailed(error);
+        return;
+      }
+
       _logger.error(
         'Failed to fetch labels for $serverId',
         error: error,
@@ -253,11 +263,27 @@ class LabelsState {
     } on Object catch (error, st) {
       if (_disposed) return null;
       if (error is AuthException) entry.auth.markSessionExpired();
-      _logger.error(
-        'Label operation failed for $serverId',
-        error: error,
-        stackTrace: st,
-      );
+      // A name taken (409), a refusal (403), a label gone (404) or a lost
+      // session are answers the user acts on, not faults.
+      final expected = (error is ApiException && error.statusCode == 409) ||
+          error is PermissionDeniedException ||
+          error is NotFoundException ||
+          error is AuthException;
+      if (expected) {
+        _logger.warning(
+          'Label operation refused on $serverId',
+          error: error,
+          attributes: {
+            if (error is ApiException) 'statusCode': error.statusCode,
+          },
+        );
+      } else {
+        _logger.error(
+          'Label operation failed for $serverId',
+          error: error,
+          stackTrace: st,
+        );
+      }
       return _reason(error);
     } finally {
       if (!_disposed) _busy.value = false;

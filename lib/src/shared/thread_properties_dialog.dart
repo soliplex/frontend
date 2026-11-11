@@ -182,7 +182,7 @@ class _ThreadPropertiesDialogState extends State<ThreadPropertiesDialog> {
 
     if (catalogue.isEmpty) {
       return Text(
-        'This server has no labels yet.',
+        'No labels to choose from.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),

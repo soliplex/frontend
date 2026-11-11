@@ -379,6 +379,16 @@ class GlobalThreadsState {
         return;
       }
 
+      if (error is PermissionDeniedException) {
+        // A standing refusal, not a fault: shown without a Retry.
+        _logger.warning(
+          'Not allowed to list threads on $serverId',
+          error: error,
+        );
+        _threads.value = GlobalThreadsFailed(error);
+        return;
+      }
+
       _logger.error(
         'Failed to fetch threads for $serverId',
         error: error,
