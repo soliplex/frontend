@@ -742,6 +742,43 @@ void main() {
       expect(api.getAllThreadsCallCount, greaterThan(1));
       // The second request resumes from the first page's cursor.
       expect(api.allThreadsCalls.last.cursor, equals('50'));
+      // And its rows reach the screen, not just the request log.
+      await tester.drag(find.byType(ListView).last, const Offset(0, -4000));
+      await tester.pumpAndSettle();
+      expect(find.text('Thread 59'), findsOneWidget);
+    });
+
+    testWidgets('a failed later page keeps the list and offers a retry',
+        (tester) async {
+      final threads = [
+        for (var i = 0; i < 60; i++)
+          _thread('t$i', 'r1', name: 'Thread ${i.toString().padLeft(2, '0')}'),
+      ];
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: threads,
+      );
+      await _openThreadsTab(tester);
+
+      api.nextAllThreadsError = Exception('blip');
+      await tester.drag(find.byType(ListView).last, const Offset(0, -4000));
+      await tester.pumpAndSettle();
+
+      expect(find.text("Couldn't load more threads."), findsOneWidget);
+      expect(find.text('Thread 49'), findsOneWidget);
+      expect(find.text('Could not load threads'), findsNothing);
+
+      api.nextAllThreadsError = null;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -4000));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -4000));
+      await tester.pumpAndSettle();
+
+      expect(find.text("Couldn't load more threads."), findsNothing);
+      expect(find.text('Thread 59'), findsOneWidget);
     });
   });
 

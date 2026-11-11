@@ -85,6 +85,52 @@ void main() {
 
       // One page covered everything, so there is nothing more to ask for.
       expect(h.api.getAllThreadsCallCount, equals(1));
+      final loaded = h.state.threads.value as GlobalThreadsLoaded;
+      expect(loaded.loadingMore, isFalse);
+      expect(loaded.threads.map((t) => t.id), ['a']);
+
+      h.state.dispose();
+    });
+
+    test('a failed later page keeps the rows, and a retry resumes', () async {
+      final h = _harness();
+      h.api.allThreads = [_thread('a'), _thread('b'), _thread('c')];
+      h.state.setServer(_serverId);
+      await pumpEventQueue();
+
+      h.api.nextAllThreadsError = Exception('blip');
+      await h.state.loadMore();
+
+      var loaded = h.state.threads.value as GlobalThreadsLoaded;
+      expect(loaded.threads.map((t) => t.id), ['a', 'b']);
+      expect(loaded.loadMoreError, isNotNull);
+      expect(loaded.loadingMore, isFalse);
+      expect(loaded.hasMore, isTrue);
+
+      h.api.nextAllThreadsError = null;
+      await h.state.loadMore();
+
+      loaded = h.state.threads.value as GlobalThreadsLoaded;
+      expect(loaded.threads.map((t) => t.id), ['a', 'b', 'c']);
+      expect(loaded.loadMoreError, isNull);
+      // The retry asked for the page that failed, not page one.
+      expect(h.api.allThreadsCalls.map((c) => c.cursor), [null, '2', '2']);
+
+      h.state.dispose();
+    });
+
+    test('a 404 on a later page is not an unsupported server', () async {
+      final h = _harness();
+      h.api.allThreads = [_thread('a'), _thread('b'), _thread('c')];
+      h.state.setServer(_serverId);
+      await pumpEventQueue();
+
+      h.api.nextAllThreadsError = const NotFoundException(message: 'gone');
+      await h.state.loadMore();
+
+      final loaded = h.state.threads.value as GlobalThreadsLoaded;
+      expect(loaded.loadMoreError, isA<NotFoundException>());
+      expect(loaded.threads, hasLength(2));
 
       h.state.dispose();
     });
