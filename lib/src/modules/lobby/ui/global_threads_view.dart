@@ -358,10 +358,15 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
       child: ListView.builder(
         controller: _controller,
         padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-        // One trailing row for the spinner while the next page is in flight.
-        itemCount: threads.length + (loaded.loadingMore ? 1 : 0),
+        // One trailing row while the next page is in flight, or after it
+        // failed.
+        itemCount: threads.length +
+            (loaded.loadingMore || loaded.loadMoreError != null ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == threads.length) {
+            if (loaded.loadMoreError != null) {
+              return _LoadMoreFailedRow(onRetry: widget.state.loadMore);
+            }
             return const Padding(
               padding: EdgeInsets.all(SoliplexSpacing.s4),
               child: Center(child: CircularProgressIndicator()),
@@ -505,6 +510,38 @@ class _ThreadListTileState extends State<_ThreadListTile> {
 
 /// A centered icon/title/detail block for the empty, error and
 /// unsupported-server states.
+/// Stands in for the next page when it failed to load, below the rows
+/// that did.
+class _LoadMoreFailedRow extends StatelessWidget {
+  const _LoadMoreFailedRow({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            "Couldn't load more threads.",
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: SoliplexSpacing.s2),
+          SoliplexButton.text(
+            onPressed: () => onRetry(),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ThreadsMessage extends StatelessWidget {
   const _ThreadsMessage({
     required this.icon,

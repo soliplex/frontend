@@ -34,13 +34,26 @@ final class GlobalThreadsLoading extends GlobalThreads {
 final class GlobalThreadsLoaded extends GlobalThreads {
   GlobalThreadsLoaded({
     required List<ThreadInfo> threads,
-    required this.hasMore,
-    required this.loadingMore,
+    this.nextCursor,
+    this.loadingMore = false,
+    this.loadMoreError,
   }) : threads = List.unmodifiable(threads);
 
   final List<ThreadInfo> threads;
-  final bool hasMore;
+
+  /// The token for the page after the last one held; `null` once the last
+  /// page has arrived.
+  final String? nextCursor;
+
   final bool loadingMore;
+
+  /// Why the last attempt at the next page failed, or `null`.
+  ///
+  /// A failed later page keeps the rows already held: the user is deep in
+  /// the list, and a blip should cost them a retry, not their place.
+  final Object? loadMoreError;
+
+  bool get hasMore => nextCursor != null;
 }
 
 /// The listing could not be loaded.
@@ -97,10 +110,6 @@ class GlobalThreadsState {
   ReadonlySignal<GlobalThreads> get threads => _threads;
 
   String? _serverId;
-
-  /// The token for the page after the last one held; `null` before the
-  /// first page arrives and after the last.
-  String? _nextCursor;
 
   /// The active filter, applied to every page including [loadMore]'s —
   /// paging a filtered listing has to stay filtered.
@@ -192,11 +201,7 @@ class GlobalThreadsState {
     scrollOffset = 0;
 
     if (serverId == null) {
-      _threads.value = GlobalThreadsLoaded(
-        threads: const [],
-        hasMore: false,
-        loadingMore: false,
-      );
+      _threads.value = GlobalThreadsLoaded(threads: const []);
       return;
     }
 
@@ -208,7 +213,6 @@ class GlobalThreadsState {
   /// this screen never sees them.
   void _signOut({required bool expired}) {
     _cancelInFlight();
-    _nextCursor = null;
     scrollOffset = 0;
     _threads.value = GlobalThreadsSignedOut(expired: expired);
   }
@@ -256,17 +260,20 @@ class GlobalThreadsState {
   }
 
   /// Appends the next page, if there is one and none is already in flight.
+  ///
+  /// Also the retry after a failed page: it asks for the same page again.
   Future<void> loadMore() {
     final current = _threads.value;
     if (current is! GlobalThreadsLoaded) return Future<void>.value();
-    if (!current.hasMore || _token != null) return Future<void>.value();
+    final cursor = current.nextCursor;
+    if (cursor == null || _token != null) return Future<void>.value();
 
     _threads.value = GlobalThreadsLoaded(
       threads: current.threads,
-      hasMore: current.hasMore,
+      nextCursor: cursor,
       loadingMore: true,
     );
-    return _fetch(cursor: _nextCursor);
+    return _fetch(cursor: cursor);
   }
 
   /// Fetches the page after [cursor], or the first page when it is `null`.
@@ -278,11 +285,7 @@ class GlobalThreadsState {
     if (entry == null) {
       // The server vanished between selection and fetch (removed, or a
       // races-with-teardown rebuild). Nothing to show and nothing to log.
-      _threads.value = GlobalThreadsLoaded(
-        threads: const [],
-        hasMore: false,
-        loadingMore: false,
-      );
+      _threads.value = GlobalThreadsLoaded(threads: const []);
       return;
     }
 
@@ -311,7 +314,6 @@ class GlobalThreadsState {
       if (token.isCancelled || _disposed || serverId != _serverId) return;
       _token = null;
 
-      _nextCursor = page.nextCursor;
       final existing = cursor == null ? const <ThreadInfo>[] : _heldThreads();
       final held = {for (final thread in existing) thread.id};
       _threads.value = GlobalThreadsLoaded(
@@ -321,12 +323,31 @@ class GlobalThreadsState {
           ...existing,
           ...page.threads.where((thread) => !held.contains(thread.id)),
         ],
-        hasMore: page.hasMore,
-        loadingMore: false,
+        nextCursor: page.nextCursor,
       );
     } on Object catch (error, st) {
       if (token.isCancelled || _disposed || serverId != _serverId) return;
       _token = null;
+
+      final held = _threads.value;
+      if (cursor != null && held is GlobalThreadsLoaded) {
+        // A later page: keep every row and the cursor, so a retry resumes
+        // from the same page. Not "unsupported" even for a 404 -- this
+        // server just served the first page.
+        if (error is AuthException) entry.auth.markSessionExpired();
+        _logger.warning(
+          'Failed to fetch the next page of threads for $serverId',
+          error: error,
+          stackTrace: st,
+          attributes: {'held': held.threads.length},
+        );
+        _threads.value = GlobalThreadsLoaded(
+          threads: held.threads,
+          nextCursor: cursor,
+          loadMoreError: error,
+        );
+        return;
+      }
 
       if (error is NotFoundException) {
         // A server that predates the cross-room endpoint, not a fault.
@@ -391,12 +412,10 @@ class GlobalThreadsState {
       final fresh = {for (final thread in page.threads) thread.id};
       final overlaps = current.threads.any((t) => fresh.contains(t.id));
       if (!overlaps && page.hasMore) {
-        _nextCursor = page.nextCursor;
         scrollOffset = 0;
         _threads.value = GlobalThreadsLoaded(
           threads: page.threads,
-          hasMore: true,
-          loadingMore: false,
+          nextCursor: page.nextCursor,
         );
         return;
       }
@@ -406,8 +425,8 @@ class GlobalThreadsState {
           ...page.threads,
           ...current.threads.where((thread) => !fresh.contains(thread.id)),
         ],
-        hasMore: current.hasMore,
-        loadingMore: false,
+        nextCursor: current.nextCursor,
+        loadMoreError: current.loadMoreError,
       );
     } on Object catch (error, st) {
       if (token.isCancelled || _disposed || serverId != _serverId) return;
@@ -541,8 +560,9 @@ class GlobalThreadsState {
     if (current is! GlobalThreadsLoaded) return;
     _threads.value = GlobalThreadsLoaded(
       threads: threads,
-      hasMore: current.hasMore,
+      nextCursor: current.nextCursor,
       loadingMore: current.loadingMore,
+      loadMoreError: current.loadMoreError,
     );
   }
 
