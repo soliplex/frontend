@@ -48,6 +48,7 @@ class LobbyScreen extends StatefulWidget {
     this.serverReadMarkers,
     this.apiResolver,
     this.initialServerId,
+    this.threadsState,
   });
 
   final ServerManager serverManager;
@@ -77,6 +78,11 @@ class LobbyScreen extends StatefulWidget {
   /// the persisted/first-server default. Ignored when it names no known server.
   final String? initialServerId;
 
+  /// The cross-room thread listing. The lobby module owns one so its pages
+  /// and scroll position survive opening a thread and coming back. Null in
+  /// tests, where the screen makes and disposes its own.
+  final GlobalThreadsState? threadsState;
+
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
 }
@@ -86,9 +92,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
   late final GlobalThreadsState _threadsState;
   late final LabelsState _labelsState;
 
+  late final void Function() _unfollowThreads;
+  late final void Function() _unfollowLabels;
+
   /// The label the labels tab should highlight, set when a thread's
-  /// properties dialog jumps there to edit one.
-  int? _selectedLabelId;
+  /// properties dialog jumps there to edit one. Keyed by server, because
+  /// label ids are per server: another server's label may share the id.
+  ({String serverId, int labelId})? _highlightedLabel;
 
   @override
   void initState() {
@@ -101,20 +111,31 @@ class _LobbyScreenState extends State<LobbyScreen> {
       serverReadMarkers: widget.serverReadMarkers,
       initialServerId: widget.initialServerId,
     );
-    _threadsState = GlobalThreadsState(
-      entryResolver: (id) => widget.serverManager.servers.value[id],
-      apiResolver: widget.apiResolver,
-    );
+    _threadsState = widget.threadsState ??
+        GlobalThreadsState(
+          entryResolver: (id) => widget.serverManager.servers.value[id],
+          apiResolver: widget.apiResolver,
+        );
     _labelsState = LabelsState(
       entryResolver: (id) => widget.serverManager.servers.value[id],
       apiResolver: widget.apiResolver,
+    );
+    _unfollowThreads = _threadsState.follow(
+      selection: _state.selectedServerId,
+      servers: widget.serverManager.servers,
+    );
+    _unfollowLabels = _labelsState.follow(
+      selection: _state.selectedServerId,
+      servers: widget.serverManager.servers,
     );
   }
 
   @override
   void dispose() {
+    _unfollowLabels();
+    _unfollowThreads();
     _labelsState.dispose();
-    _threadsState.dispose();
+    if (widget.threadsState == null) _threadsState.dispose();
     _state.dispose();
     super.dispose();
   }
@@ -138,9 +159,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   void _onThreadTap(String roomId, String threadId) {
-    // The threads tab only ever shows the selected server, so the thread
-    // belongs to it by construction.
-    final serverId = _state.selectedServerId.value;
+    // The listing holds one server's threads, so the thread is on it.
+    final serverId = _threadsState.serverId;
     if (serverId == null) return;
     final entry = widget.serverManager.servers.value[serverId];
     assert(entry != null, 'Thread tap for unknown serverId: $serverId');
@@ -199,10 +219,33 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return serverId != null && (_state.labelAdmins.value[serverId] ?? false);
   }
 
-  /// Jumps to the labels tab with [labelId] highlighted.
-  void _onEditLabel(int labelId) {
-    setState(() => _selectedLabelId = labelId);
+  /// Jumps to the labels tab and opens [labelId]'s editor, leaving its row
+  /// highlighted once the editor closes.
+  Future<void> _onEditLabel(int labelId) async {
+    final serverId = _labelsState.serverId;
+    if (serverId == null) return;
+    setState(
+      () => _highlightedLabel = (serverId: serverId, labelId: labelId),
+    );
     _state.setActiveTab(LobbyTab.labels);
+
+    final label = _labelsState.catalogue.value
+        .where((label) => label.id == labelId)
+        .firstOrNull;
+    if (label == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => LabelEditorDialog(state: _labelsState, existing: label),
+    );
+  }
+
+  void _onTabChanged(LobbyTab tab) {
+    // The highlight marks where a jump landed; once the user moves on,
+    // it would only point at a row they are no longer looking for.
+    if (tab != LobbyTab.labels && _highlightedLabel != null) {
+      setState(() => _highlightedLabel = null);
+    }
+    _state.setActiveTab(tab);
   }
 
   void _onInfoTap(String serverId, String roomId) {
@@ -239,12 +282,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final activeTab = _state.activeTab.watch(context);
     final labelAdmins = _state.labelAdmins.watch(context);
 
-    // Keep the threads listing pointed at whatever the sidebar has
-    // selected. This is a no-op when the selection has not moved, so it is
-    // safe to run on every rebuild.
-    _threadsState.setServer(selectedServerId);
-    _labelsState.setServer(selectedServerId);
-
     // Non-administrators get no labels tab at all rather than a
     // read-only one: every control on it is an administrator action, and
     // the catalogue stays discoverable through the '@label' autocomplete
@@ -255,12 +292,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final tabsSection = LobbyTabsSection(
       tabs: visibleLobbyTabs(isAdmin: isAdmin),
       activeTab: activeTab,
-      onTabChanged: _state.setActiveTab,
+      onTabChanged: _onTabChanged,
       threads: _threadsState,
       labels: _labelsState,
       onThreadTap: _onThreadTap,
       onThreadAction: _onThreadAction,
-      selectedLabelId: _selectedLabelId,
+      onSignIn: () {
+        final serverId = _threadsState.serverId;
+        if (serverId != null) _onSignIn(serverId);
+      },
+      selectedLabelId: _highlightedLabel?.serverId == selectedServerId
+          ? _highlightedLabel?.labelId
+          : null,
     );
 
     return LayoutBuilder(
@@ -709,11 +752,15 @@ class _RoomContent extends StatelessWidget {
                       LobbyTab.rooms =>
                         _buildSelectedServer(context, effectiveViewMode),
                       LobbyTab.threads => GlobalThreadsView(
+                          // A fresh view per server, so a switch clears the
+                          // search box with the filter it typed.
+                          key: ValueKey(tabsSection.threads.serverId),
                           state: tabsSection.threads,
                           labels: tabsSection.labels,
                           roomNames: _roomNames(),
                           onThreadTap: tabsSection.onThreadTap,
                           onThreadAction: tabsSection.onThreadAction,
+                          onSignIn: tabsSection.onSignIn,
                         ),
                       LobbyTab.labels => LabelsView(
                           state: tabsSection.labels,

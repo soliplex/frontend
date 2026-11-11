@@ -7,6 +7,7 @@ import '../auth/server_manager.dart';
 import '../../stores/run_registry.dart';
 import '../../stores/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
+import 'global_threads_state.dart';
 import 'ui/lobby_screen.dart';
 
 class LobbyAppModule extends AppModule {
@@ -16,7 +17,9 @@ class LobbyAppModule extends AppModule {
     required this.registry,
     required this.roomReadMarkers,
     required this.serverReadMarkers,
-  });
+  }) : threadsState = GlobalThreadsState(
+          entryResolver: (id) => serverManager.servers.value[id],
+        );
 
   final ServerManager serverManager;
 
@@ -35,6 +38,12 @@ class LobbyAppModule extends AppModule {
   /// marker floors every room's unread dot on the server.
   final ServerReadMarkers serverReadMarkers;
 
+  /// The cross-room thread listing. Held here rather than by the screen,
+  /// which is rebuilt each time the user comes back from a thread: the
+  /// pages they scrolled through, and where they were, should still be
+  /// there.
+  final GlobalThreadsState threadsState;
+
   @override
   String get namespace => 'lobby';
 
@@ -51,9 +60,13 @@ class LobbyAppModule extends AppModule {
                 roomReadMarkers: roomReadMarkers,
                 serverReadMarkers: serverReadMarkers,
                 initialServerId: state.uri.queryParameters['server'],
+                threadsState: threadsState,
               ),
             ),
           ),
         ],
       );
+
+  @override
+  Future<void> onDispose() async => threadsState.dispose();
 }

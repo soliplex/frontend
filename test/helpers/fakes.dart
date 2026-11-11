@@ -345,6 +345,28 @@ class FakeSoliplexApi extends SoliplexApi {
   /// hold a page in flight to prove overlapping loads are refused.
   Completer<void>? allThreadsGate;
 
+  final Map<String, List<Completer<void>>> _held = {};
+
+  /// Holds the next call to [method] in flight until the returned
+  /// completer completes.
+  ///
+  /// Unlike [allThreadsGate], each hold belongs to one call: calls take
+  /// the holds in the order they are made, and a test can release them in
+  /// any order, which is what a stale response landing late looks like.
+  /// Covers `getAllThreads`, `getLabels`, `createLabel`, `updateLabel`
+  /// and `deleteLabel`.
+  Completer<void> holdNext(String method) {
+    final hold = Completer<void>();
+    (_held[method] ??= []).add(hold);
+    return hold;
+  }
+
+  Future<void> _awaitHold(String method) async {
+    final holds = _held[method];
+    if (holds == null || holds.isEmpty) return;
+    await holds.removeAt(0).future;
+  }
+
   /// The label catalogue [getLabels] returns.
   ///
   /// Defaults to empty rather than throwing, like [allThreads] and for the
@@ -446,6 +468,7 @@ class FakeSoliplexApi extends SoliplexApi {
       query: query,
     ));
     if (allThreadsGate != null) await allThreadsGate!.future;
+    await _awaitHold('getAllThreads');
     if (nextAllThreadsError != null) throw nextAllThreadsError!;
 
     // Unlike the other fakes, an unset listing yields an empty page rather
@@ -486,6 +509,7 @@ class FakeSoliplexApi extends SoliplexApi {
 
   @override
   Future<List<ThreadLabel>> getLabels({CancelToken? cancelToken}) async {
+    await _awaitHold('getLabels');
     if (nextLabelsError != null) throw nextLabelsError!;
     return List.unmodifiable(labels);
   }
@@ -497,6 +521,7 @@ class FakeSoliplexApi extends SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     createLabelCalls.add((name: name, color: color));
+    await _awaitHold('createLabel');
     if (nextCreateLabelError != null) throw nextCreateLabelError!;
     final created = ThreadLabel(
       id: _nextLabelId++,
@@ -517,6 +542,7 @@ class FakeSoliplexApi extends SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     updateLabelCalls.add((id: labelId, name: name, color: color));
+    await _awaitHold('updateLabel');
     if (nextUpdateLabelError != null) throw nextUpdateLabelError!;
     final existing = labels.firstWhere((label) => label.id == labelId);
     final updated = existing.copyWith(name: name, color: color);
@@ -530,6 +556,7 @@ class FakeSoliplexApi extends SoliplexApi {
   @override
   Future<void> deleteLabel(int labelId, {CancelToken? cancelToken}) async {
     deleteLabelCalls.add(labelId);
+    await _awaitHold('deleteLabel');
     if (nextDeleteLabelError != null) throw nextDeleteLabelError!;
     labels = [
       for (final label in labels)

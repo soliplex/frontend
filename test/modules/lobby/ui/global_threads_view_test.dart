@@ -6,10 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
 import 'package:soliplex_client/soliplex_client.dart'
-    show NotFoundException, ThreadLabel;
+    show NotFoundException, SoliplexApi, ThreadLabel;
 import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/lobby/global_threads_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/global_threads_view.dart';
 import 'package:soliplex_frontend/src/shared/label_chip.dart';
@@ -742,4 +744,208 @@ void main() {
       expect(api.allThreadsCalls.last.cursor, equals('50'));
     });
   });
+
+  group('lobby threads tab across screens and servers', () {
+    testWidgets('shows whichever server the sidebar selects', (tester) async {
+      final h = await _pumpTwoServers(tester);
+      await _openThreadsTab(tester);
+      expect(find.text('Alpha'), findsOneWidget);
+
+      await tester.tap(find.text('Second'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Beta'), findsOneWidget);
+      expect(find.text('Alpha'), findsNothing);
+      h.dispose();
+    });
+
+    testWidgets('a server switch clears the search', (tester) async {
+      final h = await _pumpTwoServers(tester);
+      await _openThreadsTab(tester);
+      await tester.enterText(find.byType(TextField).last, 'alp');
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Second'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('alp'), findsNothing);
+      expect(h.apiB.allThreadsCalls.single.query, isEmpty);
+      h.dispose();
+    });
+
+    testWidgets('coming back from a thread keeps the place and the search',
+        (tester) async {
+      final h = await _pumpTwoServers(
+        tester,
+        threadsA: [
+          for (var i = 0; i < 60; i++)
+            _thread('t$i', 'r1',
+                name: 'Thread ${i.toString().padLeft(2, '0')}'),
+        ],
+      );
+      await _openThreadsTab(tester);
+      await tester.enterText(find.byType(TextField).last, 'thread');
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -4000));
+      await tester.pumpAndSettle();
+      final calls = h.apiA.getAllThreadsCallCount;
+      // The first page, the same page filtered, then the filtered second.
+      expect(calls, 3);
+      expect(find.text('Thread 00'), findsNothing);
+      final onScreen = [
+        for (var i = 0; i < 60; i++) 'Thread ${i.toString().padLeft(2, '0')}',
+      ].firstWhere((name) => find.text(name).evaluate().isNotEmpty);
+
+      await tester.tap(find.text(onScreen));
+      await tester.pumpAndSettle();
+      expect(find.text('Thread'), findsOneWidget);
+      h.router.go('/lobby');
+      await tester.pumpAndSettle();
+
+      // Still scrolled down, still searching, both pages still held: the
+      // only request is the quiet re-check of the first page.
+      expect(find.text(onScreen), findsOneWidget);
+      expect(find.text('Thread 00'), findsNothing);
+      expect(find.text('thread'), findsOneWidget);
+      expect(h.apiA.getAllThreadsCallCount, calls + 1);
+      expect(h.apiA.allThreadsCalls.last.cursor, isNull);
+      expect(h.apiA.allThreadsCalls.last.query, 'thread');
+      h.dispose();
+    });
+
+    testWidgets('a signed-out server offers sign-in, not a retry',
+        (tester) async {
+      final h = await _pumpTwoServers(tester, firstRequiresAuth: true);
+      await _openThreadsTab(tester);
+
+      expect(find.text('Signed out'), findsWidgets);
+      expect(find.text('Retry'), findsNothing);
+      expect(h.apiA.getAllThreadsCallCount, 0);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GlobalThreadsView),
+          matching: find.text('Sign in'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Home'), findsOneWidget);
+      h.dispose();
+    });
+
+    testWidgets("editing a label from a thread's properties opens its editor",
+        (tester) async {
+      final h = await _pumpTwoServers(
+        tester,
+        labels: const [ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D')],
+      );
+      await _openThreadsTab(tester);
+      await _openThreadMenu(tester);
+      await tester.tap(find.text('Properties'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Edit "Manuals"'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit label'), findsOneWidget);
+      h.dispose();
+    });
+  });
+}
+
+/// Seeds two servers named First and Second, each with its own fake API,
+/// and pumps the lobby with a thread listing it doesn't own, as the lobby
+/// module provides it.
+Future<
+    ({
+      GoRouter router,
+      FakeSoliplexApi apiA,
+      FakeSoliplexApi apiB,
+      void Function() dispose,
+    })> _pumpTwoServers(
+  WidgetTester tester, {
+  List<ThreadInfo>? threadsA,
+  List<ThreadLabel> labels = const [],
+  bool firstRequiresAuth = false,
+}) async {
+  tester.view.physicalSize = const Size(1000, 700);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+
+  final clients = AuthzOnlyClients();
+  final manager = ServerManager(
+    authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+    clientFactory: ({getToken, tokenRefresher}) => clients.create(),
+    storage: InMemoryServerStorage(),
+  )
+    ..addServer(
+      serverId: 'first',
+      serverUrl: Uri.parse('http://localhost:8001'),
+      requiresAuth: firstRequiresAuth,
+      name: 'First',
+    )
+    ..addServer(
+      serverId: 'second',
+      serverUrl: Uri.parse('http://localhost:8002'),
+      requiresAuth: false,
+      name: 'Second',
+    );
+
+  final apiA = FakeSoliplexApi()
+    ..nextRooms = const [Room(id: 'r1', name: 'General')]
+    ..allThreads = threadsA ?? [_thread('a1', 'r1', name: 'Alpha')]
+    ..labels = labels;
+  final apiB = FakeSoliplexApi()
+    ..nextRooms = const [Room(id: 'r1', name: 'General')]
+    ..allThreads = [_thread('b1', 'r1', name: 'Beta')];
+  SoliplexApi resolve(ServerEntry entry) =>
+      entry.serverId == 'first' ? apiA : apiB;
+
+  final threadsState = GlobalThreadsState(
+    entryResolver: (id) => manager.servers.value[id],
+    apiResolver: resolve,
+  );
+
+  final router = GoRouter(
+    initialLocation: '/lobby?server=first',
+    routes: [
+      GoRoute(
+        path: '/lobby',
+        builder: (_, state) => LobbyScreen(
+          serverManager: manager,
+          identity: testIdentity(),
+          apiResolver: resolve,
+          initialServerId: state.uri.queryParameters['server'],
+          threadsState: threadsState,
+        ),
+      ),
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const Scaffold(body: Text('Home')),
+      ),
+      GoRoute(
+        path: '/room/:alias/:roomId/thread/:threadId',
+        builder: (_, __) => const Scaffold(body: Text('Thread')),
+      ),
+    ],
+  );
+
+  await tester.pumpWidget(
+    ProviderScope(
+      child: MaterialApp.router(
+        theme: soliplexLightTheme(),
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+
+  return (
+    router: router,
+    apiA: apiA,
+    apiB: apiB,
+    dispose: threadsState.dispose,
+  );
 }

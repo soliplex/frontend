@@ -48,7 +48,7 @@ class ThreadPropertiesDialog extends StatefulWidget {
 
   final ThreadPropertiesSaver onSave;
 
-  /// Jumps to the labels tab with this label selected. Absent for a user
+  /// Jumps to the labels tab and opens this label's editor. Absent for a user
   /// who has no labels tab to jump to.
   final void Function(int labelId)? onEditLabel;
 

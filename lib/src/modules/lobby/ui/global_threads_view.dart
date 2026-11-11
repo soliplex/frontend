@@ -29,6 +29,7 @@ class LobbyTabsSection {
     required this.labels,
     required this.onThreadTap,
     required this.onThreadAction,
+    required this.onSignIn,
     this.selectedLabelId,
   });
 
@@ -50,7 +51,12 @@ class LobbyTabsSection {
   /// Invoked with the thread and the menu entry chosen on it.
   final void Function(ThreadInfo thread, ThreadRowAction action) onThreadAction;
 
-  /// A label to highlight on the labels tab, from a deep link.
+  /// Routes to the selected server's sign-in, for a listing that can't load
+  /// until the user signs in again.
+  final VoidCallback onSignIn;
+
+  /// A label to highlight on the labels tab, after a thread's properties
+  /// jumped there to edit it.
   final int? selectedLabelId;
 
   /// Where [activeTab] sits among [tabs].
@@ -170,6 +176,7 @@ class GlobalThreadsView extends StatefulWidget {
     required this.roomNames,
     required this.onThreadTap,
     required this.onThreadAction,
+    required this.onSignIn,
   });
 
   final GlobalThreadsState state;
@@ -186,12 +193,17 @@ class GlobalThreadsView extends StatefulWidget {
   /// Invoked with the thread and the menu entry chosen on it.
   final void Function(ThreadInfo thread, ThreadRowAction action) onThreadAction;
 
+  /// Routes to the server's sign-in.
+  final VoidCallback onSignIn;
+
   @override
   State<GlobalThreadsView> createState() => _GlobalThreadsViewState();
 }
 
 class _GlobalThreadsViewState extends State<GlobalThreadsView> {
-  final ScrollController _controller = ScrollController();
+  // Starts where the user left off: the state outlives this view.
+  late final ScrollController _controller =
+      ScrollController(initialScrollOffset: widget.state.scrollOffset);
 
   /// How close to the bottom, in pixels, triggers the next page. Roughly a
   /// screenful, so the page is usually resolved before the user reaches it.
@@ -213,6 +225,7 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
 
   void _onScroll() {
     if (!_controller.hasClients) return;
+    widget.state.scrollOffset = _controller.offset;
     final position = _controller.position;
     if (position.extentAfter > _loadMoreThreshold) return;
     // Firing repeatedly while near the bottom is fine: loadMore declines
@@ -269,6 +282,8 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
             (context) => ThreadSearchField(
               labels: widget.labels.current,
               onChanged: _onQueryChanged,
+              initialText: widget.state.searchText,
+              onTextChanged: (text) => widget.state.searchText = text,
             ),
           ),
         ),
@@ -304,6 +319,14 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
             title: 'Could not load threads',
             detail: '${threads.error}',
             onRetry: widget.state.refresh,
+          ),
+        GlobalThreadsSignedOut(:final expired) => _ThreadsMessage(
+            icon: Icons.lock_outline,
+            title: expired ? 'Session expired' : 'Signed out',
+            detail: expired
+                ? 'Sign in again to view threads on this server.'
+                : 'Sign in to view threads on this server.',
+            onSignIn: widget.onSignIn,
           ),
         GlobalThreadsLoaded() => _buildList(context, threads),
       };
@@ -488,12 +511,14 @@ class _ThreadsMessage extends StatelessWidget {
     required this.title,
     required this.detail,
     this.onRetry,
+    this.onSignIn,
   });
 
   final IconData icon;
   final String title;
   final String detail;
   final Future<void> Function()? onRetry;
+  final VoidCallback? onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -520,6 +545,13 @@ class _ThreadsMessage extends StatelessWidget {
               SoliplexButton.outlined(
                 onPressed: () => onRetry!(),
                 child: const Text('Retry'),
+              ),
+            ],
+            if (onSignIn != null) ...[
+              const SizedBox(height: SoliplexSpacing.s4),
+              SoliplexButton.filled(
+                onPressed: onSignIn,
+                child: const Text('Sign in'),
               ),
             ],
           ],
