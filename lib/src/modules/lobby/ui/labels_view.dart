@@ -24,11 +24,36 @@ const int _swatchCount = 12;
 /// able to show that as the current choice — and to let somebody who
 /// coloured a label go back to uncoloured. A default nothing in the
 /// picker can express is a one-way door.
-List<Color> _swatches(Brightness brightness) => [
-      neutralSwatch,
-      for (var i = 0; i < _swatchCount; i++)
-        hueColor(i * (360 / _swatchCount), brightness),
-    ];
+///
+/// Stored at one fixed brightness, whatever the author's theme: a swatch
+/// built for the theme in use was saved as two different colours by
+/// people in light and dark mode, and a label made in one showed no swatch
+/// selected in the other. Painting re-derives the lightness per theme
+/// anyway (see [_paintable]).
+final List<Color> _swatches = [
+  neutralSwatch,
+  for (var i = 0; i < _swatchCount; i++)
+    hueColor(i * (360 / _swatchCount), Brightness.light),
+];
+
+/// [swatch] as it should look in [brightness].
+Color _paintable(Color swatch, Brightness brightness) {
+  final hsl = HSLColor.fromColor(swatch);
+  if (hsl.saturation < 0.1) return swatch;
+  return hueColor(hsl.hue, brightness);
+}
+
+/// Whether a stored [color] is [swatch]: the same hue, at whichever
+/// lightness it was saved, so labels saved before the palette was fixed
+/// still show their swatch selected.
+bool _isSwatch(Color color, Color swatch) {
+  if (_toHex(color) == _toHex(swatch)) return true;
+  final a = HSLColor.fromColor(color);
+  final b = HSLColor.fromColor(swatch);
+  if (a.saturation < 0.1 || b.saturation < 0.1) return false;
+  final apart = (a.hue - b.hue).abs() % 360;
+  return (apart < 180 ? apart : 360 - apart) < 1;
+}
 
 /// Renders [color] as the `#RRGGBB` the server stores.
 String _toHex(Color color) {
@@ -326,7 +351,6 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final swatches = _swatches(theme.brightness);
     final selected = _color;
 
     return AlertDialog(
@@ -355,10 +379,11 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
               spacing: SoliplexSpacing.s2,
               runSpacing: SoliplexSpacing.s2,
               children: [
-                for (final swatch in swatches)
+                for (final swatch in _swatches)
                   _Swatch(
-                    color: swatch,
-                    selected: _toHex(selected) == _toHex(swatch),
+                    stored: swatch,
+                    color: _paintable(swatch, theme.brightness),
+                    selected: _isSwatch(selected, swatch),
                     onTap: () => setState(() => _color = swatch),
                   ),
               ],
@@ -437,10 +462,15 @@ class _LabelNameNotice extends StatelessWidget {
 class _Swatch extends StatelessWidget {
   const _Swatch({
     required this.color,
+    required this.stored,
     required this.selected,
     required this.onTap,
   });
 
+  /// The colour saved when this swatch is picked.
+  final Color stored;
+
+  /// The colour painted, for the current theme.
   final Color color;
   final bool selected;
   final VoidCallback onTap;
@@ -452,7 +482,7 @@ class _Swatch extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      label: 'Colour ${_toHex(color)}',
+      label: 'Colour ${_toHex(stored)}',
       child: InkWell(
         onTap: onTap,
         borderRadius: radius,
