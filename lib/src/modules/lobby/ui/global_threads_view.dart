@@ -226,8 +226,24 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
   void _onScroll() {
     if (!_controller.hasClients) return;
     widget.state.scrollOffset = _controller.offset;
-    final position = _controller.position;
-    if (position.extentAfter > _loadMoreThreshold) return;
+    _loadMoreIfNearEnd();
+  }
+
+  /// Asks for the next page once the end of the list is in reach.
+  ///
+  /// Runs on scroll and after every frame that shows rows: a page too
+  /// short to fill the viewport can't be scrolled, so waiting for a scroll
+  /// would leave the rest of the listing unrequested, with nothing on
+  /// screen to say there is more.
+  void _loadMoreIfNearEnd() {
+    if (!mounted || !_controller.hasClients) return;
+    final threads = widget.state.threads.value;
+    // After a failure the user retries; asking again on every scroll
+    // would hammer a server that just refused.
+    if (threads is! GlobalThreadsLoaded || threads.loadMoreError != null) {
+      return;
+    }
+    if (_controller.position.extentAfter > _loadMoreThreshold) return;
     // Firing repeatedly while near the bottom is fine: loadMore declines
     // when a page is already in flight or the last one has arrived.
     widget.state.loadMore();
@@ -352,6 +368,9 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
     }
 
     final threads = loaded.threads;
+    if (loaded.hasMore && !loaded.loadingMore) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadMoreIfNearEnd());
+    }
 
     return RefreshIndicator(
       onRefresh: widget.state.refresh,
