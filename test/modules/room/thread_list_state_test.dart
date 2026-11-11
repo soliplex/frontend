@@ -922,4 +922,66 @@ void main() {
 
     state.dispose();
   });
+
+  group('thread properties', () {
+    test('a save the session refuses reports failure, not success', () async {
+      final auth = _authInActiveSession();
+      api.nextThreads = [
+        ThreadInfo(id: 't1', roomId: 'room-1', createdAt: DateTime.utc(2026)),
+      ];
+      final state = ThreadListState(
+        connection: connection,
+        roomId: 'room-1',
+        auth: auth,
+      );
+      await Future<void>.delayed(Duration.zero);
+      api.nextUpdateMetadataError = const AuthException(message: '401');
+
+      final reason = await state.saveThreadProperties(
+        (state.threads.value as ThreadsLoaded).threads.single,
+        name: 'Renamed',
+        description: '',
+        labelIds: const [],
+      );
+
+      // The dialog stays open with this, rather than closing as if saved.
+      expect(reason, isNotNull);
+      expect(auth.session.value, isA<ExpiredSession>());
+      state.dispose();
+    });
+
+    test('opening properties puts the server copy on a placeholder row',
+        () async {
+      api.nextThreads = [];
+      final state = ThreadListState(
+        connection: connection,
+        roomId: 'room-1',
+        auth: _authInActiveSession(),
+      );
+      await Future<void>.delayed(Duration.zero);
+      // A thread the room has just started: no name yet on its row.
+      final placeholder =
+          ThreadInfo(id: 't1', roomId: 'room-1', createdAt: DateTime.utc(2026));
+      state.noteSpawnedThread(placeholder);
+      // Meanwhile the assistant named and labelled it.
+      api.nextThreads = [
+        placeholder.copyWith(
+          name: 'Invoice question',
+          labels: const [
+            ThreadLabel(id: 3, name: 'Billing', color: '#42D76D'),
+          ],
+        ),
+      ];
+
+      final current = await state.currentProperties(placeholder);
+
+      expect(current.name, 'Invoice question');
+      expect(current.labels.map((l) => l.id), [3]);
+      final row = (state.threads.value as ThreadsLoaded)
+          .threads
+          .firstWhere((t) => t.id == 't1');
+      expect(row.name, 'Invoice question');
+      state.dispose();
+    });
+  });
 }

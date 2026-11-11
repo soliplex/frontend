@@ -401,9 +401,44 @@ void main() {
 
       expect(api.setThreadLabelsCalls.single.labelIds, equals([1]));
       // Name and description travel together, because the metadata row
-      // is replaced wholesale.
+      // is replaced wholesale; an empty description goes as null, leaving
+      // the thread as it was before anyone described it.
       expect(api.lastUpdatedName, equals('Alpha'));
-      expect(api.lastUpdatedDescription, isNotNull);
+      expect(api.lastUpdatedDescription, isNull);
+    });
+
+    testWidgets(
+        "saving properties keeps a label the assistant added after the "
+        'listing loaded', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D'),
+          ThreadLabel(id: 2, name: 'Urgent', color: '#D93025'),
+        ],
+      );
+      await _openThreadsTab(tester);
+      // The listing shows no labels; the assistant has since added one.
+      api.allThreads = [
+        _thread(
+          't1',
+          'r1',
+          name: 'Alpha',
+          labels: const [ThreadLabel(id: 2, name: 'Urgent', color: '#D93025')],
+        ),
+      ];
+
+      await _openThreadMenu(tester);
+      await tester.tap(find.text('Properties'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Manuals'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(api.setThreadLabelsCalls.single.labelIds.toSet(), {1, 2});
     });
 
     testWidgets('says so when the server has no labels yet', (tester) async {

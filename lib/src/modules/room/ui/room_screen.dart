@@ -1689,7 +1689,11 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Future<void> _showPropertiesDialog(ThreadInfo thread) async {
+  Future<void> _showPropertiesDialog(ThreadInfo held) async {
+    // The row may be older than the thread (see
+    // ThreadListState.currentProperties).
+    final thread = await _state.threadList.currentProperties(held);
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (_) => ThreadPropertiesDialog(
@@ -1699,22 +1703,13 @@ class _RoomScreenState extends State<RoomScreen> {
           required name,
           required description,
           required labelIds,
-        }) async {
-          try {
-            await _state.threadList.saveThreadProperties(
-              thread.id,
-              name: name,
-              description: description,
-              labelIds: labelIds,
-            );
-            return null;
-          } on Object catch (error) {
-            // The dialog shows a sentence inline rather than closing on
-            // an exception; the state layer has already logged it.
-            if (error is FormatException) return error.message;
-            return 'Could not save the thread. Please try again.';
-          }
-        },
+        }) =>
+            _state.threadList.saveThreadProperties(
+          thread,
+          name: name,
+          description: description,
+          labelIds: labelIds,
+        ),
         // No labels tab to jump to from inside a room.
         onEditLabel: null,
       ),

@@ -2,10 +2,16 @@ import 'dart:async';
 
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
-    show AuthException, NotFoundException, SoliplexApi;
+    show
+        AuthException,
+        NetworkException,
+        NotFoundException,
+        PermissionDeniedException,
+        SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../stores/server_follower.dart';
+import '../../stores/thread_properties.dart';
 import '../auth/auth_tokens.dart' show ExpiredSession;
 import '../auth/server_entry.dart';
 import 'lobby_state.dart' show ApiResolver;
@@ -458,13 +464,28 @@ class GlobalThreadsState {
     }
   }
 
-  /// Saves a thread's name, description and labels.
+  /// Reads [thread] again from the server and folds it into the held list,
+  /// for the properties dialog to start from (see
+  /// [currentThreadProperties]).
+  Future<ThreadInfo> currentProperties(ThreadInfo thread) async {
+    final entry = _selectedEntry();
+    if (entry == null) return thread;
+    final current = await currentThreadProperties(
+      _apiResolver(entry),
+      thread,
+      onAuthFailure: (_) => entry.auth.markSessionExpired(),
+    );
+    _replace(current);
+    return current;
+  }
+
+  /// Saves a thread's name, description and labels (see
+  /// [saveThreadProperties]), and folds what was saved into the held list.
   ///
-  /// Returns null on success or a human-readable reason on failure, so
-  /// the dialog can show it inline rather than closing on an error.
+  /// [thread] is the copy the dialog started from. Returns null on success
+  /// or a sentence for the dialog.
   ///
-  /// Both writes go out, then the result is folded into the held list.
-  /// Deliberately not a refetch: the backend commits its transaction
+  /// Folded rather than refetched: the backend commits its transaction
   /// after sending the response, so a listing requested straight after a
   /// write can still report the old values.
   Future<String?> saveProperties(
@@ -473,34 +494,31 @@ class GlobalThreadsState {
     required String description,
     required List<int> labelIds,
   }) async {
-    return _mutate((api) async {
-      // Sent together because 'updateThreadMetadata' replaces the row
-      // wholesale — omitting the description would erase it.
-      await api.updateThreadMetadata(
-        thread.roomId,
-        thread.id,
-        name: name,
-        description: description,
-      );
+    final entry = _selectedEntry();
+    if (entry == null) return 'No server selected';
 
-      final updated = await api.setThreadLabels(
-        thread.roomId,
-        thread.id,
-        labelIds: labelIds,
-      );
+    final saved = await saveThreadProperties(
+      _apiResolver(entry),
+      thread,
+      name: name,
+      description: description,
+      initialLabelIds: {for (final label in thread.labels) label.id},
+      labelIds: labelIds.toSet(),
+      onAuthFailure: (_) => entry.auth.markSessionExpired(),
+    );
+    final updated = saved.thread;
+    if (updated != null) _replace(updated);
+    return saved.error;
+  }
 
-      // The labels response carries the thread but not the metadata we
-      // just wrote, so the local copy takes the names from what was
-      // sent and the labels from what came back.
-      _replace(
-        updated.copyWith(name: name, description: description),
-      );
-    });
+  ServerEntry? _selectedEntry() {
+    final serverId = _serverId;
+    return serverId == null ? null : _entryResolver(serverId);
   }
 
   /// Renames a thread, folding the new name into the held list.
   Future<String?> rename(ThreadInfo thread, String name) {
-    return _mutate((api) async {
+    return _mutate(failure: 'Could not rename the thread.', (api) async {
       await api.updateThreadMetadata(
         thread.roomId,
         thread.id,
@@ -515,7 +533,7 @@ class GlobalThreadsState {
 
   /// Deletes a thread and drops it from the held list.
   Future<String?> delete(ThreadInfo thread) {
-    return _mutate((api) async {
+    return _mutate(failure: 'Could not delete the thread.', (api) async {
       await api.deleteThread(thread.roomId, thread.id);
       final remaining = [
         for (final held in _heldThreads())
@@ -525,9 +543,14 @@ class GlobalThreadsState {
     });
   }
 
-  Future<String?> _mutate(Future<void> Function(SoliplexApi api) body) async {
+  /// Runs a write, returning null on success or a sentence for the dialog;
+  /// [failure] names what didn't happen.
+  Future<String?> _mutate(
+    Future<void> Function(SoliplexApi api) body, {
+    required String failure,
+  }) async {
     final serverId = _serverId;
-    final entry = serverId == null ? null : _entryResolver(serverId);
+    final entry = _selectedEntry();
     if (entry == null) return 'No server selected';
 
     try {
@@ -545,9 +568,16 @@ class GlobalThreadsState {
         error: error,
         stackTrace: st,
       );
-      if (error is NotFoundException) return 'That thread no longer exists.';
-      if (error is AuthException) return 'You are not signed in.';
-      return 'Could not save the thread. Please try again.';
+      return switch (error) {
+        NotFoundException() => 'This thread no longer exists.',
+        AuthException() => 'Your session has ended. Sign in again, then retry.',
+        // Retrying can't help, so it isn't offered.
+        PermissionDeniedException() =>
+          "You don't have permission to change this thread.",
+        NetworkException() =>
+          "$failure Can't reach the server; check your connection.",
+        _ => '$failure Please try again.',
+      };
     }
   }
 
