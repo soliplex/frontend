@@ -3,6 +3,8 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ThreadLabel;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'load_failure.dart';
+
 import '../../../shared/label_chip.dart';
 import '../../../stores/labels_state.dart';
 import '../thread_query.dart';
@@ -72,12 +74,15 @@ class LabelsView extends StatelessWidget {
             title: 'Labels need a newer server',
             detail: 'This server cannot store thread labels yet.',
           ),
-        LabelsFailed() => _LabelsMessage(
-            icon: Icons.error_outline,
-            title: 'Could not load labels',
-            detail: '${labels.error}',
-            onRetry: state.refresh,
-          ),
+        LabelsFailed(:final error) => () {
+            final failure = describeLoadFailure(error, what: 'labels');
+            return _LabelsMessage(
+              icon: Icons.error_outline,
+              title: 'Could not load labels',
+              detail: failure.detail,
+              onRetry: failure.retryable ? state.refresh : null,
+            );
+          }(),
         LabelsLoaded() => _buildList(context, labels),
       };
     });

@@ -12,6 +12,7 @@ import '../global_threads_state.dart';
 import '../../../stores/labels_state.dart';
 import '../lobby_tab.dart';
 import '../thread_query.dart';
+import 'load_failure.dart';
 import 'thread_search_field.dart';
 
 /// Everything the lobby needs to render and drive its tab strip.
@@ -209,14 +210,29 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
   /// screenful, so the page is usually resolved before the user reaches it.
   static const double _loadMoreThreshold = 600;
 
+  late final void Function() _unwatchCatalogue;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onScroll);
+    // A query that named labels before the catalogue arrived, or while
+    // it was failing, is resolved once it loads -- for this view's server
+    // only: on a switch the new server's catalogue can land before this
+    // view is replaced, and its query must not follow the user there.
+    final serverId = widget.state.serverId;
+    _unwatchCatalogue = widget.labels.labels.subscribe((labels) {
+      final query = _lastQuery;
+      if (labels is! LabelsLoaded || query == null || !mounted) return;
+      if (query.labelNames.isEmpty) return;
+      if (widget.state.serverId != serverId) return;
+      _onQueryChanged(query);
+    });
   }
 
   @override
   void dispose() {
+    _unwatchCatalogue();
     _controller
       ..removeListener(_onScroll)
       ..dispose();
@@ -257,9 +273,22 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
   /// the opposite of what was asked for.
   List<String> _unknownLabels = const [];
 
+  /// The query last typed, kept so it can be resolved again when the
+  /// catalogue it names labels from arrives.
+  ThreadQuery? _lastQuery;
+
   void _onQueryChanged(ThreadQuery query) {
+    _lastQuery = query;
+    final labels = widget.labels.labels.value;
+    if (query.labelNames.isNotEmpty && labels is! LabelsLoaded) {
+      // Can't tell a typo from a label not loaded yet; the body says
+      // which, and this runs again when the catalogue loads.
+      setState(() => _unknownLabels = const []);
+      return;
+    }
     final catalogue = {
-      for (final label in widget.labels.current) label.name.toLowerCase(): label
+      for (final label in widget.labels.catalogue.value)
+        label.name.toLowerCase(): label,
     };
 
     final resolved = <int>[];
@@ -296,7 +325,7 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
           ),
           child: Watch(
             (context) => ThreadSearchField(
-              labels: widget.labels.current,
+              labels: widget.labels.catalogue.value,
               onChanged: _onQueryChanged,
               initialText: widget.state.searchText,
               onTextChanged: (text) => widget.state.searchText = text,
@@ -309,6 +338,31 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
   }
 
   Widget _buildBody(BuildContext context) {
+    if (_lastQuery?.labelNames.isNotEmpty ?? false) {
+      final pending = Watch((context) {
+        return switch (widget.labels.labels.value) {
+          LabelsLoading() => const Center(child: CircularProgressIndicator()),
+          LabelsFailed(:final error) => () {
+              final failure = describeLoadFailure(error, what: 'labels');
+              return _ThreadsMessage(
+                icon: Icons.label_off_outlined,
+                title: "Couldn't load this server's labels",
+                detail: '${failure.detail} '
+                    'Search by name, or try again.',
+                onRetry: failure.retryable ? widget.labels.refresh : null,
+              );
+            }(),
+          LabelsUnsupported() => const _ThreadsMessage(
+              icon: Icons.label_off_outlined,
+              title: 'This server has no labels',
+              detail: 'Search by name instead.',
+            ),
+          LabelsLoaded() => const SizedBox.shrink(),
+        };
+      });
+      if (widget.labels.labels.value is! LabelsLoaded) return pending;
+    }
+
     if (_unknownLabels.isNotEmpty) {
       final names = _unknownLabels.map((name) => '@$name').join(', ');
       return _ThreadsMessage(
@@ -330,12 +384,15 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
             detail: 'This server cannot list threads across rooms yet. '
                 'Open a room to see its threads.',
           ),
-        GlobalThreadsFailed() => _ThreadsMessage(
-            icon: Icons.error_outline,
-            title: 'Could not load threads',
-            detail: '${threads.error}',
-            onRetry: widget.state.refresh,
-          ),
+        GlobalThreadsFailed(:final error) => () {
+            final failure = describeLoadFailure(error, what: 'threads');
+            return _ThreadsMessage(
+              icon: Icons.error_outline,
+              title: 'Could not load threads',
+              detail: failure.detail,
+              onRetry: failure.retryable ? widget.state.refresh : null,
+            );
+          }(),
         GlobalThreadsSignedOut(:final expired) => _ThreadsMessage(
             icon: Icons.lock_outline,
             title: expired ? 'Session expired' : 'Signed out',

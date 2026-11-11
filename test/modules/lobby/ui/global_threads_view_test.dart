@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +8,12 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
 import 'package:soliplex_client/soliplex_client.dart'
-    show NotFoundException, SoliplexApi, ThreadLabel;
+    show
+        NetworkException,
+        NotFoundException,
+        PermissionDeniedException,
+        SoliplexApi,
+        ThreadLabel;
 import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -97,6 +104,7 @@ Future<FakeSoliplexApi> _pumpLobby(
   List<ThreadLabel> labels = const [],
   Exception? threadsError,
   void Function(String alias, String roomId, String threadId)? onThreadRoute,
+  void Function(FakeSoliplexApi api)? setUpApi,
 }) async {
   tester.view.physicalSize = const Size(1000, 700);
   tester.view.devicePixelRatio = 1.0;
@@ -114,6 +122,7 @@ Future<FakeSoliplexApi> _pumpLobby(
     ..allThreads = threads
     ..labels = labels
     ..nextAllThreadsError = threadsError;
+  setUpApi?.call(fakeApi);
 
   await tester.pumpWidget(
     _buildApp(
@@ -453,7 +462,7 @@ void main() {
       await tester.tap(find.text('Properties'));
       await tester.pumpAndSettle();
 
-      expect(find.text('This server has no labels yet.'), findsOneWidget);
+      expect(find.text('No labels to choose from.'), findsOneWidget);
     });
 
     testWidgets('filters by name as you type', (tester) async {
@@ -872,6 +881,82 @@ void main() {
       expect(find.text("Couldn't load more threads."), findsNothing);
       expect(find.text('Thread 59'), findsOneWidget);
       expect(api.allThreadsCalls.map((c) => c.cursor), [null, '50', '50']);
+    });
+  });
+
+  group('lobby threads tab while labels load or fail', () {
+    const manuals = ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D');
+
+    testWidgets('waits for the catalogue rather than calling @label unknown',
+        (tester) async {
+      late Completer<void> held;
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [
+          _thread('t1', 'r1', name: 'Alpha', labels: const [manuals]),
+          _thread('t2', 'r1', name: 'Beta'),
+        ],
+        labels: const [manuals],
+        setUpApi: (api) => held = api.holdNext('getLabels'),
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, '@manuals');
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pump();
+      expect(find.text('No such label'), findsNothing);
+
+      held.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.text('Beta'), findsNothing);
+      expect(api.allThreadsCalls.last.labelIds, [1]);
+    });
+
+    testWidgets('a failed catalogue says so, and a retry resolves the query',
+        (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [
+          _thread('t1', 'r1', name: 'Alpha', labels: const [manuals]),
+          _thread('t2', 'r1', name: 'Beta'),
+        ],
+        labels: const [manuals],
+        setUpApi: (api) =>
+            api.nextLabelsError = const NetworkException(message: 'down'),
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, '@manuals');
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pumpAndSettle();
+      expect(find.text("Couldn't load this server's labels"), findsOneWidget);
+      expect(find.text('No such label'), findsNothing);
+
+      api.nextLabelsError = null;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.text('Beta'), findsNothing);
+    });
+
+    testWidgets('a refused listing explains itself and offers no retry',
+        (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: const [],
+        threadsError: const PermissionDeniedException(message: 'forbidden'),
+      );
+      await _openThreadsTab(tester);
+
+      expect(find.textContaining("don't have permission"), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.textContaining('PermissionDenied'), findsNothing);
     });
   });
 
