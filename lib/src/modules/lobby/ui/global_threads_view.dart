@@ -360,10 +360,13 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
               title: 'No matching threads',
               detail: 'Try a different name, or fewer labels.',
             )
-          : const _ThreadsMessage(
+          : _ThreadsMessage(
               icon: Icons.forum_outlined,
               title: 'No threads yet',
               detail: 'Threads you start in any room show up here.',
+              // A thread started on another device has no other way in.
+              onRetry: widget.state.refresh,
+              retryLabel: 'Refresh',
             );
     }
 
@@ -377,15 +380,16 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
       child: ListView.builder(
         controller: _controller,
         padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-        // One trailing row while the next page is in flight, or after it
-        // failed.
-        itemCount: threads.length +
-            (loaded.loadingMore || loaded.loadMoreError != null ? 1 : 0),
+        // One trailing row: the next page in flight, its failure, or the
+        // end of the listing, so "that's everything" reads differently
+        // from "the rest hasn't been asked for".
+        itemCount: threads.length + 1,
         itemBuilder: (context, index) {
           if (index == threads.length) {
             if (loaded.loadMoreError != null) {
               return _LoadMoreFailedRow(onRetry: widget.state.loadMore);
             }
+            if (!loaded.hasMore) return const _EndOfThreadsRow();
             return const Padding(
               padding: EdgeInsets.all(SoliplexSpacing.s4),
               child: Center(child: CircularProgressIndicator()),
@@ -529,6 +533,27 @@ class _ThreadListTileState extends State<_ThreadListTile> {
 
 /// A centered icon/title/detail block for the empty, error and
 /// unsupported-server states.
+/// Closes a listing whose last page has arrived.
+class _EndOfThreadsRow extends StatelessWidget {
+  const _EndOfThreadsRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
+      child: Center(
+        child: Text(
+          'No more threads',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Stands in for the next page when it failed to load, below the rows
 /// that did.
 class _LoadMoreFailedRow extends StatelessWidget {
@@ -567,6 +592,7 @@ class _ThreadsMessage extends StatelessWidget {
     required this.title,
     required this.detail,
     this.onRetry,
+    this.retryLabel = 'Retry',
     this.onSignIn,
   });
 
@@ -574,6 +600,7 @@ class _ThreadsMessage extends StatelessWidget {
   final String title;
   final String detail;
   final Future<void> Function()? onRetry;
+  final String retryLabel;
   final VoidCallback? onSignIn;
 
   @override
@@ -600,7 +627,7 @@ class _ThreadsMessage extends StatelessWidget {
               const SizedBox(height: SoliplexSpacing.s4),
               SoliplexButton.outlined(
                 onPressed: () => onRetry!(),
-                child: const Text('Retry'),
+                child: Text(retryLabel),
               ),
             ],
             if (onSignIn != null) ...[

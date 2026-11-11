@@ -6,8 +6,13 @@ import 'package:soliplex_client/src/domain/thread_info.dart';
 ///
 /// The backend orders the threads by their own last activity, most recent
 /// first, and pages by an opaque [nextCursor] rather than an offset, so a
-/// thread started or reordered between two requests never shifts the rest
-/// of the listing.
+/// thread started between two requests doesn't shift the rest of the
+/// listing by a row.
+///
+/// The cursor marks a position in that order, so the listing drifts while
+/// it is paged: a thread that gains activity after its page was fetched
+/// moves above the cursor, and later pages skip it until the first page
+/// is fetched again.
 @immutable
 class ThreadPage {
   /// Creates a page of threads.

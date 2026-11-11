@@ -256,6 +256,33 @@ void main() {
       expect(find.text('No threads yet'), findsOneWidget);
     });
 
+    testWidgets('the empty state refreshes, for a thread started elsewhere',
+        (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: const [],
+      );
+      await _openThreadsTab(tester);
+
+      api.allThreads = [_thread('t1', 'r1', name: 'From my phone')];
+      await tester.tap(find.text('Refresh'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('From my phone'), findsOneWidget);
+    });
+
+    testWidgets('says when the last page has arrived', (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+      );
+      await _openThreadsTab(tester);
+
+      expect(find.text('No more threads'), findsOneWidget);
+    });
+
     testWidgets('explains that an older server cannot aggregate threads',
         (tester) async {
       await _pumpLobby(
