@@ -298,7 +298,7 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
   void initState() {
     super.initState();
     final existing = widget.existing;
-    // A new label starts neutral rather than uncoloured: colour on a
+    // A new label starts neutral rather than with a hue: colour on a
     // label is an annotation somebody opts into, and a hue assigned on
     // its behalf is one it can never be seen not to have.
     _color = existing == null

@@ -63,7 +63,7 @@ void main() {
 
       final loaded = h.state.labels.value as LabelsLoaded;
       expect(loaded.labels.single.name, equals('Manuals'));
-      expect(h.state.current.single.name, equals('Manuals'));
+      expect(h.state.catalogue.value.single.name, equals('Manuals'));
 
       h.dispose();
     });
@@ -109,7 +109,7 @@ void main() {
       final reason = await h.state.create(name: 'Manuals');
 
       expect(reason, isNull);
-      expect(h.state.current.single.name, equals('Manuals'));
+      expect(h.state.catalogue.value.single.name, equals('Manuals'));
       // Folded from the write response: the backend commits after
       // responding, so a refetch here could still return the old list.
       expect(h.api.createLabelCalls.single.name, equals('Manuals'));
@@ -124,7 +124,7 @@ void main() {
       await h.state.create(name: 'Archived');
 
       expect(
-        h.state.current.map((l) => l.name),
+        h.state.catalogue.value.map((l) => l.name),
         equals(['Archived', 'Manuals']),
       );
 
@@ -138,8 +138,8 @@ void main() {
       final reason = await h.state.update(1, name: 'Docs', color: '#ABCDEF');
 
       expect(reason, isNull);
-      expect(h.state.current.single.name, equals('Docs'));
-      expect(h.state.current.single.color, equals('#ABCDEF'));
+      expect(h.state.catalogue.value.single.name, equals('Docs'));
+      expect(h.state.catalogue.value.single.color, equals('#ABCDEF'));
 
       h.dispose();
     });
@@ -151,7 +151,7 @@ void main() {
       final reason = await h.state.delete(1);
 
       expect(reason, isNull);
-      expect(h.state.current.map((l) => l.id), equals([2]));
+      expect(h.state.catalogue.value.map((l) => l.id), equals([2]));
 
       h.dispose();
     });
@@ -183,7 +183,7 @@ void main() {
 
       expect(reason, contains('administrators'));
       // The label survives, because the delete did not happen.
-      expect(h.state.current, hasLength(1));
+      expect(h.state.catalogue.value, hasLength(1));
 
       h.dispose();
     });
@@ -249,19 +249,6 @@ void main() {
       expect(reason, contains('Could not save'));
       // Never the raw exception: 'Exception: boom' is not a sentence.
       expect(reason, isNot(contains('boom')));
-
-      h.dispose();
-    });
-
-    test('marks busy while a mutation runs', () async {
-      final h = _Harness();
-      await h.load();
-
-      expect(h.state.busy.value, isFalse);
-      final pending = h.state.create(name: 'Manuals');
-      expect(h.state.busy.value, isTrue);
-      await pending;
-      expect(h.state.busy.value, isFalse);
 
       h.dispose();
     });

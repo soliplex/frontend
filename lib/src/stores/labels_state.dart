@@ -71,11 +71,6 @@ class LabelsState {
   final Signal<Labels> _labels = Signal(const LabelsLoading());
   ReadonlySignal<Labels> get labels => _labels;
 
-  /// Set while a create/update/delete is in flight, so the tab can
-  /// disable its controls without blanking the list.
-  final Signal<bool> _busy = Signal(false);
-  ReadonlySignal<bool> get busy => _busy;
-
   String? _serverId;
   CancelToken? _token;
   bool _disposed = false;
@@ -83,15 +78,10 @@ class LabelsState {
   /// Which server's catalogue is loaded, or `null` when none is selected.
   String? get serverId => _serverId;
 
-  /// The catalogue as a flat list, or empty in every other state.
+  /// The catalogue as a flat list, or empty in every state but loaded.
   ///
-  /// For callers that only need the names — the `@label` autocomplete,
-  /// the properties dialog — and have nothing useful to show for a
-  /// failure anyway.
-  List<ThreadLabel> get current => catalogue.value;
-
-  /// [current] as a signal, for a widget that should repaint when the
-  /// catalogue arrives without knowing about this state object.
+  /// For a widget that only lists labels. One that has to tell "no
+  /// labels" from "not loaded" reads [labels] instead.
   late final ReadonlySignal<List<ThreadLabel>> catalogue = computed(() {
     final value = _labels.value;
     return value is LabelsLoaded ? value.labels : const [];
@@ -271,7 +261,6 @@ class LabelsState {
     final entry = _entryResolver(serverId);
     if (entry == null) return 'No server selected';
 
-    _busy.value = true;
     try {
       await body(_apiResolver(entry), serverId);
       return null;
@@ -300,8 +289,6 @@ class LabelsState {
         );
       }
       return _reason(error);
-    } finally {
-      if (!_disposed) _busy.value = false;
     }
   }
 

@@ -18,7 +18,7 @@ const Color neutralSwatch = Color(0xFF808080);
 
 /// The saturation ceiling for a swatch once it is painted.
 ///
-/// Users pick from a hue wheel, so the raw swatch is fully committed to
+/// Users pick from evenly spaced hues, so the raw swatch is fully committed to
 /// its hue. Painted at that strength a row of labels out-shouts the
 /// thread names it is meant to annotate. Clamping rather than scaling
 /// keeps an already-quiet swatch — the neutral grey above, most of all —

@@ -510,9 +510,9 @@ class _ChipGalleryState extends State<ChipGallery> {
         _Section(
           title: 'Colored — arbitrary swatch, derived foreground',
           children: [
-            // Seeded from the name, so these are the colours a thread
-            // label actually gets when nobody picks one. The spread is
-            // the point: adjacent labels must not read as the same tag.
+            // Seeded from the name, as a label whose stored colour can't
+            // be read is painted. The spread is the point: adjacent
+            // labels must not read as the same tag.
             for (final name in const [
               'Manuals',
               'Q4 Roadmap',

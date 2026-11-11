@@ -427,7 +427,7 @@ String _avatarInitial(String name) {
 /// A deterministic, theme-aware accent color for a room's avatar, derived from
 /// a stable hash of its [name] so the same room always gets the same hue.
 ///
-/// Delegates to the design system's [hashedHueColor], which labels use too, so
+/// Delegates to the design system's [hashedHueColor], which labels fall back to, so
 /// the two share one algorithm rather than drifting apart as separate copies.
 Color roomAvatarColor(String name, Brightness brightness) =>
     hashedHueColor(name, brightness);
