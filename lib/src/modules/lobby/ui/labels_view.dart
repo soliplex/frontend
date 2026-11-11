@@ -53,7 +53,8 @@ class LabelsView extends StatelessWidget {
 
   final LabelsState state;
 
-  /// A label to highlight on arrival, from `/lobby?tab=labels&label=7`.
+  /// A label to highlight, after a thread's properties jumped here to edit
+  /// it, so the user can find its row once the editor closes.
   ///
   /// Set when the properties dialog jumps here to edit a specific label,
   /// so the user lands on the row they asked for rather than hunting for

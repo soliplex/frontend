@@ -27,6 +27,8 @@ class ThreadSearchField extends StatefulWidget {
     super.key,
     required this.labels,
     required this.onChanged,
+    this.initialText = '',
+    this.onTextChanged,
   });
 
   /// The server's catalogue, for the suggestions.
@@ -34,6 +36,13 @@ class ThreadSearchField extends StatefulWidget {
 
   /// Fires with the parsed query once typing settles.
   final ValueChanged<ThreadQuery> onChanged;
+
+  /// What the field shows when it is built, so a rebuilt screen can put
+  /// back the query its listing is still filtered by.
+  final String initialText;
+
+  /// Fires with the raw text on every edit, for a caller that keeps it.
+  final ValueChanged<String>? onTextChanged;
 
   @override
   State<ThreadSearchField> createState() => _ThreadSearchFieldState();
@@ -49,7 +58,8 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   /// completed. The result is a menu you can see and cannot click.
   static const String _tapGroup = 'thread-search-suggestions';
 
-  final TextEditingController _controller = TextEditingController();
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialText);
   late final FocusNode _focus = FocusNode(onKeyEvent: _onKey);
   final OverlayPortalController _overlay = OverlayPortalController();
   final LayerLink _link = LayerLink();
@@ -143,6 +153,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   }
 
   void _onChanged() {
+    widget.onTextChanged?.call(_controller.text);
     _refreshSuggestions();
 
     // Debounced so a word costs one request, not one per keystroke.

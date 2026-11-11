@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+import 'package:soliplex_client/soliplex_client.dart' show AuthException;
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/lobby/global_threads_state.dart';
 
@@ -170,24 +173,6 @@ void main() {
       h.state.setFilter(labelIds: [3], unlabeled: true);
       await pumpEventQueue();
       expect(h.api.getAllThreadsCallCount, equals(calls));
-
-      h.state.dispose();
-    });
-
-    test('switching servers discards the previous listing', () async {
-      final h = _harness();
-      h.api.allThreads = [_thread('a'), _thread('b'), _thread('c')];
-
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-
-      // An unknown server resolves to no entry, so the listing empties
-      // rather than keeping the old server's threads under a new heading.
-      h.state.setServer('http://other:8000');
-      await pumpEventQueue();
-
-      final loaded = h.state.threads.value as GlobalThreadsLoaded;
-      expect(loaded.threads, isEmpty);
 
       h.state.dispose();
     });
@@ -433,4 +418,280 @@ void main() {
       h.state.dispose();
     });
   });
+
+  group('GlobalThreadsState following the selection', () {
+    test('loads whichever server is selected', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+      expect(h.ids(), ['a1', 'a2']);
+
+      h.select(_b);
+      await pumpEventQueue();
+      expect(h.ids(), ['b1', 'b2']);
+
+      h.dispose();
+    });
+
+    test("a page from the old server never lands on the new one's", () async {
+      final h = _following();
+      final held = h.apiA.holdNext('getAllThreads');
+      h.select(_a);
+      h.select(_b);
+      await pumpEventQueue();
+
+      held.complete();
+      await pumpEventQueue();
+
+      expect(h.ids(), ['b1', 'b2']);
+      h.dispose();
+    });
+
+    test('a server switch starts unfiltered', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+      h.state
+        ..setFilter(labelIds: [7], query: 'manual')
+        ..searchText = '@bug manual';
+      await pumpEventQueue();
+
+      h.select(_b);
+      await pumpEventQueue();
+
+      // Label 7 on A is some other label, or none, on B.
+      final call = h.apiB.allThreadsCalls.single;
+      expect(call.labelIds, isEmpty);
+      expect(call.query, isEmpty);
+      expect(h.state.isFiltered, isFalse);
+      expect(h.state.searchText, isEmpty);
+      h.dispose();
+    });
+
+    test('a signed-out server is never asked for threads', () async {
+      final h = _following(authA: _signedOut());
+      h.select(_a);
+      await pumpEventQueue();
+
+      final state = h.state.threads.value as GlobalThreadsSignedOut;
+      expect(state.expired, isFalse);
+      expect(h.apiA.getAllThreadsCallCount, 0);
+      h.dispose();
+    });
+
+    test('signing out drops the rows; signing in loads them again', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+
+      h.authA.logout();
+      expect(h.state.threads.value, isA<GlobalThreadsSignedOut>());
+
+      _signIn(h.authA);
+      await pumpEventQueue();
+      expect(h.ids(), ['a1', 'a2']);
+      h.dispose();
+    });
+
+    test('an expired session says so', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+
+      h.authA.markSessionExpired();
+
+      final state = h.state.threads.value as GlobalThreadsSignedOut;
+      expect(state.expired, isTrue);
+      h.dispose();
+    });
+
+    test('a rejected write sends the user to sign in again', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+      h.apiA.nextUpdateMetadataError = const AuthException(message: '401');
+
+      final reason = await h.state.rename(_thread('a1'), 'Renamed');
+
+      expect(reason, isNotNull);
+      expect(h.authA.session.value, isA<ExpiredSession>());
+      h.dispose();
+    });
+
+    test('a null selection keeps the rows', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+
+      h.selection.value = null;
+      await pumpEventQueue();
+
+      expect(h.ids(), ['a1', 'a2']);
+      expect(h.apiA.getAllThreadsCallCount, 1);
+      h.dispose();
+    });
+
+    test('removing the server empties the listing', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+
+      h.servers.value = {_b: h.servers.value[_b]!};
+
+      expect(h.ids(), isEmpty);
+      expect(h.state.serverId, isNull);
+      h.dispose();
+    });
+
+    test('following again keeps the pages and re-checks the first', () async {
+      final h = _following(threadsA: ['a', 'b', 'c', 'd', 'e']);
+      h.select(_a);
+      await pumpEventQueue();
+      await h.state.loadMore();
+      expect(h.ids(), ['a', 'b', 'c', 'd']);
+
+      // The screen goes away, and 'd' gets a reply meanwhile.
+      h.unfollow();
+      h.apiA.allThreads = [for (final id in 'dabce'.split('')) _thread(id)];
+
+      // The screen comes back; its selection restores asynchronously.
+      final seen = <GlobalThreads>[];
+      final stop = h.state.threads.subscribe(seen.add);
+      h.selection.value = null;
+      h.refollow();
+      h.select(_a);
+      await pumpEventQueue();
+      stop();
+
+      expect(seen.whereType<GlobalThreadsLoading>(), isEmpty);
+      expect(h.ids(), ['d', 'a', 'b', 'c']);
+      expect(
+        h.apiA.allThreadsCalls.map((c) => c.cursor),
+        [null, '2', null],
+      );
+
+      // The held cursor still points past 'c'; 'd' doesn't come back.
+      await h.state.loadMore();
+      expect(h.ids(), ['d', 'a', 'b', 'c', 'e']);
+      h.dispose();
+    });
+
+    test('a first page with nothing held in common replaces the rows',
+        () async {
+      final h = _following(threadsA: ['a', 'b', 'c', 'd']);
+      h.select(_a);
+      await pumpEventQueue();
+
+      h.apiA.allThreads = [
+        for (final id in ['n1', 'n2', 'n3', 'a', 'b']) _thread(id),
+      ];
+      await h.state.revalidate();
+
+      // Threads between 'n2' and 'a' could be missing from both pages, so
+      // the listing restarts from the fresh page instead.
+      expect(h.ids(), ['n1', 'n2']);
+      final loaded = h.state.threads.value as GlobalThreadsLoaded;
+      expect(loaded.hasMore, isTrue);
+      h.dispose();
+    });
+
+    test('a failed re-check keeps the rows', () async {
+      final h = _following();
+      h.select(_a);
+      await pumpEventQueue();
+
+      h.apiA.nextAllThreadsError = Exception('blip');
+      await h.state.revalidate();
+
+      expect(h.ids(), ['a1', 'a2']);
+      h.dispose();
+    });
+  });
+}
+
+const _a = 'http://a:8000';
+const _b = 'http://b:8000';
+
+AuthSession _signedOut() =>
+    AuthSession(refreshService: FakeTokenRefreshService());
+
+void _signIn(AuthSession auth) => auth.login(
+      provider: const OidcProvider(
+        discoveryUrl: 'https://idp.test/.well-known/openid-configuration',
+        clientId: 'client',
+      ),
+      tokens: AuthTokens(
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      ),
+    );
+
+/// A listing following a selection across two servers that require
+/// sign-in, each with its own fake API.
+({
+  GlobalThreadsState state,
+  FakeSoliplexApi apiA,
+  FakeSoliplexApi apiB,
+  AuthSession authA,
+  Signal<String?> selection,
+  Signal<Map<String, ServerEntry>> servers,
+  void Function(String id) select,
+  List<String> Function() ids,
+  void Function() unfollow,
+  void Function() refollow,
+  void Function() dispose,
+}) _following({
+  AuthSession? authA,
+  List<String> threadsA = const ['a1', 'a2'],
+}) {
+  final apiA = FakeSoliplexApi()
+    ..allThreads = [for (final id in threadsA) _thread(id)];
+  final apiB = FakeSoliplexApi()..allThreads = [_thread('b1'), _thread('b2')];
+  final sessionA = authA ?? authInActiveSession();
+  final servers = Signal<Map<String, ServerEntry>>({
+    _a: createTestServerEntry(
+      api: apiA,
+      serverId: _a,
+      alias: 'a',
+      requiresAuth: true,
+      auth: sessionA,
+    ),
+    _b: createTestServerEntry(
+      api: apiB,
+      serverId: _b,
+      alias: 'b',
+      requiresAuth: true,
+      auth: authInActiveSession(),
+    ),
+  });
+  final selection = Signal<String?>(null);
+  final state = GlobalThreadsState(
+    entryResolver: (id) => servers.value[id],
+    pageSize: 2,
+  );
+  var unfollow = state.follow(selection: selection, servers: servers);
+
+  return (
+    state: state,
+    apiA: apiA,
+    apiB: apiB,
+    authA: sessionA,
+    selection: selection,
+    servers: servers,
+    select: (id) => selection.value = id,
+    ids: () => switch (state.threads.value) {
+          GlobalThreadsLoaded(:final threads) => [
+              for (final thread in threads) thread.id,
+            ],
+          _ => const <String>[],
+        },
+    unfollow: () => unfollow(),
+    refollow: () =>
+        unfollow = state.follow(selection: selection, servers: servers),
+    dispose: () {
+      unfollow();
+      state.dispose();
+    },
+  );
 }

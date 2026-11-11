@@ -16,6 +16,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../modules/auth/server_entry.dart';
+import 'server_follower.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.labels_state');
 
@@ -96,6 +97,34 @@ class LabelsState {
     return value is LabelsLoaded ? value.labels : const [];
   });
 
+  /// Keeps the catalogue on [selection], and on that server's session.
+  ///
+  /// Returns the disposer. While the server can't serve requests the
+  /// catalogue reads as loading, and it is fetched again on sign-in.
+  void Function() follow({
+    required ReadonlySignal<String?> selection,
+    required ReadonlySignal<Map<String, ServerEntry>> servers,
+  }) {
+    final follower = ServerFollower(
+      selection: selection,
+      servers: servers,
+      onServer: (entry) {
+        if (entry.serverId != _serverId) {
+          setServer(entry.serverId);
+        } else if (_labels.value is! LabelsLoaded) {
+          unawaited(refresh());
+        }
+      },
+      onConnected: () => unawaited(refresh()),
+      onDisconnected: ({required expired}) {
+        _cancelInFlight();
+        _labels.value = const LabelsLoading();
+      },
+      onRemoved: () => setServer(null),
+    );
+    return follower.dispose;
+  }
+
   /// Points the catalogue at [serverId] and loads it.
   ///
   /// A repeat call for the same server is a no-op, so rebuilds that
@@ -124,6 +153,9 @@ class LabelsState {
       _labels.value = LabelsLoaded(const []);
       return;
     }
+
+    // A request now would only come back 401; signing in refetches.
+    if (!entry.isConnected) return;
 
     final token = CancelToken();
     _cancelInFlight();
@@ -168,31 +200,35 @@ class LabelsState {
   /// the caller is a dialog, which shows it inline rather than throwing
   /// the user back to the list.
   Future<String?> create({required String name, String? color}) {
-    return _mutate((api) async {
+    return _mutate((api, serverId) async {
       final created = await api.createLabel(name: name, color: color);
-      _fold([...current, created]);
+      _fold(serverId, (labels) => [...labels, created]);
     });
   }
 
   /// Renames and/or recolours a label, folding the result back in.
   Future<String?> update(int labelId, {String? name, String? color}) {
-    return _mutate((api) async {
+    return _mutate((api, serverId) async {
       final updated = await api.updateLabel(labelId, name: name, color: color);
-      _fold([
-        for (final label in current)
-          if (label.id == labelId) updated else label,
-      ]);
+      _fold(
+          serverId,
+          (labels) => [
+                for (final label in labels)
+                  if (label.id == labelId) updated else label,
+              ]);
     });
   }
 
   /// Deletes a label and drops it from the held catalogue.
   Future<String?> delete(int labelId) {
-    return _mutate((api) async {
+    return _mutate((api, serverId) async {
       await api.deleteLabel(labelId);
-      _fold([
-        for (final label in current)
-          if (label.id != labelId) label,
-      ]);
+      _fold(
+          serverId,
+          (labels) => [
+                for (final label in labels)
+                  if (label.id != labelId) label,
+              ]);
     });
   }
 
@@ -201,7 +237,9 @@ class LabelsState {
   /// The result is folded into the held list by the caller rather than
   /// refetched: the backend commits after responding, so a refetch
   /// issued immediately can still return the pre-write catalogue.
-  Future<String?> _mutate(Future<void> Function(SoliplexApi api) body) async {
+  Future<String?> _mutate(
+    Future<void> Function(SoliplexApi api, String serverId) body,
+  ) async {
     final serverId = _serverId;
     if (serverId == null) return 'No server selected';
 
@@ -210,10 +248,11 @@ class LabelsState {
 
     _busy.value = true;
     try {
-      await body(_apiResolver(entry));
+      await body(_apiResolver(entry), serverId);
       return null;
     } on Object catch (error, st) {
       if (_disposed) return null;
+      if (error is AuthException) entry.auth.markSessionExpired();
       _logger.error(
         'Label operation failed for $serverId',
         error: error,
@@ -237,7 +276,7 @@ class LabelsState {
       return 'That label no longer exists.';
     }
     if (error is PermissionDeniedException) {
-      // Reachable despite the read-only tab: an administrator can be
+      // Reachable despite the tab being admin-only: an administrator can be
       // demoted while the page is open, and the server is the authority.
       return 'Only administrators can change labels.';
     }
@@ -247,9 +286,24 @@ class LabelsState {
     return 'Could not save the label. Please try again.';
   }
 
-  void _fold(List<ThreadLabel> labels) {
-    if (_disposed) return;
-    final sorted = [...labels]..sort(
+  /// Applies a write made on [serverId] to the held catalogue.
+  ///
+  /// Skipped once the user has moved to another server: the label belongs
+  /// to the old one, and folding it in would let it be attached to the
+  /// new server's threads. A catalogue that isn't loaded has nothing to
+  /// fold into, so it is fetched instead; folding would replace a load
+  /// failure with a one-label list.
+  void _fold(
+    String serverId,
+    List<ThreadLabel> Function(List<ThreadLabel> held) apply,
+  ) {
+    if (_disposed || serverId != _serverId) return;
+    final held = _labels.value;
+    if (held is! LabelsLoaded) {
+      unawaited(refresh());
+      return;
+    }
+    final sorted = [...apply(held.labels)]..sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
       );
     _labels.value = LabelsLoaded(sorted);

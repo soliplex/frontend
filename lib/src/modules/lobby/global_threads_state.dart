@@ -5,6 +5,8 @@ import 'package:soliplex_client/soliplex_client.dart'
     show AuthException, NotFoundException, SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../stores/server_follower.dart';
+import '../auth/auth_tokens.dart' show ExpiredSession;
 import '../auth/server_entry.dart';
 import 'lobby_state.dart' show ApiResolver;
 
@@ -47,6 +49,17 @@ final class GlobalThreadsFailed extends GlobalThreads {
   final Object error;
 }
 
+/// The server can't serve the listing until the user signs in again.
+///
+/// Holds no rows: they belonged to whoever was signed in, and a sign-out
+/// must not leave them on screen for the next person.
+final class GlobalThreadsSignedOut extends GlobalThreads {
+  const GlobalThreadsSignedOut({required this.expired});
+
+  /// Whether the session expired, rather than the user signing out.
+  final bool expired;
+}
+
 /// The server has no cross-room listing endpoint.
 ///
 /// Distinct from [GlobalThreadsFailed] because it is not a fault to retry:
@@ -61,7 +74,10 @@ final class GlobalThreadsUnsupported extends GlobalThreads {
 ///
 /// Scoped to a single server because each server is a separate backend:
 /// aggregating across them would mean N independent paginated fetches with
-/// no coherent global ordering. [setServer] follows the lobby's selection.
+/// no coherent global ordering. [follow] keeps it on the lobby's selection.
+///
+/// Outlives the lobby screen, so the pages a user has scrolled through, and
+/// where they were, survive opening a thread and coming back.
 class GlobalThreadsState {
   GlobalThreadsState({
     required ServerEntry? Function(String serverId) entryResolver,
@@ -106,17 +122,74 @@ class GlobalThreadsState {
 
   bool _disposed = false;
 
+  /// The search box's text, kept here so a view built again (after the
+  /// user comes back from a thread) shows the query its rows were
+  /// filtered by. Cleared with the filter on a server switch.
+  String searchText = '';
+
+  /// How far the list was scrolled, for the same reason as [searchText].
+  double scrollOffset = 0;
+
   /// Which server the listing is showing, or `null` when none is selected.
   String? get serverId => _serverId;
+
+  /// Keeps the listing on [selection], and on that server's session.
+  ///
+  /// Returns the disposer. A screen calls this when it mounts and disposes
+  /// it when it unmounts; following the same server again keeps the pages
+  /// already held and re-checks the first one.
+  void Function() follow({
+    required ReadonlySignal<String?> selection,
+    required ReadonlySignal<Map<String, ServerEntry>> servers,
+  }) {
+    final follower = ServerFollower(
+      selection: selection,
+      servers: servers,
+      onServer: _onServer,
+      onConnected: () => unawaited(refresh()),
+      onDisconnected: _signOut,
+      onRemoved: () => setServer(null),
+    );
+    return follower.dispose;
+  }
+
+  void _onServer(ServerEntry entry) {
+    if (entry.serverId != _serverId) {
+      setServer(entry.serverId);
+      return;
+    }
+
+    // Back on the server already held: a remount, or the session changed
+    // while nothing was following.
+    if (!entry.isConnected) {
+      _signOut(expired: entry.auth.session.value is ExpiredSession);
+      return;
+    }
+    switch (_threads.value) {
+      case GlobalThreadsLoaded():
+        unawaited(revalidate());
+      case GlobalThreadsFailed() || GlobalThreadsSignedOut():
+        unawaited(refresh());
+      case GlobalThreadsLoading() || GlobalThreadsUnsupported():
+        break;
+    }
+  }
 
   /// Points the listing at [serverId] and loads its first page.
   ///
   /// A repeat call for the same server is a no-op, so rebuilds that re-emit
-  /// the current selection do not restart paging from zero.
+  /// the current selection do not restart paging from zero. A different
+  /// server starts unfiltered: label ids belong to one server, and a filter
+  /// carried over would select some other label, or none.
   void setServer(String? serverId) {
     if (serverId == _serverId) return;
     _serverId = serverId;
     _cancelInFlight();
+    _labelIds = const [];
+    _unlabeled = false;
+    _query = '';
+    searchText = '';
+    scrollOffset = 0;
 
     if (serverId == null) {
       _threads.value = GlobalThreadsLoaded(
@@ -131,6 +204,15 @@ class GlobalThreadsState {
     unawaited(_fetch(cursor: null));
   }
 
+  /// Drops the held rows when the session ends, so the next person at
+  /// this screen never sees them.
+  void _signOut({required bool expired}) {
+    _cancelInFlight();
+    _nextCursor = null;
+    scrollOffset = 0;
+    _threads.value = GlobalThreadsSignedOut(expired: expired);
+  }
+
   /// Narrows the listing to threads matching [labelIds] and [query].
   ///
   /// [labelIds] is an "any of" match; empty means no label filter, so
@@ -138,7 +220,7 @@ class GlobalThreadsState {
   /// [unlabeled] adds threads carrying no label as one more alternative.
   /// [query] matches thread names, ignoring case.
   ///
-  /// A no-op when neither has changed, so a rebuild that re-emits the
+  /// A no-op when none of them has changed, so a rebuild that re-emits the
   /// current filter does not restart paging from zero.
   void setFilter({
     List<int> labelIds = const [],
@@ -204,6 +286,12 @@ class GlobalThreadsState {
       return;
     }
 
+    // A request now would only come back 401.
+    if (!entry.isConnected) {
+      _signOut(expired: entry.auth.session.value is ExpiredSession);
+      return;
+    }
+
     final token = CancelToken();
     _token = token;
 
@@ -225,8 +313,14 @@ class GlobalThreadsState {
 
       _nextCursor = page.nextCursor;
       final existing = cursor == null ? const <ThreadInfo>[] : _heldThreads();
+      final held = {for (final thread in existing) thread.id};
       _threads.value = GlobalThreadsLoaded(
-        threads: [...existing, ...page.threads],
+        // A thread already held can come round again, after the first page
+        // was re-checked (see [revalidate]); it keeps the row it has.
+        threads: [
+          ...existing,
+          ...page.threads.where((thread) => !held.contains(thread.id)),
+        ],
         hasMore: page.hasMore,
         loadingMore: false,
       );
@@ -254,6 +348,83 @@ class GlobalThreadsState {
         stackTrace: st,
       );
       _threads.value = GlobalThreadsFailed(error);
+    }
+  }
+
+  /// Re-checks the first page, keeping every page already held.
+  ///
+  /// For a listing the user is returning to: threads with newer activity
+  /// move to the top, and rows on the first page take their current
+  /// names. Rows further down keep what they had until a [refresh] —
+  /// that is the cost of keeping the user's place.
+  ///
+  /// When the first page shares no thread with the held rows, there may be
+  /// threads between the two that neither has, so the held rows are
+  /// replaced by the fresh page instead.
+  ///
+  /// Quiet on failure: the rows already on screen are still worth showing.
+  Future<void> revalidate() async {
+    final serverId = _serverId;
+    if (serverId == null) return;
+    if (_threads.value is! GlobalThreadsLoaded || _token != null) return;
+
+    final entry = _entryResolver(serverId);
+    if (entry == null || !entry.isConnected) return;
+
+    final token = CancelToken();
+    _token = token;
+
+    try {
+      final page = await _apiResolver(entry).getAllThreads(
+        limit: pageSize,
+        labelIds: _labelIds,
+        unlabeled: _unlabeled,
+        query: _query,
+        cancelToken: token,
+      );
+      if (token.isCancelled || _disposed || serverId != _serverId) return;
+      _token = null;
+
+      final current = _threads.value;
+      if (current is! GlobalThreadsLoaded) return;
+
+      final fresh = {for (final thread in page.threads) thread.id};
+      final overlaps = current.threads.any((t) => fresh.contains(t.id));
+      if (!overlaps && page.hasMore) {
+        _nextCursor = page.nextCursor;
+        scrollOffset = 0;
+        _threads.value = GlobalThreadsLoaded(
+          threads: page.threads,
+          hasMore: true,
+          loadingMore: false,
+        );
+        return;
+      }
+
+      _threads.value = GlobalThreadsLoaded(
+        threads: [
+          ...page.threads,
+          ...current.threads.where((thread) => !fresh.contains(thread.id)),
+        ],
+        hasMore: current.hasMore,
+        loadingMore: false,
+      );
+    } on Object catch (error, st) {
+      if (token.isCancelled || _disposed || serverId != _serverId) return;
+      _token = null;
+
+      if (error is AuthException) {
+        entry.auth.markSessionExpired();
+        return;
+      }
+      // What this catch can see is the client's own exceptions over a
+      // thread page: status codes, the server's reason, and network
+      // errors naming the host; no credential reaches any of them.
+      _logger.warning(
+        'Failed to re-check the first page of threads for $serverId',
+        error: error,
+        stackTrace: st,
+      );
     }
   }
 
@@ -334,6 +505,11 @@ class GlobalThreadsState {
       return null;
     } on Object catch (error, st) {
       if (_disposed) return null;
+      if (error is AuthException) {
+        // The same re-auth path a failed read takes, rather than a
+        // message the user can do nothing with.
+        entry.auth.markSessionExpired();
+      }
       _logger.error(
         'Thread operation failed for $serverId',
         error: error,
@@ -348,8 +524,10 @@ class GlobalThreadsState {
   /// Swaps [thread] into the held list, leaving its position alone.
   ///
   /// Position is preserved rather than re-sorted: the list is ordered by
-  /// room and then by name, and having a thread jump elsewhere the
-  /// instant it is renamed would lose the row the user was looking at.
+  /// activity, most recent first, and the cursor pages through that
+  /// order. Moving a thread would break it, and having a thread jump
+  /// elsewhere the instant it is renamed would lose the row the user was
+  /// looking at.
   void _replace(ThreadInfo thread) {
     _write([
       for (final held in _heldThreads())

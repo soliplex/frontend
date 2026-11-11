@@ -6,11 +6,15 @@ import 'package:soliplex_client/soliplex_client.dart'
         NotFoundException,
         PermissionDeniedException,
         ThreadLabel;
+import 'package:soliplex_agent/soliplex_agent.dart' show Signal;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/stores/labels_state.dart';
 
 import '../helpers/fakes.dart';
+import '../helpers/test_server_entry.dart';
 
 class _Harness {
   _Harness({List<ThreadLabel>? labels}) {
@@ -245,4 +249,144 @@ void main() {
       h.dispose();
     });
   });
+
+  group('LabelsState following the selection', () {
+    test('a label created on one server is not folded into the next', () async {
+      final h = _following();
+      h.selection.value = _a;
+      await pumpEventQueue();
+
+      final held = h.apiA.holdNext('createLabel');
+      final saving = h.state.create(name: 'Urgent');
+      h.selection.value = _b;
+      await pumpEventQueue();
+      held.complete();
+
+      expect(await saving, isNull);
+      expect(h.names(), ['Billing']);
+      h.dispose();
+    });
+
+    test("a catalogue from the old server never lands on the new one's",
+        () async {
+      final h = _following();
+      final held = h.apiA.holdNext('getLabels');
+      h.selection.value = _a;
+      h.selection.value = _b;
+      await pumpEventQueue();
+
+      held.complete();
+      await pumpEventQueue();
+
+      expect(h.names(), ['Billing']);
+      h.dispose();
+    });
+
+    test('a create while the catalogue failed refetches instead', () async {
+      final h = _following();
+      h.apiA.nextLabelsError = Exception('boom');
+      h.selection.value = _a;
+      await pumpEventQueue();
+      expect(h.state.labels.value, isA<LabelsFailed>());
+
+      h.apiA.nextLabelsError = null;
+      await h.state.create(name: 'Urgent');
+      await pumpEventQueue();
+
+      // The whole catalogue, not a one-label list hiding the failure.
+      expect(h.names(), ['Manuals', 'Urgent']);
+      expect(h.apiA.createLabelCalls, hasLength(1));
+      h.dispose();
+    });
+
+    test('waits for sign-in, then loads', () async {
+      final auth = AuthSession(refreshService: FakeTokenRefreshService());
+      final h = _following(authA: auth);
+      h.selection.value = _a;
+      await pumpEventQueue();
+      expect(h.state.labels.value, isA<LabelsLoading>());
+
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://idp.test/.well-known/openid-configuration',
+          clientId: 'client',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(h.names(), ['Manuals']);
+      h.dispose();
+    });
+
+    test('a rejected write sends the user to sign in again', () async {
+      final h = _following();
+      h.selection.value = _a;
+      await pumpEventQueue();
+      h.apiA.nextCreateLabelError = const AuthException(message: '401');
+
+      await h.state.create(name: 'Urgent');
+
+      expect(h.authA.session.value, isA<ExpiredSession>());
+      // And the catalogue waits for the sign-in rather than showing it.
+      expect(h.state.labels.value, isA<LabelsLoading>());
+      h.dispose();
+    });
+  });
+}
+
+const _a = 'http://a:8000';
+const _b = 'http://b:8000';
+
+/// A catalogue following a selection across two servers that require
+/// sign-in: A holds 'Manuals', B holds 'Billing', both with id 1.
+({
+  LabelsState state,
+  FakeSoliplexApi apiA,
+  AuthSession authA,
+  Signal<String?> selection,
+  List<String> Function() names,
+  void Function() dispose,
+}) _following({AuthSession? authA}) {
+  final apiA = FakeSoliplexApi()..labels = [_label(1, 'Manuals')];
+  final apiB = FakeSoliplexApi()..labels = [_label(1, 'Billing')];
+  final sessionA = authA ?? authInActiveSession();
+  final servers = Signal<Map<String, ServerEntry>>({
+    _a: createTestServerEntry(
+      api: apiA,
+      serverId: _a,
+      alias: 'a',
+      requiresAuth: true,
+      auth: sessionA,
+    ),
+    _b: createTestServerEntry(
+      api: apiB,
+      serverId: _b,
+      alias: 'b',
+      requiresAuth: true,
+      auth: authInActiveSession(),
+    ),
+  });
+  final selection = Signal<String?>(null);
+  final state = LabelsState(entryResolver: (id) => servers.value[id]);
+  final unfollow = state.follow(selection: selection, servers: servers);
+
+  return (
+    state: state,
+    apiA: apiA,
+    authA: sessionA,
+    selection: selection,
+    names: () => switch (state.labels.value) {
+          LabelsLoaded(:final labels) => [for (final l in labels) l.name],
+          _ => const <String>[],
+        },
+    dispose: () {
+      unfollow();
+      state.dispose();
+    },
+  );
 }
