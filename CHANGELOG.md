@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [0.117.0+106] - 2026-11-11
+
+### Added
+
+- The lobby splits into Rooms and Threads tabs. Threads lists every thread
+  you have on the selected server, most recently active first, a page at a
+  time, each row naming its room and when it was last active. One search box
+  finds threads by name and, with `@label`, by label; `@no-label` finds the
+  threads nobody has labelled. Signing out, or a session expiring, clears the
+  list and offers Sign in; switching servers starts unfiltered. Opening a
+  thread and coming back keeps the loaded pages, scroll position and search,
+  and moves threads with newer activity to the top. A server older than
+  soliplex 0.88 shows "Threads need a newer server".
+- Thread labels (soliplex 0.92). Every thread has a Properties entry, in the
+  lobby's thread menu and the room's thread sidebar, to attach and detach
+  labels; the lobby menu also renames and deletes a thread without opening
+  it. Labels show as quiet tinted chips. Server administrators get a Labels
+  tab to create, rename, recolour and delete labels and see how many threads
+  use each; a new label starts a neutral grey, which stays offered in the
+  picker. The label editor warns that everyone on the server can see label
+  names and that the assistant may apply labels on its own.
+- **Library consumers:** `SoliplexApi.getAllThreads` pages a user's threads
+  across every room as a `ThreadPage` (`threads`, `nextCursor`, `hasMore`),
+  filtered by `labelIds`, `unlabeled` or `query`. `SoliplexApi.getLabels`,
+  `createLabel`, `updateLabel` and `deleteLabel` manage the label catalogue,
+  and `setThreadLabels` sets a thread's labels; `ThreadLabel` models one
+  label, and `ThreadInfo.labels` carries a thread's labels. Code that
+  implements `SoliplexApi` must add these methods.
+- **Library consumers:** `soliplex_design` adds `SoliplexChip.colored` for a
+  chip in a data-supplied colour, `swatchTint` to quiet a swatch,
+  `neutralSwatch`, `hashedHueColor`, `hueColor` and `colorFromHex`.
+
 ## [0.116.2+105] - 2026-11-10
 
 ### Added
