@@ -11,9 +11,9 @@ import 'package:flutter/material.dart';
 /// hand-picked list. Saturation and lightness are tuned per [brightness]
 /// so whatever is drawn on top stays legible in both themes.
 ///
-/// Used for room avatars and for labels that have not been given an
-/// explicit colour, so the two demonstrably agree rather than drifting
-/// apart as separate implementations.
+/// Used for room avatars, and as the fallback for a label whose stored
+/// colour can't be read, so the two agree rather than drifting apart as
+/// separate implementations.
 Color hashedHueColor(String seed, Brightness brightness) {
   var hash = 0;
   for (final unit in seed.codeUnits) {
@@ -52,9 +52,8 @@ Color? colorFromHex(String value) {
 /// The accent colour at [hue] degrees, tuned for [brightness].
 ///
 /// The half of [hashedHueColor] that does not hash, for callers that
-/// already have a hue — e.g. one the server derived from a record's own
-/// identifier — and only need it rendered consistently with everything
-/// else on screen.
+/// already have a hue — the label editor's swatches, for one — and only
+/// need it rendered consistently with everything else on screen.
 Color hueColor(double hue, Brightness brightness) {
   final lightness = brightness == Brightness.dark ? 0.42 : 0.55;
   return HSLColor.fromAHSL(1, hue % 360, 0.55, lightness).toColor();

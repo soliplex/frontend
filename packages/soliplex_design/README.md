@@ -27,7 +27,7 @@ golden snapshots under
 | Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
 | Monospace             | `context.monospace` — picks `SF Mono` on Cupertino, `Roboto Mono` elsewhere                          |
 | Breakpoints           | `SoliplexBreakpoints.{mobile,tablet,desktop}` (320 / 600 / 840)                                      |
-| Identity color        | `hashedHueColor(seed, brightness)` — deterministic per seed, tuned per theme (room avatars, labels)  |
+| Identity color        | `hashedHueColor(seed, brightness)` — deterministic per seed, tuned per theme (room avatars)          |
 | Data-supplied color   | `colorFromHex('#RRGGBB')` — returns `null` when unparseable, so the caller picks its own fallback    |
 | Uncolored default     | `neutralSwatch` — the zero-saturation grey a label wears until someone picks a color for it          |
 | Quieting a swatch     | `swatchTint(color, brightness)` — `(fill, outline, content)`, desaturated and alpha'd for annotations |

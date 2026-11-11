@@ -691,8 +691,9 @@ RunUsage runUsageFromJson(String runId, Map<String, dynamic> json) {
 /// Creates a [ThreadLabel] from JSON.
 ///
 /// Throws [FormatException] if `id`, `name` or `color` is missing or of
-/// the wrong type — a label with no colour cannot be drawn, and one with
-/// no id cannot be filtered on, so neither degrades usefully.
+/// the wrong type. The server always stores a colour (grey when nobody
+/// picked one), so a missing one means the payload is not a label; and a
+/// label with no id cannot be filtered on.
 ThreadLabel threadLabelFromJson(Map<String, dynamic> json) {
   final id = json['id'];
   if (id is! num) {

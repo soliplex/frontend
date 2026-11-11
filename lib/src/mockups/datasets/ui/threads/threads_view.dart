@@ -106,7 +106,8 @@ class _ThreadsViewState extends State<ThreadsView> {
   /// own filter, rooms through the backend's.
   void _apply() {
     final catalogue = {
-      for (final label in widget.labels.current) label.name.toLowerCase(): label
+      for (final label in widget.labels.catalogue.value)
+        label.name.toLowerCase(): label
     };
     final rooms = {
       for (final MapEntry(:key, :value) in widget.roomNames.entries)
@@ -170,7 +171,7 @@ class _ThreadsViewState extends State<ThreadsView> {
           child: Watch(
             (context) => ThreadSearchField(
               key: _search,
-              labels: widget.labels.current,
+              labels: widget.labels.catalogue.value,
               roomNames: widget.roomNames.values.toList(),
               onChanged: (query) {
                 _query = query;

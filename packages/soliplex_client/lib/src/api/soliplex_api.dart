@@ -752,8 +752,8 @@ class SoliplexApi {
 
   /// Creates a label, returning it as stored.
   ///
-  /// Administrators only. [color] is a `#RRGGBB` string; omit it to let
-  /// the server pick one from the new label's own ID.
+  /// Administrators only. [color] is a `#RRGGBB` string; omit it and the
+  /// server stores neutral grey (`#808080`).
   ///
   /// Throws:
   /// - [ArgumentError] if [name] is empty
