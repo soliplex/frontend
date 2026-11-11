@@ -268,6 +268,30 @@ void main() {
       expect(grey.properties.selected, isTrue);
     });
 
+    testWidgets('shows the swatch of a colour saved from a dark theme',
+        (tester) async {
+      // '#3030A6' is hue 240 as the dark theme used to store it; the
+      // palette now stores that swatch as '#4D4DCB' in every theme.
+      await _pumpLobby(
+        tester,
+        labels: const [ThreadLabel(id: 1, name: 'Manuals', color: '#3030A6')],
+      );
+      await _openLabelsTab(tester);
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      final blue = tester.widget<Semantics>(
+        find
+            .ancestor(
+              of: find.byType(InkWell),
+              matching: find.bySemanticsLabel('Colour #4D4DCB'),
+            )
+            .first,
+      );
+      expect(blue.properties.selected, isTrue);
+    });
+
     testWidgets('reports a duplicate name inside the dialog', (tester) async {
       final api = await _pumpLobby(tester, labels: const []);
       api.nextCreateLabelError =
