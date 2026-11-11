@@ -809,11 +809,16 @@ ThreadPage threadPageFromJson(Map<String, dynamic> json) {
     throw const FormatException('Thread page missing required "threads"');
   }
 
+  // An empty cursor reads as the last page. Taken as "more", it would be
+  // sent back as 'cursor=', which a server may read as no cursor at all
+  // and answer with the first page again, forever.
+  final cursor = json['next_cursor'] as String?;
+
   return ThreadPage(
     threads: rawThreads
         .map((entry) => threadInfoFromJson(entry as Map<String, dynamic>))
         .toList(growable: false),
-    nextCursor: json['next_cursor'] as String?,
+    nextCursor: cursor == null || cursor.isEmpty ? null : cursor,
   );
 }
 

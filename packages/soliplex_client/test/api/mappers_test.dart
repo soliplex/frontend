@@ -919,10 +919,11 @@ void main() {
         );
       });
 
-      test('reads an absent or null cursor as the last page', () {
+      test('reads an absent, null or empty cursor as the last page', () {
         for (final json in [
           <String, dynamic>{'threads': <dynamic>[]},
           <String, dynamic>{'threads': <dynamic>[], 'next_cursor': null},
+          <String, dynamic>{'threads': <dynamic>[], 'next_cursor': ''},
         ]) {
           final page = threadPageFromJson(json);
           expect(page.threads, isEmpty);
