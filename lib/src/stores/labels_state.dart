@@ -157,6 +157,9 @@ class LabelsState {
     // A request now would only come back 401; signing in refetches.
     if (!entry.isConnected) return;
 
+    // A retry from the failure panel shows that it is trying.
+    if (_labels.value is LabelsFailed) _labels.value = const LabelsLoading();
+
     final token = CancelToken();
     _cancelInFlight();
     _token = token;
@@ -219,28 +222,40 @@ class LabelsState {
   /// Renames and/or recolours a label, folding the result back in.
   Future<String?> update(int labelId, {String? name, String? color}) {
     return _mutate((api, serverId) async {
-      final updated = await api.updateLabel(labelId, name: name, color: color);
-      _fold(
-          serverId,
-          (labels) => [
-                for (final label in labels)
-                  if (label.id == labelId) updated else label,
-              ]);
+      try {
+        final updated =
+            await api.updateLabel(labelId, name: name, color: color);
+        _fold(
+            serverId,
+            (labels) => [
+                  for (final label in labels)
+                    if (label.id == labelId) updated else label,
+                ]);
+      } on NotFoundException {
+        // Deleted by someone else: drop the row, or every retry fails
+        // the same way. The dialog still says why.
+        _fold(serverId, (labels) => _without(labels, labelId));
+        rethrow;
+      }
     });
   }
 
   /// Deletes a label and drops it from the held catalogue.
   Future<String?> delete(int labelId) {
     return _mutate((api, serverId) async {
-      await api.deleteLabel(labelId);
-      _fold(
-          serverId,
-          (labels) => [
-                for (final label in labels)
-                  if (label.id != labelId) label,
-              ]);
+      try {
+        await api.deleteLabel(labelId);
+      } on NotFoundException {
+        // Already gone, which is what was asked for.
+      }
+      _fold(serverId, (labels) => _without(labels, labelId));
     });
   }
+
+  static List<ThreadLabel> _without(List<ThreadLabel> labels, int labelId) => [
+        for (final label in labels)
+          if (label.id != labelId) label,
+      ];
 
   /// Runs a mutation, returning null on success or a reason on failure.
   ///

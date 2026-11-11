@@ -188,6 +188,46 @@ void main() {
       h.dispose();
     });
 
+    test('deleting a label someone else deleted is a success', () async {
+      final h = _Harness(labels: [_label(1, 'Manuals'), _label(2, 'Ops')])
+        ..api.nextDeleteLabelError = const NotFoundException(message: 'gone');
+      await h.load();
+
+      final reason = await h.state.delete(1);
+
+      expect(reason, isNull);
+      expect(h.state.catalogue.value.map((l) => l.name), ['Ops']);
+
+      h.dispose();
+    });
+
+    test('editing a label someone else deleted drops its row', () async {
+      final h = _Harness(labels: [_label(1, 'Manuals'), _label(2, 'Ops')])
+        ..api.nextUpdateLabelError = const NotFoundException(message: 'gone');
+      await h.load();
+
+      final reason = await h.state.update(1, name: 'Guides');
+
+      expect(reason, contains('no longer exists'));
+      expect(h.state.catalogue.value.map((l) => l.name), ['Ops']);
+
+      h.dispose();
+    });
+
+    test('a retry after a failure shows that it is loading', () async {
+      final h = _Harness()..api.nextLabelsError = Exception('boom');
+      await h.load();
+      expect(h.state.labels.value, isA<LabelsFailed>());
+
+      h.api.nextLabelsError = null;
+      final retry = h.state.refresh();
+      expect(h.state.labels.value, isA<LabelsLoading>());
+      await retry;
+      expect(h.state.labels.value, isA<LabelsLoaded>());
+
+      h.dispose();
+    });
+
     test('explains a lost session', () async {
       final h = _Harness()
         ..api.nextCreateLabelError = const AuthException(message: 'HTTP 401');
