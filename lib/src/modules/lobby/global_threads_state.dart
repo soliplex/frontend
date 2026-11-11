@@ -21,7 +21,8 @@ sealed class GlobalThreads {
   const GlobalThreads();
 }
 
-/// The first page is in flight; nothing is on screen yet.
+/// Nothing is on screen yet: the first page is in flight, or no server
+/// has been selected to ask.
 final class GlobalThreadsLoading extends GlobalThreads {
   const GlobalThreadsLoading();
 }
@@ -329,6 +330,10 @@ class GlobalThreadsState {
       if (token.isCancelled || _disposed || serverId != _serverId) return;
       _token = null;
 
+      // What this catch can see is the client's own exceptions over a
+      // thread page: status codes, the server's reason, and network errors
+      // naming the host. None carries a credential, and each is what makes
+      // the record actionable, so 'error:' is kept.
       final held = _threads.value;
       if (cursor != null && held is GlobalThreadsLoaded) {
         // A later page: keep every row and the cursor, so a retry resumes
@@ -350,7 +355,12 @@ class GlobalThreadsState {
       }
 
       if (error is NotFoundException) {
-        // A server that predates the cross-room endpoint, not a fault.
+        // A server that predates the cross-room endpoint, not a fault --
+        // but recorded, since a wrong base URL looks the same from here.
+        _logger.info(
+          'No cross-room thread listing on $serverId',
+          attributes: {'serverId': serverId},
+        );
         _threads.value = const GlobalThreadsUnsupported();
         return;
       }
@@ -367,6 +377,7 @@ class GlobalThreadsState {
         'Failed to fetch threads for $serverId',
         error: error,
         stackTrace: st,
+        attributes: {'page': 'first'},
       );
       _threads.value = GlobalThreadsFailed(error);
     }
