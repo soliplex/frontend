@@ -15,10 +15,12 @@ import 'package:soliplex_client/src/domain/thread_info.dart';
 /// is fetched again.
 @immutable
 class ThreadPage {
-  /// Creates a page of threads.
-  const ThreadPage({required this.threads, this.nextCursor});
+  /// Creates a page of threads. [threads] is copied, so the page can't be
+  /// changed through the caller's list.
+  ThreadPage({required List<ThreadInfo> threads, this.nextCursor})
+      : threads = List.unmodifiable(threads);
 
-  /// The threads on this page, in display order.
+  /// The threads on this page, in display order. Unmodifiable.
   final List<ThreadInfo> threads;
 
   /// The token that fetches the page after this one, or `null` when this

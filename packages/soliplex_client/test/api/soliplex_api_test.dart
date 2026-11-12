@@ -975,7 +975,11 @@ void main() {
           };
         });
 
-        await api.getAllThreads(labelIds: [3, 7], query: '  manual  ');
+        await api.getAllThreads(
+          limit: 50,
+          labelIds: [3, 7],
+          query: '  manual  ',
+        );
 
         // The backend reads a repeated key as a list; a single
         // comma-joined value would be one label named "3,7".
@@ -1008,7 +1012,7 @@ void main() {
         });
 
         // Clearing the last chip must widen the listing, not empty it.
-        await api.getAllThreads(labelIds: const [], query: '   ');
+        await api.getAllThreads(limit: 50, labelIds: const [], query: '   ');
 
         expect(capturedUri?.queryParameters.containsKey('label_ids'), isFalse);
         expect(capturedUri?.queryParameters.containsKey('q'), isFalse);
@@ -1017,7 +1021,7 @@ void main() {
 
       test('asks for unlabeled threads beside the labels', () async {
         final uri = await captureUri(
-          () => api.getAllThreads(labelIds: [3], unlabeled: true),
+          () => api.getAllThreads(limit: 50, labelIds: [3], unlabeled: true),
         );
 
         expect(uri?.queryParametersAll['label_ids'], equals(['3']));
@@ -1035,7 +1039,7 @@ void main() {
         stubResponse({'threads': 'not-a-list'});
 
         await expectLater(
-          api.getAllThreads(),
+          api.getAllThreads(limit: 50),
           throwsA(isA<MalformedResponseException>()),
         );
       });
@@ -1057,7 +1061,7 @@ void main() {
           (_) async => {'threads': <dynamic>[]},
         );
 
-        await api.getAllThreads(cancelToken: cancelToken);
+        await api.getAllThreads(limit: 50, cancelToken: cancelToken);
 
         verify(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -1141,8 +1145,8 @@ void main() {
 
         expect(capturedMethod, equals('POST'));
         expect(capturedUri?.path, equals('/api/v1/agui/labels'));
-        // Colour omitted, so the server derives one from the new
-        // label's own ID rather than being handed a placeholder.
+        // Colour omitted, so the server stores its neutral grey rather
+        // than being handed a placeholder.
         expect(capturedBody, equals({'name': 'Manuals'}));
         expect(label.id, equals(9));
         expect(label.color, equals('#42D76D'));

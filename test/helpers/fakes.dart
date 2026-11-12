@@ -457,7 +457,7 @@ class FakeSoliplexApi extends SoliplexApi {
 
   @override
   Future<ThreadPage> getAllThreads({
-    int limit = 50,
+    required int limit,
     String? cursor,
     List<int>? labelIds,
     bool unlabeled = false,
