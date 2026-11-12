@@ -2689,6 +2689,55 @@ void main() {
       state.dispose();
     });
 
+    test('a send refused for an expired session keeps its message for sign-in',
+        () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: testJwt({'iss': 'iss-test', 'sub': 'user'}),
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        followRun: neverFollowed,
+        contextWindow: Signal<int?>(null),
+      );
+      addTearDown(state.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session, prompt: [const TextPart('Hello')]);
+      session.emit(
+        FailedState.preRun(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          reason: FailureReason.authExpired,
+          error: 'Session expired',
+        ),
+      );
+      await pumpEventQueue();
+
+      final restored = await ReturnToStorage.loadComposer(
+        serverId: 'test-server',
+        userId: _testUserId,
+        roomId: 'room-1',
+      );
+      expect(restored, 'Hello');
+    });
+
     test('mirrors session.reconnectStatus into reconnectStatus signal',
         () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);

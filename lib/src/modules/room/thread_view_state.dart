@@ -131,9 +131,9 @@ class ThreadViewState {
   CancelToken? _cancelToken;
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
 
-  /// The message the attached session was sent, when it was sent from this
-  /// room; null for a session this view did not send (one restored from the
-  /// registry, or a followed run).
+  /// The message the attached session was sent, when the caller passed it;
+  /// null for a session attached without one (restored from the registry,
+  /// or a followed run).
   List<MessagePart>? _attachedPrompt;
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
@@ -496,10 +496,15 @@ class ThreadViewState {
           :final error,
           :final runId,
         ):
-        final prompt = _attachedPrompt;
+        // A failure with no run ended before the message was sent, so no
+        // run holds it, and it goes back to the composer.
+        final unsent = runId == null ? _attachedPrompt : null;
         _detachSession();
         contextUsage.sendEnded(conversation?.transcript);
         if (reason == FailureReason.authExpired) {
+          // The redirect to sign-in drops the composer, so the message is
+          // kept in storage, as the spawner keeps one refused at spawn.
+          if (unsent != null) _persistComposer(unsent);
           // Funnel to the per-server auth funnel so the route guard
           // (and any lobby UX) can react. The screen also surfaces a
           // banner so the user sees what happened before the redirect.
@@ -517,11 +522,7 @@ class ThreadViewState {
         }
         _lastSendError.value = SendError(
           _friendlyMessage(reason, error),
-          // A failure with no run ended before the message was sent, so no
-          // run holds it, and it goes back to the composer.
-          unsentText: runId == null && prompt != null
-              ? encodeComposerDraft(prompt)
-              : null,
+          unsentText: unsent == null ? null : encodeComposerDraft(unsent),
         );
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
