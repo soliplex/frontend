@@ -181,5 +181,40 @@ void main() {
       await tester.tap(find.byIcon(Icons.cancel));
       expect(fired, 1);
     });
+
+    testWidgets('isCompact draws it smaller, in the same colours', (
+      tester,
+    ) async {
+      const swatch = Color(0xFF42D76D);
+      await tester.pumpWidget(
+        _harness(
+          const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SoliplexChip.colored(
+                key: Key('regular'),
+                label: Text('Manuals'),
+                color: swatch,
+              ),
+              SoliplexChip.colored(
+                key: Key('compact'),
+                label: Text('Manuals'),
+                color: swatch,
+                isCompact: true,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final regular = tester.getSize(find.byKey(const Key('regular')));
+      final compact = tester.getSize(find.byKey(const Key('compact')));
+      expect(compact.height, lessThan(regular.height));
+      expect(compact.width, lessThan(regular.width));
+
+      final chips = tester.widgetList<Chip>(find.byType(Chip)).toList();
+      expect(chips[1].labelStyle?.color, equals(chips[0].labelStyle?.color));
+      expect(chips[1].backgroundColor, equals(chips[0].backgroundColor));
+    });
   });
 }
