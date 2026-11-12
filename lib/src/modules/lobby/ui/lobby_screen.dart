@@ -715,9 +715,8 @@ class _RoomContent extends StatelessWidget {
                 client: selectedEntry.httpClient,
                 serverLabel: selectedEntry.displayName,
               ),
-            // Sits under the server heading so the tabs read as sections of
-            // the selected server, which is exactly what they are — the
-            // threads tab aggregates that server's rooms, not every server.
+            // The tabs are sections of the selected server: the threads
+            // tab aggregates that server's rooms, not every server's.
             LobbyTabBar(
               tabs: tabsSection.tabs,
               activeIndex: tabsSection.activeIndex,

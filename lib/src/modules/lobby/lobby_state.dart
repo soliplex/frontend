@@ -144,9 +144,10 @@ class LobbyState {
   /// server id. A server is absent until its [AdminStatus] has answered, and
   /// absent reads as "no": the tab only appears on a verdict.
   ///
-  /// Read from the server's [AdminStatus], which asks the same
-  /// `check_admin_access` the label endpoints enforce, so the tab is drawn
-  /// exactly when its writes would be allowed.
+  /// Read from the server's [AdminStatus], which asks the server's
+  /// `is_admin_user`. The label endpoints enforce `check_admin_access`;
+  /// the two are expected to agree, but that is the server's promise, not
+  /// something this client checks.
   ///
   /// This only decides what is painted. The server gates every write, so the
   /// worst a wrong answer costs is a 403.

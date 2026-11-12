@@ -18,8 +18,9 @@ class ThreadLabel {
 
   /// Unique identifier, allocated by the server.
   ///
-  /// This is the comparison key: filtering and equality go through the
-  /// integer, and [name] is only ever for humans. IDs are allocated per
+  /// This is the key filtering goes through, and [name] is only ever for
+  /// humans. Equality compares every field, so a renamed or recoloured
+  /// label is a change a signal notices. IDs are allocated per
   /// deployment, so nothing that travels between servers may key on one.
   final int id;
 
