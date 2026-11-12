@@ -1,3 +1,5 @@
+import 'dart:ui' show CheckedState, SemanticsFlags, Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -261,11 +263,52 @@ void main() {
         find
             .ancestor(
               of: find.byType(InkWell),
-              matching: find.bySemanticsLabel('Colour #808080'),
+              matching: find.bySemanticsLabel('Grey'),
             )
             .first,
       );
-      expect(grey.properties.selected, isTrue);
+      expect(grey.properties.checked, isTrue);
+    });
+
+    testWidgets('names the swatches and reads them as one choice',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpLobby(
+        tester,
+        labels: const [ThreadLabel(id: 1, name: 'Manuals', color: '#808080')],
+      );
+      await _openLabelsTab(tester);
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      SemanticsFlags flags(String name) => tester
+          .getSemantics(find.bySemanticsLabel(name))
+          .getSemanticsData()
+          .flagsCollection;
+
+      expect(flags('Grey').isInMutuallyExclusiveGroup, isTrue);
+      expect(flags('Grey').isChecked, CheckedState.isTrue);
+      expect(flags('Blue').isChecked, CheckedState.isFalse);
+      expect(find.bySemanticsLabel(RegExp('#')), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets("a label's chip reads as its name, not a checkbox",
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpLobby(
+        tester,
+        labels: const [ThreadLabel(id: 1, name: 'Manuals', color: '#808080')],
+      );
+      await _openLabelsTab(tester);
+
+      final flags = tester
+          .getSemantics(find.bySemanticsLabel('Manuals'))
+          .getSemanticsData()
+          .flagsCollection;
+      expect(flags.isChecked, CheckedState.none);
+      expect(flags.isSelected, Tristate.none);
+      handle.dispose();
     });
 
     testWidgets('shows the swatch of a colour saved from a dark theme',
@@ -285,11 +328,11 @@ void main() {
         find
             .ancestor(
               of: find.byType(InkWell),
-              matching: find.bySemanticsLabel('Colour #4D4DCB'),
+              matching: find.bySemanticsLabel('Blue'),
             )
             .first,
       );
-      expect(blue.properties.selected, isTrue);
+      expect(blue.properties.checked, isTrue);
     });
 
     testWidgets('reports a duplicate name inside the dialog', (tester) async {

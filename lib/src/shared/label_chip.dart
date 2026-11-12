@@ -21,11 +21,16 @@ class LabelChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SoliplexChip.colored(
+    final chip = SoliplexChip.colored(
       label: Text(label.name),
       color: labelColor(label, Theme.of(context).brightness),
       onDeleted: onDeleted,
     );
+    if (onDeleted != null) return chip;
+    // Material's chip always reports a selected state, false here, which
+    // a screen reader announces as an unchecked checkbox. A label shown
+    // for reading is just its name.
+    return Semantics(label: label.name, excludeSemantics: true, child: chip);
   }
 }
 

@@ -1,4 +1,7 @@
+import 'dart:ui' show CheckedState;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsData;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Signal;
 import 'package:soliplex_client/soliplex_client.dart'
@@ -65,6 +68,28 @@ Finder get _save => find.widgetWithText(TextButton, 'Save');
 
 void main() {
   group('ThreadPropertiesDialog', () {
+    testWidgets('reads each label as a checkbox saying whether it is on',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      final saves = await _open(tester, thread: _thread(labels: [_manuals]));
+
+      SemanticsData data(String name) =>
+          tester.getSemantics(find.bySemanticsLabel(name)).getSemanticsData();
+
+      expect(data('Manuals').flagsCollection.isChecked, CheckedState.isTrue);
+      expect(data('Urgent').flagsCollection.isChecked, CheckedState.isFalse);
+
+      // Toggled through the node, as assistive tech does.
+      tester.semantics.tap(find.semantics.byLabel('Urgent'));
+      await tester.pumpAndSettle();
+      expect(data('Urgent').flagsCollection.isChecked, CheckedState.isTrue);
+
+      await tester.tap(_save);
+      await tester.pumpAndSettle();
+      expect(saves.labelIds.single, unorderedEquals([1, 2]));
+      handle.dispose();
+    });
+
     testWidgets('a blank name disables Save', (tester) async {
       await _open(tester, thread: _thread());
 

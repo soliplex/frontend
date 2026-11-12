@@ -261,9 +261,15 @@ class _SelectableLabelState extends State<_SelectableLabel> {
         swatchTint(labelColor(label, theme.brightness), theme.brightness)
             .content;
 
+    // One node, read as a checkbox that says whether the thread carries
+    // the label. The chips beneath report states of their own (a display
+    // chip always says "not selected"), which would contradict it.
     final chip = Semantics(
-      selected: widget.selected,
-      button: true,
+      container: true,
+      checked: widget.selected,
+      label: label.name,
+      onTap: widget.onToggle,
+      excludeSemantics: true,
       child: widget.selected
           ? InkWell(onTap: widget.onToggle, child: LabelChip(label: label))
           : SoliplexChip.action(
