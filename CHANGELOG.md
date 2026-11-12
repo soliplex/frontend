@@ -13,7 +13,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A thread started with New, or by attaching a file with no thread open, runs
   its first message on the run the server made with the thread rather than a
   second run, so the server's automatic labelling, which needs a thread to
-  have one run, now labels it.
+  have one run, can now label it.
 - A message that fails before any run holds it, such as a first message the
   server refuses on a new thread or one for which no run could be created,
   goes back to the composer instead of disappearing, and is kept through

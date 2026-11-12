@@ -402,8 +402,11 @@ class AgentRuntime {
   // ---------------------------------------------------------------------------
 
   /// Gives [runId], the initial run [session] is sent on, back to the
-  /// thread's next send unless [session] succeeds or the thread was seeded
-  /// with another meanwhile. A send that fails or is stopped may have
+  /// thread's next send unless [session] succeeds or the thread holds an
+  /// unused initial run again (seeded meanwhile). A seed that reported none
+  /// does not stop it: the id is given back anyway, which costs the next
+  /// send at most a refusal and a re-read. A send that fails or is stopped
+  /// may have
   /// started the run; the next send on it is then refused, and the provider
   /// sends it on a run of its own (see `AgUiLlmProvider.startRun`).
   void _returnInitialRunUnlessSucceeded(AgentSession session, String runId) {
