@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- A thread started with New, or by attaching a file with no thread open, runs
+  its first message on the run the server made with the thread, as a message
+  sent from a room's welcome screen does, rather than starting a second run.
+  The server's automatic labelling, which only labels a thread with one run,
+  now labels these threads too. A send the server refuses leaves that run
+  for the next one, and when another device or tab used it first, the
+  message is sent on a run of its own. A send that drops or is stopped
+  before the server answers may have started the run, so the next message
+  starts a run of its own.
+- A message that fails before any run holds it, such as a first message the
+  server refuses on a new thread or one for which no run could be created,
+  goes back to the composer instead of disappearing.
+- **Library consumers:** `ThreadHistory.unusedInitialRunId` is the id of a
+  thread's initial run while nothing has been sent on it. Seeded through
+  `AgentRuntime.seedThreadHistory`, it is the run the thread's next
+  `AgentRuntime.spawn` runs on, until a send on it runs.
+  `AgUiLlmProvider.startRun` with an `existingRunId` now waits for the
+  backend's first answer before returning: a refusal (a 4xx answer) throws,
+  and any other failure before the answer arrives on the returned stream.
+  When the backend refuses that run with a 400 and the thread, read again,
+  no longer shows it unused, it creates a run and sends on it once.
+
 ## [0.117.0+106] - 2026-11-11
 
 ### Added

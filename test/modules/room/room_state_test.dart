@@ -73,6 +73,24 @@ class _StubRuntimeManager extends AgentRuntimeManager {
 
 const _testUserId = 'iss-test#user';
 
+/// Refuses every run, as the backend answers a run the user may not start.
+class _RefusingAgUiStreamClient extends FakeAgUiStreamClient {
+  @override
+  Stream<DecodeOutcome> runAgent(
+    String endpoint,
+    SimpleRunAgentInput input, {
+    CancelToken? cancelToken,
+    ResumePolicy? resumePolicy,
+    void Function(ReconnectStatus)? onReconnectStatus,
+  }) =>
+      Stream.error(
+        const PermissionDeniedException(
+          message: 'HTTP 403: Forbidden',
+          statusCode: 403,
+        ),
+      );
+}
+
 void _activate(AuthSession auth) {
   auth.login(
     provider: const OidcProvider(
@@ -364,6 +382,44 @@ void main() {
     );
   });
 
+  test(
+      'a first message the backend refuses on the new thread goes back to '
+      'the composer', () async {
+    final refusing = _fakeServerEntry(
+      ServerConnection(
+        serverId: 'test-server',
+        api: api,
+        agUiStreamClient: _RefusingAgUiStreamClient(),
+      ),
+    );
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextCreateThread = (
+      ThreadInfo(
+        id: 'spawned-thread',
+        roomId: 'room-1',
+        initialRunId: 'run-initial',
+        createdAt: DateTime(2026, 11, 11),
+      ),
+      <String, dynamic>{},
+    );
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+    final state = RoomState(
+      serverEntry: refusing,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+    addTearDown(state.dispose);
+    await pumpEventQueue();
+
+    await state.sendToNewThread([const TextPart('Hello')]);
+    await pumpEventQueue();
+
+    expect(state.activeThreadView!.lastSendError.value?.unsentText, 'Hello');
+  });
+
   test('sendToNewThread adds thread to list locally', () async {
     final createdThread = ThreadInfo(
       id: 'spawned-thread',
@@ -525,6 +581,51 @@ void main() {
     expect(navigatedThreadId, 'new-thread');
 
     state.dispose();
+  });
+
+  test(
+      "the first send to a thread made with New runs on the thread's initial "
+      'run', () async {
+    final streams = RecordingAgUiStreamClient();
+    final recording = _fakeServerEntry(
+      ServerConnection(
+        serverId: 'test-server',
+        api: api,
+        agUiStreamClient: streams,
+      ),
+    );
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextCreateThread = (
+      ThreadInfo(
+        id: 'new-thread',
+        roomId: 'room-1',
+        initialRunId: 'run-initial',
+        createdAt: DateTime(2026, 11, 11),
+      ),
+      <String, dynamic>{},
+    );
+    api.nextThreadHistory = ThreadHistory(
+      messages: const [],
+      unusedInitialRunId: 'run-initial',
+    );
+    final state = RoomState(
+      serverEntry: recording,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+    addTearDown(state.dispose);
+    await pumpEventQueue();
+
+    await state.createThread();
+    await pumpEventQueue();
+    await state.activeThreadView!
+        .sendMessage([const TextPart('Hello')], state.runtime);
+    await pumpEventQueue();
+
+    expect([for (final input in streams.inputs) input.runId], ['run-initial']);
   });
 
   test('fetches room metadata on construction', () async {

@@ -25,6 +25,7 @@ class ThreadHistory {
     this.transcript = const Transcript(),
     this.latestMeasurement,
     this.runInProgress,
+    this.unusedInitialRunId,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -126,6 +127,17 @@ class ThreadHistory {
   /// of it is replayed, because its stored events are only what it has sent
   /// so far.
   final RunInProgress? runInProgress;
+
+  /// The thread's initial run while nothing has been sent on it: the
+  /// thread's only run, never sent input and never finished. The thread's
+  /// first send runs on it rather than creating a second run, as the backend
+  /// intends. Null once the thread has been written in, or has more than one
+  /// run.
+  ///
+  /// What the backend reported when this history was read: a runtime
+  /// seeded with it takes the run for a send, and does not consult this
+  /// copy again.
+  final String? unusedInitialRunId;
 }
 
 /// A run the backend is still going on, with the message that started it.

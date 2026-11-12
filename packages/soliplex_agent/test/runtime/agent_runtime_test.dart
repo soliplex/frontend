@@ -5,6 +5,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show AgUiStreamClient, SoliplexApi;
+import 'package:soliplex_logging/soliplex_logging.dart'
+    show LogLevel, MemorySink;
 import 'package:test/test.dart';
 
 import '../helpers/create_run_bodies.dart';
@@ -502,6 +504,408 @@ void main() {
         () =>
             api.createRun(any(), any(), parentRunId: any(named: 'parentRunId')),
       );
+    });
+
+    group("a thread's unused initial run", () {
+      const key = (serverId: 'default', roomId: _roomId, threadId: _threadId);
+
+      setUp(() {
+        runtime.seedThreadHistory(
+          key,
+          ThreadHistory(messages: const [], unusedInitialRunId: 'run-initial'),
+        );
+        stubCreateRun();
+        stubDeleteThread();
+      });
+
+      /// Answers each run with [answer], given the run id the run was sent
+      /// with, how many runs came before it, and the run's cancel token, and
+      /// returns every run's input in the order they were sent.
+      List<SimpleRunAgentInput> answerRuns(
+        Stream<BaseEvent> Function(String? runId, int index, CancelToken token)
+            answer,
+      ) {
+        final sent = <SimpleRunAgentInput>[];
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
+          ),
+        ).thenAnswer((invocation) {
+          final input =
+              invocation.positionalArguments[1] as SimpleRunAgentInput;
+          final index = sent.length;
+          sent.add(input);
+          return _wrap(
+            answer(
+              input.runId,
+              index,
+              invocation.namedArguments[#cancelToken] as CancelToken,
+            ),
+          );
+        });
+        return sent;
+      }
+
+      List<String?> runIds(List<SimpleRunAgentInput> sent) =>
+          [for (final input in sent) input.runId];
+
+      /// The text of the user messages [input] carries.
+      List<Object?> userTexts(SimpleRunAgentInput input) => [
+            for (final message in input.messages ?? const <Message>[])
+              if (message is UserMessage) message.content,
+          ];
+
+      /// The thread as the backend reports it when the run is re-read.
+      void threadReadsAs(ThreadHistory history) {
+        when(
+          () => api.getThreadHistory(
+            _roomId,
+            _threadId,
+            cancelToken: any(named: 'cancelToken'),
+            observer: any(named: 'observer'),
+          ),
+        ).thenAnswer((_) async => history);
+      }
+
+      Future<AgentResult> send(String text) async {
+        final session = await runtime.spawn(
+          roomId: _roomId,
+          prompt: [TextPart(text)],
+          threadId: _threadId,
+        );
+        return session.result;
+      }
+
+      Stream<BaseEvent> answered(String? _, int __, CancelToken ___) =>
+          Stream.fromIterable(_happyPathEvents());
+
+      ApiException alreadyStarted() => const ApiException(
+            message: 'HTTP 400: Bad Request',
+            statusCode: 400,
+          );
+
+      test('runs the first send on it, and a later send on a run of its own',
+          () async {
+        final sent = answerRuns(answered);
+
+        final first = await send('First');
+        await send('Second');
+
+        expect(runIds(sent), ['run-initial', _runId]);
+        expect((first as AgentSuccess).output, 'Hello');
+      });
+
+      test('a later history without it leaves the next send a run of its own',
+          () async {
+        final sent = answerRuns(answered);
+        runtime.seedThreadHistory(key, ThreadHistory(messages: const []));
+
+        await send('First');
+
+        expect(runIds(sent), [_runId]);
+      });
+
+      for (final refusal in const <SoliplexException>[
+        AuthException(message: 'HTTP 401: Unauthorized', statusCode: 401),
+        PermissionDeniedException(
+          message: 'HTTP 403: Forbidden',
+          statusCode: 403,
+        ),
+        NotFoundException(message: 'HTTP 404: Not Found'),
+      ]) {
+        test(
+            'keeps it for the next send when the backend refuses the send '
+            '(${refusal.runtimeType})', () async {
+          final sent = answerRuns(
+            (runId, index, token) => index == 0
+                ? Stream.error(refusal)
+                : answered(runId, index, token),
+          );
+
+          expect(await send('First'), isA<AgentFailure>());
+          await send('Again');
+
+          expect(runIds(sent), ['run-initial', 'run-initial']);
+        });
+      }
+
+      test('keeps it for the next send when the session cannot be built',
+          () async {
+        var resolves = 0;
+        await runtime.dispose();
+        runtime = createRuntime(
+          resolver: (_) async {
+            if (resolves++ == 0) throw StateError('tools unavailable');
+            return const ToolRegistry();
+          },
+        )..seedThreadHistory(
+            key,
+            ThreadHistory(
+              messages: const [],
+              unusedInitialRunId: 'run-initial',
+            ),
+          );
+        final sent = answerRuns(answered);
+
+        await expectLater(send('First'), throwsStateError);
+        await send('Again');
+
+        expect(runIds(sent), ['run-initial']);
+      });
+
+      test(
+          'leaves the next send a run of its own, carrying the message, when '
+          'the connection drops before the backend answers', () async {
+        final sent = answerRuns(
+          (runId, index, token) => index == 0
+              ? Stream.error(const NetworkException(message: 'Connection lost'))
+              : answered(runId, index, token),
+        );
+
+        expect(await send('First'), isA<AgentFailure>());
+        await send('Again');
+
+        expect(runIds(sent), ['run-initial', _runId]);
+        expect(userTexts(sent.last), ['First', 'Again']);
+      });
+
+      test(
+          'leaves the next send a run of its own, carrying the message, when '
+          'a send is stopped before the backend answers', () async {
+        final waiting = Completer<void>();
+        final sent = answerRuns((runId, index, token) {
+          if (index > 0) return answered(runId, index, token);
+          // The backend never answers; the stream ends as the real client's
+          // does when its token is cancelled.
+          final controller = StreamController<BaseEvent>();
+          unawaited(
+            token.whenCancelled.then((_) {
+              controller.addError(const CancelledException());
+              unawaited(controller.close());
+            }),
+          );
+          waiting.complete();
+          return controller.stream;
+        });
+
+        final session = await runtime.spawn(
+          roomId: _roomId,
+          prompt: [const TextPart('First')],
+          threadId: _threadId,
+        );
+        await waiting.future;
+        await pumpEventQueue();
+        session.cancel();
+        final result = await session.result;
+        await send('Again');
+
+        expect((result as AgentFailure).reason, FailureReason.cancelled);
+        expect(runIds(sent), ['run-initial', _runId]);
+        expect(userTexts(sent.last), ['First', 'Again']);
+      });
+
+      test(
+          'leaves the next send a run of its own when a send fails after the '
+          'backend answered', () async {
+        final sent = answerRuns(
+          (runId, index, token) => index == 0
+              ? () async* {
+                  yield* Stream.fromIterable(_happyPathEvents().take(2));
+                  throw const NetworkException(message: 'Connection lost');
+                }()
+              : answered(runId, index, token),
+        );
+
+        expect(await send('First'), isA<AgentFailure>());
+        await send('Again');
+
+        expect(runIds(sent), ['run-initial', _runId]);
+      });
+
+      test(
+          'sends again on a run of its own when the backend refuses the run '
+          'because another client started it', () async {
+        threadReadsAs(ThreadHistory(messages: const []));
+        final sent = answerRuns(
+          (runId, index, token) => runId == 'run-initial'
+              ? Stream.error(alreadyStarted())
+              : answered(runId, index, token),
+        );
+
+        final result = await send('First');
+
+        expect(result, isA<AgentSuccess>());
+        expect(runIds(sent), ['run-initial', _runId]);
+      });
+
+      test(
+          'records that it found the run started, even when no run can be '
+          'made for the message', () async {
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+        threadReadsAs(ThreadHistory(messages: const []));
+        when(
+          () => api.createRun(
+            any(),
+            any(),
+            parentRunId: any(named: 'parentRunId'),
+          ),
+        ).thenThrow(
+          const ApiException(
+            message: 'HTTP 500: Internal Server Error',
+            statusCode: 500,
+          ),
+        );
+        answerRuns((_, __, ___) => Stream.error(alreadyStarted()));
+
+        expect(await send('First'), isA<AgentFailure>());
+
+        final records = [
+          for (final record in sink.records)
+            if (record.attributes['refusedRunId'] == 'run-initial') record,
+        ];
+        expect(records, hasLength(1));
+        expect(records.single.level, LogLevel.warning);
+        expect(records.single.error, isA<ApiException>());
+      });
+
+      test(
+          'reports the refusal, and keeps it for the next send, when the '
+          'thread cannot be re-read', () async {
+        when(
+          () => api.getThreadHistory(
+            _roomId,
+            _threadId,
+            cancelToken: any(named: 'cancelToken'),
+            observer: any(named: 'observer'),
+          ),
+        ).thenThrow(const NetworkException(message: 'Connection lost'));
+        final sent = answerRuns(
+          (runId, index, token) => index == 0
+              ? Stream.error(alreadyStarted())
+              : answered(runId, index, token),
+        );
+
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        final result = await send('First');
+        await send('Again');
+
+        expect((result as AgentFailure).error, contains('HTTP 400'));
+        expect(runIds(sent), ['run-initial', 'run-initial']);
+        final reread = [
+          for (final record in sink.records)
+            if (record.level == LogLevel.warning &&
+                record.error is NetworkException)
+              record,
+        ];
+        expect(reread, hasLength(1));
+      });
+
+      test(
+          'does not send again, and keeps the run, when a 400 leaves the run '
+          'unused', () async {
+        threadReadsAs(
+          ThreadHistory(messages: const [], unusedInitialRunId: 'run-initial'),
+        );
+        final sent = answerRuns((_, __, ___) => Stream.error(alreadyStarted()));
+
+        expect(await send('First'), isA<AgentFailure>());
+        await send('Again');
+
+        expect(runIds(sent), ['run-initial', 'run-initial']);
+      });
+
+      test(
+          'does not send again, and keeps the run, on a refusal other than a '
+          '400', () async {
+        threadReadsAs(ThreadHistory(messages: const []));
+        final sent = answerRuns(
+          (_, __, ___) => Stream.error(
+            const ApiException(
+              message: 'HTTP 422: Unprocessable Entity',
+              statusCode: 422,
+            ),
+          ),
+        );
+
+        expect(await send('First'), isA<AgentFailure>());
+        await send('Again');
+
+        expect(runIds(sent), ['run-initial', 'run-initial']);
+      });
+
+      test(
+          'leaves the next send a run of its own when the backend fails the '
+          'send with a server error', () async {
+        threadReadsAs(ThreadHistory(messages: const []));
+        final sent = answerRuns(
+          (runId, index, token) => index == 0
+              ? Stream.error(
+                  const ApiException(
+                    message: 'HTTP 500: Internal Server Error',
+                    statusCode: 500,
+                  ),
+                )
+              : answered(runId, index, token),
+        );
+
+        expect(await send('First'), isA<AgentFailure>());
+        await send('Again');
+
+        expect(runIds(sent), ['run-initial', _runId]);
+      });
+
+      test('sends again at most once, and not on it again', () async {
+        threadReadsAs(ThreadHistory(messages: const []));
+        final sent = answerRuns((_, __, ___) => Stream.error(alreadyStarted()));
+
+        final result = await send('First');
+        await send('Again');
+
+        expect(result, isA<AgentFailure>());
+        expect(runIds(sent), ['run-initial', _runId, _runId]);
+      });
+
+      test(
+          'keeps the run a new thread was made with for the next send when '
+          'the backend refuses the first', () async {
+        stubCreateThread(
+          info: ThreadInfo(
+            id: _threadId,
+            roomId: _roomId,
+            initialRunId: 'run-made-with-thread',
+            createdAt: DateTime(2026),
+          ),
+        );
+        runtime.seedThreadHistory(key, ThreadHistory(messages: const []));
+        final sent = answerRuns(
+          (runId, index, token) => index == 0
+              ? Stream.error(
+                  const PermissionDeniedException(
+                    message: 'HTTP 403: Forbidden',
+                    statusCode: 403,
+                  ),
+                )
+              : answered(runId, index, token),
+        );
+
+        final first = await runtime.spawn(
+          roomId: _roomId,
+          prompt: [const TextPart('First')],
+        );
+        await first.result;
+        await send('Again');
+
+        expect(runIds(sent), ['run-made-with-thread', 'run-made-with-thread']);
+      });
     });
 
     test('sends initial AG-UI state from createThread to backend', () async {

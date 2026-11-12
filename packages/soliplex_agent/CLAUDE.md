@@ -61,6 +61,7 @@ lib/src/
   AG-UI protocol types (events, tool definitions) re-exported from its
   barrel
 - `soliplex_logging` -- structured logging
+- `async` -- `StreamQueue`, to wait for a run's first event
 - `signals_core` -- reactive signals for session and run state
 - `collection` -- collection utilities
 - `meta` -- annotations

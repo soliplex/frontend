@@ -1358,6 +1358,60 @@ void main() {
       state.dispose();
     });
 
+    test('a send that fails before it runs puts the message back', () async {
+      // No run can be created, so the send fails before anything is sent.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        followRun: neverFollowed,
+        contextWindow: Signal<int?>(null),
+      );
+      addTearDown(state.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      await state.sendMessage([TextPart('Hello')], runtime);
+      await pumpEventQueue();
+
+      expect(state.lastSendError.value?.unsentText, 'Hello');
+    });
+
+    test('a send that fails while it runs leaves the message in the thread',
+        () async {
+      api
+        ..nextThreadHistory = ThreadHistory(messages: const [])
+        ..nextCreateRun = RunInfo(
+          id: 'run-1',
+          threadId: 'thread-1',
+          createdAt: DateTime(2026),
+        );
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        followRun: neverFollowed,
+        contextWindow: Signal<int?>(null),
+      );
+      addTearDown(state.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      await state.sendMessage([TextPart('Hello')], runtime);
+      await pumpEventQueue();
+
+      expect(state.lastSendError.value, isNotNull);
+      expect(state.lastSendError.value!.unsentText, isNull);
+      final shown = (state.messages.value as MessagesLoaded).messages;
+      expect(
+        [for (final m in shown.whereType<TextMessage>()) m.text],
+        contains('Hello'),
+      );
+    });
+
     test('dispose during sendMessage still registers session in registry',
         () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);

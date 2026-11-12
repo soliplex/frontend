@@ -6673,6 +6673,87 @@ void main() {
       });
     });
 
+    group('getThreadHistory unused initial run', () {
+      test('reports the initial run of a thread nobody has written in',
+          () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'run_input': null,
+            'finished': null,
+          },
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.unusedInitialRunId, 'run-1');
+      });
+
+      test('does not report a sole run that has finished', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': null,
+          },
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.unusedInitialRunId, isNull);
+      });
+
+      test('does not report a sole run that was sent a message', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'hello'},
+              ],
+            },
+          },
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.unusedInitialRunId, isNull);
+      });
+
+      test('does not report an unused run in a thread with more than one run',
+          () async {
+        // Neither run finished, so neither is replayed, and the newest was
+        // never sent input: only the count of runs tells it is not the
+        // thread's initial run.
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': null,
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'hello'},
+              ],
+            },
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'run_input': null,
+            'finished': null,
+          },
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.unusedInitialRunId, isNull);
+      });
+    });
+
     group('getThreadHistory document filter', () {
       test('surfaces the filter from a run input state', () async {
         stubThread({

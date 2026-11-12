@@ -221,6 +221,9 @@ Future<ThreadHistory> assembleThreadHistory(
           ? null
           : MeasuredRun(usage: latestUsage, coveredMessages: 0),
       runInProgress: runInProgress,
+      // Every finished run is a slot, so here no run has finished: a thread
+      // whose only run is unused always returns here, and only here.
+      unusedInitialRunId: runs.length == 1 ? _unusedRunId(newest) : null,
     );
   }
 
@@ -599,6 +602,17 @@ RunEnding _storedEnding(ConversationStatus status) => switch (status) {
       // stream that ends without one.
       Running() || Idle() => RunEnding.failed,
     };
+
+/// The id of [run], an unfinished run, when it was never sent input, so a
+/// send can still run on it.
+String? _unusedRunId(MapEntry<String, dynamic> run) {
+  final value = run.value;
+  if (value is! Map<String, dynamic> || value['run_input'] != null) {
+    return null;
+  }
+  final runId = value['run_id'];
+  return runId is String && runId.isNotEmpty ? runId : null;
+}
 
 /// [newest], the thread's newest run entry, as the run in progress: one the
 /// backend has not finished and that was sent a user message.

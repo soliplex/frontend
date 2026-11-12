@@ -370,7 +370,7 @@ class RoomState {
             createdAt: DateTime.timestamp(),
           ));
           selectThread(key.threadId);
-          _activeThreadView!.attachSession(session);
+          _activeThreadView!.attachSession(session, prompt: prompt);
           onNavigateToThread?.call(key.threadId);
         },
         onStateTransition: (state) {
