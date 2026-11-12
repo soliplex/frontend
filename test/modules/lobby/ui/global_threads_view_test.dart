@@ -14,7 +14,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         PermissionDeniedException,
         SoliplexApi,
         ThreadLabel;
-import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
+import 'package:soliplex_design/soliplex_design.dart'
+    show SoliplexChip, soliplexLightTheme;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
@@ -170,6 +171,42 @@ void main() {
       expect(find.text('Threads'), findsOneWidget);
       // The rooms filter belongs to the rooms tab, and it is showing.
       expect(find.text('Filter rooms'), findsOneWidget);
+    });
+
+    testWidgets("shows each thread's labels on its row", (tester) async {
+      const urgent = ThreadLabel(id: 1, name: 'Urgent', color: '#E5484D');
+      const manuals = ThreadLabel(id: 2, name: 'Manuals', color: '#42D76D');
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [
+          _thread('t1', 'r1', name: 'Alpha', labels: const [manuals, urgent]),
+          _thread('t2', 'r1', name: 'Beta'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      final strips = find.descendant(
+        of: find.byType(GlobalThreadsView),
+        matching: find.byType(ThreadLabelStrip),
+      );
+      expect(strips, findsNWidgets(2));
+      expect(
+        find.descendant(of: strips.first, matching: find.text('Manuals')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: strips.first, matching: find.text('Urgent')),
+        findsOneWidget,
+      );
+      // An unlabelled row draws no chips.
+      expect(
+        find.descendant(
+          of: strips.last,
+          matching: find.byType(SoliplexChip),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('names each thread\'s room on its row', (tester) async {

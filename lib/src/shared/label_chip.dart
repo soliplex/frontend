@@ -28,3 +28,64 @@ class LabelChip extends StatelessWidget {
     );
   }
 }
+
+/// A thread's labels on one line under its row: the first [maxShown]
+/// as compact chips, then "+N" for the rest.
+///
+/// Kept to a single line so a labelled row stays close to the height of
+/// an unlabelled one: a list of threads is for finding one, and chips
+/// wrapping onto further lines would push the threads apart. The full
+/// set is in the thread's properties.
+///
+/// Read out as one sentence ("Labels: Manuals, Urgent") rather than one
+/// stop per chip, since nothing here can be pressed.
+class ThreadLabelStrip extends StatelessWidget {
+  const ThreadLabelStrip({super.key, required this.labels, this.maxShown = 3});
+
+  final List<ThreadLabel> labels;
+
+  /// How many chips to draw before folding the rest into "+N".
+  final int maxShown;
+
+  @override
+  Widget build(BuildContext context) {
+    if (labels.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final shown = labels.take(maxShown).toList(growable: false);
+    final hidden = labels.length - shown.length;
+
+    return Semantics(
+      label: 'Labels: ${labels.map((l) => l.name).join(', ')}',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
+        child: Row(
+          children: [
+            for (final label in shown)
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: SoliplexSpacing.s1),
+                  child: SoliplexChip.colored(
+                    label: Text(
+                      label.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    color: labelColor(label, theme.brightness),
+                    isCompact: true,
+                  ),
+                ),
+              ),
+            if (hidden > 0)
+              Text(
+                '+$hidden',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

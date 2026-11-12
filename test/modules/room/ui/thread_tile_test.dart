@@ -3,6 +3,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
+import 'package:soliplex_frontend/src/shared/label_chip.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
 
@@ -13,6 +15,40 @@ void main() {
     name: 'Test Thread',
     createdAt: DateTime(2026, 3, 1),
   );
+
+  testWidgets("shows the thread's labels under its name", (tester) async {
+    final labelled = ThreadInfo(
+      id: 't-3',
+      roomId: 'room-1',
+      name: 'Labelled',
+      createdAt: DateTime(2026, 3, 1),
+      labels: const [
+        ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D'),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
+      home: Scaffold(
+        body: ThreadTile(
+          thread: labelled,
+          isSelected: false,
+          onTap: () {},
+          onProperties: () {},
+          onRename: () {},
+          onDelete: () {},
+          onMarkRead: () {},
+        ),
+      ),
+    ));
+
+    expect(
+      find.descendant(
+        of: find.byType(ThreadLabelStrip),
+        matching: find.text('Manuals'),
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('renders "New Thread" for a thread with no name', (tester) async {
     final nameless = ThreadInfo(

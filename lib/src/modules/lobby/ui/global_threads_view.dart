@@ -7,6 +7,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show ThreadInfo;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../shared/label_chip.dart';
 import '../../../shared/relative_time.dart';
 import '../global_threads_state.dart';
 import '../../../stores/labels_state.dart';
@@ -167,8 +168,8 @@ String _tabLabel(LobbyTab tab) => switch (tab) {
 ///
 /// Threads from every room the user can see, in one lazily-paged list,
 /// most recently active first. Each row names its room, so a thread can be
-/// found without first recalling where it lives. Deliberately carries no
-/// label chips — the room and thread lists stay uncluttered.
+/// found without first recalling where it lives, and shows the thread's
+/// labels on one line beneath (see [ThreadLabelStrip]).
 class GlobalThreadsView extends StatefulWidget {
   const GlobalThreadsView({
     super.key,
@@ -512,10 +513,17 @@ class _ThreadListTileState extends State<_ThreadListTile> {
       child: ListTile(
         dense: true,
         title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(
-          '${widget.roomName} · ${formatRelativeTime(stamp)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${widget.roomName} · ${formatRelativeTime(stamp)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            ThreadLabelStrip(labels: thread.labels),
+          ],
         ),
         onTap: widget.onTap,
         trailing: showMenu ? _buildMenu(context) : null,

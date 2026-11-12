@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../shared/label_chip.dart';
 import '../../../shared/relative_time.dart';
 import '../../../shared/unread_dot.dart';
 
@@ -84,9 +85,16 @@ class _ThreadTileState extends State<ThreadTile> {
             ),
           ],
         ),
-        subtitle: Text(
-          formatRelativeTime(widget.thread.createdAt),
-          style: theme.textTheme.bodySmall,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              formatRelativeTime(widget.thread.createdAt),
+              style: theme.textTheme.bodySmall,
+            ),
+            ThreadLabelStrip(labels: widget.thread.labels),
+          ],
         ),
         dense: true,
         onTap: widget.onTap,
