@@ -815,6 +815,66 @@ void main() {
       });
 
       test(
+          'records a re-read failure that may echo what users wrote by its '
+          'shape alone', () async {
+        when(
+          () => api.getThreadHistory(
+            _roomId,
+            _threadId,
+            cancelToken: any(named: 'cancelToken'),
+            observer: any(named: 'observer'),
+          ),
+        ).thenThrow(const FormatException('bad', 'secret user text'));
+        answerRuns((_, __, ___) => Stream.error(alreadyStarted()));
+        final sink = MemorySink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        await send('First');
+
+        final reread = sink.records
+            .where((record) => record.message.contains('re-read'))
+            .single;
+        expect(reread.error, isNull);
+        expect(reread.attributes['failure'], isNotNull);
+        for (final record in sink.records) {
+          expect(
+            '$record ${record.error} ${record.attributes}',
+            isNot(contains('secret user text')),
+          );
+        }
+      });
+
+      test('reports a Stop during the re-read as a stop', () async {
+        final rereading = Completer<void>();
+        when(
+          () => api.getThreadHistory(
+            _roomId,
+            _threadId,
+            cancelToken: any(named: 'cancelToken'),
+            observer: any(named: 'observer'),
+          ),
+        ).thenAnswer((invocation) async {
+          final token = invocation.namedArguments[#cancelToken] as CancelToken;
+          rereading.complete();
+          await token.whenCancelled;
+          throw const CancelledException();
+        });
+        answerRuns((_, __, ___) => Stream.error(alreadyStarted()));
+
+        final session = await runtime.spawn(
+          roomId: _roomId,
+          prompt: [const TextPart('First')],
+          threadId: _threadId,
+        );
+        await rereading.future;
+        session.cancel();
+        final result = await session.result;
+
+        expect((result as AgentFailure).reason, FailureReason.cancelled);
+      });
+
+      test(
           'does not send again, and keeps the run, when a 400 leaves the run '
           'unused', () async {
         threadReadsAs(

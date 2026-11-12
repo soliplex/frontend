@@ -319,9 +319,11 @@ class RunOrchestrator {
         // `startRun`, so an Idle state with `_runToCompletionActive` and
         // a live token is a `startRun` in flight: creating a run, or
         // waiting for the backend's first answer on an existing one.
-        // Cancelling the token ends that await (see `_initializeStream`).
-        // Without this, the user's Stop press during a slow `startRun` is
-        // silently ignored and the run continues once the response arrives.
+        // Cancelling the token ends the wait for an answer at once; a run
+        // being created is still created, and `_initializeStream` then
+        // drops it. Without this, the user's Stop press during a slow
+        // `startRun` is silently ignored and the run continues once the
+        // response arrives.
         if (_runToCompletionActive && _cancelToken != null) {
           _cancelToken!.cancel();
           return;
@@ -458,14 +460,16 @@ class RunOrchestrator {
       onReconnectStatus: _activeOnReconnectStatus,
     );
     // Dispose during the await leaves us with an unowned stream; not
-    // draining here leaks the SSE socket. Token-cancellation race
-    // (Stop pressed during the await but resolved before cancellation
-    // propagated) leaves us with an unwanted subscription that would
-    // overwrite the user's cancel intent. Both paths drain and bail
-    // before _subscribeToStream. The exception is a Stop after a send on
-    // [existingRunId]: the backend may already hold the message, so the
-    // run is subscribed, and the cancelled token ends its stream as a
-    // stopped run that keeps the message in the conversation.
+    // draining here leaks the SSE socket. A Stop during the await (one
+    // `startRun` did not see, such as during run creation) leaves us with
+    // an unwanted subscription that would overwrite the user's cancel
+    // intent. Both paths drain and bail before _subscribeToStream. The
+    // exception is a Stop after a send on [existingRunId]: the backend may
+    // already hold the message, so the run is subscribed. On a backend run
+    // (`AgUiLlmProvider`) the cancelled token ends its stream with a
+    // `CancelledException`, as a stopped run that keeps the message in the
+    // conversation. The in-process providers return before a Stop can land
+    // here, so they never reach this case.
     if (_disposed) {
       _drainUnownedStream(handle.events, 'initialize drain (disposed)');
       return;
