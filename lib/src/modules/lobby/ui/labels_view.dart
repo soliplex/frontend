@@ -36,6 +36,24 @@ final List<Color> _swatches = [
     hueColor(i * (360 / _swatchCount), Brightness.light),
 ];
 
+/// What a screen reader calls each of [_swatches], in the same order. A
+/// hex code reads as noise; a person picks a colour by its name.
+const List<String> _swatchNames = [
+  'Grey',
+  'Red',
+  'Orange',
+  'Yellow',
+  'Lime',
+  'Green',
+  'Mint',
+  'Cyan',
+  'Sky blue',
+  'Blue',
+  'Violet',
+  'Magenta',
+  'Pink',
+];
+
 /// [swatch] as it should look in [brightness].
 Color _paintable(Color swatch, Brightness brightness) {
   final hsl = HSLColor.fromColor(swatch);
@@ -379,12 +397,12 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
               spacing: SoliplexSpacing.s2,
               runSpacing: SoliplexSpacing.s2,
               children: [
-                for (final swatch in _swatches)
+                for (var i = 0; i < _swatches.length; i++)
                   _Swatch(
-                    stored: swatch,
-                    color: _paintable(swatch, theme.brightness),
-                    selected: _isSwatch(selected, swatch),
-                    onTap: () => setState(() => _color = swatch),
+                    name: _swatchNames[i],
+                    color: _paintable(_swatches[i], theme.brightness),
+                    selected: _isSwatch(selected, _swatches[i]),
+                    onTap: () => setState(() => _color = _swatches[i]),
                   ),
               ],
             ),
@@ -462,13 +480,13 @@ class _LabelNameNotice extends StatelessWidget {
 class _Swatch extends StatelessWidget {
   const _Swatch({
     required this.color,
-    required this.stored,
+    required this.name,
     required this.selected,
     required this.onTap,
   });
 
-  /// The colour saved when this swatch is picked.
-  final Color stored;
+  /// What a screen reader calls it.
+  final String name;
 
   /// The colour painted, for the current theme.
   final Color color;
@@ -479,10 +497,12 @@ class _Swatch extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final radius = BorderRadius.circular(context.radii.sm);
+    // One choice of several, so a radio button: it reports whether it is
+    // the chosen one, which a plain button can't.
     return Semantics(
-      selected: selected,
-      button: true,
-      label: 'Colour ${_toHex(stored)}',
+      inMutuallyExclusiveGroup: true,
+      checked: selected,
+      label: name,
       child: InkWell(
         onTap: onTap,
         borderRadius: radius,
