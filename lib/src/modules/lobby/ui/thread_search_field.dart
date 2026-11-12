@@ -64,6 +64,17 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   final OverlayPortalController _overlay = OverlayPortalController();
   final LayerLink _link = LayerLink();
 
+  /// Whether the suggestion menu is open.
+  ///
+  /// Kept apart from the overlay, which stays shown for the field's whole
+  /// life and draws nothing while the menu is closed. Showing an overlay
+  /// adds a node above the page in the semantics tree, which moves the
+  /// field under a new parent. On the web, with semantics on, that moves
+  /// the focused text input in the DOM, the browser takes focus off it,
+  /// and every key after the `@` was lost. Mounted from the start, the
+  /// overlay changes nothing above the field when the menu opens.
+  bool _menuOpen = false;
+
   Timer? _debounce;
 
   /// Labels matching the `@` token being typed, or empty when none is.
@@ -77,6 +88,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   void initState() {
     super.initState();
     _controller.addListener(_onChanged);
+    _overlay.show();
   }
 
   /// Handles the keys the menu owns while it is open.
@@ -85,7 +97,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   /// text editor does — otherwise the arrows would move the caret and
   /// Tab would move focus out of the field entirely.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (!_overlay.isShowing || _suggestions.isEmpty) {
+    if (!_menuOpen || _suggestions.isEmpty) {
       return KeyEventResult.ignored;
     }
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -196,13 +208,13 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
     });
     if (matches.isEmpty) {
       _hide();
-    } else {
-      _overlay.show();
+    } else if (!_menuOpen) {
+      setState(() => _menuOpen = true);
     }
   }
 
   void _hide() {
-    if (_overlay.isShowing) _overlay.hide();
+    if (_menuOpen) setState(() => _menuOpen = false);
   }
 
   void _complete(ThreadLabel? label) {
@@ -233,7 +245,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
     // Enter takes the first suggestion when the menu is open — otherwise
     // it would commit a half-typed '@man' as a label name that matches
     // nothing.
-    if (_overlay.isShowing && _suggestions.isNotEmpty) {
+    if (_menuOpen && _suggestions.isNotEmpty) {
       _complete(_suggestions.first);
       return;
     }
@@ -279,6 +291,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   }
 
   Widget _buildSuggestions(BuildContext context) {
+    if (!_menuOpen || _suggestions.isEmpty) return const SizedBox.shrink();
     return CompositedTransformFollower(
       link: _link,
       targetAnchor: Alignment.bottomLeft,
