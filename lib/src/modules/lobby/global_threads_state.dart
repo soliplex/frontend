@@ -27,8 +27,8 @@ sealed class GlobalThreads {
   const GlobalThreads();
 }
 
-/// Nothing is on screen yet: the first page is in flight, or no server
-/// has been selected to ask.
+/// Nothing is on screen yet: the state before the first request, a first
+/// page in flight, or no server selected to ask.
 final class GlobalThreadsLoading extends GlobalThreads {
   const GlobalThreadsLoading();
 }

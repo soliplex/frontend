@@ -242,9 +242,11 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   }
 
   void _onSubmitted(String _) {
-    // Enter takes the first suggestion when the menu is open — otherwise
-    // it would commit a half-typed '@man' as a label name that matches
-    // nothing.
+    // A hardware Enter never gets here while the menu is open: [_onKey]
+    // takes it and completes the highlighted suggestion. A submit with no
+    // key event (a soft keyboard's action button) does, and takes the
+    // first suggestion; otherwise it would commit a half-typed '@man' as
+    // a label name that matches nothing.
     if (_menuOpen && _suggestions.isNotEmpty) {
       _complete(_suggestions.first);
       return;

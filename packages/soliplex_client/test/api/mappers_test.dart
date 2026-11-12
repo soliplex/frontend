@@ -975,6 +975,11 @@ void main() {
         expect(thread.roomId, equals('faux'));
         expect(thread.name, equals('Thread in faux'));
         expect(thread.description, equals(''));
+        // No zone on the wire, read as UTC like the server stamps it.
+        expect(
+          thread.createdAt,
+          equals(DateTime.utc(2026, 10, 22, 18, 25, 46, 340, 749)),
+        );
         expect(thread.lastActivity?.isUtc, isTrue);
         expect(page.hasMore, isTrue);
       });

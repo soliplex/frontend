@@ -18,9 +18,9 @@ import 'thread_search_field.dart';
 
 /// Everything the lobby needs to render and drive its tab strip.
 ///
-/// Bundled rather than passed as loose parameters because both the wide
-/// and narrow layouts forward the lobby's props verbatim, and each already
-/// carries around twenty.
+/// Feeds both the tab strip and the threads tab's listing. Bundled rather
+/// than passed as loose parameters because the wide and narrow layouts
+/// both forward the lobby's props verbatim, and each already carries many.
 @immutable
 class LobbyTabsSection {
   const LobbyTabsSection({
@@ -119,8 +119,9 @@ class _LobbyTabBarState extends State<LobbyTabBar>
     }
 
     // The tab can change from outside the strip (the persisted preference
-    // resolving at launch). Mirror it without re-notifying, or the two
-    // would bounce updates off each other.
+    // resolving at launch). Mirroring it does notify
+    // [_onControllerChanged], which reports the same tab back; the lobby
+    // ignores a tab it already shows, so nothing bounces.
     if (widget.activeIndex != _controller.index) {
       _controller.index = widget.activeIndex;
     }
@@ -139,8 +140,8 @@ class _LobbyTabBarState extends State<LobbyTabBar>
   }
 
   void _onControllerChanged() {
-    // Fires twice per swipe (start and settle); only the settled index is
-    // worth persisting.
+    // Fires twice per tap (as the tab animates, and when it settles);
+    // only the settled index is worth persisting.
     if (_controller.indexIsChanging) return;
     if (_controller.index >= widget.tabs.length) return;
     final tab = widget.tabs[_controller.index];
@@ -545,8 +546,7 @@ class _ThreadListTileState extends State<_ThreadListTile> {
       // Keeps the button mounted while the popup is open. Without it the
       // pointer leaving the row unmounts the button, and the popup's
       // completion callback short-circuits on '!mounted' — silently
-      // dropping the selection. Learned the hard way in the room
-      // sidebar's own menu; the same trap applies here.
+      // dropping the selection.
       onOpened: () => setState(() => _menuOpen = true),
       onCanceled: () => setState(() => _menuOpen = false),
       onSelected: (action) {

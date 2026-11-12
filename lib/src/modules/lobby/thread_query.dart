@@ -74,8 +74,10 @@ class ThreadQuery {
 
 /// An `@label` token: either `@name` or `@"name with spaces"`.
 ///
-/// A bare token runs to the next space or punctuation, so `@urgent,
-/// @manuals` terminates cleanly rather than swallowing the separator.
+/// A bare token runs to the next whitespace, comma, semicolon or quote,
+/// so `@urgent, @manuals` terminates cleanly rather than swallowing the
+/// separator. Other punctuation is part of the name: `@urgent.` names
+/// `urgent.`.
 /// Label names may contain spaces, though — "Q4 Roadmap" is an ordinary
 /// name — and those have to be quoted, or the token would end mid-name
 /// and the remainder would silently become free text.
@@ -124,8 +126,8 @@ ThreadQuery parseThreadQuery(String raw) {
       labelNames.add(name);
     }
     // Replaced with a space, not with nothing: removing the token
-    // outright would weld its neighbours together, turning
-    // "Harbor @manuals Manual" into "Harbor Manual" with no gap.
+    // outright would weld neighbours it touches, turning
+    // 'Harbor@"q4 roadmap"Manual' into "HarborManual".
     return ' ';
   });
 
@@ -138,14 +140,14 @@ ThreadQuery parseThreadQuery(String raw) {
 
 /// The in-progress `@` token at [cursor], or null when there is none.
 ///
-/// Drives the autocomplete: it is the text between the last unescaped
-/// `@` before the cursor and the cursor itself, provided nothing
-/// separates them. Returns an empty string for a bare `@`, which is a
+/// Drives the autocomplete: it is the text between the last `@` before
+/// the cursor and the cursor itself, provided nothing separates them. Returns an empty string for a bare `@`, which is a
 /// real state — the user has opened the menu but typed no name yet, and
 /// the menu should show everything.
 ///
-/// Returns null once the token is finished (whitespace or punctuation
-/// follows the `@`), which is what closes the menu.
+/// Returns null once the token is finished (whitespace, a comma or a
+/// semicolon follows the `@`, or a quoted name is closed), which is what
+/// closes the menu.
 String? activeLabelToken(String raw, int cursor) {
   if (cursor < 0 || cursor > raw.length) return null;
 

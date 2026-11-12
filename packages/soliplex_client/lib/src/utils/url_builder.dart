@@ -48,8 +48,8 @@ class UrlBuilder {
   /// - [queryParameters]: Query parameters to add to the URL. Each value
   ///   is either a `String` or an `Iterable<String>`; an iterable repeats
   ///   the key once per element (`?id=1&id=2`), which is how the backend
-  ///   expects a list-valued filter. A `Map<String, String>` still passes
-  ///   unchanged.
+  ///   expects a list-valued filter. A `Map<String, String>` is accepted
+  ///   as-is.
   ///
   /// If both [path] and [pathSegments] are provided, they are combined
   /// with [path] first, followed by [pathSegments].
