@@ -974,6 +974,59 @@ void main() {
 
         expect(runIds(sent), ['run-made-with-thread', 'run-made-with-thread']);
       });
+
+      test('gives a send made while the first is running a run of its own',
+          () async {
+        final firstRunning = StreamController<BaseEvent>();
+        final sent = answerRuns(
+          (runId, index, token) =>
+              index == 0 ? firstRunning.stream : answered(runId, index, token),
+        );
+
+        final first = await runtime.spawn(
+          roomId: _roomId,
+          prompt: [const TextPart('First')],
+          threadId: _threadId,
+        );
+        firstRunning.add(RunStartedEvent(threadId: _threadId, runId: _runId));
+        await send('Second');
+        await firstRunning.addStream(
+          Stream.fromIterable(_happyPathEvents().skip(1)),
+        );
+        await firstRunning.close();
+        await first.result;
+
+        expect(runIds(sent), ['run-initial', _runId]);
+      });
+
+      test(
+          'continues a send on it that calls a client tool on a run of its '
+          'own, and gives the next send a run of its own', () async {
+        await runtime.dispose();
+        runtime = createRuntime(resolver: (_) async => _weatherRegistry())
+          ..seedThreadHistory(
+            key,
+            ThreadHistory(
+              messages: const [],
+              unusedInitialRunId: 'run-initial',
+            ),
+          );
+        final sent = answerRuns(
+          (runId, index, token) => Stream.fromIterable(
+            switch (index) {
+              0 => _toolCallEvents(),
+              1 => _resumeTextEvents(),
+              _ => _happyPathEvents(),
+            },
+          ),
+        );
+
+        final first = await send('Weather?');
+        await send('And tomorrow?');
+
+        expect((first as AgentSuccess).output, 'Sunny');
+        expect(runIds(sent), ['run-initial', _runId, _runId]);
+      });
     });
 
     test('sends initial AG-UI state from createThread to backend', () async {
