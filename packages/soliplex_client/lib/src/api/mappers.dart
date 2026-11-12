@@ -776,15 +776,7 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
         )
       : null;
 
-  // Absent on a pre-labels backend, so an empty list rather than a
-  // failure: a thread without labels is an ordinary thread, and this
-  // listing has to keep working against an older server.
-  final rawLabels = json['labels'];
-  final labels = rawLabels is List
-      ? rawLabels
-          .map((entry) => threadLabelFromJson(entry as Map<String, dynamic>))
-          .toList(growable: false)
-      : const <ThreadLabel>[];
+  final labels = _threadLabels(json);
 
   return ThreadInfo(
     id: json['id'] as String? ?? json['thread_id'] as String,
@@ -798,16 +790,86 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
   );
 }
 
+/// Labels carried by a thread, as far as they can be read.
+///
+/// Absent or null on a pre-labels backend, so an empty list rather than a
+/// failure: a thread without labels is an ordinary thread, and listings
+/// have to keep working against an older server.
+///
+/// A label that can't be read is dropped with a warning, and so is a
+/// `labels` field that isn't a list. Labels decorate a thread; failing the
+/// thread over one would fail every listing that holds it, the room
+/// sidebar included.
+List<ThreadLabel> _threadLabels(Map<String, dynamic> json) {
+  final rawLabels = json['labels'];
+  if (rawLabels == null) return const [];
+  final threadId = json['id'] ?? json['thread_id'];
+  if (rawLabels is! List) {
+    _logger.warning(
+      'Thread labels ignored: not a list',
+      attributes: {
+        'threadId': '$threadId',
+        'type': '${rawLabels.runtimeType}',
+      },
+    );
+    return const [];
+  }
+
+  final labels = <ThreadLabel>[];
+  for (var i = 0; i < rawLabels.length; i++) {
+    final entry = rawLabels[i];
+    try {
+      if (entry is! Map<String, dynamic>) {
+        throw FormatException('Label is a ${entry.runtimeType}, not an object');
+      }
+      labels.add(threadLabelFromJson(entry));
+    } on FormatException catch (e, stackTrace) {
+      _logger.warning(
+        'Malformed thread label dropped',
+        stackTrace: stackTrace,
+        attributes: {
+          'threadId': '$threadId',
+          'index': i,
+          'failure': describeFailure(e),
+        },
+      );
+    }
+  }
+  return List.unmodifiable(labels);
+}
+
 /// Creates a [ThreadPage] from JSON.
 ///
-/// Throws [FormatException] if `threads` is absent or not a list, or if
-/// any thread on the page is malformed — a corrupt page cannot be partially
-/// rendered without silently losing rows, and the next page would then
-/// resume past threads the user never saw.
+/// Throws [FormatException] if `threads` is absent or not a list, if an
+/// entry is not an object, or if a thread has no `room_id`. A thread on
+/// this page is found only through its room id: without one, its row
+/// names no room and opens a route that doesn't exist.
+///
+/// A thread [threadInfoFromJson] rejects fails the page too, rather than
+/// being dropped: the next page would resume past a thread the user never
+/// saw. Some of its failures are a [TypeError] (an id that isn't a
+/// string), which callers wrap the same way. A malformed `last_activity`
+/// reads as null, and a malformed label is dropped, each with a warning.
 ThreadPage threadPageFromJson(Map<String, dynamic> json) {
   final rawThreads = json['threads'];
   if (rawThreads is! List) {
     throw const FormatException('Thread page missing required "threads"');
+  }
+
+  final threads = <ThreadInfo>[];
+  for (var i = 0; i < rawThreads.length; i++) {
+    final entry = rawThreads[i];
+    if (entry is! Map<String, dynamic>) {
+      throw FormatException('Thread page entry $i is not an object');
+    }
+    final roomId = entry['room_id'];
+    if (roomId is! String || roomId.isEmpty) {
+      throw FormatException(
+        'Thread ${entry['id'] ?? entry['thread_id']} '
+        'missing required "room_id"',
+      );
+    }
+    threads.add(threadInfoFromJson(entry));
   }
 
   // An empty cursor reads as the last page. Taken as "more", it would be
@@ -816,9 +878,7 @@ ThreadPage threadPageFromJson(Map<String, dynamic> json) {
   final cursor = json['next_cursor'] as String?;
 
   return ThreadPage(
-    threads: rawThreads
-        .map((entry) => threadInfoFromJson(entry as Map<String, dynamic>))
-        .toList(growable: false),
+    threads: threads,
     nextCursor: cursor == null || cursor.isEmpty ? null : cursor,
   );
 }
