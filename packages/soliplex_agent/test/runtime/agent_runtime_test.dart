@@ -658,8 +658,8 @@ void main() {
       });
 
       test(
-          'leaves the next send a run of its own, carrying the message, when '
-          'the connection drops before the backend answers', () async {
+          'keeps it for the next send, which carries the message, when the '
+          'connection drops before the backend answers', () async {
         final sent = answerRuns(
           (runId, index, token) => index == 0
               ? Stream.error(const NetworkException(message: 'Connection lost'))
@@ -669,13 +669,13 @@ void main() {
         expect(await send('First'), isA<AgentFailure>());
         await send('Again');
 
-        expect(runIds(sent), ['run-initial', _runId]);
+        expect(runIds(sent), ['run-initial', 'run-initial']);
         expect(userTexts(sent.last), ['First', 'Again']);
       });
 
       test(
-          'leaves the next send a run of its own, carrying the message, when '
-          'a send is stopped before the backend answers', () async {
+          'keeps it for the next send, which carries the message, when a send '
+          'is stopped before the backend answers', () async {
         final waiting = Completer<void>();
         final sent = answerRuns((runId, index, token) {
           if (index > 0) return answered(runId, index, token);
@@ -704,26 +704,30 @@ void main() {
         await send('Again');
 
         expect((result as AgentFailure).reason, FailureReason.cancelled);
-        expect(runIds(sent), ['run-initial', _runId]);
+        expect(runIds(sent), ['run-initial', 'run-initial']);
         expect(userTexts(sent.last), ['First', 'Again']);
       });
 
       test(
-          'leaves the next send a run of its own when a send fails after the '
-          'backend answered', () async {
+          'sends the next send on a run of its own, once the backend refuses '
+          'the run, when a send fails after the backend answered', () async {
+        threadReadsAs(ThreadHistory(messages: const []));
         final sent = answerRuns(
-          (runId, index, token) => index == 0
-              ? () async* {
-                  yield* Stream.fromIterable(_happyPathEvents().take(2));
-                  throw const NetworkException(message: 'Connection lost');
-                }()
-              : answered(runId, index, token),
+          (runId, index, token) => switch ((runId, index)) {
+            ('run-initial', 0) => () async* {
+                yield* Stream.fromIterable(_happyPathEvents().take(2));
+                throw const NetworkException(message: 'Connection lost');
+              }(),
+            ('run-initial', _) => Stream.error(alreadyStarted()),
+            _ => answered(runId, index, token),
+          },
         );
 
         expect(await send('First'), isA<AgentFailure>());
-        await send('Again');
+        final again = await send('Again');
 
-        expect(runIds(sent), ['run-initial', _runId]);
+        expect(again, isA<AgentSuccess>());
+        expect(runIds(sent), ['run-initial', 'run-initial', _runId]);
       });
 
       test(
@@ -843,8 +847,8 @@ void main() {
       });
 
       test(
-          'leaves the next send a run of its own when the backend fails the '
-          'send with a server error', () async {
+          'keeps it for the next send when the backend fails the send with a '
+          'server error', () async {
         threadReadsAs(ThreadHistory(messages: const []));
         final sent = answerRuns(
           (runId, index, token) => index == 0
@@ -860,10 +864,10 @@ void main() {
         expect(await send('First'), isA<AgentFailure>());
         await send('Again');
 
-        expect(runIds(sent), ['run-initial', _runId]);
+        expect(runIds(sent), ['run-initial', 'run-initial']);
       });
 
-      test('sends again at most once, and not on it again', () async {
+      test('sends again at most once per send', () async {
         threadReadsAs(ThreadHistory(messages: const []));
         final sent = answerRuns((_, __, ___) => Stream.error(alreadyStarted()));
 
@@ -871,7 +875,7 @@ void main() {
         await send('Again');
 
         expect(result, isA<AgentFailure>());
-        expect(runIds(sent), ['run-initial', _runId, _runId]);
+        expect(runIds(sent), ['run-initial', _runId, 'run-initial', _runId]);
       });
 
       test(

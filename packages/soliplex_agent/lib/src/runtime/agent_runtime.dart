@@ -106,11 +106,12 @@ class AgentRuntime {
 
   /// Each thread's initial run while nothing has been sent on it: from its
   /// seeded history, or from the thread [spawn] created. A send takes it, so
-  /// two sends do not share it, and gives it back when the send ends without
-  /// having run (see [_returnInitialRunUnlessSent]). An id that turns out to
-  /// be stale, given back or seeded by a history read while a send was
-  /// starting the run, costs the next send a refusal; when the thread, read
-  /// again, shows the run started, that send goes on a run of its own.
+  /// two sends do not share it, and gives it back unless the send succeeds
+  /// (see [_returnInitialRunUnlessSucceeded]). An id that turns out to be
+  /// stale, given back after a send that reached the backend or seeded by a
+  /// history read while a send was starting the run, costs the next send a
+  /// refusal; when the thread, read again, shows the run started, that send
+  /// goes on a run of its own.
   final Map<ThreadKey, String> _unusedInitialRunIds = {};
   final _spawnQueue = <Completer<void>>[];
   final StreamController<List<AgentSession>> _sessionController =
@@ -168,7 +169,7 @@ class AgentRuntime {
   /// and are not sent, so a history built by hand from messages sends none.
   /// When the history has a [ThreadHistory.unusedInitialRunId], the next
   /// [spawn] on that thread runs on it instead of creating a run, and a
-  /// [spawn] that ends without having run leaves it to the one after.
+  /// [spawn] that does not succeed leaves it to the one after.
   ///
   /// Phase 1 step 3a — keyed by full [ThreadKey] (was bare `threadId`).
   void seedThreadHistory(ThreadKey key, ThreadHistory history) {
@@ -235,7 +236,7 @@ class AgentRuntime {
     );
     final existingRunId = _unusedInitialRunIds.remove(key);
     if (existingRunId != null) {
-      _returnInitialRunUnlessSent(session, existingRunId);
+      _returnInitialRunUnlessSucceeded(session, existingRunId);
     }
     return _launch(
       session,
@@ -405,24 +406,15 @@ class AgentRuntime {
   // ---------------------------------------------------------------------------
 
   /// Gives [runId], the initial run [session] is sent on, back to the
-  /// thread's next send when [session] ends without having run. The AG-UI
-  /// provider's `startRun` gives the session the initial run only once the
-  /// backend has answered on it, or once a failure left it unknown whether
-  /// the backend started it, so a session that never runs either failed
-  /// before sending, was refused, or was disposed while waiting for the
-  /// answer. When disposed, or when the run was found started elsewhere and
-  /// no run could be made in its place, the run may be started: the next
-  /// send is refused, and goes on a run of its own when the thread, read
-  /// again, shows the run started.
-  void _returnInitialRunUnlessSent(AgentSession session, String runId) {
-    var sent = false;
-    final watch = session.stateChanges.listen((state) {
-      if (state is RunningState) sent = true;
-    });
+  /// thread's next send unless [session] succeeds. A send that fails or is
+  /// stopped may or may not have reached the backend; when it did, the run
+  /// is started, the next send is refused, and it goes on a run of its own
+  /// when the thread, read again, shows the run started.
+  void _returnInitialRunUnlessSucceeded(AgentSession session, String runId) {
     unawaited(
-      session.result.then((_) {
-        unawaited(watch.cancel());
-        if (!sent) _unusedInitialRunIds[session.threadKey] ??= runId;
+      session.result.then((result) {
+        if (result is AgentSuccess) return;
+        _unusedInitialRunIds[session.threadKey] ??= runId;
       }),
     );
   }
