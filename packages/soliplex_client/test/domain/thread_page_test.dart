@@ -14,6 +14,16 @@ ThreadPage _page({List<ThreadInfo>? threads, String? nextCursor}) => ThreadPage(
 
 void main() {
   group('ThreadPage', () {
+    test("can't be changed through its own list or the caller's", () {
+      final threads = [_thread('a')];
+      final page = ThreadPage(threads: threads);
+
+      threads.add(_thread('b'));
+
+      expect(page.threads.map((t) => t.id), equals(['a']));
+      expect(() => page.threads[0] = _thread('x'), throwsUnsupportedError);
+    });
+
     test('hasMore follows the cursor', () {
       expect(_page(nextCursor: 'c1').hasMore, isTrue);
       expect(_page().hasMore, isFalse);

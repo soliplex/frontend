@@ -387,15 +387,16 @@ class SoliplexApi {
   ///
   /// Throws:
   /// - [ArgumentError] if [limit] is not positive
-  /// - [AuthException] if not authenticated (401/403)
-  /// - [NotFoundException] if the endpoint is absent (pre-paging backend,
-  ///   404) — callers should treat this as "this server cannot aggregate
-  ///   threads" rather than as a transport failure
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the server refuses the listing (403)
+  /// - [NotFoundException] if the server has no cross-room thread listing
+  ///   (404)
+  /// - [MalformedResponseException] if the body is not a thread page
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
   Future<ThreadPage> getAllThreads({
-    int limit = 50,
+    required int limit,
     String? cursor,
     List<int>? labelIds,
     bool unlabeled = false,
@@ -704,7 +705,8 @@ class SoliplexApi {
       rethrow;
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
-        message: 'setThreadLabels: malformed thread: $error',
+        message: 'setThreadLabels: malformed thread: '
+            '${describeFailure(error)}',
         originalError: error,
         stackTrace: stackTrace,
       );
@@ -743,7 +745,8 @@ class SoliplexApi {
       rethrow;
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
-        message: 'getLabels: malformed catalogue: $error',
+        message: 'getLabels: malformed catalogue: '
+            '${describeFailure(error)}',
         originalError: error,
         stackTrace: stackTrace,
       );
@@ -853,7 +856,7 @@ class SoliplexApi {
       rethrow;
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
-        message: '$call: malformed label: $error',
+        message: '$call: malformed label: ${describeFailure(error)}',
         originalError: error,
         stackTrace: stackTrace,
       );
