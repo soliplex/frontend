@@ -39,8 +39,8 @@ class LlmRunHandle {
 /// `RunOrchestrator` depends only on this interface, decoupling it from
 /// any specific backend.
 abstract interface class AgentLlmProvider {
-  /// Start a new run (or resume with [existingRunId]) and return the
-  /// event stream.
+  /// Start a run and return the event stream: on [existingRunId] when
+  /// given, a run the backend created that nothing has been sent on.
   ///
   /// The provider handles run creation internally. The returned
   /// `LlmRunHandle.events` stream yields `DecodeOutcome`s that
@@ -53,8 +53,9 @@ abstract interface class AgentLlmProvider {
   ///
   /// [parentRunId] names the run whose conversation [input] extends, for a
   /// backend that records runs to link the new one to it; null names none.
-  /// It is ignored with [existingRunId], which creates no run, and by
-  /// providers that run in-process, which record no runs.
+  /// It is ignored with [existingRunId], unless the provider finds that run
+  /// already started and creates one in its place, and by providers that run
+  /// in-process, which record no runs.
   Future<LlmRunHandle> startRun({
     required ThreadKey key,
     required SimpleRunAgentInput input,

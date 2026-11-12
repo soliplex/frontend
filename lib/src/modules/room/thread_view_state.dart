@@ -130,6 +130,11 @@ class ThreadViewState {
 
   CancelToken? _cancelToken;
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
+
+  /// The message the attached session was sent, when it was sent from this
+  /// room; null for a session this view did not send (one restored from the
+  /// registry, or a followed run).
+  List<MessagePart>? _attachedPrompt;
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
   void Function()? _authUnsub;
@@ -392,7 +397,7 @@ class ThreadViewState {
       onSpawned: (session) {
         _registry.register(threadKey, session);
         if (_isDisposed) return;
-        _attachSession(session);
+        _attachSession(session, prompt: prompt);
       },
       onStateTransition: (state) {
         if (_isDisposed) return;
@@ -405,8 +410,10 @@ class ThreadViewState {
     );
   }
 
-  void attachSession(AgentSession session) {
-    _attachSession(session);
+  /// Attaches [session]. [prompt], the message it was sent, goes back to the
+  /// composer if the session fails before sending it.
+  void attachSession(AgentSession session, {List<MessagePart>? prompt}) {
+    _attachSession(session, prompt: prompt);
   }
 
   void cancelRun() {
@@ -426,11 +433,12 @@ class ThreadViewState {
     _activeSession.value?.cancel();
   }
 
-  void _attachSession(AgentSession session) {
+  void _attachSession(AgentSession session, {List<MessagePart>? prompt}) {
     if (_isDisposed) return;
     _detachSession();
     _cancelToken?.cancel('session attached');
     _activeSession.value = session;
+    _attachedPrompt = prompt;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
     // `subscribe` fires synchronously with the new session's current
@@ -488,6 +496,7 @@ class ThreadViewState {
           :final error,
           :final runId,
         ):
+        final prompt = _attachedPrompt;
         _detachSession();
         contextUsage.sendEnded(conversation?.transcript);
         if (reason == FailureReason.authExpired) {
@@ -506,7 +515,14 @@ class ThreadViewState {
             attributes: {'runId': runId},
           );
         }
-        _lastSendError.value = SendError(_friendlyMessage(reason, error));
+        _lastSendError.value = SendError(
+          _friendlyMessage(reason, error),
+          // A failure with no run ended before the message was sent, so no
+          // run holds it, and it goes back to the composer.
+          unsentText: runId == null && prompt != null
+              ? encodeComposerDraft(prompt)
+              : null,
+        );
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
@@ -575,6 +591,7 @@ class ThreadViewState {
     _reconnectStatusUnsub?.call();
     _reconnectStatusUnsub = null;
     _activeSession.value = null;
+    _attachedPrompt = null;
     _streamingState.value = null;
     _activeRunId.value = null;
     _sessionState.value = null;

@@ -8,6 +8,7 @@ environment:
   sdk: ^3.6.0
 
 dependencies:
+  async: ^2.11.0
   collection: ^1.18.0
   meta: ^1.9.0
   signals_core: ^6.3.1

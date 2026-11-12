@@ -317,11 +317,14 @@ class RunOrchestrator {
       case IdleState():
         // `_initializeStream` wires `_cancelToken` before awaiting
         // `startRun`, so an Idle state with `_runToCompletionActive` and
-        // a live token is the in-flight-createRun window. Cancelling the
-        // token aborts that await; `_handleStartError` then routes to
-        // `CancelledState.preRun`. Without this, the user's Stop press
-        // during a slow createRun is silently ignored and the run
-        // continues once the response arrives.
+        // a live token is a `startRun` in flight: creating a run, or
+        // waiting for the backend's first answer on an existing one.
+        // Cancelling the token ends that await; a run created for the
+        // send ends as `CancelledState.preRun`, and a send on an existing
+        // run that `startRun` returns, which may hold the message already,
+        // is stopped as a run that was sent (see `_initializeStream`).
+        // Without this, the user's Stop press during a slow `startRun` is
+        // silently ignored and the run continues once the response arrives.
         if (_runToCompletionActive && _cancelToken != null) {
           _cancelToken!.cancel();
           return;
@@ -462,12 +465,17 @@ class RunOrchestrator {
     // (Stop pressed during the await but resolved before cancellation
     // propagated) leaves us with an unwanted subscription that would
     // overwrite the user's cancel intent. Both paths drain and bail
-    // before _subscribeToStream.
+    // before _subscribeToStream, except a Stop on [existingRunId]: the
+    // provider may have sent the message on it before returning, so the
+    // backend may have started that run, and it is stopped as a run that
+    // was sent, keeping the message in the conversation.
     if (_disposed) {
       _drainUnownedStream(handle.events, 'initialize drain (disposed)');
       return;
     }
-    if (_cancelToken?.isCancelled ?? false) {
+    final cancelled = _cancelToken?.isCancelled ?? false;
+    final sent = handle.runId == existingRunId;
+    if (cancelled && !sent) {
       _drainUnownedStream(handle.events, 'initialize drain (cancelled)');
       throw CancelledException(reason: _cancelToken?.reason);
     }
@@ -480,6 +488,7 @@ class RunOrchestrator {
         streaming: const AwaitingText(),
       ),
     );
+    if (cancelled) cancelRun();
   }
 
   /// Subscribes to [run]'s stream, from its first event, for
@@ -513,8 +522,11 @@ class RunOrchestrator {
   /// post-`startRun` await), releasing the underlying socket.
   ///
   /// The listen and the cancel happen in one turn, and every provider in
-  /// this package returns a cold `async*`, so no event can be delivered
-  /// first and an `onData`/`onError` pair would never fire. Whatever the generator raises as it unwinds arrives on the cancel
+  /// this package returns a stream that delivers asynchronously (a cold
+  /// `async*`, the rest of one whose first event was awaited, or a lone
+  /// error that came before any event), so no event
+  /// can be delivered first and an `onData`/`onError` pair would never fire.
+  /// Whatever the generator raises as it unwinds arrives on the cancel
   /// future instead, which is what [_absorbTeardown] reads; [site] labels the
   /// record so each drain is distinguishable in the log.
   void _drainUnownedStream(Stream<DecodeOutcome> events, String site) {
