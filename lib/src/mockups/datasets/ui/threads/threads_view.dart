@@ -261,6 +261,13 @@ class _ThreadsViewState extends State<ThreadsView> {
             detail: '${threads.error}',
             onRetry: widget.state.refresh,
           ),
+        GlobalThreadsSignedOut(:final expired) => _ThreadsMessage(
+            icon: Icons.lock_outline,
+            title: expired ? 'Session expired' : 'Signed out',
+            detail: expired
+                ? 'Sign in again to view threads on this server.'
+                : 'Sign in to view threads on this server.',
+          ),
         GlobalThreadsLoaded() => _buildList(context, threads),
       };
     });
