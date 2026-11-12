@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsNode;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1103,6 +1104,52 @@ void main() {
 
       expect(find.text('Edit label'), findsOneWidget);
       h.dispose();
+    });
+  });
+
+  group('search field with semantics on', () {
+    /// The text field's semantics node and its ancestors, as ids.
+    ///
+    /// On the web, with semantics on, the browser's text input belongs to
+    /// this node. A change of node or of parent moves the input in the
+    /// DOM, which takes focus off it mid-typing.
+    List<int> fieldChain(WidgetTester tester, Finder field) {
+      final node = tester.getSemantics(field);
+      expect(node.getSemanticsData().flagsCollection.isTextField, isTrue);
+      return [
+        for (SemanticsNode? n = node; n != null; n = n.parent) n.id,
+      ];
+    }
+
+    testWidgets('opening and closing the @ menu leaves the field in place',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D')],
+      );
+      await _openThreadsTab(tester);
+      final field = find.descendant(
+        of: find.byType(GlobalThreadsView),
+        matching: find.byType(EditableText),
+      );
+      await tester.tap(field);
+      await tester.pump();
+      final before = fieldChain(tester, field);
+
+      await tester.enterText(field, '@');
+      await tester.pump();
+      expect(find.text('No label'), findsOneWidget, reason: 'menu is open');
+      expect(fieldChain(tester, field), equals(before));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.text('No label'), findsNothing, reason: 'menu is closed');
+      expect(fieldChain(tester, field), equals(before));
+
+      handle.dispose();
     });
   });
 }
