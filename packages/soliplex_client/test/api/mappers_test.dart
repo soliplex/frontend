@@ -993,6 +993,53 @@ void main() {
       });
     });
 
+    group('threadPageFromJson room ids', () {
+      // The per-room listing knows its room already; this one finds a
+      // thread's room only through 'room_id', so a row without one would
+      // name no room and open a dead route.
+      for (final roomId in [null, '', 7]) {
+        test('throws FormatException when "room_id" is ${roomId ?? 'absent'}',
+            () {
+          expect(
+            () => threadPageFromJson(<String, dynamic>{
+              'threads': [
+                <String, dynamic>{
+                  'id': 'thread-1',
+                  if (roomId != null) 'room_id': roomId,
+                  'created': '2025-01-15T10:30:00.000',
+                },
+              ],
+            }),
+            throwsA(
+              isA<FormatException>().having(
+                (e) => e.message,
+                'message',
+                contains('thread-1'),
+              ),
+            ),
+          );
+        });
+      }
+
+      test('throws FormatException when an entry is not an object', () {
+        expect(
+          () => threadPageFromJson(<String, dynamic>{
+            'threads': ['thread-1'],
+          }),
+          throwsFormatException,
+        );
+      });
+
+      test('the per-room listing still reads a thread without one', () {
+        final thread = threadInfoFromJson(<String, dynamic>{
+          'id': 'thread-1',
+          'created': '2025-01-15T10:30:00.000',
+        });
+
+        expect(thread.roomId, isEmpty);
+      });
+    });
+
     group('threadLabelFromJson', () {
       Map<String, dynamic> labelJson({int? usageCount}) => <String, dynamic>{
             'id': 7,
@@ -1087,6 +1134,63 @@ void main() {
         });
 
         expect(thread.labels.single.name, equals('Manuals'));
+      });
+
+      test('drops a malformed label, keeps the rest, and warns', () {
+        // One bad label must not fail the thread, and with it every
+        // listing that holds the thread.
+        final sink = _attach();
+
+        final thread = threadInfoFromJson(<String, dynamic>{
+          'id': 'thread-1',
+          'room_id': 'room-1',
+          'created': '2025-01-15T10:30:00.000',
+          'labels': [
+            <String, dynamic>{'id': 1, 'name': 'Manuals'},
+            'not-a-label',
+            <String, dynamic>{'id': 2, 'name': 'Urgent', 'color': '#42D76D'},
+          ],
+        });
+
+        expect(thread.labels.map((l) => l.name), equals(['Urgent']));
+        expect(sink.records, hasLength(2));
+        for (final record in sink.records) {
+          expect(record.level, LogLevel.warning);
+          expect(record.message, 'Malformed thread label dropped');
+          expect(record.attributes['threadId'], 'thread-1');
+        }
+        expect(
+          sink.records.map((r) => r.attributes['index']),
+          equals([0, 1]),
+        );
+      });
+
+      test('reads a "labels" that is not a list as none, and warns', () {
+        final sink = _attach();
+
+        final thread = threadInfoFromJson(<String, dynamic>{
+          'id': 'thread-1',
+          'room_id': 'room-1',
+          'created': '2025-01-15T10:30:00.000',
+          'labels': <String, dynamic>{'id': 1},
+        });
+
+        expect(thread.labels, isEmpty);
+        expect(sink.records.single.level, LogLevel.warning);
+        expect(sink.records.single.attributes['type'], contains('Map'));
+      });
+
+      test("a thread's labels can't be changed through the thread", () {
+        final thread = threadInfoFromJson(<String, dynamic>{
+          'id': 'thread-1',
+          'room_id': 'room-1',
+          'created': '2025-01-15T10:30:00.000',
+          'labels': [
+            <String, dynamic>{'id': 1, 'name': 'Manuals', 'color': '#42D76D'},
+          ],
+        });
+
+        expect(thread.labels.clear, throwsUnsupportedError);
       });
 
       test('treats an absent "labels" as none rather than failing', () {
