@@ -20,7 +20,7 @@ workspace:
 dependencies:
   flutter:
     sdk: flutter
-  clock: ^1.1.2
+  clock: ^1.1.3
   collection: ^1.18.0
   flutter_appauth: ^12.0.0
   flutter_highlight: ^0.7.0
