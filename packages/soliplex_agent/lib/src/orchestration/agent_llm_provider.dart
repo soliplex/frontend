@@ -40,7 +40,10 @@ class LlmRunHandle {
 /// any specific backend.
 abstract interface class AgentLlmProvider {
   /// Start a run and return the event stream: on [existingRunId] when
-  /// given, a run the backend created that nothing has been sent on.
+  /// given, a run the backend created that nothing is known to have been
+  /// sent on. The handle's `runId` is [existingRunId] exactly when the send
+  /// went on that run; it differs only when the provider found that run
+  /// started and sent on a run it created instead.
   ///
   /// The provider handles run creation internally. The returned
   /// `LlmRunHandle.events` stream yields `DecodeOutcome`s that

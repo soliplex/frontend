@@ -107,11 +107,7 @@ class AgentRuntime {
   /// Each thread's initial run while nothing has been sent on it: from its
   /// seeded history, or from the thread [spawn] created. A send takes it, so
   /// two sends do not share it, and gives it back unless the send succeeds
-  /// (see [_returnInitialRunUnlessSucceeded]). An id that turns out to be
-  /// stale, given back after a send that reached the backend or seeded by a
-  /// history read while a send was starting the run, costs the next send a
-  /// refusal; when the thread, read again, shows the run started, that send
-  /// goes on a run of its own.
+  /// (see [_returnInitialRunUnlessSucceeded]).
   final Map<ThreadKey, String> _unusedInitialRunIds = {};
   final _spawnQueue = <Completer<void>>[];
   final StreamController<List<AgentSession>> _sessionController =
@@ -406,10 +402,10 @@ class AgentRuntime {
   // ---------------------------------------------------------------------------
 
   /// Gives [runId], the initial run [session] is sent on, back to the
-  /// thread's next send unless [session] succeeds. A send that fails or is
-  /// stopped may or may not have reached the backend; when it did, the run
-  /// is started, the next send is refused, and it goes on a run of its own
-  /// when the thread, read again, shows the run started.
+  /// thread's next send unless [session] succeeds or the thread was seeded
+  /// with another meanwhile. A send that fails or is stopped may have
+  /// started the run; the next send on it is then refused, and the provider
+  /// sends it on a run of its own (see `AgUiLlmProvider.startRun`).
   void _returnInitialRunUnlessSucceeded(AgentSession session, String runId) {
     unawaited(
       session.result.then((result) {

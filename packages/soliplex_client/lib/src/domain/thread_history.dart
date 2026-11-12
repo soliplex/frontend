@@ -129,14 +129,9 @@ class ThreadHistory {
   final RunInProgress? runInProgress;
 
   /// The thread's initial run while nothing has been sent on it: the
-  /// thread's only run, never sent input and never finished. The thread's
-  /// first send runs on it rather than creating a second run, as the backend
-  /// intends. Null once the thread has been written in, or has more than one
-  /// run.
-  ///
-  /// What the backend reported when this history was read: a runtime
-  /// seeded with it takes the run for a send, and does not consult this
-  /// copy again.
+  /// thread's only run, never sent input and never finished. Null
+  /// otherwise. As the backend reported it when this history was read; the
+  /// run may have been started since.
   final String? unusedInitialRunId;
 }
 

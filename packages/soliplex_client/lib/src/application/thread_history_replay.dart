@@ -221,8 +221,8 @@ Future<ThreadHistory> assembleThreadHistory(
           ? null
           : MeasuredRun(usage: latestUsage, coveredMessages: 0),
       runInProgress: runInProgress,
-      // Every finished run is a slot, so here no run has finished: a thread
-      // whose only run is unused always returns here, and only here.
+      // No slots means no run has finished, so this is the only return that
+      // can see an unused initial run.
       unusedInitialRunId: runs.length == 1 ? _unusedRunId(newest) : null,
     );
   }
