@@ -630,6 +630,7 @@ void main() {
           await send('Again');
 
           expect(runIds(sent), ['run-initial', 'run-initial']);
+          expect(userTexts(sent.last), ['Again']);
         });
       }
 
@@ -825,6 +826,7 @@ void main() {
         await send('Again');
 
         expect(runIds(sent), ['run-initial', 'run-initial']);
+        expect(userTexts(sent.last), ['Again']);
       });
 
       test(
@@ -844,6 +846,7 @@ void main() {
         await send('Again');
 
         expect(runIds(sent), ['run-initial', 'run-initial']);
+        expect(userTexts(sent.last), ['Again']);
       });
 
       test(
@@ -865,6 +868,7 @@ void main() {
         await send('Again');
 
         expect(runIds(sent), ['run-initial', 'run-initial']);
+        expect(userTexts(sent.last), ['First', 'Again']);
       });
 
       test('sends again at most once per send', () async {

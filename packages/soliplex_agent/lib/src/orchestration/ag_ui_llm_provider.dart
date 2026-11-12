@@ -86,13 +86,11 @@ class AgUiLlmProvider implements AgentLlmProvider {
   /// [events] once the backend has answered: its first outcome has arrived,
   /// or the stream ended without one.
   ///
-  /// Throws the first error only when it is a refusal. Any other error before
-  /// an answer, such as a dropped connection or a cancel, stays in the
-  /// returned stream: the backend may have started the run before it, so the
-  /// run is ended as one that was sent, keeping the message in the
-  /// conversation. That includes a cancel that came before the request was
-  /// sent (while it waited for a free connection or a token), which the
-  /// client reports no differently.
+  /// Throws the first error only when it is a refusal. Any other error,
+  /// such as a dropped connection or a cancel (even one before the request
+  /// went out, which the client reports no differently), stays in the
+  /// returned stream: the run may have started, so it ends as a sent run,
+  /// keeping the message in the conversation.
   static Future<Stream<DecodeOutcome>> _answered(
     Stream<DecodeOutcome> events,
   ) async {
