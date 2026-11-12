@@ -546,6 +546,12 @@ class _ChipGalleryState extends State<ChipGallery> {
               color: hashedHueColor('Urgent', Theme.of(context).brightness),
               onDeleted: () {},
             ),
+            // Compact, as a label annotating a thread row.
+            SoliplexChip.colored(
+              label: const Text('Compact'),
+              color: hashedHueColor('Manuals', Theme.of(context).brightness),
+              isCompact: true,
+            ),
           ],
         ),
       ],

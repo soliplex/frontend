@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/src/components/chip/intent.dart';
+import 'package:soliplex_design/src/tokens/spacing.dart';
 import 'package:soliplex_design/src/tokens/swatch.dart';
 
 /// A pill-shaped surface used for tags, filters, and small actions —
@@ -30,6 +31,7 @@ class SoliplexChip extends StatelessWidget {
     this.onDeleted,
     this.intent = ChipIntent.neutral,
   })  : _kind = _ChipKind.display,
+        isCompact = false,
         _onPressed = null,
         _selected = false,
         _onSelected = null,
@@ -43,6 +45,7 @@ class SoliplexChip extends StatelessWidget {
     this.icon,
     this.intent = ChipIntent.neutral,
   })  : _kind = _ChipKind.action,
+        isCompact = false,
         _onPressed = onPressed,
         onDeleted = null,
         _selected = false,
@@ -58,6 +61,7 @@ class SoliplexChip extends StatelessWidget {
     super.key,
     this.icon,
   })  : _kind = _ChipKind.filter,
+        isCompact = false,
         _selected = selected,
         _onSelected = onSelected,
         _onPressed = null,
@@ -78,12 +82,17 @@ class SoliplexChip extends StatelessWidget {
   /// foreground is never supplied by the caller, since an open-ended
   /// colour field otherwise invites white text on pale yellow. Pass
   /// [onDeleted] for a trailing close button, tinted to match.
+  ///
+  /// [isCompact] sets the label in the small label style with tight
+  /// padding, for a chip annotating a dense row (a thread in a list)
+  /// rather than standing as a control of its own.
   const SoliplexChip.colored({
     required this.label,
     required Color color,
     super.key,
     this.icon,
     this.onDeleted,
+    this.isCompact = false,
   })  : _kind = _ChipKind.colored,
         _color = color,
         _onPressed = null,
@@ -93,6 +102,10 @@ class SoliplexChip extends StatelessWidget {
 
   /// The label widget (typically a [Text]).
   final Widget label;
+
+  /// Whether the chip is drawn small, for a dense row. Only
+  /// [SoliplexChip.colored] takes it.
+  final bool isCompact;
 
   /// Optional leading icon.
   final Widget? icon;
@@ -149,15 +162,26 @@ class SoliplexChip extends StatelessWidget {
   /// nothing of this swatch — the outline is the part carrying the
   /// label's identity, so it has to come from the same tint as the fill.
   Widget _buildColored(BuildContext context) {
-    final tint = swatchTint(_color!, Theme.of(context).brightness);
+    final theme = Theme.of(context);
+    final tint = swatchTint(_color!, theme.brightness);
+    final compactStyle = theme.textTheme.labelSmall;
     return Chip(
       label: label,
       avatar: _avatar(tint.content),
       onDeleted: onDeleted,
       backgroundColor: tint.fill,
       side: BorderSide(color: tint.outline),
-      labelStyle: TextStyle(color: tint.content),
+      labelStyle: isCompact && compactStyle != null
+          ? compactStyle.copyWith(color: tint.content)
+          : TextStyle(color: tint.content),
       deleteIconColor: tint.content,
+      visualDensity: isCompact ? VisualDensity.compact : null,
+      materialTapTargetSize:
+          isCompact ? MaterialTapTargetSize.shrinkWrap : null,
+      padding: isCompact ? EdgeInsets.zero : null,
+      labelPadding: isCompact
+          ? const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1)
+          : null,
     );
   }
 

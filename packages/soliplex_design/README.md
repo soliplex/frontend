@@ -68,7 +68,7 @@ across the library:
 | ------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------- |
 | `SoliplexButton`                | `.filled`, `.outlined`, `.text`                 | `FilledButton`, `OutlinedButton`, `TextButton`      | `intent`, `isLoading`, `isCompact`, `icon`, `iconAlignment`, `alignment` (text) |
 | `SoliplexBadge`                 | default                                         | inline status pills (not Material's positional `Badge`) | `intent`, `icon`                  |
-| `SoliplexChip`                  | default (display), `.action`, `.filter`, `.colored` | `Chip`, `ActionChip`, `FilterChip`              | `intent`, `selected`, `onDeleted`, `color` (`.colored`) |
+| `SoliplexChip`                  | default (display), `.action`, `.filter`, `.colored` | `Chip`, `ActionChip`, `FilterChip`              | `intent`, `selected`, `onDeleted`, `color`, `isCompact` (`.colored`) |
 | `SoliplexInput`                 | default                                         | `TextField` / `TextFormField`                       | `isPassword` (eye toggle), `isLoading`, validation |
 | `SoliplexDropdown<T>`           | default                                         | `DropdownMenu<T>`                                   | `isLoading`, generic `T` end-to-end   |
 | `SoliplexDatePickerField`       | default + `showSoliplexDatePicker()` function   | `showDatePicker` + ad-hoc field                     | `isLoading`, `firstDate`, `lastDate`  |
