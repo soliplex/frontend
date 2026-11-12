@@ -6690,6 +6690,25 @@ void main() {
         expect(history.unusedInitialRunId, 'run-1');
       });
 
+      test(
+          'warns, and reports no run, when the unused initial run has no '
+          'run id', () async {
+        final warnings = captureRecords('no usable `run_id`');
+        stubThread({
+          'run-1': {
+            'created': '2026-01-07T01:00:00.000Z',
+            'run_input': null,
+            'finished': null,
+          },
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.unusedInitialRunId, isNull);
+        expect(warnings().single.level, LogLevel.warning);
+        expect(warnings().single.attributes['runId'], 'run-1');
+      });
+
       test('does not report a sole run that has finished', () async {
         stubThread({
           'run-1': {

@@ -223,7 +223,8 @@ Future<ThreadHistory> assembleThreadHistory(
       runInProgress: runInProgress,
       // No slots means no run has finished, so this is the only return that
       // can see an unused initial run.
-      unusedInitialRunId: runs.length == 1 ? _unusedRunId(newest) : null,
+      unusedInitialRunId:
+          runs.length == 1 ? _unusedRunId(newest, threadId) : null,
     );
   }
 
@@ -605,13 +606,23 @@ RunEnding _storedEnding(ConversationStatus status) => switch (status) {
 
 /// The id of [run], an unfinished run, when it was never sent input, so a
 /// send can still run on it.
-String? _unusedRunId(MapEntry<String, dynamic> run) {
+String? _unusedRunId(MapEntry<String, dynamic> run, String threadId) {
   final value = run.value;
   if (value is! Map<String, dynamic> || value['run_input'] != null) {
     return null;
   }
   final runId = value['run_id'];
-  return runId is String && runId.isNotEmpty ? runId : null;
+  if (runId is String && runId.isNotEmpty) return runId;
+  _logger.warning(
+    "replay: the thread's unused initial run has no usable `run_id`; the "
+    'next send creates a run of its own.',
+    attributes: {
+      'threadId': threadId,
+      'runId': run.key,
+      'got': runId is String ? 'an empty String' : '${runId.runtimeType}',
+    },
+  );
+  return null;
 }
 
 /// [newest], the thread's newest run entry, as the run in progress: one the
