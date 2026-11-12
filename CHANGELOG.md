@@ -11,16 +11,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Fixed
 
 - A thread started with New, or by attaching a file with no thread open, runs
-  its first message on the run the server made with the thread, as a message
-  sent from a room's welcome screen does, rather than starting a second run.
-  The server's automatic labelling, which only labels a thread with one run,
-  now labels these threads too. A send that does not succeed leaves that run
-  for the next one. When the run was used already, by another device or tab
-  or by a send that reached the server before it dropped or was stopped, the
-  next message is sent on a run of its own.
+  its first message on the run the server made with the thread rather than a
+  second run, so the server's automatic labelling, which needs a thread to
+  have one run, now labels it.
 - A message that fails before any run holds it, such as a first message the
   server refuses on a new thread or one for which no run could be created,
-  goes back to the composer instead of disappearing.
+  goes back to the composer instead of disappearing, and is kept through
+  sign-in when the refusal was an expired session.
 - **Library consumers:** `ThreadHistory.unusedInitialRunId` is the id of a
   thread's initial run while nothing has been sent on it. Seeded through
   `AgentRuntime.seedThreadHistory`, it is the run the thread's next
