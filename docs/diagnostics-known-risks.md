@@ -69,16 +69,19 @@ an anchor click and returns null unconditionally, with no cancellation concept
 and no way to observe whether the browser delivered the download. The screen
 therefore claims only that a download started.
 
-## iOS may retain a copy of every cancelled save
+## iOS keeps a copy of a cancelled save until the next launch
 
-`file_picker`'s iOS plugin appears to write the bytes into app storage *before*
-presenting the export picker, and returns nil on cancel. If so, each cancelled
+`file_picker`'s iOS plugin writes the bytes to a file before presenting the
+export picker, and returns nil on cancel without deleting it. Each cancelled
 save leaves a complete report — hostnames, discovery URLs, log records — on
-disk under a timestamped name that nothing deletes, outside the reasoning at
-`_publicPaths`.
+disk, outside the reasoning at `_publicPaths`.
 
-Unverified: this was read from the plugin's Objective-C, not exercised.
-**Open question: confirm, and clean up on the cancel path if it holds.**
+Since `file_picker` 13 that file sits in the plugin's own directory under the
+temporary directory, which the shell's boot-time `clearTemporaryFiles()`
+sweeps (and the system may purge sooner), so it outlives the session but not
+the next launch.
+
+Read from the plugin's Swift (`file_picker_darwin` 2.5.1), not exercised.
 
 ## Smaller, recorded rather than fixed
 

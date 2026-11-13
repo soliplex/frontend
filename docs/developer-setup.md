@@ -27,7 +27,7 @@ to — run `fvm global` as well, since the pre-commit hooks call `flutter`
 directly. Homebrew cannot pin a version: `brew install flutter` tracks the
 latest release.
 
-The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.38.4"`) is a
+The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.41.6"`) is a
 different number: the oldest SDK this library promises consumers. It may lag
 `.fvmrc`, and moves only when a dependency forces it.
 

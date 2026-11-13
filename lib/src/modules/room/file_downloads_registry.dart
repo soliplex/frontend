@@ -27,12 +27,13 @@ typedef SaveFile = Future<String?> Function({
 Future<String?> _defaultSaveFile({
   required String fileName,
   required Uint8List bytes,
-}) {
-  // file_picker 11.0.3 throws on web for empty bytes or a name with no
-  // extension (`Makefile`, `.env`), so such a download reports failed. On
-  // desktop it writes nothing for empty bytes, yet returns the chosen path,
-  // so an empty file reports success with nothing saved.
-  return FilePicker.saveFile(fileName: fileName, bytes: bytes);
+}) async {
+  // file_picker 13 throws on web for a name with no extension (`Makefile`,
+  // `.env`), so such a download reports failed. On desktop it writes nothing
+  // for empty bytes, yet returns the chosen location, so an empty file reports
+  // success with nothing saved.
+  final saved = await FilePicker.saveFile(fileName: fileName, bytes: bytes);
+  return saved?.toString();
 }
 
 /// Each thread's file downloads, per server entry and room.

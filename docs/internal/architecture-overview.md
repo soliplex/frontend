@@ -380,7 +380,7 @@ Versions from `pubspec.lock`.
 | `signals_flutter` / `signals_core` | 6.3.1 | Medium-high | Carries all app state; small ecosystem; one direct test file. |
 | `go_router` | 17.5.0 | Medium | Frequent breaking majors; whole shell and guard model depends on it. |
 | `flutter_riverpod` | 3.3.2 | Medium | Recent major; usage deliberately DI-only. |
-| `file_picker` | 11.0.3 | Medium-high | Platform-divergent behavior; web via conditional import; iOS cancelled-save copies unverified. |
+| `file_picker` | 13.3.3 | Medium-high | Platform-divergent behavior; web via conditional import; an iOS cancelled save's copy lasts until the next launch's temp sweep. |
 | `cupertino_http` | 2.4.0 | Medium | FFI to `NSURLSession`; Apple only. |
 | `web` | 1.1.1 | Medium | Web-only paths (callback, XHR) with no tests. |
 | `flutter_highlight` | 0.7.0 | Low-medium | Pre-1.0, rarely updated. |

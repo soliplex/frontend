@@ -17,27 +17,21 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.pick_image');
 /// iOS it opens the photo library; Android resolves it through the system
 /// chooser, which usually offers the files app alongside photos.
 ///
-/// Bytes come from the returned path everywhere rather than through `withData`.
-/// Both mobile platforms leave behind a copy that has to be deleted once its
-/// bytes are held — see [_discardPickerCopy] — so the path is needed on those
-/// regardless, and reading it directly keeps one path for every native
-/// platform. Every native platform populates it; the `path == null` branch
-/// below is belt and braces, since the plugin's own type allows it.
+/// Bytes come from the returned path everywhere. Both mobile platforms leave
+/// behind a copy that has to be deleted once its bytes are held — see
+/// [_discardPickerCopy] — so the path is needed on those regardless, and
+/// reading it directly keeps one path for every native platform. Every native
+/// platform populates it; the `path == null` branch below is belt and braces,
+/// since the plugin's own type allows it.
 ///
-/// Selection order does not survive iOS, where the web implementation's
-/// `readSequential` has no counterpart. The plugin starts a load for every
-/// picked asset and appends to its result from inside each completion handler,
-/// so a large photo picked first can land behind a small one picked second.
-/// The paths it hands back are minted names carrying a UUID and a timestamp,
-/// with nothing of the order in them, so this cannot put them back.
+/// The images arrive in the order the user picked them: on iOS the photo
+/// picker runs with ordered selection and the plugin collects each loaded
+/// asset into its picked position.
 Future<PickImagesResult?> pickImagesImpl() async {
-  final FilePickerResult? result;
+  final List<PlatformFile> picked;
   try {
-    result = await FilePicker.pickFiles(
+    picked = await FilePicker.pickFiles(
       type: FileType.image,
-      allowMultiple: true,
-      withData: false,
-      withReadStream: false,
       compressionQuality: inlineImageCompressionQuality(
         isIOS: defaultTargetPlatform == TargetPlatform.iOS,
       ),
@@ -45,11 +39,11 @@ Future<PickImagesResult?> pickImagesImpl() async {
   } on Object catch (error) {
     throw PickFilePickerException(cause: error);
   }
-  if (result == null) return null;
+  if (picked.isEmpty) return null;
 
   final images = <PickedImage>[];
   final errors = <PickFileItemError>[];
-  for (final file in result.files) {
+  for (final file in picked) {
     final path = file.path;
     if (path == null) {
       errors.add(
@@ -87,19 +81,15 @@ Future<PickImagesResult?> pickImagesImpl() async {
 /// app storage, while on desktop the path is the user's own file and deleting
 /// it would destroy their picture.
 ///
-/// The stakes differ by platform. Android's copy goes to the cache directory,
-/// which the OS reclaims under pressure and which the shell's boot-time
-/// `FilePicker.clearTemporaryFiles()` sweeps; deleting here just keeps a long
-/// session from accumulating copies it is already done with. iOS writes to the
-/// Documents directory, which nothing reclaims — not the system, and not that
-/// boot-time sweep, which only covers the temporary directory — and which a
-/// backup carries. There, an undeleted copy costs its size for the life of the
-/// install.
+/// Both copies go to temporary storage — Android's cache directory, and on iOS
+/// a directory of the plugin's own under the temporary directory — which the
+/// shell's boot-time `FilePicker.clearTemporaryFiles()` sweeps. Deleting here
+/// keeps a long session from holding copies it is already done with until the
+/// next launch.
 ///
 /// Best effort: the bytes are already in hand, so failing to tidy up costs
-/// nothing this call needs. It is logged all the same, because on iOS a delete
-/// that always failed would grow the install forever with nothing to show for
-/// it.
+/// nothing this call needs. It is logged all the same, so a delete that always
+/// failed shows up.
 Future<void> _discardPickerCopy(String path) async {
   if (defaultTargetPlatform != TargetPlatform.iOS &&
       defaultTargetPlatform != TargetPlatform.android) {
