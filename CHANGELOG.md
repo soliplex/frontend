@@ -12,8 +12,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - CI builds and tests with Flutter 3.47.9. The `pubspec.yaml` floor stays at
   3.38.4, so consumers are unaffected.
+- `file_picker` moves to 13 and `package_info_plus` to 10, both onto `win32`
+  6, which the coming video player's dependencies require.
+- A pick that could not load a single item now reports a picker failure on
+  every platform. Android used to answer it with an empty pick.
+- **Library consumers:** the `pubspec.yaml` Flutter floor rises to 3.41.6,
+  which `package_info_plus` 10 requires.
 
 ### Fixed
+
+- Images picked from the iOS photo library attach in the order they were
+  picked. They used to arrive in whatever order they finished loading.
 
 - A thread started with New, or by attaching a file with no thread open, runs
   its first message on the run the server made with the thread rather than a

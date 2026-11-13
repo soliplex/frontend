@@ -13,58 +13,49 @@ import 'pick_image.dart';
 /// the bypass serves is absent here, and asking `file_picker` for the bytes
 /// costs no interop of our own.
 ///
-/// It does cost one thing that has to be undone. For every file it read bytes
-/// from — before any of it is validated — the plugin copies those bytes into a
-/// `Blob` and mints an object URL it never revokes, which would hold that copy
-/// for the life of the page in proportion to what the user picked rather than to
-/// what the message keeps. Revoking the URL releases the copy; the bytes we were
-/// handed are unaffected.
+/// It does cost one thing that has to be undone. For every picked file the
+/// plugin mints an object URL on the file itself and never revokes it, which
+/// would keep each picked file reachable for the life of the page. Revoking the
+/// URL releases that reference; the bytes we read are unaffected. The URLs are
+/// revoked only once every read is done, because a read goes through them, and
+/// for the whole batch, so that nothing going wrong with one file can strand
+/// another file's URL.
 ///
-/// `readSequential` is what holds the pick in the order the user made it. The
-/// plugin otherwise starts a `FileReader` per file at once and appends each one
-/// as it finishes, so a large image chosen first can land behind a small one
-/// chosen second — and the order images sit in is the whole point of carrying
-/// them inline.
+/// The plugin returns the files in the order the user picked them, which is
+/// the whole point of carrying images inline.
 ///
 /// The plugin ignores `compressionQuality`, so nothing is re-encoded here.
 Future<PickImagesResult?> pickImagesImpl() async {
-  final FilePickerResult? result;
+  final List<PlatformFile> picked;
   try {
-    result = await FilePicker.pickFiles(
-      type: FileType.image,
-      allowMultiple: true,
-      withData: true,
-      readSequential: true,
-    );
+    picked = await FilePicker.pickFiles(type: FileType.image);
   } on Object catch (error) {
     throw PickFilePickerException(cause: error);
   }
-  if (result == null) return null;
-
-  // Discharged for the whole batch before a byte of it is looked at, so that
-  // nothing going wrong with one file can strand another file's copy.
-  for (final file in result.files) {
-    // The plugin puts the object URL it minted where a native path would go.
-    final blobUrl = file.path;
-    if (blobUrl != null && blobUrl.startsWith('blob:')) {
-      web.URL.revokeObjectURL(blobUrl);
-    }
-  }
+  if (picked.isEmpty) return null;
 
   final images = <PickedImage>[];
   final errors = <PickFileItemError>[];
-  for (final file in result.files) {
-    final bytes = file.bytes;
-    if (bytes == null) {
-      errors.add(
-        PickFileItemError(
-          filename: file.name,
-          cause: StateError('browser returned no bytes for ${file.name}'),
-        ),
-      );
-      continue;
+  try {
+    for (final file in picked) {
+      try {
+        images.add(
+          PickedImage.fromBytes(
+            name: file.name,
+            bytes: await file.readAsBytes(),
+          ),
+        );
+      } on Object catch (error) {
+        // The browser refusing to read a picked file is that file's problem.
+        errors.add(PickFileItemError(filename: file.name, cause: error));
+      }
     }
-    images.add(PickedImage.fromBytes(name: file.name, bytes: bytes));
+  } finally {
+    for (final file in picked) {
+      if (file.uri.isScheme('blob')) {
+        web.URL.revokeObjectURL(file.uri.toString());
+      }
+    }
   }
   return (images: images, errors: errors);
 }

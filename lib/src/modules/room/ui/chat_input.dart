@@ -309,9 +309,9 @@ class _ChatInputState extends State<ChatInput> {
     }
 
     // A batch with nothing in it is not a cancel, which comes back as null.
-    // Android answers a pick it could not copy a single item out of this way,
-    // having dropped the names on its side — so there is nothing to name, and
-    // this line is the only record the pick happened at all.
+    // No supported picker answers this way any more — a pick that lost every
+    // item now fails as a whole — but one that did would leave nothing to
+    // name, and this line would be the only record the pick happened at all.
     final pickedNothing = result.images.isEmpty && result.errors.isEmpty;
     if (pickedNothing) {
       _logger.error(

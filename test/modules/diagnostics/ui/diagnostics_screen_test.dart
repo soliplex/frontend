@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
-// ignore: implementation_imports
-import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,28 +14,30 @@ import 'package:soliplex_frontend/src/modules/diagnostics/ui/requests_pane.dart'
 import '../../../helpers/http_event_factories.dart';
 
 /// Stands in for the platform save dialog. `saveFile` has three outcomes the
-/// export branches on: a path (saved), null (a dismissed dialog — but also a
+/// export branches on: a location (saved), null (a dismissed dialog — but also a
 /// failed portal on Linux and any CommDlgExtendedError on Windows), and a
 /// throw.
 class _FakeSavePicker extends FilePickerPlatform {
-  _FakeSavePicker.returns(this._path) : _thrown = null;
-  _FakeSavePicker.throwing(Object this._thrown) : _path = null;
+  _FakeSavePicker.returns(this._saved) : _thrown = null;
+  _FakeSavePicker.throwing(Object this._thrown) : _saved = null;
 
-  final String? _path;
+  final Uri? _saved;
   final Object? _thrown;
 
   @override
-  Future<String?> saveFile({
+  Future<Uri?> saveFile({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
     String? dialogTitle,
-    String? fileName,
     String? initialDirectory,
-    FileType type = FileType.any,
-    List<String>? allowedExtensions,
-    Uint8List? bytes,
-    bool lockParentWindow = false,
+    Function(FilePickerStatus)? onFileSaving,
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
   }) async {
     if (_thrown != null) throw _thrown;
-    return _path;
+    return _saved;
   }
 }
 
@@ -46,17 +46,19 @@ class _FakeSavePicker extends FilePickerPlatform {
 class _HangingSavePicker extends FilePickerPlatform {
   _HangingSavePicker(this._never);
 
-  final Future<String?> _never;
+  final Future<Uri?> _never;
 
   @override
-  Future<String?> saveFile({
+  Future<Uri?> saveFile({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
     String? dialogTitle,
-    String? fileName,
     String? initialDirectory,
-    FileType type = FileType.any,
-    List<String>? allowedExtensions,
-    Uint8List? bytes,
-    bool lockParentWindow = false,
+    Function(FilePickerStatus)? onFileSaving,
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
   }) =>
       _never;
 }
@@ -592,7 +594,7 @@ void main() {
 
     testWidgets('a saved file reports success', (tester) async {
       FilePickerPlatform.instance =
-          _FakeSavePicker.returns('/tmp/diagnostics.txt');
+          _FakeSavePicker.returns(Uri.file('/tmp/diagnostics.txt'));
       await pumpAndSave(tester);
 
       expect(find.byTooltip('Report saved'), findsOneWidget);
@@ -693,7 +695,7 @@ void main() {
         (tester) async {
       // A dialog that has not answered is still open and still the user's to
       // finish, so the report must not say a file may have been left behind.
-      final never = Completer<String?>();
+      final never = Completer<Uri?>();
       addTearDown(() => never.complete(null));
       FilePickerPlatform.instance = _HangingSavePicker(never.future);
 

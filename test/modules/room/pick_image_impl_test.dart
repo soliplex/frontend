@@ -1,13 +1,12 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-// ignore: implementation_imports
-import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/pick_file.dart';
 import 'package:soliplex_frontend/src/modules/room/pick_image.dart';
 
+import '../../helpers/fake_platform_file.dart';
 import 'image_fixtures.dart';
 
 /// Records what the picker was asked for, so the arguments that decide whether
@@ -15,33 +14,29 @@ import 'image_fixtures.dart';
 class _RecordingPicker extends FilePickerPlatform {
   _RecordingPicker(this._files);
 
-  /// The batch to answer with, or null to stand in for a cancel.
-  final List<PlatformFile>? _files;
+  /// The batch to answer with; an empty one stands in for a cancel.
+  final List<PlatformFile> _files;
 
   FileType? type;
   int? compressionQuality;
-  bool? allowMultiple;
 
   @override
-  Future<FilePickerResult?> pickFiles({
+  Future<List<PlatformFile>> pickFiles({
     String? dialogTitle,
     String? initialDirectory,
     FileType type = FileType.any,
     List<String>? allowedExtensions,
     Function(FilePickerStatus)? onFileLoading,
     int compressionQuality = 0,
-    bool allowMultiple = false,
-    bool withData = false,
-    bool withReadStream = false,
-    bool lockParentWindow = false,
-    bool readSequential = false,
-    bool cancelUploadOnWindowBlur = true,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
   }) async {
     this.type = type;
     this.compressionQuality = compressionQuality;
-    this.allowMultiple = allowMultiple;
-    final files = _files;
-    return files == null ? null : FilePickerResult(files);
+    return _files;
   }
 }
 
@@ -63,38 +58,24 @@ void main() {
   File writeImage(String name) =>
       File('${tempDir.path}/$name')..writeAsBytesSync(onePixelPng);
 
-  PlatformFile platformFile(File file) => PlatformFile(
+  PlatformFile platformFile(File file) => FakePlatformFile(
         name: file.uri.pathSegments.last,
         path: file.path,
         size: file.lengthSync(),
       );
 
-  _RecordingPicker install(List<PlatformFile>? files) {
+  _RecordingPicker install(List<PlatformFile> files) {
     final picker = _RecordingPicker(files);
     FilePickerPlatform.instance = picker;
     return picker;
   }
 
-  // Two outcomes the composer has to tell apart, and only one of them says
-  // nothing to the user. Android answers a pick it could not copy a single
-  // item out of with an empty list, having dropped the names on its side —
-  // read as a cancel, that leaves the user looking at a button that did
-  // nothing, with no record the pick ever happened.
+  // A pick that lost every item fails as a whole on both mobile platforms
+  // (see the throwing case below), so an empty answer is only ever a cancel.
   test('answers a cancel with nothing at all', () async {
-    install(null);
-
-    expect(await pickImages(), isNull);
-  });
-
-  test('answers a pick it lost every item out of with an empty batch',
-      () async {
     install([]);
 
-    final result = await pickImages();
-
-    expect(result, isNotNull);
-    expect(result!.images, isEmpty);
-    expect(result.errors, isEmpty);
+    expect(await pickImages(), isNull);
   });
 
   // The picker reads one number two unrelated ways: on iOS any non-zero value
@@ -111,7 +92,6 @@ void main() {
 
     expect(picker.compressionQuality, greaterThan(0));
     expect(picker.type, FileType.image);
-    expect(picker.allowMultiple, isTrue);
   });
 
   test('leaves every other platform re-encoding nothing', () async {
@@ -136,8 +116,7 @@ void main() {
 
   for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
     test('discards the copy the ${platform.name} picker made', () async {
-      // On iOS that copy lands in the Documents directory, which the system
-      // never reclaims and a backup carries.
+      // Otherwise it waits in temporary storage for the next launch's sweep.
       debugDefaultTargetPlatformOverride = platform;
       final file = writeImage('a.png');
       install([platformFile(file)]);
@@ -150,8 +129,8 @@ void main() {
 
   test('discards the copy even when it cannot be read', () async {
     // The read most likely to fail is of the largest image, so leaving the
-    // copy behind on that path would leak the worst case — and on iOS, leak it
-    // permanently.
+    // copy behind on that path would hold the worst case until the next
+    // launch.
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     final file = writeImage('a.png');
     // Unreadable but still deletable: deleting answers to the directory's
@@ -188,7 +167,11 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     final readable = writeImage('good.png');
     install([
-      PlatformFile(name: 'gone.png', path: '${tempDir.path}/gone.png', size: 1),
+      FakePlatformFile(
+        name: 'gone.png',
+        path: '${tempDir.path}/gone.png',
+        size: 1,
+      ),
       platformFile(readable),
     ]);
 
@@ -201,7 +184,7 @@ void main() {
 
   test('reports a file the picker gave no path for', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    install([PlatformFile(name: 'nopath.png', size: 1)]);
+    install([FakePlatformFile(name: 'nopath.png', size: 1)]);
 
     final result = await pickImages();
 
@@ -218,19 +201,18 @@ void main() {
 
 class _ThrowingPicker extends FilePickerPlatform {
   @override
-  Future<FilePickerResult?> pickFiles({
+  Future<List<PlatformFile>> pickFiles({
     String? dialogTitle,
     String? initialDirectory,
     FileType type = FileType.any,
     List<String>? allowedExtensions,
     Function(FilePickerStatus)? onFileLoading,
     int compressionQuality = 0,
-    bool allowMultiple = false,
-    bool withData = false,
-    bool withReadStream = false,
-    bool lockParentWindow = false,
-    bool readSequential = false,
-    bool cancelUploadOnWindowBlur = true,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
   }) async =>
       throw StateError('plugin missing');
 }
