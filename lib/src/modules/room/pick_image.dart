@@ -87,11 +87,9 @@ int inlineImageCompressionQuality({required bool isIOS}) => isIOS ? 100 : 0;
 /// abort the batch — it lands in [PickImagesResult.errors], so the composer can
 /// attach the user's other images and still say which one it could not.
 ///
-/// A batch holding neither images nor errors is a third outcome, and not a
-/// cancel: Android answers a pick it could not copy a single item out of with
-/// an empty list, having dropped the names on its side. Handing that back as a
-/// cancel would leave the user looking at a button that did nothing, so it
-/// comes back as the empty batch it is and the composer speaks for it.
+/// A pick the plugin could not load a single item out of is a picker failure,
+/// not a cancel: both mobile platforms answer it with an error, which arrives
+/// here as [PickFilePickerException].
 ///
 /// The per-file guarantee stops at what the plugin reports. iOS's photo picker
 /// handles a per-item failure by logging it natively and returning the items
