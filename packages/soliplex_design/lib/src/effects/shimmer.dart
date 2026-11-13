@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
@@ -77,7 +75,7 @@ class _SoliplexShimmerState extends State<SoliplexShimmer>
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: widget.period);
-    unawaited(_controller.repeat());
+    _controller.repeat();
   }
 
   @override
@@ -86,8 +84,8 @@ class _SoliplexShimmerState extends State<SoliplexShimmer>
     if (oldWidget.period != widget.period) {
       _controller
         ..duration = widget.period
-        ..reset();
-      unawaited(_controller.repeat());
+        ..reset()
+        ..repeat();
     }
   }
 
