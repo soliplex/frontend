@@ -8,6 +8,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Changed
+
+- CI builds and tests with Flutter 3.47.7. The `pubspec.yaml` floor stays at
+  3.38.4, so consumers are unaffected.
+
 ### Fixed
 
 - A thread started with New, or by attaching a file with no thread open, runs

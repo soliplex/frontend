@@ -390,7 +390,7 @@ No `dependency_overrides` or git dependencies are declared.
 
 ## Build, CI and platform seams
 
-- Toolchain: Flutter 3.41.9 pinned in `.fvmrc` (read by CI and the Dockerfile); SDK `^3.6.0`; pub workspace with `resolution: workspace`. App version `0.107.0+93`, managed by `tool/bump_version.dart` and `tool/update_version.dart`.
+- Toolchain: Flutter 3.47.7 pinned in `.fvmrc` (read by CI and the Dockerfile); SDK `^3.6.0`; pub workspace with `resolution: workspace`. App version `0.107.0+93`, managed by `tool/bump_version.dart` and `tool/update_version.dart`.
 - `.github/workflows/flutter.yaml` triggers on push to main and PRs to main and `feat/**`, `fix/**`, `refactor/**`, `chore/**` (docs and md ignored).
   - Lint: `dart format --set-exit-if-changed`, `flutter analyze --fatal-infos`, `dart doc --dry-run`, markdownlint-cli2.
   - Test: app tests with a random seed and coverage, then per-package tests. agent, client and logging run `dart test --exclude-tags integration`; client_native and design run `flutter test` (goldens use a Linux baseline).

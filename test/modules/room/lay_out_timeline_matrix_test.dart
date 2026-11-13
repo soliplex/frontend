@@ -103,7 +103,7 @@ List<_Row> _rows() => [
         case_: 'A2/A6',
         what:
             'a reply with nothing to read, that no tool call named, keeps its '
-            'tile',
+                'tile',
         messages: [_user('u1'), _assistant('m1', text: '  ', run: 'run-0')],
         bands: const {},
         outcomes: {'run-0': _finished('run-0')},
