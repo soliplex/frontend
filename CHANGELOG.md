@@ -10,7 +10,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
-- CI builds and tests with Flutter 3.47.7. The `pubspec.yaml` floor stays at
+- CI builds and tests with Flutter 3.47.9. The `pubspec.yaml` floor stays at
   3.38.4, so consumers are unaffected.
 
 ### Fixed
