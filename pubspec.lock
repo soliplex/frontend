@@ -65,6 +65,70 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  better_player:
+    dependency: "direct main"
+    description:
+      name: better_player
+      sha256: "0480d2e086413cad1b8cac7437f2bf59dc9cf74655b5cf255fb8c3cab5e8b539"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.37.0"
+  better_player_android:
+    dependency: transitive
+    description:
+      name: better_player_android
+      sha256: "24d3ce6c357186e0ec1eed63519e47a552bdc497ad48556f32593f5d6b406672"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.13.1"
+  better_player_ios:
+    dependency: transitive
+    description:
+      name: better_player_ios
+      sha256: "1cef0f866374217ebcb0c984a4a014c9a8f5bce6b219666b0d5b58fd4ec20bc1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.14.0"
+  better_player_linux:
+    dependency: transitive
+    description:
+      name: better_player_linux
+      sha256: "97d9eb16a587df4d714c1906ef2c49b825c1483e7d4c9050d63e696e26998f6e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
+  better_player_macos:
+    dependency: transitive
+    description:
+      name: better_player_macos
+      sha256: "2831557fc4a8617e21631180bc1b60ac4f4535f383b918eb20ab1c14fd4e00ff"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.9.0"
+  better_player_platform_interface:
+    dependency: transitive
+    description:
+      name: better_player_platform_interface
+      sha256: e5218199dd12ffe6f43c01d5cdeecad0b53125926f8da8c3f4b90136d8b55ec1
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.8.0"
+  better_player_web:
+    dependency: transitive
+    description:
+      name: better_player_web
+      sha256: d7b365221f7724f22d3fef7840e45af2493a784e2429a30e980f807bcb7c9539
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.1"
+  better_player_windows:
+    dependency: transitive
+    description:
+      name: better_player_windows
+      sha256: eddc817dce6af08e74de456ad711ffd987a641c45f73998cbe9ccbf6ab5ebf22
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.1"
   boolean_selector:
     dependency: transitive
     description:
@@ -177,6 +241,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.0"
+  cupertino_icons:
+    dependency: transitive
+    description:
+      name: cupertino_icons
+      sha256: b7cc2390aac296c083bea762859413eb1cf5b630c70e0c7e4d831018f762a8b2
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
+  cupertino_ui:
+    dependency: transitive
+    description:
+      name: cupertino_ui
+      sha256: "369e39a1c5c030a6212589c3da1809920b1c2cfade7b02aade7695bfa4b88c3a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.6"
   dbus:
     dependency: transitive
     description:
@@ -310,6 +390,11 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  flutter_localizations:
+    dependency: transitive
+    description: flutter
+    source: sdk
+    version: "0.0.0"
   flutter_markdown_plus:
     dependency: "direct main"
     description:
@@ -338,10 +423,10 @@ packages:
     dependency: "direct dev"
     description:
       name: flutter_native_splash
-      sha256: "4fb9f4113350d3a80841ce05ebf1976a36de622af7d19aca0ca9a9911c7ff002"
+      sha256: "9db4b80b044e9af17cc4b1272137fc7ace0054d879ef8210a76adc34aaf4cdff"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.7"
+    version: "2.4.8"
   flutter_riverpod:
     dependency: "direct main"
     description:
@@ -504,6 +589,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.9.2"
+  intl:
+    dependency: transitive
+    description:
+      name: intl
+      sha256: "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.20.3"
   io:
     dependency: transitive
     description:
@@ -608,6 +701,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  material_ui:
+    dependency: transitive
+    description:
+      name: material_ui
+      sha256: "474c135fd46b56ff1d35ca982155e8863d28fbc6464d1192acf4ee53a738680e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.11.0"
   meta:
     dependency: transitive
     description:
@@ -1157,6 +1258,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "10.1.0"
+  visibility_detector:
+    dependency: transitive
+    description:
+      name: visibility_detector
+      sha256: dd5cc11e13494f432d15939c3aa8ae76844c42b723398643ce9addb88a5ed420
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.4.0+2"
   vm_service:
     dependency: transitive
     description:
@@ -1165,6 +1274,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.3.0"
+  wakelock_plus:
+    dependency: transitive
+    description:
+      name: wakelock_plus
+      sha256: "22b3e7e937721de70e63c85e7139f4ac781dc22863b9262431a53ac030eb074b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.8.0"
+  wakelock_plus_platform_interface:
+    dependency: transitive
+    description:
+      name: wakelock_plus_platform_interface
+      sha256: "764c25504562abc8ac3406f5d175f126b276e6ba916c7c2675690b73368ca384"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.7.0"
   watcher:
     dependency: transitive
     description:
@@ -1233,10 +1358,10 @@ packages:
     dependency: transitive
     description:
       name: xml
-      sha256: "971043b3a0d3da28727e40ed3e0b5d18b742fa5a68665cca88e74b7876d5e025"
+      sha256: "67f0aff7be013d107995e9b75bf4e7f2c3ef2dfdb2c8e68024bba0a7fd5756a4"
       url: "https://pub.dev"
     source: hosted
-    version: "6.6.1"
+    version: "7.0.1"
   yaml:
     dependency: transitive
     description:
@@ -1246,5 +1371,5 @@ packages:
     source: hosted
     version: "3.1.4"
 sdks:
-  dart: ">=3.11.0 <4.0.0"
-  flutter: ">=3.41.6"
+  dart: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
