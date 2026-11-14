@@ -381,6 +381,7 @@ Versions from `pubspec.lock`.
 | `go_router` | 17.5.0 | Medium | Frequent breaking majors; whole shell and guard model depends on it. |
 | `flutter_riverpod` | 3.3.2 | Medium | Recent major; usage deliberately DI-only. |
 | `file_picker` | 13.3.3 | Medium-high | Platform-divergent behavior; web via conditional import; an iOS cancelled save's copy lasts until the next launch's temp sweep. |
+| `better_player` (+ Shaka Player 4.16.56, vendored under `web/vendor/`) | 1.37.0 | High | Revived in 2026 after ~21 months dormant and releasing every few days, so the constraint is pinned to one minor; open-core, with a paid tier outside the package. Only its engine is used: its fullscreen loses the shared `<video>` element on web, and its web controls ignore the configured colours, so `VideoCard` hands the view between hosts itself and draws `VideoControls`. Its `PlayerDataSource.network` drops HLS/DASH renditions unless `useAsmsTracks: true` is passed explicitly. Handoff and quality switching verified in headless Chromium only, not on a device. |
 | `cupertino_http` | 2.4.0 | Medium | FFI to `NSURLSession`; Apple only. |
 | `web` | 1.1.1 | Medium | Web-only paths (callback, XHR) with no tests. |
 | `flutter_highlight` | 0.7.0 | Low-medium | Pre-1.0, rarely updated. |
