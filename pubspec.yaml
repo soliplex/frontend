@@ -7,7 +7,8 @@ version: 0.117.0+106
 
 environment:
   sdk: ^3.6.0
-  flutter: ">=3.41.6"
+  # file_picker_darwin 2.5.1 needs it; see file_picker_darwin below.
+  flutter: ">=3.41.0"
 
 workspace:
   - packages/soliplex_agent
@@ -35,6 +36,11 @@ dependencies:
   shared_preferences: ^2.5.5
   signals_flutter: ^6.3.1
   file_picker: ^13.3.3
+  # Named although file_picker brings it in: 2.4.x, which ^13.3.3 still admits,
+  # clears the whole temporary directory rather than its own, and the room
+  # module's comments describe 2.5.1 (where picks are copied, ordered
+  # selection). It is also what sets the Flutter floor above.
+  file_picker_darwin: ^2.5.1
   mime: ^2.0.0
   url_launcher: ^6.3.1
   web: ^1.1.1

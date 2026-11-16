@@ -226,7 +226,7 @@ packages:
     source: hosted
     version: "13.3.3"
   file_picker_darwin:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: file_picker_darwin
       sha256: b7d3a6bd26a18c503d29070fc2d7b26fbfe918d08a6bcd984b6e806ff5ad923f
@@ -1247,4 +1247,4 @@ packages:
     version: "3.1.4"
 sdks:
   dart: ">=3.11.0 <4.0.0"
-  flutter: ">=3.41.6"
+  flutter: ">=3.41.0"
