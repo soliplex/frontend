@@ -186,29 +186,57 @@ void main() {
     expect(result.errors.single.cause, isA<StateError>());
   });
 
-  test('pickFiles reads the size from the file when the pick has none',
-      () async {
-    FilePickerPlatform.instance = _FakeFilePicker.result([
-      FakePlatformFile(name: 'a.txt', path: '/picked/a.txt', readLength: 7),
-    ]);
+  group('a pick whose result carries no size', () {
+    // Every pick on Windows and Linux: the size is read from the file.
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('pick_files_size'));
+    tearDown(() => dir.deleteSync(recursive: true));
 
-    final result = await pickFiles();
+    File write(String name, List<int> bytes) =>
+        File('${dir.path}/$name')..writeAsBytesSync(bytes);
 
-    expect(result!.errors, isEmpty);
-    expect(result.files.single.size, 7);
-  });
+    test('takes the size from the file', () async {
+      final file = write('a.txt', utf8.encode('seven b'));
+      FilePickerPlatform.instance = _FakeFilePicker.result([
+        FakePlatformFile(name: 'a.txt', path: file.path),
+      ]);
 
-  test('pickFiles reports a file whose size cannot be found', () async {
-    // The upload's Content-Length needs it, so the file cannot go up.
-    FilePickerPlatform.instance = _FakeFilePicker.result([
-      FakePlatformFile(name: 'unsized.bin', path: '/picked/unsized.bin'),
-    ]);
+      final result = await pickFiles();
 
-    final result = await pickFiles();
+      expect(result!.errors, isEmpty);
+      expect(result.files.single.size, 7);
+    });
 
-    expect(result!.files, isEmpty);
-    expect(result.errors.single.filename, 'unsized.bin');
-    expect(result.errors.single.cause, isA<StateError>());
+    test('accepts an empty file', () async {
+      final file = write('empty.txt', const []);
+      FilePickerPlatform.instance = _FakeFilePicker.result([
+        FakePlatformFile(name: 'empty.txt', path: file.path),
+      ]);
+
+      final result = await pickFiles();
+
+      expect(result!.errors, isEmpty);
+      expect(result.files.single.size, 0);
+    });
+
+    test(
+        'reports a file whose size cannot be read, with the reason, and '
+        'keeps the rest of the batch', () async {
+      // The upload's Content-Length needs the size, so that file cannot go
+      // up; the file system's error says why.
+      final good = write('good.txt', utf8.encode('ok'));
+      FilePickerPlatform.instance = _FakeFilePicker.result([
+        FakePlatformFile(name: 'gone.bin', path: '${dir.path}/gone.bin'),
+        FakePlatformFile(name: 'good.txt', path: good.path),
+      ]);
+
+      final result = await pickFiles();
+
+      expect(result!.files.single.name, 'good.txt');
+      expect(result.files.single.size, 2);
+      expect(result.errors.single.filename, 'gone.bin');
+      expect(result.errors.single.cause, isA<FileSystemException>());
+    });
   });
 
   group('mangleRelativePath', () {

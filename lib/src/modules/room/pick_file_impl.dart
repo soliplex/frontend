@@ -1,4 +1,4 @@
-import 'dart:io' show Directory, File;
+import 'dart:io' show Directory, File, FileSystemException;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:mime/mime.dart';
@@ -14,8 +14,9 @@ import 'pick_file.dart';
 /// pick takes as long to return as that copy. An empty pick is a cancel.
 ///
 /// The size comes from the pick result where the platform reports it, and from
-/// the file otherwise. A file whose size cannot be found is reported rather
-/// than uploaded, since the upload's `Content-Length` needs it.
+/// the file otherwise. A file whose size cannot be found is reported, with the
+/// file system's reason, rather than uploaded, since the upload's
+/// `Content-Length` needs it.
 Future<PickFilesResult?> pickFilesImpl() async {
   final List<PlatformFile> picked;
   try {
@@ -39,14 +40,14 @@ Future<PickFilesResult?> pickFilesImpl() async {
       );
       continue;
     }
-    final size = file.lengthSync() ?? await file.length();
-    if (size == null) {
-      errors.add(
-        PickFileItemError(
-          filename: file.name,
-          cause: StateError('could not read the size of ${file.name}'),
-        ),
-      );
+    // From the file itself when the pick result does not carry it, which is
+    // every pick on Windows and Linux: the plugin's own `length()` swallows
+    // the error that says why the size could not be read.
+    final int size;
+    try {
+      size = file.lengthSync() ?? await File(path).length();
+    } on FileSystemException catch (error) {
+      errors.add(PickFileItemError(filename: file.name, cause: error));
       continue;
     }
     files.add(
