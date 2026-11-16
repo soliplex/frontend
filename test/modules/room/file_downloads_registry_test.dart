@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -47,6 +48,27 @@ Future<String?> _saveToTmp({
 }) async =>
     '/tmp/$fileName';
 
+/// A platform save dialog that answers [_saved].
+class _SavePicker extends FilePickerPlatform {
+  _SavePicker(this._saved);
+
+  final Uri? _saved;
+
+  @override
+  Future<Uri?> saveFile({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+    String? dialogTitle,
+    String? initialDirectory,
+    Function(FilePickerStatus)? onFileSaving,
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async =>
+      _saved;
+}
+
 void main() {
   late _MockApi api;
 
@@ -81,6 +103,32 @@ void main() {
         expect(downloadFailureReason(error), reason);
       });
     }
+  });
+
+  group('defaultSaveFile', () {
+    late FilePickerPlatform original;
+    setUp(() => original = FilePickerPlatform.instance);
+    tearDown(() => FilePickerPlatform.instance = original);
+
+    // The plugin answers a dismissed dialog with a null Uri; turned into
+    // anything but null, a cancel would report a saved file.
+    test('keeps a dismissed dialog a cancel', () async {
+      FilePickerPlatform.instance = _SavePicker(null);
+
+      expect(
+        await defaultSaveFile(fileName: 'a.csv', bytes: Uint8List(1)),
+        isNull,
+      );
+    });
+
+    test('answers a save with the location the plugin chose', () async {
+      FilePickerPlatform.instance = _SavePicker(Uri.file('/home/me/a.csv'));
+
+      expect(
+        await defaultSaveFile(fileName: 'a.csv', bytes: Uint8List(1)),
+        'file:///home/me/a.csv',
+      );
+    });
   });
 
   group('downloadWorkdirFile', () {

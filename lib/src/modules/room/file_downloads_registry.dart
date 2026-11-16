@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' show FilePicker;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -24,7 +24,9 @@ typedef SaveFile = Future<String?> Function({
   required Uint8List bytes,
 });
 
-Future<String?> _defaultSaveFile({
+/// The [SaveFile] the registry uses unless one is injected.
+@visibleForTesting
+Future<String?> defaultSaveFile({
   required String fileName,
   required Uint8List bytes,
 }) async {
@@ -49,7 +51,7 @@ Future<String?> _defaultSaveFile({
 class FileDownloadsRegistry {
   FileDownloadsRegistry({
     required ReadonlySignal<Map<String, ServerEntry>> servers,
-    SaveFile saveFile = _defaultSaveFile,
+    SaveFile saveFile = defaultSaveFile,
     bool isWeb = kIsWeb,
   })  : _saveFile = saveFile,
         _isWeb = isWeb,
