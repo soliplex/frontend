@@ -19,6 +19,7 @@ class _RecordingPicker extends FilePickerPlatform {
 
   FileType? type;
   int? compressionQuality;
+  DarwinOptions? darwinOptions;
 
   @override
   Future<List<PlatformFile>> pickFiles({
@@ -36,6 +37,7 @@ class _RecordingPicker extends FilePickerPlatform {
   }) async {
     this.type = type;
     this.compressionQuality = compressionQuality;
+    this.darwinOptions = darwinOptions;
     return _files;
   }
 }
@@ -78,19 +80,23 @@ void main() {
     expect(await pickImages(), isNull);
   });
 
-  // The picker reads one number two unrelated ways: on iOS any non-zero value
-  // asks for a compatible representation, which is what turns an iPhone's HEIC
-  // into a JPEG; on Android the same number is a real re-encode quality handed
-  // to the platform encoder. `compressionQuality` and `type` both have silent
-  // defaults, so dropping either changes what the user's image is — or which
-  // chooser opens — without failing to compile.
+  // An iPhone shoots HEIC, which no vision model takes. Only the compatible
+  // representation makes iOS transcode it to JPEG; `compressionQuality` no
+  // longer has any say there, and on Android a non-zero one re-encodes every
+  // image. Both arguments, and `type`, have silent defaults, so dropping one
+  // changes what the user's image is — or which chooser opens — without
+  // failing to compile.
   test('asks iOS for a compatible representation', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     final picker = install([platformFile(writeImage('a.png'))]);
 
     await pickImages();
 
-    expect(picker.compressionQuality, greaterThan(0));
+    expect(
+      picker.darwinOptions?.assetRepresentationMode,
+      DarwinAssetRepresentationMode.compatible,
+    );
+    expect(picker.compressionQuality, 0);
     expect(picker.type, FileType.image);
   });
 

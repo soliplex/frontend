@@ -5,8 +5,8 @@ import 'pick_image.dart';
 /// The image types a message may carry inline.
 ///
 /// HEIC is absent even though an iPhone shoots it by default. Only iOS is asked
-/// for a compatible representation (see [inlineImageCompressionQuality]), so an
-/// iPhone's photo arrives as JPEG; nothing transcodes on any other platform, so
+/// for a compatible representation (see `pickImagesImpl`), so an iPhone's
+/// photo arrives as JPEG; nothing transcodes on any other platform, so
 /// a HEIC picked there arrives as itself and is turned away. Either way the
 /// model most likely cannot read it, and saying so gives the user something to
 /// act on.

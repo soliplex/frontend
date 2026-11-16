@@ -12,10 +12,17 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.pick_image');
 
 /// Native implementation of [pickImages].
 ///
-/// `type: FileType.image` is what narrows the chooser to images, and it is why
-/// `compressionQuality` matters here — see [inlineImageCompressionQuality]. On
-/// iOS it opens the photo library; Android resolves it through the system
-/// chooser, which usually offers the files app alongside photos.
+/// `type: FileType.image` is what narrows the chooser to images. On iOS it
+/// opens the photo library; Android resolves it through the system chooser,
+/// which usually offers the files app alongside photos.
+///
+/// Nothing is re-encoded except an iPhone's HEIC. `compressionQuality` stays
+/// 0, since on Android any other value re-encodes every image through
+/// `Bitmap.compress`. iOS is asked for the compatible representation instead,
+/// which transcodes HEIC to JPEG, the form a vision model can read; the
+/// default would hand over the HEIC original. That option is read only by the
+/// iOS photo library picker, and the plugin refuses it alongside a non-zero
+/// `compressionQuality`.
 ///
 /// Bytes come from the returned path everywhere. Both mobile platforms leave
 /// behind a copy that has to be deleted once its bytes are held — see
@@ -24,16 +31,17 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.pick_image');
 /// platform populates it; the `path == null` branch below is belt and braces,
 /// since the plugin's own type allows it.
 ///
-/// The images arrive in the order the user picked them: on iOS the photo
+/// On iOS the images arrive in the order the user picked them: the photo
 /// picker runs with ordered selection and the plugin collects each loaded
-/// asset into its picked position.
+/// asset into its picked position. Elsewhere the order is the platform
+/// chooser's.
 Future<PickImagesResult?> pickImagesImpl() async {
   final List<PlatformFile> picked;
   try {
     picked = await FilePicker.pickFiles(
       type: FileType.image,
-      compressionQuality: inlineImageCompressionQuality(
-        isIOS: defaultTargetPlatform == TargetPlatform.iOS,
+      darwinOptions: const DarwinOptions(
+        assetRepresentationMode: DarwinAssetRepresentationMode.compatible,
       ),
     );
   } on Object catch (error) {
