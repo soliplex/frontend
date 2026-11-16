@@ -45,6 +45,11 @@ flutter run -d macos   # or: -d ios, -d chrome, -d android
 
 ## Platform Setup
 
+The supported targets are iOS, Android and the web. The macOS, Linux and
+Windows runners are for running the app locally while developing: no CI job
+builds them and nobody tests them before a release, so a dependency change can
+break one without anyone noticing.
+
 ### macOS
 
 #### Code Signing (Required for Keychain)
