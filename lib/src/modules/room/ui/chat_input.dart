@@ -317,8 +317,8 @@ class _ChatInputState extends State<ChatInput> {
       _logger.error(
         'the image picker returned an empty batch',
         // The platform is the whole of what a reader has to go on here: the
-        // batch names nothing, and which platform produced it is what says
-        // whether this is the known Android case or something new.
+        // batch names nothing, and which platform produced it is where to
+        // start looking.
         attributes: {'platform': defaultTargetPlatform.name},
       );
     }

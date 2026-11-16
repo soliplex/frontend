@@ -16,13 +16,14 @@ import 'pick_image.dart';
 /// It does cost one thing that has to be undone. For every picked file the
 /// plugin mints an object URL on the file itself and never revokes it, which
 /// would keep each picked file reachable for the life of the page. Revoking the
-/// URL releases that reference; the bytes we read are unaffected. The URLs are
-/// revoked only once every read is done, because a read goes through them, and
-/// for the whole batch, so that nothing going wrong with one file can strand
-/// another file's URL.
+/// URL releases that reference; the bytes we read are unaffected. The plugin
+/// reads each file's bytes at pick time, and a read here goes through the URL
+/// only when that preload failed, so the URLs are revoked once every read is
+/// done, and for the whole batch, so that nothing going wrong with one file can
+/// strand another file's URL.
 ///
-/// The plugin returns the files in the order the user picked them, which is
-/// the whole point of carrying images inline.
+/// The plugin returns the files in the browser's `FileList` order, which the
+/// browser chooses, not necessarily the order the user picked them in.
 ///
 /// The plugin ignores `compressionQuality`, so nothing is re-encoded here.
 Future<PickImagesResult?> pickImagesImpl() async {

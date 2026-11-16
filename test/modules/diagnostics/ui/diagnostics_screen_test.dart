@@ -15,8 +15,7 @@ import '../../../helpers/http_event_factories.dart';
 
 /// Stands in for the platform save dialog. `saveFile` has three outcomes the
 /// export branches on: a location (saved), null (a dismissed dialog — but also a
-/// failed portal on Linux and any CommDlgExtendedError on Windows), and a
-/// throw.
+/// failed portal on Linux), and a throw.
 class _FakeSavePicker extends FilePickerPlatform {
   _FakeSavePicker.returns(this._saved) : _thrown = null;
   _FakeSavePicker.throwing(Object this._thrown) : _saved = null;
@@ -583,8 +582,8 @@ void main() {
       await pumpAndSave(tester);
 
       expect(find.textContaining('Could not finish saving'), findsNothing);
-      // Recorded even so: Linux and Windows return null for real failures too,
-      // and this is the only trace either leaves.
+      // Recorded even so: Linux returns null for a failed portal request too,
+      // and this is the only trace it leaves.
       expect(
         sink.records.map((r) => r.message),
         contains('The save dialog returned no path; the report was not '

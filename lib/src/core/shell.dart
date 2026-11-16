@@ -127,10 +127,10 @@ class _BootFailureApp extends StatelessWidget {
 ///
 /// Fire-and-forget: a failed cleanup never blocks app startup, but it is
 /// recorded, because the symptom — last session's picked files staying on disk
-/// — is otherwise invisible. Only a channel-level fault
-/// (`MissingPluginException`, a `PlatformException`) can be recorded: the
-/// plugin answers success whether or not its delete worked, and on Android
-/// also when there is no activity to delete through.
+/// — is otherwise invisible. Only a channel-level fault can be recorded: a
+/// `MissingPluginException`, or a `PlatformException` such as Android's
+/// `no_activity` when there is no activity to delete through. The plugin
+/// answers success whether or not its delete worked.
 void _clearFilePickerTempCacheOnMobile() {
   if (kIsWeb) return;
   if (!(Platform.isAndroid || Platform.isIOS)) return;
@@ -138,8 +138,8 @@ void _clearFilePickerTempCacheOnMobile() {
   unawaited(
     FilePicker.clearTemporaryFiles()
         .catchError((Object error, StackTrace stack) {
-      // With the trace: for a MissingPluginException or a TypeError out of the
-      // plugin path it is the only thing naming where the throw came from.
+      // With the trace: for a MissingPluginException or a PlatformException it
+      // is the only thing naming where the throw came from.
       logger.warning(
         'Failed to clear the file picker temp cache',
         error: error,

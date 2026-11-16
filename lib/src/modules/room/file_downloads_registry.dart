@@ -16,9 +16,9 @@ import 'workdir_files_status.dart' show workdirFileUnavailable;
 final _logger = LogManager.instance.getLogger('workdir_files');
 
 /// Save the [bytes] under [fileName], typically by opening the platform
-/// save dialog. Returns the chosen path on success, or `null` if the user
-/// cancelled. On web the browser triggers the download directly and the
-/// returned path is always `null`.
+/// save dialog. Returns the chosen location on success, as a `file://` URI
+/// string, or `null` if the user cancelled. On web the browser triggers the
+/// download directly and nothing is returned.
 typedef SaveFile = Future<String?> Function({
   required String fileName,
   required Uint8List bytes,
@@ -28,10 +28,9 @@ Future<String?> _defaultSaveFile({
   required String fileName,
   required Uint8List bytes,
 }) async {
-  // file_picker 13 throws on web for a name with no extension (`Makefile`,
-  // `.env`), so such a download reports failed. On desktop it writes nothing
-  // for empty bytes, yet returns the chosen location, so an empty file reports
-  // success with nothing saved.
+  // file_picker 13 throws on web for an empty name or one with no extension
+  // (`Makefile`, `.env`), so such a download reports failed. Every desktop
+  // platform writes the bytes to the chosen location, an empty file included.
   final saved = await FilePicker.saveFile(fileName: fileName, bytes: bytes);
   return saved?.toString();
 }
@@ -180,7 +179,7 @@ Future<DownloadOutcome> downloadWorkdirFile({
     return const DownloadSaved();
   } catch (e, st) {
     // Attached whole: a save failure is the platform's, the save dialog's
-    // error, the web saver's fixed-text refusal of an empty file or a name
+    // error, the web saver's fixed-text refusal of an empty name or a name
     // with no extension or, when writing the file failed, one naming the
     // local path it could not write. None holds a credential.
     _logger.warning(

@@ -151,6 +151,10 @@ Future<PickFilesResult?> pickFiles() => pickFilesImpl();
 /// dot-prefixed directories are skipped). Both cases are treated as
 /// cancellation: the caller does not enqueue a phantom empty batch.
 ///
+/// A failure of the directory picker itself reads as a cancel too on Android,
+/// iOS and macOS: the plugin catches it and answers null, so only the other
+/// platforms throw [PickFilePickerException] from here.
+///
 /// Each returned [PickedFile] has its name mangled via
 /// [mangleRelativePath] using the picked folder's basename as the root,
 /// so the backend's flat storage and `pathlib.Path(filename).name`

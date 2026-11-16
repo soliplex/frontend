@@ -945,9 +945,10 @@ void main() {
     });
 
     testWidgets('speaks for a pick the platform lost entirely', (tester) async {
-      // Android answers a pick it could not copy a single item out of with an
-      // empty batch, having dropped the names on its side. Read as a cancel it
-      // would leave the user tapping a button that does nothing.
+      // No platform picker answers this way since file_picker 13, where a pick
+      // that lost every item fails as a whole, but an injected one can. Read
+      // as a cancel it would leave the user tapping a button that does
+      // nothing.
       await pumpComposer(tester, openImagePicker: () async => picks([]));
 
       await tester.tap(find.byTooltip('Add image'));

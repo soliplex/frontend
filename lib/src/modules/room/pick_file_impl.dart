@@ -8,9 +8,10 @@ import 'pick_file.dart';
 
 /// Native implementation of [pickFiles].
 ///
-/// `file_picker` reads nothing at pick time: every native platform hands back
-/// a path (mobile copies the pick into app storage first), which we stream
-/// from through `dart:io`. An empty pick is a cancel.
+/// Every native platform hands back a path rather than bytes, which we stream
+/// from through `dart:io`. On desktop it is the user's own file; Android and
+/// iOS first copy the whole file into app storage, at pick time, so a large
+/// pick takes as long to return as that copy. An empty pick is a cancel.
 ///
 /// The size comes from the pick result where the platform reports it, and from
 /// the file otherwise. A file whose size cannot be found is reported rather
