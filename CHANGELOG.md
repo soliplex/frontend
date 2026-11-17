@@ -10,7 +10,6 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
-- CI builds and tests with Flutter 3.47.9.
 - `file_picker` moves to 13 and `package_info_plus` to 10, both onto `win32`
   6, which the coming video player's dependencies require.
 - A pick that could not load a single item now reports a picker failure on
@@ -25,6 +24,56 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Images picked from the iOS photo library attach in the order they were
   picked. They used to arrive in whatever order they finished loading.
+
+## [0.118.0+107] - 2026-11-16
+
+### Added
+
+- Thread rows in the lobby's Threads tab and the room's thread sidebar show
+  the thread's labels under its name, on one line: the first three as
+  compact chips, then "+N". A screen reader hears one sentence naming every
+  label.
+- The Threads tab ends with a "No more threads" row, and "No threads yet"
+  offers Refresh.
+- **Library consumers:** `soliplex_design`'s `SoliplexChip.colored` takes
+  `isCompact`, for a chip annotating a dense row.
+
+### Changed
+
+- CI builds and tests with Flutter 3.47.9. The `pubspec.yaml` floor stays at
+  3.38.4, so consumers are unaffected.
+- **Breaking:** **Library consumers:** `SoliplexApi.getAllThreads` requires
+  `limit`. `ThreadPage` keeps an unmodifiable copy of its threads, and its
+  constructor is no longer `const`.
+
+### Fixed
+
+- A Threads tab page that fails after the first keeps the loaded threads and
+  offers an inline Retry for that page, instead of replacing the list with
+  an error and starting again from page one. A first page too short to
+  scroll loads the next one, and an empty cursor from the server ends the
+  listing instead of paging the first page again.
+- Saving a thread's Properties, in the lobby or the room, keeps labels the
+  dialog did not touch, including ones the assistant added after the row
+  loaded, and no longer sends back a deleted label. Properties opens from a
+  fresh read of the thread, so a new thread's title is not blanked. A save
+  that stores the name but not the labels says so, and a session lost in a
+  room keeps the dialog open with the reason.
+- An `@label` search typed while the server's labels are loading, or after
+  they failed to load, no longer says the label doesn't exist: it waits, or
+  offers Retry. Threads and labels errors are described in words, and a
+  server refusing access offers no Retry.
+- A label's colour is stored the same whichever theme picked it.
+- Deleting a label someone else already deleted counts as done, and editing
+  one drops its row with the reason.
+- A thread whose labels can't be read is still listed, without them. A
+  cross-room listing entry with no room fails the page with a logged reason,
+  instead of showing a row that opens a dead route.
+- With a screen reader on the web, the thread search keeps focus when its
+  `@` menu opens. Label chips read as their names, the Properties dialog's
+  labels are checkboxes that report whether the thread carries them, and
+  colour swatches are radio buttons named for their colour.
+
 - A thread started with New, or by attaching a file with no thread open, runs
   its first message on the run the server made with the thread rather than a
   second run, so the server's automatic labelling, which needs a thread to
