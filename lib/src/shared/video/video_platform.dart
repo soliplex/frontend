@@ -1,13 +1,28 @@
-// Native implementations of the video player's web-only needs, all no-ops.
-// The web ones are in video_platform_web.dart.
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
+// Native implementations of what the video player does differently on the
+// web. The web ones are in video_platform_web.dart.
 
 /// Makes the player's runtime available. Nothing to load on native platforms.
 Future<void> ensureVideoRuntime() async {}
 
-/// Asks the browser to show the page fullscreen, calling [onExit] when it
-/// stops. Native platforms have no browser fullscreen; the fullscreen page
-/// hides the system bars instead.
-void enterBrowserFullscreen({required void Function() onExit}) {}
+/// Hides the system bars for the fullscreen page. [onExit] goes unused: only
+/// a browser can leave fullscreen on its own.
+void enterFullscreen({required void Function() onExit}) =>
+    _setSystemUiMode(SystemUiMode.immersive);
 
-/// Leaves the browser fullscreen [enterBrowserFullscreen] entered, if any.
-void exitBrowserFullscreen() {}
+/// Shows the system bars [enterFullscreen] hid.
+void leaveFullscreen() => _setSystemUiMode(SystemUiMode.edgeToEdge);
+
+/// Only iOS and Android have system UI modes; the desktop embedders answer
+/// the call with a `MissingPluginException`.
+void _setSystemUiMode(SystemUiMode mode) {
+  if (defaultTargetPlatform != TargetPlatform.android &&
+      defaultTargetPlatform != TargetPlatform.iOS) {
+    return;
+  }
+  unawaited(SystemChrome.setEnabledSystemUIMode(mode));
+}

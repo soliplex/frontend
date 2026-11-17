@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_design/soliplex_design.dart'
@@ -130,6 +131,23 @@ void main() {
   Future<void> startPlaying(WidgetTester tester) async {
     await tester.tap(find.byTooltip('Play video'));
     await tester.pumpAndSettle();
+  }
+
+  /// Records the system UI modes the card asks for, in order.
+  List<String> recordSystemUiModes() {
+    final modes = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+        modes.add(call.arguments as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    return modes;
   }
 
   testWidgets('is message-wide and 16:9 before anything loads', (tester) async {
@@ -266,6 +284,7 @@ void main() {
 
   testWidgets('fullscreen from the dialog returns to the dialog',
       (tester) async {
+    recordSystemUiModes();
     await pumpCard(tester);
     await startPlaying(tester);
     await tester.tap(find.byTooltip('Expand video'));
@@ -287,6 +306,74 @@ void main() {
       findsOneWidget,
     );
     expect(playback.playing, isTrue);
+  });
+
+  testWidgets('full screen hides the system bars until it is left',
+      (tester) async {
+    final modes = recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+    expect(modes, ['SystemUiMode.immersive']);
+
+    await tester.tap(find.byTooltip('Exit full screen'));
+    await tester.pumpAndSettle();
+
+    expect(modes, ['SystemUiMode.immersive', 'SystemUiMode.edgeToEdge']);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(find.text('Playing in the expanded view'), findsNothing);
+  });
+
+  testWidgets(
+    'full screen on the desktop leaves the system UI alone',
+    (tester) async {
+      final modes = recordSystemUiModes();
+      await pumpCard(tester);
+      await startPlaying(tester);
+
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Exit full screen'), findsOneWidget);
+      await tester.tap(find.byTooltip('Exit full screen'));
+      await tester.pumpAndSettle();
+
+      expect(modes, isEmpty, reason: 'desktop platforms have no UI modes');
+    },
+    variant: TargetPlatformVariant.desktop(),
+  );
+
+  testWidgets('a failure in full screen closes it and restores the system bars',
+      (tester) async {
+    final modes = recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    reportError!('HTTP 404');
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Exit full screen'), findsNothing);
+    expect(find.text('Open video'), findsOneWidget);
+    expect(modes.last, 'SystemUiMode.edgeToEdge');
+  });
+
+  testWidgets('a card that goes in full screen restores the system bars',
+      (tester) async {
+    final modes = recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpAndSettle();
+
+    expect(modes.last, 'SystemUiMode.edgeToEdge');
+    expect(playback.disposed, isTrue);
   });
 
   testWidgets('a video that cannot play offers to open it instead',

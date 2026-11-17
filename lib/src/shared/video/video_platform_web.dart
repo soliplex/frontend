@@ -70,14 +70,21 @@ Future<void> _loadShaka() {
 
 web.EventListener? _fullscreenListener;
 
-/// Asks the browser to show the page fullscreen, calling [onExit] when it
-/// stops: Escape, the browser's own control, or [exitBrowserFullscreen].
+/// Asks the browser to show the page fullscreen, calling [onExit] when the
+/// user leaves it: Escape, or the browser's own control. [leaveFullscreen]
+/// leaves without calling it.
 ///
 /// Must run inside the user's tap, which is what lets a page go fullscreen. A
-/// refusal is logged and otherwise ignored: the fullscreen page still fills the
-/// window.
-void enterBrowserFullscreen({required void Function() onExit}) {
+/// refusal, or a browser that cannot, is logged and otherwise ignored: the
+/// fullscreen page still fills the window.
+void enterFullscreen({required void Function() onExit}) {
   _stopListening();
+  final page = web.document.documentElement!;
+  // iPhone Safari lets only a <video> element go fullscreen.
+  if (!page.has('requestFullscreen')) {
+    _logger.info('The browser cannot show the page fullscreen');
+    return;
+  }
   final listener = ((web.Event _) {
     if (web.document.fullscreenElement != null) return;
     _stopListening();
@@ -86,7 +93,7 @@ void enterBrowserFullscreen({required void Function() onExit}) {
   _fullscreenListener = listener;
   web.document.addEventListener('fullscreenchange', listener);
   unawaited(
-    web.document.documentElement!.requestFullscreen().toDart.then(
+    page.requestFullscreen().toDart.then(
       (_) {},
       onError: (Object error) {
         _stopListening();
@@ -98,15 +105,19 @@ void enterBrowserFullscreen({required void Function() onExit}) {
   );
 }
 
-/// Leaves the browser fullscreen [enterBrowserFullscreen] entered, if any,
-/// without calling its `onExit`.
-void exitBrowserFullscreen() {
+/// Leaves the browser fullscreen [enterFullscreen] entered, if any, without
+/// calling its `onExit`.
+void leaveFullscreen() {
   _stopListening();
   if (web.document.fullscreenElement != null) {
     // A refusal leaves the page fullscreen, which the user can still leave
-    // with Escape; there is nothing better to do with it.
+    // with Escape. Like a refusal to enter, it is a DOMException naming why.
     unawaited(
-      web.document.exitFullscreen().toDart.then((_) {}, onError: (_) {}),
+      web.document.exitFullscreen().toDart.then(
+            (_) {},
+            onError: (Object error) => _logger
+                .info('The browser did not leave fullscreen', error: error),
+          ),
     );
   }
 }

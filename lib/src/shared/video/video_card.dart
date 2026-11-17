@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -153,7 +151,8 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   /// Removes the routes open on this card's video. Removing a route runs no
-  /// `PopScope`, so the fullscreen page's own restoring is repeated here.
+  /// `PopScope`, so the system UI the fullscreen page restores on leaving is
+  /// restored here; the view is not handed back, as the playback is going.
   void _closeOpenRoutes() {
     for (final route in List.of(_openRoutes)) {
       if (route.isActive) route.navigator?.removeRoute(route);
@@ -164,10 +163,7 @@ class _VideoCardState extends State<VideoCard> {
 
   void _leaveFullscreenChrome() {
     _inFullscreen = false;
-    exitBrowserFullscreen();
-    if (!kIsWeb) {
-      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
-    }
+    leaveFullscreen();
   }
 
   void _expand(VideoHandoff handoff) {
@@ -201,13 +197,6 @@ class _VideoCardState extends State<VideoCard> {
 
   void _openFullscreen(VideoHandoff handoff, VideoHost returnTo) {
     final navigator = Navigator.of(context, rootNavigator: true);
-    // Inside the tap: a page may only go fullscreen during a user gesture.
-    // Leaving it from the browser (Escape) closes the page too.
-    enterBrowserFullscreen(onExit: navigator.maybePop);
-    if (!kIsWeb) {
-      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive));
-    }
-    _inFullscreen = true;
     final route = PageRouteBuilder<void>(
       pageBuilder: (context, _, __) => _FullscreenPage(
         handoff: handoff,
@@ -217,6 +206,18 @@ class _VideoCardState extends State<VideoCard> {
         },
       ),
     );
+    // Inside the tap: a page may only go fullscreen during a user gesture.
+    // Leaving it from the browser (Escape) closes the page too, and whatever
+    // is open over it, such as the quality menu.
+    enterFullscreen(
+      onExit: () {
+        if (!route.isActive) return;
+        navigator
+          ..popUntil((open) => open == route)
+          ..pop();
+      },
+    );
+    _inFullscreen = true;
     _openRoutes.add(route);
     unawaited(
         navigator.push(route).whenComplete(() => _openRoutes.remove(route)));
