@@ -34,15 +34,21 @@ final _loggedSources = <int>{};
 /// [key]'s hash so large payloads are never retained, at the cost that two keys
 /// whose hashes collide are treated as one — an acceptable, rare miss for log
 /// dedupe. Pass [logger] so the call site's logger namespace appears in the
-/// output.
+/// output; [attributes] are forwarded to the record.
 void logFailedSourceOnce(
   Logger logger,
   String message,
   String key, {
   Object? error,
   StackTrace? stackTrace,
+  Map<String, Object?>? attributes,
 }) {
   if (_loggedSources.add(key.hashCode)) {
-    logger.warning(message, error: error, stackTrace: stackTrace);
+    logger.warning(
+      message,
+      error: error,
+      stackTrace: stackTrace,
+      attributes: attributes,
+    );
   }
 }

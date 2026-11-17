@@ -71,5 +71,18 @@ void main() {
         hasLength(2),
       );
     });
+
+    test('forwards attributes', () {
+      logFailedSourceOnce(
+        logger,
+        'with attributes',
+        'source-attributes',
+        attributes: {'contentLength': 12},
+      );
+
+      final record =
+          sink.records.singleWhere((r) => r.message == 'with attributes');
+      expect(record.attributes, {'contentLength': 12});
+    });
   });
 }
