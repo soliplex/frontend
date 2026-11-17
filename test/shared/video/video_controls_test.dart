@@ -23,8 +23,8 @@ class _RecordingPlayback implements VideoPlayback {
   void set({
     bool? isPlaying,
     double? volume,
-    List<VideoQuality>? qualities,
-    VideoQuality? quality,
+    List<int>? qualities,
+    int? quality,
   }) {
     final s = status.value;
     status.value = VideoStatus(
@@ -60,8 +60,8 @@ class _RecordingPlayback implements VideoPlayback {
   }
 
   @override
-  void selectQuality(VideoQuality? quality) =>
-      calls.add('quality ${quality?.label ?? 'auto'}');
+  void selectQuality(int? height) =>
+      calls.add('quality ${height == null ? 'auto' : '${height}p'}');
 
   @override
   Widget buildView() => const SizedBox.expand();
@@ -70,8 +70,8 @@ class _RecordingPlayback implements VideoPlayback {
   void dispose() {}
 }
 
-const _hd = VideoQuality(label: '720p', id: 720);
-const _sd = VideoQuality(label: '360p', id: 360);
+const _hd = 720;
+const _sd = 360;
 
 void main() {
   late _RecordingPlayback playback;

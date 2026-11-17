@@ -9,24 +9,9 @@ import 'package:signals_flutter/signals_flutter.dart';
 /// starts without waiting on, or a request the server never finishes.
 const videoStartLimit = Duration(seconds: 30);
 
-/// One rendition of a streamed video the viewer can pin playback to.
-@immutable
-class VideoQuality {
-  const VideoQuality({required this.label, required this.id});
-
-  /// What the quality menu shows, such as `720p`.
-  final String label;
-
-  /// Identifies the rendition to the playback that listed it.
-  final Object id;
-
-  @override
-  bool operator ==(Object other) =>
-      other is VideoQuality && other.label == label && other.id == id;
-
-  @override
-  int get hashCode => Object.hash(label, id);
-}
+/// The shape of every place a video is shown; a video of another shape is
+/// letterboxed inside it.
+const videoAspectRatio = 16 / 9;
 
 /// Where a playback stands, as its controls draw it.
 @immutable
@@ -58,13 +43,14 @@ class VideoStatus {
   /// From 0 (muted) to 1.
   final double volume;
 
-  /// The renditions an adaptive stream (HLS or DASH) offers, best first.
-  /// Empty for a plain video file, which has only the one.
-  final List<VideoQuality> qualities;
+  /// The renditions an HLS stream offers, as heights in pixels, tallest
+  /// first. Empty when there is nothing to choose between: a plain video
+  /// file, or a stream whose renditions are all one height.
+  final List<int> qualities;
 
-  /// The rendition playback is pinned to, or null when the player picks one
-  /// to suit the connection, which is the default.
-  final VideoQuality? quality;
+  /// The height chosen in [VideoPlayback.selectQuality], or null when the
+  /// player picks a rendition to suit the connection, which is the default.
+  final int? quality;
 }
 
 /// One video's playback, which the inline card, its dialog and its fullscreen
@@ -89,9 +75,10 @@ abstract interface class VideoPlayback {
   /// Sets the volume, from 0 (muted) to 1.
   Future<void> setVolume(double volume);
 
-  /// Pins playback to [quality], one of [VideoStatus.qualities], or, when
-  /// null, lets the player adapt it to the connection again.
-  void selectQuality(VideoQuality? quality);
+  /// Keeps playback to the rendition [height] tall, one of
+  /// [VideoStatus.qualities], or, when null, lets the player adapt it to the
+  /// connection again.
+  void selectQuality(int? height);
 
   /// A view of the video alone; the hosts draw the controls over it.
   ///

@@ -39,7 +39,7 @@ class _FakePlayback implements VideoPlayback {
   Future<void> setVolume(double volume) async {}
 
   @override
-  void selectQuality(VideoQuality? quality) {}
+  void selectQuality(int? height) {}
 
   @override
   Widget buildView() => _FakeView(onUnmount: () => playing = false);

@@ -33,7 +33,7 @@ class VideoHostActions {
 class VideoControls extends StatefulWidget {
   const VideoControls({
     required this.playback,
-    this.actions = const VideoHostActions(),
+    required this.actions,
     super.key,
   });
 
@@ -301,10 +301,9 @@ class _VideoControlsState extends State<VideoControls> {
   }
 
   Widget _qualityMenu(VideoStatus status, VideoOverlayPalette palette) {
-    const auto = -1;
-    final current = status.quality == null
-        ? auto
-        : status.qualities.indexOf(status.quality!);
+    // Each entry's value is its height; no rendition is 0 pixels tall.
+    const auto = 0;
+    final current = status.quality ?? auto;
     return PopupMenuButton<int>(
       icon: const Icon(Icons.high_quality_outlined),
       iconColor: palette.foreground,
@@ -318,9 +317,9 @@ class _VideoControlsState extends State<VideoControls> {
         _menuOpen = false;
         _scheduleHide();
       },
-      onSelected: (index) {
+      onSelected: (height) {
         _menuOpen = false;
-        _playback.selectQuality(index == auto ? null : status.qualities[index]);
+        _playback.selectQuality(height == auto ? null : height);
         _scheduleHide();
       },
       itemBuilder: (_) => [
@@ -329,11 +328,11 @@ class _VideoControlsState extends State<VideoControls> {
           checked: current == auto,
           child: const Text('Auto'),
         ),
-        for (final (index, quality) in status.qualities.indexed)
+        for (final height in status.qualities)
           CheckedPopupMenuItem(
-            value: index,
-            checked: current == index,
-            child: Text(quality.label),
+            value: height,
+            checked: current == height,
+            child: Text('${height}p'),
           ),
       ],
     );

@@ -310,4 +310,29 @@ void main() {
     platform.refusePause = false;
     playback!.dispose();
   });
+
+  group('qualitiesFrom', () {
+    PlayerAsmsTrack track(int height, int bitrate) =>
+        PlayerAsmsTrack('$height-$bitrate', 0, height, bitrate, 0, '', '');
+
+    test('lists one quality per height, tallest first, at its best bitrate',
+        () {
+      final qualities = qualitiesFrom([
+        track(360, 800),
+        track(720, 2000),
+        track(720, 3000),
+        track(0, 0),
+      ]);
+
+      expect(qualities.keys, [
+        720,
+        360,
+      ]);
+      expect(qualities[720]!.bitrate, 3000);
+    });
+
+    test('lists none when there is only one height to choose', () {
+      expect(qualitiesFrom([track(720, 2000), track(720, 3000)]), isEmpty);
+    });
+  });
 }

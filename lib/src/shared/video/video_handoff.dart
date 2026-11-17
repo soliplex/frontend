@@ -53,7 +53,7 @@ class VideoHostView extends StatelessWidget {
   const VideoHostView({
     required this.handoff,
     required this.host,
-    this.actions = const VideoHostActions(),
+    required this.actions,
     this.placeholder = const SizedBox.expand(),
     super.key,
   });

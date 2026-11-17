@@ -24,11 +24,10 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 ///   view instead. The package's web controls paint a fixed black gradient
 ///   that ignores the configured colours and stops short of the bottom edge,
 ///   and they have no slot for the expand and fullscreen actions.
-/// - The aspect ratio is the card's 16:9; a video of another shape is
-///   letterboxed inside it.
 /// - An HLS or DASH stream adapts its rendition to the connection: Shaka's
 ///   ABR on the web, ExoPlayer's on Android, AVPlayer's on iOS. Its manifest
-///   lists the renditions, which become [VideoStatus.qualities].
+///   lists the renditions, which become [VideoStatus.qualities] as
+///   [qualitiesFrom] picks them.
 /// - better_player logs nothing: its log prints the source URL whole, query
 ///   included.
 Future<VideoPlayback> createBetterPlayerPlayback(
@@ -40,7 +39,7 @@ Future<VideoPlayback> createBetterPlayerPlayback(
     PlayerConfiguration(
       autoPlay: true,
       autoDispose: false,
-      aspectRatio: 16 / 9,
+      aspectRatio: videoAspectRatio,
       fit: BoxFit.contain,
       // The card draws its own failure, with a way to open the video instead.
       errorBuilder: (_, __) => const SizedBox.shrink(),
@@ -126,6 +125,27 @@ String _withShakaErrorsReduced(String text) =>
           '${status == null ? '' : ', HTTP $status'}';
     });
 
+/// The renditions of [tracks] worth offering, each with the track it plays:
+/// one per height, at that height's highest bitrate, tallest first. Tracks
+/// without a height, such as the "auto" entry some manifests parse into, are
+/// left out, and a single height is nothing to choose between, so gives none.
+Map<int, PlayerAsmsTrack> qualitiesFrom(
+  Iterable<PlayerAsmsTrack> tracks,
+) {
+  final byHeight = <int, PlayerAsmsTrack>{};
+  for (final track in tracks) {
+    final height = track.height ?? 0;
+    if (height <= 0) continue;
+    final kept = byHeight[height];
+    if (kept == null || (track.bitrate ?? 0) > (kept.bitrate ?? 0)) {
+      byHeight[height] = track;
+    }
+  }
+  if (byHeight.length < 2) return const {};
+  final heights = byHeight.keys.toList()..sort((a, b) => b - a);
+  return {for (final height in heights) height: byHeight[height]!};
+}
+
 class _BetterPlayerPlayback implements VideoPlayback {
   _BetterPlayerPlayback(this._controller, this._uri) {
     _controller.addVideoListener(_update);
@@ -138,8 +158,8 @@ class _BetterPlayerPlayback implements VideoPlayback {
   final Signal<VideoStatus> _status = signal(const VideoStatus());
 
   /// The rendition each listed quality stands for.
-  final Map<VideoQuality, PlayerAsmsTrack> _tracks = {};
-  VideoQuality? _quality;
+  final Map<int, PlayerAsmsTrack> _tracks = {};
+  int? _quality;
 
   @override
   ReadonlySignal<VideoStatus> get status => _status;
@@ -147,7 +167,9 @@ class _BetterPlayerPlayback implements VideoPlayback {
   void _update() {
     final value = _controller.videoPlayerValue;
     if (value == null) return;
-    _readTracks();
+    if (_tracks.isEmpty) {
+      _tracks.addAll(qualitiesFrom(_controller.betterPlayerAsmsTracks));
+    }
     _status.value = VideoStatus(
       position: value.position,
       duration: value.duration,
@@ -161,28 +183,6 @@ class _BetterPlayerPlayback implements VideoPlayback {
       qualities: List.unmodifiable(_tracks.keys),
       quality: _quality,
     );
-  }
-
-  /// Lists the manifest's renditions once it has been read: one per height,
-  /// tallest first, leaving out the "auto" entry some manifests parse into.
-  void _readTracks() {
-    if (_tracks.isNotEmpty) return;
-    final byHeight = <int, PlayerAsmsTrack>{};
-    for (final track in _controller.betterPlayerAsmsTracks) {
-      final height = track.height ?? 0;
-      if (height <= 0) continue;
-      final kept = byHeight[height];
-      if (kept == null || (track.bitrate ?? 0) > (kept.bitrate ?? 0)) {
-        byHeight[height] = track;
-      }
-    }
-    final heights = byHeight.keys.toList()..sort((a, b) => b - a);
-    // A single rendition is nothing to choose between.
-    if (heights.length < 2) return;
-    for (final height in heights) {
-      _tracks[VideoQuality(label: '${height}p', id: height)] =
-          byHeight[height]!;
-    }
   }
 
   /// Plays on, or from the beginning once the video has ended: the native
@@ -231,10 +231,10 @@ class _BetterPlayerPlayback implements VideoPlayback {
   }
 
   @override
-  void selectQuality(VideoQuality? quality) {
-    final track = quality == null ? null : _tracks[quality];
+  void selectQuality(int? height) {
+    final track = _tracks[height];
     _controller.setTrack(track ?? PlayerAsmsTrack.defaultTrack());
-    _quality = track == null ? null : quality;
+    _quality = track == null ? null : height;
     _update();
   }
 

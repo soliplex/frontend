@@ -6,7 +6,6 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../markdown/launch_markdown_link.dart';
 import '../zoomable_view.dart';
-import 'better_player_playback.dart';
 import 'video_controls.dart';
 import 'video_handoff.dart';
 import 'video_platform.dart'
@@ -33,7 +32,7 @@ class VideoCard extends StatefulWidget {
   const VideoCard({
     required this.uri,
     this.caption,
-    this.playbackFactory = createBetterPlayerPlayback,
+    required this.playbackFactory,
     super.key,
   });
 
@@ -42,7 +41,7 @@ class VideoCard extends StatefulWidget {
   /// Shown beneath the card; the markdown image's alt text.
   final String? caption;
 
-  /// Creates the playback. Tests pass a fake.
+  /// Creates the playback: `createBetterPlayerPlayback`, or a fake in tests.
   final VideoPlaybackFactory playbackFactory;
 
   @override
@@ -177,7 +176,7 @@ class _VideoCardState extends State<VideoCard> {
           },
           child: Center(
             child: AspectRatio(
-              aspectRatio: 16 / 9,
+              aspectRatio: videoAspectRatio,
               child: VideoHostView(
                 handoff: handoff,
                 host: VideoHost.dialog,
@@ -249,7 +248,7 @@ class _VideoCardState extends State<VideoCard> {
           ClipRRect(
             borderRadius: BorderRadius.circular(context.radii.md),
             child: AspectRatio(
-              aspectRatio: 16 / 9,
+              aspectRatio: videoAspectRatio,
               child: ColoredBox(
                 color: palette.scrim,
                 child: switch (_state) {
@@ -417,7 +416,7 @@ class _FullscreenPage extends StatelessWidget {
         child: SafeArea(
           child: Center(
             child: AspectRatio(
-              aspectRatio: 16 / 9,
+              aspectRatio: videoAspectRatio,
               child: VideoHostView(
                 handoff: handoff,
                 host: VideoHost.fullscreen,
