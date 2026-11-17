@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "appauth-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/openid/AppAuth-iOS",
+      "state" : {
+        "revision" : "a7caeda164dc5108bf4649472b28a5af65dc6f33",
+        "version" : "2.1.0"
+      }
+    },
+    {
+      "identity" : "cache",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hyperoslo/Cache",
+      "state" : {
+        "revision" : "ad6abdf2a3a866288a7dad2c4e13379406002a81",
+        "version" : "6.2.0"
+      }
+    }
+  ],
+  "version" : 2
+}

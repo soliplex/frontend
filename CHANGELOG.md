@@ -20,7 +20,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   adapts to the connection. A video that cannot be played offers to open it in
   the browser instead.
 - **Library consumers:** the `pubspec.yaml` Flutter floor rises to 3.47.0,
-  which `better_player` requires. A fork's web build must copy
+  which `better_player` requires. Flutter 3.47 raises a macOS app's
+  deployment target to 12.0 when it builds, so macOS 10.15 and 11 are no
+  longer supported, and moves iOS and macOS plugins that ship a Swift package
+  from CocoaPods to Swift Package Manager. A fork's web build must copy
   `web/vendor/shaka-player.compiled.js` into its own `web/vendor/`: the player
   loads it from there the first time a video plays, and without it no video
   plays on the web. See "Web video player" in `docs/authoring-a-flavor.md`.
