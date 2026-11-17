@@ -122,29 +122,45 @@ void main() {
     }
   });
 
-  group('highlightLanguageFor', () {
-    test('code looks up the extension', () {
-      expect(PreviewKind.code.highlightLanguageFor('main.dart'), 'dart');
-      expect(PreviewKind.code.highlightLanguageFor('script.PY'), 'python');
-      expect(PreviewKind.code.highlightLanguageFor('app.ts'), 'typescript');
-      expect(PreviewKind.code.highlightLanguageFor('app.tsx'), 'typescript');
-      expect(PreviewKind.code.highlightLanguageFor('run.sh'), 'bash');
-      expect(PreviewKind.code.highlightLanguageFor('config.yml'), 'yaml');
+  group('languageForFilename', () {
+    test('maps code extensions case-insensitively', () {
+      expect(languageForFilename('main.dart'), 'dart');
+      expect(languageForFilename('script.PY'), 'python');
+      expect(languageForFilename('app.ts'), 'typescript');
+      expect(languageForFilename('app.tsx'), 'typescript');
+      expect(languageForFilename('run.sh'), 'bash');
+      expect(languageForFilename('config.yml'), 'yaml');
+      expect(languageForFilename('a.toml'), 'ini');
+      expect(languageForFilename('a.py'), 'python');
     });
 
-    test('code falls back to plaintext when extension is unknown', () {
-      expect(PreviewKind.code.highlightLanguageFor('mystery.xyz'), 'plaintext');
-      expect(PreviewKind.code.highlightLanguageFor('no-ext'), 'plaintext');
+    test('maps svg and json to their own language', () {
+      expect(languageForFilename('a.svg'), 'svg');
+      expect(languageForFilename('a.JSON'), 'json');
     });
 
-    test('html is always xml-highlighted', () {
-      expect(PreviewKind.html.highlightLanguageFor('page.html'), 'xml');
-      expect(PreviewKind.html.highlightLanguageFor('page.htm'), 'xml');
+    test('highlights html as xml', () {
+      expect(languageForFilename('page.html'), 'xml');
+      expect(languageForFilename('a.htm'), 'xml');
     });
 
-    test('csv is rendered as plaintext (no real csv highlighter)', () {
-      expect(PreviewKind.csv.highlightLanguageFor('data.csv'), 'plaintext');
-      expect(PreviewKind.csv.highlightLanguageFor('data.tsv'), 'plaintext');
+    test('renders delimited and text files as plaintext', () {
+      for (final name in const [
+        'data.csv',
+        'a.tsv',
+        'a.log',
+        'a.txt',
+        'a.ini',
+        'a.cfg',
+        'a.conf',
+      ]) {
+        expect(languageForFilename(name), 'plaintext', reason: name);
+      }
+    });
+
+    test('falls back to plaintext for unknown or missing extensions', () {
+      expect(languageForFilename('mystery.xyz'), 'plaintext');
+      expect(languageForFilename('no-ext'), 'plaintext');
     });
   });
 

@@ -78,18 +78,17 @@ enum PreviewKind {
         PreviewKind.pdf => Icons.picture_as_pdf_outlined,
         PreviewKind.unknown => Icons.insert_drive_file_outlined,
       };
+}
 
-  /// flutter_highlight language id used by the shared code-block
-  /// renderer. Only [code], [html], and [csv] route through this
-  /// method in practice; the other arms return 'plaintext' so the
-  /// switch stays exhaustive.
-  String highlightLanguageFor(String filename) => switch (this) {
-        PreviewKind.html => 'xml',
-        PreviewKind.csv => 'plaintext',
-        PreviewKind.code =>
-          _languageByCodeExtension[extensionOf(filename) ?? ''] ?? 'plaintext',
-        _ => 'plaintext',
-      };
+/// Highlight language id for [filename], chosen by its extension. HTML is
+/// highlighted as `xml`; `svg` and `json` keep their own ids; delimited and
+/// plain-text files, unknown extensions and extensionless names are
+/// `plaintext`.
+String languageForFilename(String filename) {
+  final ext = extensionOf(filename) ?? '';
+  if (ext == 'svg' || ext == 'json') return ext;
+  if (_htmlExtensions.contains(ext)) return 'xml';
+  return _languageByCodeExtension[ext] ?? 'plaintext';
 }
 
 /// Lower-cased extension of the last `/`-separated segment of [filename],

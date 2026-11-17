@@ -870,7 +870,7 @@ class _PreviewBody extends StatelessWidget {
       PreviewKind.markdown || PreviewKind.text => TextPreview(content: content),
       PreviewKind.code || PreviewKind.html || PreviewKind.csv => CodePreview(
           content: content,
-          language: kind.highlightLanguageFor(filename),
+          language: languageForFilename(filename),
         ),
       PreviewKind.json => JsonPreview(content: content),
       PreviewKind.image || PreviewKind.pdf || PreviewKind.unknown => _fallback(
