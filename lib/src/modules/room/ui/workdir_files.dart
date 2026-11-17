@@ -12,14 +12,13 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../shared/zoomable_image.dart';
 import '../file_downloads.dart';
 import '../workdir_files_status.dart' show workdirFileUnavailable;
+import 'content_viewer/content_viewer.dart';
 import 'file_list_row.dart';
+import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'pager_dots.dart';
-import 'workdir_preview/code_preview.dart';
 import 'workdir_preview/download_feedback.dart';
 import 'workdir_preview/json_preview.dart';
 import 'workdir_preview/preview_kind.dart';
-import 'workdir_preview/svg_preview.dart';
-import 'workdir_preview/text_preview.dart';
 import 'workdir_preview/too_large_preview.dart';
 
 final _logger =
@@ -860,17 +859,19 @@ class _PreviewBody extends StatelessWidget {
       );
     }
     return switch (kind) {
-      PreviewKind.svg => SvgPreview(
-          content: content,
-          fallback: _fallback(
-            icon: Icons.broken_image_outlined,
-            message: 'This SVG looks corrupt',
-          ),
+      PreviewKind.markdown => SingleChildScrollView(
+          padding: const EdgeInsets.all(SoliplexSpacing.s4),
+          child: FlutterMarkdownPlusRenderer(data: content),
         ),
-      PreviewKind.markdown || PreviewKind.text => TextPreview(content: content),
-      PreviewKind.code || PreviewKind.html || PreviewKind.csv => CodePreview(
-          content: content,
+      PreviewKind.svg ||
+      PreviewKind.code ||
+      PreviewKind.text ||
+      PreviewKind.html ||
+      PreviewKind.csv =>
+        ContentViewer(
           language: languageForFilename(filename),
+          content: content,
+          fill: true,
         ),
       PreviewKind.json => JsonPreview(content: content),
       PreviewKind.image || PreviewKind.pdf || PreviewKind.unknown => _fallback(

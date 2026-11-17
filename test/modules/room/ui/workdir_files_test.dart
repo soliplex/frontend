@@ -19,6 +19,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.da
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/zoomable_view.dart';
 
 import '../../../helpers/file_name_finder.dart';
 import '../../../helpers/preview_title_finder.dart';
@@ -480,10 +481,30 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
-    // TextPreview wraps the content in MarkdownBody. Image/code paths
-    // don't, so finding MarkdownBody proves dispatch landed on text.
+    // Only the markdown path renders MarkdownBody; code and text go to
+    // CodeView.
     expect(find.byType(MarkdownBody), findsOneWidget);
     expect(find.byType(CodeView), findsNothing);
+  });
+
+  testWidgets('a .log file shows its lines verbatim', (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([_file('app.log')]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      onFetchBytes: (_) async =>
+          Uint8List.fromList(utf8.encode('# not a heading\nline two')),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MarkdownBody), findsNothing);
+    expect(
+      find.textContaining('# not a heading\nline two', findRichText: true),
+      findsOneWidget,
+    );
   });
 
   testWidgets('json file is pretty-printed inside a CodeView', (tester) async {
@@ -506,7 +527,7 @@ void main() {
     expect(view.code, contains('"a": 1'));
   });
 
-  testWidgets('svg file opens preview with SvgPicture in InteractiveViewer',
+  testWidgets('a .svg previews zoomable inside the bounded page',
       (tester) async {
     const svg =
         '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>';
@@ -521,8 +542,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
+    expect(tester.takeException(), isNull);
     expect(find.byType(SvgPicture), findsOneWidget);
-    expect(find.byType(InteractiveViewer), findsOneWidget);
+    expect(find.byType(ZoomableView), findsOneWidget);
   });
 
   testWidgets('bytes exactly at the 5 MB cap still preview (not too-large)',
@@ -938,11 +960,9 @@ void main() {
       expect(find.text('Download'), findsOneWidget);
     });
 
-    testWidgets('invalid svg content shows the "SVG looks corrupt" message',
-        (tester) async {
-      // `.svg` routes through the text-decode path, then SvgPreview's
-      // parser rejects the content and swaps in its fallback. Distinct
-      // from the image corrupt-copy and the generic unsupported copy.
+    testWidgets(
+        'a broken .svg shows the notice and its source, and the title bar '
+        'still offers Download', (tester) async {
       await tester.pumpWidget(_wrap(_workspace(
         status: WorkdirFilesLoaded([_file('chart.svg')]),
         onRetry: () {},
@@ -954,9 +974,13 @@ void main() {
       await tester.tap(find.byIcon(Icons.visibility_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('This SVG looks corrupt'), findsOneWidget);
-      expect(find.text('This image looks corrupt'), findsNothing);
-      expect(find.text("Can't preview this file"), findsNothing);
+      expect(find.text("Couldn't render this SVG; showing its source."),
+          findsOneWidget);
+      expect(find.textContaining('not actually svg', findRichText: true),
+          findsOneWidget);
+      expect(find.text('This SVG looks corrupt'), findsNothing);
+      expect(find.byType(ZoomableView), findsNothing);
+      expect(_inPreview(find.byIcon(Icons.download_outlined)), findsOneWidget);
     });
   });
 
