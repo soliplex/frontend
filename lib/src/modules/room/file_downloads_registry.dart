@@ -16,9 +16,10 @@ import 'workdir_files_status.dart' show workdirFileUnavailable;
 final _logger = LogManager.instance.getLogger('workdir_files');
 
 /// Save the [bytes] under [fileName], typically by opening the platform
-/// save dialog. Returns the chosen location on success, as a `file://` URI
-/// string, or `null` if the user cancelled. On web the browser triggers the
-/// download directly and nothing is returned.
+/// save dialog. Returns the chosen location on success, as a URI string —
+/// `file://` on iOS and desktop, a content-URI path with no scheme on
+/// Android — or `null` if the user cancelled. On web the browser triggers
+/// the download directly and nothing is returned.
 typedef SaveFile = Future<String?> Function({
   required String fileName,
   required Uint8List bytes,

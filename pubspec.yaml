@@ -38,8 +38,9 @@ dependencies:
   file_picker: ^13.3.3
   # Named although file_picker brings it in: 2.4.x, which ^13.3.3 still admits,
   # clears the whole temporary directory rather than its own, and the room
-  # module's comments describe 2.5.1 (where picks are copied, ordered
-  # selection). It is also what sets the Flutter floor above.
+  # module's comments describe 2.5.1, which keeps picks and saves in a
+  # directory of its own under the temporary directory. It is also what sets
+  # the Flutter floor above.
   file_picker_darwin: ^2.5.1
   mime: ^2.0.0
   url_launcher: ^6.3.1

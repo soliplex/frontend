@@ -78,9 +78,9 @@ typedef PickImagesResult = ({
 /// not a cancel: both mobile platforms answer it with an error, which arrives
 /// here as [PickFilePickerException].
 ///
-/// The per-file guarantee stops at what the plugin reports. iOS's photo picker
-/// drops an item it could not load and returns the items that did load, with
-/// no error and no log, so a pick of four photos can arrive as three with
-/// nothing to say the fourth existed. Nothing on this side can see the
-/// difference.
+/// The per-file guarantee stops at what the plugin reports. Both mobile
+/// platforms drop an item they could not load and return the items that did
+/// load, with no error — Android logs it natively, iOS leaves no trace — so a
+/// pick of four photos can arrive as three with nothing to say the fourth
+/// existed. Nothing on this side can see the difference.
 Future<PickImagesResult?> pickImages() => pickImagesImpl();

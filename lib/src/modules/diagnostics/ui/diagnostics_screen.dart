@@ -434,9 +434,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       }
       // Null with no throw. A dismissed dialog — but Linux also returns null
       // for a failed portal request, which is not distinguishable from a
-      // cancel here. (Windows throws for every failure but a cancel.) Left silent on screen, since a cancel is by far the likely case
-      // and the user asked for nothing; recorded so that the other case is at
-      // least in the log and in the next report.
+      // cancel here. (Windows throws for every failure but a cancel.) Left
+      // silent on screen, since a cancel is by far the likely case and the
+      // user asked for nothing; recorded so that the other case is at least
+      // in the log and in the next report.
       _logger.warning(
         'The save dialog returned no path; the report was not written',
         attributes: {

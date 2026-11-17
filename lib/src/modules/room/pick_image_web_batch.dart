@@ -13,9 +13,10 @@ import 'pick_image.dart';
 /// never revokes it, which would keep each picked file reachable for the life
 /// of the page. Revoking the URL releases that reference; the bytes read are
 /// unaffected. The plugin reads each file's bytes at pick time, and a read
-/// here goes through the URL only when that preload failed, so the URLs are
-/// revoked once every read is done, and for the whole batch, so that nothing
-/// going wrong with one file can strand another file's URL.
+/// here goes through the URL only when it did not — the preload failed, or
+/// the file is over the plugin's 2 GB preload limit — so the URLs are revoked
+/// once every read is done, and for the whole batch, so that nothing going
+/// wrong with one file can strand another file's URL.
 ///
 /// A file the browser refuses to read lands in the result's errors; the rest
 /// of the batch is still read.

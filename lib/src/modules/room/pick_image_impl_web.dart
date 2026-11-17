@@ -15,8 +15,8 @@ import 'pick_image_web_batch.dart';
 /// costs no interop of our own.
 ///
 /// It does cost one thing that has to be undone: the object URL the plugin
-/// mints on every picked file. [readWebImageBatch] reads the bytes and revokes
-/// them.
+/// mints on every picked file. [readWebImageBatch] reads the bytes, then
+/// revokes the URLs.
 ///
 /// The plugin returns the files in the browser's `FileList` order, which the
 /// browser chooses, not necessarily the order the user picked them in.

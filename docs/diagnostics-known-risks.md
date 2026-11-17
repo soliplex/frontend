@@ -77,10 +77,10 @@ the user saves or cancels. Each save leaves a complete report — hostnames,
 discovery URLs, log records — on disk, outside the reasoning at
 `_publicPaths`.
 
-Since `file_picker` 13 that file sits in the plugin's own directory under the
-temporary directory, which the shell's boot-time `clearTemporaryFiles()`
-sweeps (and the system may purge sooner), so it outlives the session but not
-the next launch.
+With `file_picker_darwin` 2.5.1 that file sits in the plugin's own directory
+under the temporary directory, which the shell's boot-time
+`clearTemporaryFiles()` sweeps (and the system may purge sooner), so it
+outlives the session but not the next launch.
 
 Read from the plugin's Swift (`file_picker_darwin` 2.5.1), not exercised.
 

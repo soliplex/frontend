@@ -247,10 +247,10 @@ class _ChatInputState extends State<ChatInput> {
         stackTrace: stackTrace,
       );
       if (mounted) {
-        // Not the upload path's "could not open file picker": on web the bytes
-        // are read inside the picker call, so a failure here is as likely to
-        // have come after the chooser closed — which the user just watched
-        // work.
+        // Not the upload path's "could not open file picker": a failure here
+        // can come after the chooser closed — which the user just watched
+        // work — since on Android and iOS a pick none of whose images could be
+        // loaded fails as a whole.
         setState(
           () => _attachNotice = error.cause is RangeError
               ? 'The images are too large to load in the browser.'
@@ -301,9 +301,10 @@ class _ChatInputState extends State<ChatInput> {
     }
 
     // A batch with nothing in it is not a cancel, which comes back as null.
-    // No supported picker answers this way any more — a pick that lost every
-    // item now fails as a whole — but one that did would leave nothing to
-    // name, and this line would be the only record the pick happened at all.
+    // [pickImages] never returns one: it answers an empty pick with null and
+    // reports every picked file as an image or an error. A supplied picker
+    // could, and with nothing to name this line would be the only record the
+    // pick happened at all.
     final pickedNothing = result.images.isEmpty && result.errors.isEmpty;
     if (pickedNothing) {
       _logger.error(
