@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/svg_preview.dart';
 
 void main() {
   group('CodeBlockBuilder', () {
@@ -53,7 +54,22 @@ void main() {
       expect(find.text('plaintext'), findsNothing);
     });
 
-    testWidgets('SVG block shows preview/source toggle and copy button',
+    testWidgets('fence language JSON is labelled json', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '```JSON\n{"a": 1}\n```',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('json'), findsOneWidget);
+      expect(find.text('JSON'), findsNothing);
+    });
+
+    testWidgets('SVG block shows preview/source switch and copy button',
         (tester) async {
       const svgCode = '<svg xmlns="http://www.w3.org/2000/svg">'
           '<circle cx="50" cy="50" r="40"/>'
@@ -71,11 +87,13 @@ void main() {
         ),
       );
 
-      expect(find.byTooltip('Show source'), findsOneWidget);
+      expect(find.byType(SvgBody), findsOneWidget);
+      expect(find.text('Preview'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
       expect(find.byTooltip('Copy SVG'), findsOneWidget);
     });
 
-    testWidgets('SVG block toggles to source view', (tester) async {
+    testWidgets('SVG block switches to source view', (tester) async {
       const svgCode = '<svg xmlns="http://www.w3.org/2000/svg">'
           '<circle cx="50" cy="50" r="40"/>'
           '</svg>';
@@ -92,56 +110,37 @@ void main() {
         ),
       );
 
-      // Initially shows the preview toggle
-      expect(find.byTooltip('Show source'), findsOneWidget);
-      expect(find.byTooltip('Show preview'), findsNothing);
+      expect(find.byType(SvgPicture), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Show source'));
-      await tester.pump();
-
-      // After tap, shows preview toggle (source is now visible)
-      expect(find.byTooltip('Show preview'), findsOneWidget);
-      expect(find.byTooltip('Show source'), findsNothing);
-    });
-
-    testWidgets('tapping the SVG preview opens a zoomable dialog',
-        (tester) async {
-      const svgCode = '<svg xmlns="http://www.w3.org/2000/svg">'
-          '<circle cx="50" cy="50" r="40"/>'
-          '</svg>';
-
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: FlutterMarkdownPlusRenderer(
-                data: '```svg\n$svgCode\n```',
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      // The inline preview is not itself the full-size viewer.
-      expect(find.byType(SvgPreview), findsNothing);
-
-      // The preview is laid out at zero size until the SVG rasterizes, so a
-      // hit-test tap misses; invoke the wrapper's onTap directly.
-      final gesture = tester.widget<GestureDetector>(
-        find
-            .ancestor(
-              of: find.byType(SvgPicture),
-              matching: find.byType(GestureDetector),
-            )
-            .first,
-      );
-      gesture.onTap!();
+      await tester.tap(find.text('Source'));
       await tester.pumpAndSettle();
 
-      // The dialog frames the SVG in the shared zoomable SVG viewer, which owns
-      // its own parse-failure fallback (no zoom/rotate chrome over a failure).
-      expect(find.byType(SvgPreview), findsOneWidget);
+      expect(find.byType(SvgPicture), findsNothing);
+      expect(
+          find.textContaining('<circle', findRichText: true), findsOneWidget);
+    });
+
+    testWidgets('chat code joins the transcript selection', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SelectionArea(
+              child: FlutterMarkdownPlusRenderer(
+                data: '```dart\nvoid main() {}\n```',
+                selectable: false,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(SelectableText), findsNothing);
+      final code = find.textContaining('void main', findRichText: true);
+      expect(code, findsOneWidget);
+      // A paragraph joins the area's selection only when it is registered
+      // with the area.
+      final paragraph = tester.renderObject<RenderParagraph>(code);
+      expect(paragraph.registrar, isNotNull);
     });
   });
 }

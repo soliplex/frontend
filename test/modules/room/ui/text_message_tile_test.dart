@@ -753,8 +753,8 @@ void main() {
           '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'
           '\n```';
       await tester.pumpWidget(tile(text, sourceReferences: refs));
-      await tester.tap(find.byTooltip('Show source'));
-      await tester.pump();
+      await tester.tap(find.text('Source'));
+      await tester.pumpAndSettle();
 
       await tester.pumpWidget(
         tile(
@@ -765,7 +765,7 @@ void main() {
       );
 
       expect(rich('A diagram [4]:'), findsOneWidget);
-      expect(find.byTooltip('Show preview'), findsOneWidget);
+      expect(find.textContaining('xmlns', findRichText: true), findsOneWidget);
     });
 
     testWidgets("never rewrites the user's own text", (tester) async {
@@ -780,6 +780,34 @@ void main() {
       expect(find.text('What is [$first]?'), findsOneWidget);
       expect(copied(tester), 'What is [$first]?');
     });
+  });
+
+  testWidgets(
+      'a malformed SVG fence shows its notice once the message stops '
+      'streaming', (tester) async {
+    const notice = "Couldn't render this SVG; showing its source.";
+    Widget tile({required bool streaming}) => _wrap(
+          SingleChildScrollView(
+            child: TextMessageTile(
+              isStreaming: streaming,
+              roomId: 'r',
+              message: TextMessage(
+                id: 'svg-1',
+                user: ChatUser.assistant,
+                createdAt: DateTime(2026),
+                text: '```svg\nnot valid <svg tile-streaming garbage\n```',
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(tile(streaming: true));
+    await tester.pumpAndSettle();
+    expect(find.text(notice), findsNothing);
+
+    await tester.pumpWidget(tile(streaming: false));
+    await tester.pumpAndSettle();
+    expect(find.text(notice), findsOneWidget);
   });
 
   group('when the reply commits', () {

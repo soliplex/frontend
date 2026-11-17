@@ -81,7 +81,8 @@ class TextMessageTile extends StatelessWidget {
 
   /// Whether the run is streaming into this message right now. Decides what
   /// an empty bubble means: text still on its way, or a message no run is
-  /// writing into any more.
+  /// writing into any more; and whether a fenced block that fails to render
+  /// may only be incomplete.
   final bool isStreaming;
 
   @override
@@ -243,6 +244,7 @@ class _MessageBubble extends StatelessWidget {
                   data: message.text,
                   selectable: false,
                   citationNumbers: citationNumbers,
+                  isStreaming: isStreaming,
                 ),
     );
   }
