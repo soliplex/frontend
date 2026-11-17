@@ -68,5 +68,63 @@ void main() {
       expect(find.byType(SelectableText), findsNothing);
       expect(find.textContaining('"a"', findRichText: true), findsOneWidget);
     });
+
+    testWidgets('renders a tab as spaces', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: CodeView(code: 'a\tb', language: 'plaintext')),
+        ),
+      );
+
+      final text = tester
+          .widget<SelectableText>(find.byType(SelectableText))
+          .textSpan!
+          .toPlainText();
+      expect(text, isNot(contains('\t')));
+      expect(text, startsWith('a '));
+      expect(text, endsWith(' b'));
+    });
+
+    for (final selectable in [true, false]) {
+      testWidgets(
+          'with selectable $selectable ignores the ambient line height '
+          'and letter spacing', (tester) async {
+        const code = 'one\ntwo\nthree\nfour';
+        final theme = ThemeData(
+          textTheme: const TextTheme(
+            bodyMedium: TextStyle(height: 1.5, letterSpacing: 0.5),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CodeView(
+                    code: code,
+                    language: 'plaintext',
+                    selectable: selectable,
+                  ),
+                  Builder(
+                    builder: (context) => RichText(
+                      key: const Key('reference'),
+                      text: TextSpan(
+                        text: code,
+                        style: codeTextStyle(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        final expected = tester.getSize(find.byKey(const Key('reference')));
+
+        expect(tester.getSize(find.byType(CodeView)).height, expected.height);
+      });
+    }
   });
 }

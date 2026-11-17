@@ -980,6 +980,7 @@ void main() {
           findsOneWidget);
       expect(find.text('This SVG looks corrupt'), findsNothing);
       expect(find.byType(ZoomableView), findsNothing);
+      expect(_inPreview(find.text('Download')), findsNothing);
       expect(_inPreview(find.byIcon(Icons.download_outlined)), findsOneWidget);
     });
   });
