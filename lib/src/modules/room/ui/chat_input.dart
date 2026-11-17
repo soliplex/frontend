@@ -259,11 +259,7 @@ class _ChatInputState extends State<ChatInput> {
         // can come after the chooser closed — which the user just watched
         // work — since on Android and iOS a pick none of whose images could be
         // loaded fails as a whole.
-        setState(
-          () => _attachNotice = error.cause is RangeError
-              ? 'The images are too large to load in the browser.'
-              : 'Could not add the images.',
-        );
+        setState(() => _attachNotice = 'Could not add the images.');
       }
     } on Object catch (error, stackTrace) {
       _logger.error(

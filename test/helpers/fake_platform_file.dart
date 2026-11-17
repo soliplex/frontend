@@ -9,19 +9,17 @@ import 'package:file_picker/file_picker.dart';
 /// A [path] makes it a native pick, with a `file:` [uri]. Without one it
 /// stands for a web pick: a `blob:` [uri] whose [bytes] are what the browser
 /// read. [size] is what the platform reported at pick time, or `null` when
-/// it reported nothing; [length] answers [readLength], which defaults to it.
+/// it reported nothing; [length] answers it too.
 base class FakePlatformFile extends PlatformFile {
   FakePlatformFile({
     required this.name,
     String? path,
     this.size,
-    int? readLength,
     Uint8List? bytes,
     Object? readError,
   })  : uri = path != null
             ? Uri.file(path)
             : Uri.parse('blob:http://localhost/$name'),
-        _readLength = readLength ?? size,
         _bytes = bytes,
         _readError = readError;
 
@@ -34,7 +32,6 @@ base class FakePlatformFile extends PlatformFile {
   /// The size the platform reported at pick time.
   final int? size;
 
-  final int? _readLength;
   final Uint8List? _bytes;
   final Object? _readError;
 
@@ -45,7 +42,7 @@ base class FakePlatformFile extends PlatformFile {
   int? lengthSync() => size;
 
   @override
-  Future<int?> length() async => _readLength;
+  Future<int?> length() async => size;
 
   @override
   Future<Uint8List> readAsBytes() async {
