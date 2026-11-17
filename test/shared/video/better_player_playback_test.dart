@@ -104,9 +104,12 @@ void main() {
 
   testWidgets('completes once the video has loaded', (tester) async {
     VideoPlayback? playback;
+    VideoStatus? statusOnStart;
     unawaited(
-      createBetterPlayerPlayback(_signed, onError: (_) {})
-          .then((p) => playback = p),
+      createBetterPlayerPlayback(_signed, onError: (_) {}).then((p) {
+        playback = p;
+        statusOnStart = p.status.value;
+      }),
     );
     await settle(tester);
     expect(playback, isNull, reason: 'nothing has played yet');
@@ -115,6 +118,11 @@ void main() {
     await settle(tester);
 
     expect(playback, isNotNull);
+    expect(
+      statusOnStart!.duration,
+      const Duration(minutes: 1),
+      reason: 'the status already shows what the start reported',
+    );
     playback!.dispose();
   });
 

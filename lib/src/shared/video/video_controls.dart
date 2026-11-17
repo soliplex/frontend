@@ -86,7 +86,9 @@ class _VideoControlsState extends State<VideoControls> {
   }
 
   void _togglePlay() {
-    unawaited(_playback.isPlaying ? _playback.pause() : _playback.play());
+    unawaited(
+      _playback.status.value.isPlaying ? _playback.pause() : _playback.play(),
+    );
     _reveal();
   }
 

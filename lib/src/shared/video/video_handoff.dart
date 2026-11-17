@@ -7,7 +7,8 @@ import 'video_playback.dart';
 /// The places one video can be shown.
 enum VideoHost { inline, dialog, fullscreen }
 
-/// Which host shows a video's view, and the moves between them.
+/// Which host shows a video's view, and the moves between them. Owns the
+/// [playback], which [dispose] releases.
 ///
 /// Exactly one host shows the view; the others show a placeholder. On the web
 /// every view of a playback shows the same `<video>` element, so two mounted
@@ -19,8 +20,10 @@ class VideoHandoff {
 
   final VideoPlayback playback;
 
+  final Signal<VideoHost> _owner = signal(VideoHost.inline);
+
   /// The host showing the view.
-  final Signal<VideoHost> owner = signal(VideoHost.inline);
+  ReadonlySignal<VideoHost> get owner => _owner;
 
   /// Shows the view in [host] instead, keeping playback going.
   ///
@@ -28,9 +31,9 @@ class VideoHandoff {
   /// `PopScope` when it is the one closing — because tearing it down is what
   /// pauses the video, and the state is read first.
   Future<void> moveTo(VideoHost host) async {
-    if (owner.value == host) return;
-    final wasPlaying = playback.isPlaying;
-    owner.value = host;
+    if (_owner.value == host) return;
+    final wasPlaying = playback.status.value.isPlaying;
+    _owner.value = host;
     if (!wasPlaying) return;
     // One frame for the new view to mount, one for it to take the element.
     await WidgetsBinding.instance.endOfFrame;
@@ -38,7 +41,10 @@ class VideoHandoff {
     await playback.play();
   }
 
-  void dispose() => owner.dispose();
+  void dispose() {
+    playback.dispose();
+    _owner.dispose();
+  }
 }
 
 /// Shows the handoff's view, with its controls, when [host] owns it, and

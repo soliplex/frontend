@@ -50,11 +50,33 @@ class VideoCard extends StatefulWidget {
   State<VideoCard> createState() => _VideoCardState();
 }
 
-enum _Phase { idle, starting, playing, failed }
+/// Where the card's video stands. Only a playing card has a handoff.
+sealed class _CardState {
+  const _CardState();
+}
+
+class _Idle extends _CardState {
+  const _Idle();
+}
+
+/// Not const: each start is its own instance, so a start the card has since
+/// moved past can tell.
+class _Starting extends _CardState {
+  _Starting();
+}
+
+class _Playing extends _CardState {
+  const _Playing(this.handoff);
+
+  final VideoHandoff handoff;
+}
+
+class _Unplayable extends _CardState {
+  const _Unplayable();
+}
 
 class _VideoCardState extends State<VideoCard> {
-  _Phase _phase = _Phase.idle;
-  VideoHandoff? _handoff;
+  _CardState _state = const _Idle();
 
   /// The dialog and fullscreen routes open on this card's video, closed
   /// should the card fail or go first, since their views would outlive the
@@ -65,19 +87,26 @@ class _VideoCardState extends State<VideoCard> {
   @override
   void dispose() {
     _closeOpenRoutes();
-    _handoff?.playback.dispose();
-    _handoff?.dispose();
+    if (_state case _Playing(:final handoff)) handoff.dispose();
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(VideoCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.uri == oldWidget.uri) return;
+    _release();
+    _state = const _Idle();
+  }
+
   Future<void> _start() async {
-    setState(() => _phase = _Phase.starting);
+    if (_state is! _Idle) return;
+    final starting = _Starting();
+    setState(() => _state = starting);
+    final uri = widget.uri;
     final VideoPlayback playback;
     try {
-      playback = await widget.playbackFactory(
-        widget.uri,
-        onError: _fail,
-      );
+      playback = await widget.playbackFactory(uri, onError: _fail);
     } on Object catch (error, stackTrace) {
       // A VideoPlaybackException, whose reason holds nothing that could be a
       // credential (see VideoPlaybackException.reason).
@@ -85,42 +114,40 @@ class _VideoCardState extends State<VideoCard> {
         'Could not start the video player',
         error: error,
         stackTrace: stackTrace,
-        attributes: _sourceAttributes(widget.uri),
+        attributes: _sourceAttributes(uri),
       );
-      if (mounted) setState(() => _phase = _Phase.failed);
+      if (mounted && identical(_state, starting)) {
+        setState(() => _state = const _Unplayable());
+      }
       return;
     }
-    if (!mounted) {
-      playback.dispose();
+    final handoff = VideoHandoff(playback);
+    if (!mounted || !identical(_state, starting)) {
+      handoff.dispose();
       return;
     }
-    setState(() {
-      _handoff = VideoHandoff(playback);
-      if (_phase == _Phase.starting) _phase = _Phase.playing;
-    });
+    setState(() => _state = _Playing(handoff));
   }
 
   /// [reason] holds nothing that could be a credential (see
   /// [VideoPlaybackException.reason]).
   void _fail(String reason) {
+    if (!mounted || _state is! _Playing) return;
     _logger.warning(
       'A video could not be played',
       attributes: {..._sourceAttributes(widget.uri), 'reason': reason},
     );
-    if (!mounted) return;
+    _release();
+    setState(() => _state = const _Unplayable());
+  }
+
+  /// Closes the routes showing the video and releases it once its view is
+  /// gone, outside the player's own event dispatch, which [_fail] is called
+  /// from.
+  void _release() {
     _closeOpenRoutes();
-    final handoff = _handoff;
-    setState(() {
-      _handoff = null;
-      _phase = _Phase.failed;
-    });
-    // Released once its view is gone, and outside the player's own event
-    // dispatch, which is where this is called from.
-    if (handoff != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        handoff.playback.dispose();
-        handoff.dispose();
-      });
+    if (_state case _Playing(:final handoff)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => handoff.dispose());
     }
   }
 
@@ -211,7 +238,6 @@ class _VideoCardState extends State<VideoCard> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final handoff = _handoff;
     final caption = _captionFor(context);
     return SizedBox(
       width: double.infinity,
@@ -224,17 +250,17 @@ class _VideoCardState extends State<VideoCard> {
               aspectRatio: 16 / 9,
               child: ColoredBox(
                 color: colors.scrim,
-                child: switch (_phase) {
-                  _Phase.idle => _Poster(
+                child: switch (_state) {
+                  _Idle() => _Poster(
                       label: widget.caption,
                       onPlay: _start,
                     ),
-                  _Phase.starting => const Center(
+                  _Starting() => const Center(
                       child: CircularProgressIndicator(),
                     ),
-                  _Phase.failed => _Failed(uri: widget.uri),
-                  _Phase.playing => VideoHostView(
-                      handoff: handoff!,
+                  _Unplayable() => _Failed(uri: widget.uri),
+                  _Playing(:final handoff) => VideoHostView(
+                      handoff: handoff,
                       host: VideoHost.inline,
                       actions: VideoHostActions(
                         expand: () => _expand(handoff),

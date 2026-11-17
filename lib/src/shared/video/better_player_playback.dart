@@ -125,6 +125,8 @@ String _withShakaErrorsReduced(String text) =>
 class _BetterPlayerPlayback implements VideoPlayback {
   _BetterPlayerPlayback(this._controller) {
     _controller.addVideoListener(_update);
+    // The video has loaded by now; the status starts from where it stands.
+    _update();
   }
 
   final BetterPlayerController _controller;
@@ -177,9 +179,6 @@ class _BetterPlayerPlayback implements VideoPlayback {
           byHeight[height]!;
     }
   }
-
-  @override
-  bool get isPlaying => _controller.isPlaying() ?? false;
 
   @override
   Future<void> play() => _controller.play();

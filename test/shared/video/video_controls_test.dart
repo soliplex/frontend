@@ -38,9 +38,6 @@ class _RecordingPlayback implements VideoPlayback {
   }
 
   @override
-  bool get isPlaying => status.value.isPlaying;
-
-  @override
   Future<void> play() async {
     calls.add('play');
     set(isPlaying: true);

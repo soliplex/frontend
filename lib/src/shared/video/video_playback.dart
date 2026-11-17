@@ -76,9 +76,6 @@ abstract interface class VideoPlayback {
   /// Where playback stands, updated as it plays.
   ReadonlySignal<VideoStatus> get status;
 
-  /// Whether the video is playing now.
-  bool get isPlaying;
-
   /// Starts or resumes playback.
   Future<void> play();
 
