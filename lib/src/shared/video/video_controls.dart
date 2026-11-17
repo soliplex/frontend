@@ -23,9 +23,10 @@ class VideoHostActions {
 }
 
 /// The controls drawn over a video: a rail along the bottom with the
-/// progress bar, play, mute, time, quality and the [actions], shown while
-/// the pointer moves over the video and for a few seconds after, and always
-/// while the video is paused.
+/// progress bar, play, mute, time, quality and the [actions]. The rail shows
+/// while the pointer moves over the video and for [hideAfter] after, while
+/// the quality menu is open or the progress bar is dragged, and always while
+/// the video is paused; a touch on the video toggles it.
 ///
 /// The rail sits on a scrim that darkens to its bottom edge and draws its
 /// icons in a light colour, in either theme: a video can be any colour, so
@@ -103,8 +104,9 @@ class _VideoControlsState extends State<VideoControls> {
   }
 
   /// A mouse click plays or pauses, as on any web player. A touch shows the
-  /// controls when they are hidden and hides them when they are not, so a
-  /// finger aimed at the rail never stops the video by missing.
+  /// controls when they are hidden and hides them when they are shown (a
+  /// paused video keeps them regardless), so a finger aimed at the rail never
+  /// stops the video by missing.
   void _onTapVideo(PointerDeviceKind kind) {
     if (kind == PointerDeviceKind.mouse) {
       _togglePlay();
@@ -179,7 +181,7 @@ class _VideoControlsState extends State<VideoControls> {
     return DecoratedBox(
       decoration: BoxDecoration(
         // Clear at the top, so the rail fades into the picture, and darkest
-        // at the bottom edge, which it reaches.
+        // at the video's bottom edge, which the scrim runs all the way to.
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,

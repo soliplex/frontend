@@ -24,10 +24,10 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 ///   view instead. The package's web controls paint a fixed black gradient
 ///   that ignores the configured colours and stops short of the bottom edge,
 ///   and they have no slot for the expand and fullscreen actions.
-/// - An HLS or DASH stream adapts its rendition to the connection: Shaka's
-///   ABR on the web, ExoPlayer's on Android, AVPlayer's on iOS. Its manifest
-///   lists the renditions, which become [VideoStatus.qualities] as
-///   [qualitiesFrom] picks them.
+/// - An HLS stream adapts its rendition to the connection: Shaka's ABR on the
+///   web, ExoPlayer's on Android, AVPlayer's on iOS and macOS, libmpv's on
+///   Windows and Linux. The renditions its manifest lists become
+///   [VideoStatus.qualities], as [qualitiesFrom] picks them.
 /// - better_player logs nothing: its log prints the source URL whole, query
 ///   included.
 Future<VideoPlayback> createBetterPlayerPlayback(

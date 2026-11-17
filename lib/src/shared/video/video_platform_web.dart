@@ -9,10 +9,11 @@ import 'video_playback.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 
-/// Where the build serves Shaka Player, which `better_player` plays through on
-/// the web. Vendored (Apache-2.0, version in the file's header) rather than
-/// loaded from a CDN, so a deployment that cannot reach one, or whose content
-/// security policy forbids it, still plays video.
+/// Where the build serves Shaka Player 4.16.56, which `better_player` plays
+/// through on the web. Vendored (Apache-2.0) rather than loaded from a CDN, so
+/// a deployment that cannot reach one, or whose content security policy
+/// forbids it, still plays video. An app built on this library serves it from
+/// its own `web/vendor/`.
 const _shakaScript = 'vendor/shaka-player.compiled.js';
 
 Future<void>? _shakaLoad;

@@ -29,7 +29,7 @@ class VideoStatus {
 
   final Duration position;
 
-  /// Null until the player knows it, and for a live stream.
+  /// Null or zero while the player does not know it, as for a live stream.
   final Duration? duration;
 
   /// How far ahead of the start the player has loaded.
@@ -77,14 +77,15 @@ abstract interface class VideoPlayback {
 
   /// Keeps playback to the rendition [height] tall, one of
   /// [VideoStatus.qualities], or, when null, lets the player adapt it to the
-  /// connection again.
+  /// connection again. The web plays that rendition; the native players cap
+  /// the resolution at it.
   void selectQuality(int? height);
 
   /// A view of the video alone; the hosts draw the controls over it.
   ///
-  /// At most one may be mounted at a time. On the web every view of one
-  /// playback shows the same `<video>` element, which the newest view takes
-  /// from the others.
+  /// At most one may be mounted at a time: on the web every view of one
+  /// playback shows the same `<video>` element, which a second view would take
+  /// from the first.
   Widget buildView();
 
   /// Stops playback and releases the player. Called once, by the owner.

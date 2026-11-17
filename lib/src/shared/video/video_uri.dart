@@ -1,6 +1,6 @@
 /// The file extensions a markdown image source is played as a video for.
 ///
-/// Direct media only: `.m3u8` is an HLS playlist, which the player streams on
+/// Media files, and HLS playlists (`.m3u8`), which the player streams on
 /// every platform. A page URL (YouTube, Vimeo) is not a video file and stays
 /// whatever the markdown made it.
 const _videoExtensions = {'mp4', 'webm', 'mov', 'm4v', 'm3u8'};
@@ -10,8 +10,7 @@ const _videoExtensions = {'mp4', 'webm', 'mov', 'm4v', 'm3u8'};
 /// image.
 ///
 /// Only `http` and `https`: the backend serves no media of its own that a
-/// player could reach without credentials, so a video in an answer is always
-/// one the model linked from the web.
+/// player could fetch without credentials.
 bool isVideoUri(Uri uri) {
   if (uri.scheme != 'http' && uri.scheme != 'https') return false;
   final path = uri.path;

@@ -364,7 +364,8 @@ class _Failed extends StatelessWidget {
   }
 }
 
-/// Adds the route [child] is shown in to [routes] for as long as it is.
+/// Adds the route [child] is shown in to [routes] for as long as it is: the
+/// dialog's, which `showZoomableMediaDialog` does not return.
 class _RouteRegistration extends StatefulWidget {
   const _RouteRegistration({required this.routes, required this.child});
 

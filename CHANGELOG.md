@@ -14,14 +14,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   also `.webm`, `.mov`, `.m4v` and `.m3u8`) shows as a 16:9 player the width
   of the message. Nothing loads until you press play. It expands into the same
   dialog images open in, and goes full screen from either, playing on from
-  where it was. Its controls sit on one rail along the bottom: play, mute,
-  time, expand and full screen, and for a streamed (HLS) video a quality menu
-  whose default, Auto, adapts to the connection. A video that cannot be played
-  offers to open it in the browser instead.
+  where it was. Its controls sit on one rail along the bottom: a progress bar,
+  play, mute, time, expand and full screen, and for a streamed (HLS) video
+  with renditions of more than one height a quality menu whose default, Auto,
+  adapts to the connection. A video that cannot be played offers to open it in
+  the browser instead.
 - **Library consumers:** the `pubspec.yaml` Flutter floor rises to 3.47.0,
-  which `better_player` requires. A web build serves
-  `web/vendor/shaka-player.compiled.js`, which the player loads the first time
-  a video plays.
+  which `better_player` requires. A fork's web build must copy
+  `web/vendor/shaka-player.compiled.js` into its own `web/vendor/`: the player
+  loads it from there the first time a video plays, and without it no video
+  plays on the web. See "Web video player" in `docs/authoring-a-flavor.md`.
 
 ### Changed
 
