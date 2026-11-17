@@ -118,7 +118,7 @@ class _VideoControlsState extends State<VideoControls> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _OverlayPalette.of(Theme.of(context).colorScheme);
+    final palette = VideoOverlayPalette.of(Theme.of(context).colorScheme);
     return Watch((context) {
       final status = _playback.status.value;
       final visible = _shown || !status.isPlaying;
@@ -159,7 +159,7 @@ class _VideoControlsState extends State<VideoControls> {
   Widget _rail(
     BuildContext context,
     VideoStatus status,
-    _OverlayPalette palette,
+    VideoOverlayPalette palette,
   ) {
     final actions = widget.actions;
     final muted = status.volume == 0;
@@ -253,7 +253,7 @@ class _VideoControlsState extends State<VideoControls> {
     );
   }
 
-  Widget _progressBar(VideoStatus status, _OverlayPalette palette) {
+  Widget _progressBar(VideoStatus status, VideoOverlayPalette palette) {
     final totalMs = status.duration?.inMilliseconds.toDouble() ?? 0;
     final known = totalMs > 0;
     double clamp(double ms) => known ? ms.clamp(0, totalMs) : 0;
@@ -300,7 +300,7 @@ class _VideoControlsState extends State<VideoControls> {
     );
   }
 
-  Widget _qualityMenu(VideoStatus status, _OverlayPalette palette) {
+  Widget _qualityMenu(VideoStatus status, VideoOverlayPalette palette) {
     const auto = -1;
     final current = status.quality == null
         ? auto
@@ -359,18 +359,19 @@ String _format(Duration d) {
       : '$minutes:$seconds';
 }
 
-/// A dark scrim with light content, whichever the theme: a light theme's
-/// inverse colours, a dark theme's own.
-class _OverlayPalette {
-  const _OverlayPalette({
+/// The colours of whatever is drawn over a video or in its place: a dark
+/// scrim with light content, whichever the theme — a light theme's inverse
+/// colours, a dark theme's own.
+class VideoOverlayPalette {
+  const VideoOverlayPalette._({
     required this.scrim,
     required this.foreground,
     required this.accent,
   });
 
-  factory _OverlayPalette.of(ColorScheme colors) {
+  factory VideoOverlayPalette.of(ColorScheme colors) {
     final dark = colors.brightness == Brightness.dark;
-    return _OverlayPalette(
+    return VideoOverlayPalette._(
       scrim: colors.scrim,
       foreground: dark ? colors.onSurface : colors.onInverseSurface,
       accent: dark ? colors.primary : colors.inversePrimary,

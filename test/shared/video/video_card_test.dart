@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
+import 'package:soliplex_design/soliplex_design.dart'
+    show soliplexDarkTheme, soliplexLightTheme;
 import 'package:soliplex_frontend/src/shared/video/video_card.dart';
 import 'package:soliplex_frontend/src/shared/video/video_playback.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -70,6 +71,13 @@ class _FakeViewState extends State<_FakeView> {
 const _viewKey = ValueKey('video-view');
 final _uri = Uri.parse('https://cdn.example/clip.mp4');
 
+/// WCAG contrast between two opaque colours.
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  return (la > lb ? la + 0.05 : lb + 0.05) / (la > lb ? lb + 0.05 : la + 0.05);
+}
+
 void main() {
   late _FakePlayback playback;
   late int created;
@@ -98,11 +106,12 @@ void main() {
   Future<void> pumpCard(
     WidgetTester tester, {
     String? caption,
+    ThemeData? theme,
     VideoPlaybackFactory? playbackFactory,
   }) =>
       tester.pumpWidget(
         MaterialApp(
-          theme: soliplexLightTheme(),
+          theme: theme ?? soliplexLightTheme(),
           home: Scaffold(
             body: SingleChildScrollView(
               child: SizedBox(
@@ -141,6 +150,25 @@ void main() {
     expect(created, 1);
     expect(find.byKey(_viewKey), findsOneWidget);
     expect(find.byTooltip('Expand video'), findsOneWidget);
+  });
+
+  testWidgets('a screen reader can press play, named by the caption',
+      (tester) async {
+    await pumpCard(tester, caption: 'A demo');
+
+    final play = find.bySemanticsLabel('Play A demo');
+    expect(
+      tester.getSemantics(play),
+      matchesSemantics(
+        label: 'Play A demo',
+        isButton: true,
+        hasTapAction: true,
+      ),
+    );
+    tester.semantics.tap(find.semantics.byLabel('Play A demo'));
+    await tester.pumpAndSettle();
+
+    expect(created, 1);
   });
 
   testWidgets('pressing play twice before it starts starts one player',
@@ -429,5 +457,37 @@ void main() {
 
     expect(playback.disposed, isTrue);
     expect(find.byType(Dialog), findsNothing);
+  });
+
+  group('in the dark theme', () {
+    Future<Color> textColour(WidgetTester tester, String text) async =>
+        tester.widget<Text>(find.text(text)).style!.color!;
+
+    testWidgets('the failure reads against the black card', (tester) async {
+      final theme = soliplexDarkTheme();
+      await pumpCard(
+        tester,
+        theme: theme,
+        playbackFactory: (_, {required onError}) =>
+            Future.error(const VideoPlaybackException('HTTP 404')),
+      );
+      await startPlaying(tester);
+
+      final colour =
+          await textColour(tester, "This video can't be played here.");
+      expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
+    });
+
+    testWidgets('"playing elsewhere" reads against the black card',
+        (tester) async {
+      final theme = soliplexDarkTheme();
+      await pumpCard(tester, theme: theme);
+      await startPlaying(tester);
+      await tester.tap(find.byTooltip('Expand video'));
+      await tester.pumpAndSettle();
+
+      final colour = await textColour(tester, 'Playing in the expanded view');
+      expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
+    });
   });
 }

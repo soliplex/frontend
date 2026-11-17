@@ -237,7 +237,7 @@ class _VideoCardState extends State<VideoCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final palette = VideoOverlayPalette.of(Theme.of(context).colorScheme);
     final caption = _captionFor(context);
     return SizedBox(
       width: double.infinity,
@@ -249,7 +249,7 @@ class _VideoCardState extends State<VideoCard> {
             child: AspectRatio(
               aspectRatio: 16 / 9,
               child: ColoredBox(
-                color: colors.scrim,
+                color: palette.scrim,
                 child: switch (_state) {
                   _Idle() => _Poster(
                       label: widget.caption,
@@ -299,6 +299,8 @@ class _Poster extends StatelessWidget {
     return Semantics(
       button: true,
       label: label == null || label.isEmpty ? 'Play video' : 'Play $label',
+      // Excluding the children's semantics drops the InkWell's tap too.
+      onTap: onPlay,
       excludeSemantics: true,
       child: InkWell(
         onTap: onPlay,
@@ -320,14 +322,14 @@ class _ShownElsewhere extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final palette = VideoOverlayPalette.of(Theme.of(context).colorScheme);
     return Center(
       child: Text(
         'Playing in the expanded view',
         style: Theme.of(context)
             .textTheme
             .bodyMedium
-            ?.copyWith(color: colors.onInverseSurface),
+            ?.copyWith(color: palette.foreground),
       ),
     );
   }
@@ -340,7 +342,7 @@ class _Failed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final palette = VideoOverlayPalette.of(Theme.of(context).colorScheme);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(SoliplexSpacing.s4),
@@ -353,7 +355,7 @@ class _Failed extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: colors.onInverseSurface),
+                  ?.copyWith(color: palette.foreground),
             ),
             const SizedBox(height: SoliplexSpacing.s2),
             SoliplexButton.filled(
@@ -412,11 +414,11 @@ class _FullscreenPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final palette = VideoOverlayPalette.of(Theme.of(context).colorScheme);
     return PopScope(
       onPopInvokedWithResult: (_, __) => onLeave(),
       child: ColoredBox(
-        color: colors.scrim,
+        color: palette.scrim,
         child: SafeArea(
           child: Center(
             child: AspectRatio(
