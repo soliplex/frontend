@@ -37,6 +37,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     super.key,
     this.selectable = true,
     this.citationNumbers = const {},
+    this.isStreaming = false,
   });
 
   /// Whether the markdown manages its own selection (via `SelectableText`).
@@ -48,6 +49,10 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   /// The numbers cited chunk ids in [data] are shown as — see
   /// [CitationMarkerSyntax].
   final Map<String, int> citationNumbers;
+
+  /// Whether [data] is still streaming in, so a fenced block that fails to
+  /// render may only be incomplete.
+  final bool isStreaming;
 
   @override
   Widget build(BuildContext context) {
@@ -61,54 +66,52 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     final markdown = sanitizeMarkdown(data);
     final numbers = citationNumbersIn(markdown, citationNumbers);
 
-    return MarkdownBody(
-      // MarkdownBody parses again when its text, its style sheet or its
-      // dependencies change, not when its syntaxes do, so the key replaces it
-      // whenever the number of an id in one of its text's bracketed groups
-      // changes, dropping the state of the widgets it built, such as an SVG
-      // block's source view.
-      key: _CitationNumbersKey(numbers),
-      data: markdown,
-      selectable: selectable,
-      styleSheet: markdownTheme?.toMarkdownStyleSheet(
-        codeFontStyle: monoStyle,
-      ),
-      extensionSet: md.ExtensionSet.gitHubFlavored,
-      blockSyntaxes: [LatexBlockSyntax()],
-      inlineSyntaxes: [LatexInlineSyntax(), CitationMarkerSyntax(numbers)],
-      onTapLink: (_, href, title) {
-        if (href == null) return;
-        final handleTap = onLinkTap;
-        if (handleTap != null) {
-          handleTap(href, title);
-        } else {
-          launchMarkdownLink(href);
-        }
-      },
-      // A video file in image syntax plays rather than shows. `onImageTap`
-      // is for images; the card owns what a tap on a video does.
-      imageBuilder: (uri, title, alt) => isVideoUri(uri)
-          ? VideoCard(
-              uri: uri,
-              caption: alt,
-              playbackFactory: createBetterPlayerPlayback,
-            )
-          : _MaybeZoomableImage(
-              uri: uri,
-              alt: alt,
-              onImageTap: onImageTap,
-              inline: _buildImage(uri, title, alt),
-            ),
-      builders: {
-        'code': InlineCodeBuilder(),
-        'pre': CodeBlockBuilder(
-          // design-system exception (approved): 14pt sits between bodySmall
-          // (13) and bodyMedium (16); chosen so block code reads at roughly
-          // the size of surrounding prose without dominating it.
-          preferredStyle: monoStyle.copyWith(fontSize: 14),
+    return FenceStreaming(
+      isStreaming: isStreaming,
+      child: MarkdownBody(
+        // MarkdownBody parses again when its text, its style sheet or its
+        // dependencies change, not when its syntaxes do, so the key replaces it
+        // whenever the number of an id in one of its text's bracketed groups
+        // changes, dropping the state of the widgets it built, such as an SVG
+        // block's source view.
+        key: _CitationNumbersKey(numbers),
+        data: markdown,
+        selectable: selectable,
+        styleSheet: markdownTheme?.toMarkdownStyleSheet(
+          codeFontStyle: monoStyle,
         ),
-        'latex': LatexElementBuilder(),
-      },
+        extensionSet: md.ExtensionSet.gitHubFlavored,
+        blockSyntaxes: [LatexBlockSyntax()],
+        inlineSyntaxes: [LatexInlineSyntax(), CitationMarkerSyntax(numbers)],
+        onTapLink: (_, href, title) {
+          if (href == null) return;
+          final handleTap = onLinkTap;
+          if (handleTap != null) {
+            handleTap(href, title);
+          } else {
+            launchMarkdownLink(href);
+          }
+        },
+        // A video file in image syntax plays rather than shows. `onImageTap`
+        // is for images; the card owns what a tap on a video does.
+        imageBuilder: (uri, title, alt) => isVideoUri(uri)
+            ? VideoCard(
+                uri: uri,
+                caption: alt,
+                playbackFactory: createBetterPlayerPlayback,
+              )
+            : _MaybeZoomableImage(
+                uri: uri,
+                alt: alt,
+                onImageTap: onImageTap,
+                inline: _buildImage(uri, title, alt),
+              ),
+        builders: {
+          'code': InlineCodeBuilder(),
+          'pre': CodeBlockBuilder(selectable: selectable),
+          'latex': LatexElementBuilder(),
+        },
+      ),
     );
   }
 }

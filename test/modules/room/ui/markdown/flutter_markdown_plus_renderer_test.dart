@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
 
@@ -503,6 +504,51 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(Dialog), findsNothing);
       expect(find.byType(ZoomableImage), findsNothing);
+    });
+  });
+
+  group('streaming fences', () {
+    Widget renderer(String data, {required bool streaming}) => MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FlutterMarkdownPlusRenderer(
+                data: data,
+                isStreaming: streaming,
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('rebuilds fences when only isStreaming changes',
+        (tester) async {
+      const notice = "Couldn't render this SVG; showing its source.";
+      const data = '```svg\nnot valid <svg renderer-streaming garbage\n```';
+
+      await tester.pumpWidget(renderer(data, streaming: true));
+      await tester.pumpAndSettle();
+      expect(find.text(notice), findsNothing);
+
+      await tester.pumpWidget(renderer(data, streaming: false));
+      await tester.pumpAndSettle();
+      expect(find.text(notice), findsOneWidget);
+    });
+
+    testWidgets('an SVG fence keeps its Source view when streaming ends',
+        (tester) async {
+      const data = '```svg\n<svg xmlns="http://www.w3.org/2000/svg" '
+          'width="10" height="10"><circle cx="5" cy="5" r="4"/></svg>\n```';
+
+      await tester.pumpWidget(renderer(data, streaming: true));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Source'));
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(renderer(data, streaming: false));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SvgPicture), findsNothing);
+      expect(
+          find.textContaining('<circle', findRichText: true), findsOneWidget);
     });
   });
 }

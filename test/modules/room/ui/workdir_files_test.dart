@@ -6,7 +6,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +18,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
+import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 
 import '../../../helpers/file_name_finder.dart';
 import '../../../helpers/preview_title_finder.dart';
@@ -447,7 +447,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('code file opens preview with a HighlightView code block',
+  testWidgets('code file opens preview with a CodeView code block',
       (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('script.py')]),
@@ -461,9 +461,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
-    // The code-block builder hands the body to flutter_highlight's
-    // HighlightView — proves dispatch landed on CodePreview, not text.
-    expect(find.byType(HighlightView), findsOneWidget);
+    // The code-block builder hands the body to CodeView — proves dispatch
+    // landed on CodePreview, not text.
+    expect(find.byType(CodeView), findsOneWidget);
   });
 
   testWidgets('markdown file opens preview through the markdown renderer',
@@ -483,11 +483,10 @@ void main() {
     // TextPreview wraps the content in MarkdownBody. Image/code paths
     // don't, so finding MarkdownBody proves dispatch landed on text.
     expect(find.byType(MarkdownBody), findsOneWidget);
-    expect(find.byType(HighlightView), findsNothing);
+    expect(find.byType(CodeView), findsNothing);
   });
 
-  testWidgets('json file is pretty-printed inside a HighlightView',
-      (tester) async {
+  testWidgets('json file is pretty-printed inside a CodeView', (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('data.json')]),
       onRetry: () {},
@@ -500,11 +499,11 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
-    final view = tester.widget<HighlightView>(find.byType(HighlightView));
+    final view = tester.widget<CodeView>(find.byType(CodeView));
     expect(view.language, 'json');
     // 2-space indent is the pretty-print contract — verifying it via the
     // raw source the highlighter receives.
-    expect(view.source, contains('"a": 1'));
+    expect(view.code, contains('"a": 1'));
   });
 
   testWidgets('svg file opens preview with SvgPicture in InteractiveViewer',
