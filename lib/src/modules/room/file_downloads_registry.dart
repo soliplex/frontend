@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' show FilePicker;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -16,23 +16,26 @@ import 'workdir_files_status.dart' show workdirFileUnavailable;
 final _logger = LogManager.instance.getLogger('workdir_files');
 
 /// Save the [bytes] under [fileName], typically by opening the platform
-/// save dialog. Returns the chosen path on success, or `null` if the user
-/// cancelled. On web the browser triggers the download directly and the
-/// returned path is always `null`.
+/// save dialog. Returns the chosen location on success, as a URI string —
+/// `file://` on iOS and desktop, a content-URI path with no scheme on
+/// Android — or `null` if the user cancelled. On web the browser triggers
+/// the download directly and nothing is returned.
 typedef SaveFile = Future<String?> Function({
   required String fileName,
   required Uint8List bytes,
 });
 
-Future<String?> _defaultSaveFile({
+/// The [SaveFile] the registry uses unless one is injected.
+@visibleForTesting
+Future<String?> defaultSaveFile({
   required String fileName,
   required Uint8List bytes,
-}) {
-  // file_picker 11.0.3 throws on web for empty bytes or a name with no
-  // extension (`Makefile`, `.env`), so such a download reports failed. On
-  // desktop it writes nothing for empty bytes, yet returns the chosen path,
-  // so an empty file reports success with nothing saved.
-  return FilePicker.saveFile(fileName: fileName, bytes: bytes);
+}) async {
+  // file_picker 13 throws on web for an empty name or one with no extension
+  // (`Makefile`, `.env`), so such a download reports failed. Every desktop
+  // platform writes the bytes to the chosen location, an empty file included.
+  final saved = await FilePicker.saveFile(fileName: fileName, bytes: bytes);
+  return saved?.toString();
 }
 
 /// Each thread's file downloads, per server entry and room.
@@ -49,7 +52,7 @@ Future<String?> _defaultSaveFile({
 class FileDownloadsRegistry {
   FileDownloadsRegistry({
     required ReadonlySignal<Map<String, ServerEntry>> servers,
-    SaveFile saveFile = _defaultSaveFile,
+    SaveFile saveFile = defaultSaveFile,
     bool isWeb = kIsWeb,
   })  : _saveFile = saveFile,
         _isWeb = isWeb,
@@ -179,7 +182,7 @@ Future<DownloadOutcome> downloadWorkdirFile({
     return const DownloadSaved();
   } catch (e, st) {
     // Attached whole: a save failure is the platform's, the save dialog's
-    // error, the web saver's fixed-text refusal of an empty file or a name
+    // error, the web saver's fixed-text refusal of an empty name or a name
     // with no extension or, when writing the file failed, one naming the
     // local path it could not write. None holds a credential.
     _logger.warning(

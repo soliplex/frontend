@@ -2,49 +2,54 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-// ignore: implementation_imports
-import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/pick_file.dart';
 
+import '../../helpers/fake_platform_file.dart';
+
 class _FakeFilePicker extends FilePickerPlatform {
-  _FakeFilePicker.result(FilePickerResult this._result) : _thrown = null;
+  _FakeFilePicker.result(List<PlatformFile> this._result) : _thrown = null;
   _FakeFilePicker.throwing(Object this._thrown) : _result = null;
 
-  final FilePickerResult? _result;
+  final List<PlatformFile>? _result;
   final Object? _thrown;
 
   @override
-  Future<FilePickerResult?> pickFiles({
+  Future<List<PlatformFile>> pickFiles({
     String? dialogTitle,
     String? initialDirectory,
     FileType type = FileType.any,
     List<String>? allowedExtensions,
     Function(FilePickerStatus)? onFileLoading,
     int compressionQuality = 0,
-    bool allowMultiple = false,
-    bool withData = false,
-    bool withReadStream = false,
-    bool lockParentWindow = false,
-    bool readSequential = false,
-    bool cancelUploadOnWindowBlur = true,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
   }) async {
     if (_thrown != null) throw _thrown;
-    return _result;
+    return _result!;
   }
 }
 
 class _FakeFolderPicker extends FilePickerPlatform {
-  _FakeFolderPicker(this._directoryPath);
+  _FakeFolderPicker(this._directoryPath) : _thrown = null;
+  _FakeFolderPicker.throwing(Object this._thrown) : _directoryPath = null;
 
   final String? _directoryPath;
+  final Object? _thrown;
 
   @override
   Future<String?> getDirectoryPath({
     String? dialogTitle,
-    bool lockParentWindow = false,
     String? initialDirectory,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
   }) async {
+    if (_thrown != null) throw _thrown;
     return _directoryPath;
   }
 }
@@ -61,9 +66,7 @@ void main() {
   });
 
   test('pickFiles returns null when user cancels the picker', () async {
-    FilePickerPlatform.instance = _FakeFilePicker.result(
-      FilePickerResult(const []),
-    );
+    FilePickerPlatform.instance = _FakeFilePicker.result(const []);
     expect(await pickFiles(), isNull);
   });
 
@@ -91,15 +94,13 @@ void main() {
     final fileContents = utf8.encode('hello world');
     await tempFile.writeAsBytes(fileContents);
 
-    FilePickerPlatform.instance = _FakeFilePicker.result(
-      FilePickerResult([
-        PlatformFile(
-          name: 'doc.pdf',
-          size: fileContents.length,
-          path: tempFile.path,
-        ),
-      ]),
-    );
+    FilePickerPlatform.instance = _FakeFilePicker.result([
+      FakePlatformFile(
+        name: 'doc.pdf',
+        size: fileContents.length,
+        path: tempFile.path,
+      ),
+    ]);
 
     final result = await pickFiles();
     expect(result, isNotNull);
@@ -134,12 +135,10 @@ void main() {
     await fileA.writeAsBytes(aBytes);
     await fileB.writeAsBytes(bBytes);
 
-    FilePickerPlatform.instance = _FakeFilePicker.result(
-      FilePickerResult([
-        PlatformFile(name: 'a.txt', size: aBytes.length, path: fileA.path),
-        PlatformFile(name: 'b.txt', size: bBytes.length, path: fileB.path),
-      ]),
-    );
+    FilePickerPlatform.instance = _FakeFilePicker.result([
+      FakePlatformFile(name: 'a.txt', size: aBytes.length, path: fileA.path),
+      FakePlatformFile(name: 'b.txt', size: bBytes.length, path: fileB.path),
+    ]);
 
     final result = await pickFiles();
     expect(result, isNotNull);
@@ -169,18 +168,16 @@ void main() {
     final goodBytes = utf8.encode('ok');
     await goodFile.writeAsBytes(goodBytes);
 
-    FilePickerPlatform.instance = _FakeFilePicker.result(
-      FilePickerResult([
-        // First file: native invariant violation — no path.
-        PlatformFile(name: 'broken.bin', size: 10),
-        // Second file: works.
-        PlatformFile(
-          name: 'good.txt',
-          size: goodBytes.length,
-          path: goodFile.path,
-        ),
-      ]),
-    );
+    FilePickerPlatform.instance = _FakeFilePicker.result([
+      // First file: native invariant violation — no path.
+      FakePlatformFile(name: 'broken.bin', size: 10),
+      // Second file: works.
+      FakePlatformFile(
+        name: 'good.txt',
+        size: goodBytes.length,
+        path: goodFile.path,
+      ),
+    ]);
 
     final result = await pickFiles();
     expect(result, isNotNull);
@@ -190,6 +187,76 @@ void main() {
     expect(result.errors, hasLength(1));
     expect(result.errors.single.filename, 'broken.bin');
     expect(result.errors.single.cause, isA<StateError>());
+  });
+
+  test('takes the size the platform reported without reading the file',
+      () async {
+    // Nothing exists at the path, so a size read from disk would fail.
+    FilePickerPlatform.instance = _FakeFilePicker.result([
+      FakePlatformFile(
+        name: 'reported.bin',
+        path: '${Directory.systemTemp.path}/pick_files_never_written.bin',
+        size: 42,
+      ),
+    ]);
+
+    final result = await pickFiles();
+
+    expect(result!.errors, isEmpty);
+    expect(result.files.single.size, 42);
+  });
+
+  group('a pick whose result carries no size', () {
+    // Every pick on Windows and Linux: the size is read from the file.
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('pick_files_size'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    File write(String name, List<int> bytes) =>
+        File('${dir.path}/$name')..writeAsBytesSync(bytes);
+
+    test('takes the size from the file', () async {
+      final file = write('a.txt', utf8.encode('seven b'));
+      FilePickerPlatform.instance = _FakeFilePicker.result([
+        FakePlatformFile(name: 'a.txt', path: file.path),
+      ]);
+
+      final result = await pickFiles();
+
+      expect(result!.errors, isEmpty);
+      expect(result.files.single.size, 7);
+    });
+
+    test('accepts an empty file', () async {
+      final file = write('empty.txt', const []);
+      FilePickerPlatform.instance = _FakeFilePicker.result([
+        FakePlatformFile(name: 'empty.txt', path: file.path),
+      ]);
+
+      final result = await pickFiles();
+
+      expect(result!.errors, isEmpty);
+      expect(result.files.single.size, 0);
+    });
+
+    test(
+        'reports a file whose size cannot be read, with the reason, and '
+        'keeps the rest of the batch', () async {
+      // The upload's Content-Length needs the size, so that file cannot go
+      // up; the file system's error says why.
+      final good = write('good.txt', utf8.encode('ok'));
+      FilePickerPlatform.instance = _FakeFilePicker.result([
+        FakePlatformFile(name: 'gone.bin', path: '${dir.path}/gone.bin'),
+        FakePlatformFile(name: 'good.txt', path: good.path),
+      ]);
+
+      final result = await pickFiles();
+
+      expect(result!.files.single.name, 'good.txt');
+      expect(result.files.single.size, 2);
+      expect(result.errors.single.filename, 'gone.bin');
+      expect(result.errors.single.cause, isA<FileSystemException>());
+    });
   });
 
   group('mangleRelativePath', () {
@@ -281,6 +348,35 @@ void main() {
     test('returns null when user cancels (no folder selected)', () async {
       FilePickerPlatform.instance = _FakeFolderPicker(null);
       expect(await pickFolder(), isNull);
+    });
+
+    test('wraps a failing directory picker in PickFilePickerException',
+        () async {
+      final error = Exception('picker exploded');
+      FilePickerPlatform.instance = _FakeFolderPicker.throwing(error);
+
+      await expectLater(
+        pickFolder(),
+        throwsA(
+          isA<PickFilePickerException>()
+              .having((e) => e.cause, 'cause', same(error)),
+        ),
+      );
+    });
+
+    test('wraps a folder it cannot list in PickFilePickerException', () async {
+      // What iOS answers for a folder picked outside the app's own storage:
+      // a path the app is not allowed to list.
+      FilePickerPlatform.instance =
+          _FakeFolderPicker('${tempRoot.path}/not_listable');
+
+      await expectLater(
+        pickFolder(),
+        throwsA(
+          isA<PickFilePickerException>()
+              .having((e) => e.cause, 'cause', isA<FileSystemException>()),
+        ),
+      );
     });
 
     test('returns null when folder contains only dotfiles', () async {

@@ -255,15 +255,11 @@ class _ChatInputState extends State<ChatInput> {
         stackTrace: stackTrace,
       );
       if (mounted) {
-        // Not the upload path's "could not open file picker": on web the bytes
-        // are read inside the picker call, so a failure here is as likely to
-        // have come after the chooser closed — which the user just watched
-        // work.
-        setState(
-          () => _attachNotice = error.cause is RangeError
-              ? 'The images are too large to load in the browser.'
-              : 'Could not add the images.',
-        );
+        // Not the upload path's "could not open file picker": a failure here
+        // can come after the chooser closed — which the user just watched
+        // work — since on Android and iOS a pick none of whose images could be
+        // loaded fails as a whole.
+        setState(() => _attachNotice = 'Could not add the images.');
       }
     } on Object catch (error, stackTrace) {
       _logger.error(
@@ -309,16 +305,17 @@ class _ChatInputState extends State<ChatInput> {
     }
 
     // A batch with nothing in it is not a cancel, which comes back as null.
-    // Android answers a pick it could not copy a single item out of this way,
-    // having dropped the names on its side — so there is nothing to name, and
-    // this line is the only record the pick happened at all.
+    // [pickImages] never returns one: it answers an empty pick with null and
+    // reports every picked file as an image or an error. A supplied picker
+    // could, and with nothing to name this line would be the only record the
+    // pick happened at all.
     final pickedNothing = result.images.isEmpty && result.errors.isEmpty;
     if (pickedNothing) {
       _logger.error(
         'the image picker returned an empty batch',
         // The platform is the whole of what a reader has to go on here: the
-        // batch names nothing, and which platform produced it is what says
-        // whether this is the known Android case or something new.
+        // batch names nothing, and which platform produced it is where to
+        // start looking.
         attributes: {'platform': defaultTargetPlatform.name},
       );
     }

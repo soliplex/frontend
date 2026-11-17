@@ -1,8 +1,6 @@
-import 'dart:io' show Directory, File;
+import 'dart:io' show Directory, File, FileSystemException;
 
 import 'package:file_picker/file_picker.dart';
-// ignore: implementation_imports
-import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:mime/mime.dart';
 
 import 'open_file_stream.dart';
@@ -10,30 +8,27 @@ import 'pick_file.dart';
 
 /// Native implementation of [pickFiles].
 ///
-/// Uses `file_picker` with platform-conditional flags:
-/// - **macOS**: neither `withData` nor `withReadStream` is supported per
-///   file_picker docs; the picker returns paths which we stream from
-///   via `dart:io`.
-/// - **iOS / Android / Windows / Linux**: both flags `false` —
-///   file_picker still copies to app cache on mobile and populates
-///   `path` without setting up unused platform-channel stream
-///   infrastructure.
+/// Every native platform hands back a path rather than bytes, which we stream
+/// from through `dart:io`. On desktop it is the user's own file; Android and
+/// iOS first copy the whole file into app storage, at pick time, so a large
+/// pick takes as long to return as that copy. An empty pick is a cancel.
+///
+/// The size comes from the pick result where the platform reports it, and from
+/// the file otherwise. A file whose size cannot be found is reported, with the
+/// file system's reason, rather than uploaded, since the upload's
+/// `Content-Length` needs it.
 Future<PickFilesResult?> pickFilesImpl() async {
-  final FilePickerResult? result;
+  final List<PlatformFile> picked;
   try {
-    result = await FilePicker.pickFiles(
-      allowMultiple: true,
-      withData: false,
-      withReadStream: false,
-    );
+    picked = await FilePicker.pickFiles();
   } on Object catch (error) {
     throw PickFilePickerException(cause: error);
   }
-  if (result == null || result.files.isEmpty) return null;
+  if (picked.isEmpty) return null;
 
   final files = <PickedFile>[];
   final errors = <PickFileItemError>[];
-  for (final file in result.files) {
+  for (final file in picked) {
     final mimeType = lookupMimeType(file.name) ?? 'application/octet-stream';
     final path = file.path;
     if (path == null) {
@@ -45,11 +40,21 @@ Future<PickFilesResult?> pickFilesImpl() async {
       );
       continue;
     }
+    // From the file itself when the pick result does not carry it, which is
+    // every pick on Windows and Linux: the plugin's own `length()` swallows
+    // the error that says why the size could not be read.
+    final int size;
+    try {
+      size = file.lengthSync() ?? await File(path).length();
+    } on FileSystemException catch (error) {
+      errors.add(PickFileItemError(filename: file.name, cause: error));
+      continue;
+    }
     files.add(
       PickedFile(
         name: file.name,
         mimeType: mimeType,
-        size: file.size,
+        size: size,
         openStream: () => openFileStream(path),
       ),
     );
@@ -59,7 +64,7 @@ Future<PickFilesResult?> pickFilesImpl() async {
 
 /// Native implementation of [pickFolder].
 ///
-/// Uses `FilePicker.getDirectoryPath` then walks the chosen directory
+/// Uses [FilePicker.getDirectoryPath] then walks the chosen directory
 /// via `Directory.list(recursive: true, followLinks: false)`. Files
 /// whose any path segment starts with `.` are skipped — this catches
 /// dotfiles (`.DS_Store`) and dotdirs (`.git/`). Surviving files have
@@ -68,7 +73,7 @@ Future<PickFilesResult?> pickFilesImpl() async {
 Future<PickFilesResult?> pickFolderImpl() async {
   final String? picked;
   try {
-    picked = await FilePickerPlatform.instance.getDirectoryPath();
+    picked = await FilePicker.getDirectoryPath();
   } on Object catch (error) {
     throw PickFilePickerException(cause: error);
   }

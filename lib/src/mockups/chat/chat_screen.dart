@@ -1464,12 +1464,14 @@ class _RoomScreenState extends State<RoomScreen> {
     try {
       result = await pick();
     } on PickFilePickerException catch (e, st) {
-      if (!mounted) return const [];
+      // Logged before the guard: a pick that fails after the screen has gone
+      // still leaves a record, though there is nowhere left to show it.
       _logger.error(
         'Pick failed',
         error: e.cause,
         stackTrace: st,
       );
+      if (!mounted) return const [];
       _state.uploadTracker.recordClientError(
         roomId: widget.roomId,
         threadId: threadId,
@@ -1478,12 +1480,15 @@ class _RoomScreenState extends State<RoomScreen> {
       );
       return const [];
     }
-    if (result == null || !mounted) return const [];
+    if (result == null) return const [];
     for (final itemError in result.errors) {
       _logger.error(
         'Pick failed for ${itemError.filename}',
         error: itemError.cause,
       );
+    }
+    if (!mounted) return const [];
+    for (final itemError in result.errors) {
       _state.uploadTracker.recordClientError(
         roomId: widget.roomId,
         threadId: threadId,

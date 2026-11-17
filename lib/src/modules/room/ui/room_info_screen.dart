@@ -632,12 +632,14 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     try {
       result = await pick();
     } on PickFilePickerException catch (e, st) {
-      if (!mounted) return;
+      // Logged before the guard: a pick that fails after the screen has gone
+      // still leaves a record, though there is nowhere left to show it.
       _logger.error(
         'Pick failed',
         error: e.cause,
         stackTrace: st,
       );
+      if (!mounted) return;
       _tracker.recordClientError(
         roomId: widget.roomId,
         filename: '(unknown)',
@@ -645,7 +647,15 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       );
       return;
     }
-    if (result == null || !mounted) return;
+    if (result == null) return;
+    for (final itemError in result.errors) {
+      _logger.error(
+        'Pick failed',
+        error: itemError.cause,
+        attributes: {'filename': itemError.filename},
+      );
+    }
+    if (!mounted) return;
     // No permission recheck here. The pick outlives the tap that opened it,
     // but the controls are pressable only under [_UploadPermission.permitted],
     // which is written from a definite answer and nothing then moves it. A
@@ -653,11 +663,6 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     // tracker, which renders the `PermissionDeniedException` the POST comes
     // back with.
     for (final itemError in result.errors) {
-      _logger.error(
-        'Pick failed',
-        error: itemError.cause,
-        attributes: {'filename': itemError.filename},
-      );
       _tracker.recordClientError(
         roomId: widget.roomId,
         filename: itemError.filename,

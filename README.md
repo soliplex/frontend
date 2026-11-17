@@ -18,7 +18,8 @@ Serves as both a runnable app and an importable library.
   filtering
 - **Responsive Layout** -- Adaptive wide/narrow views across mobile, tablet,
   and desktop
-- **Multi-platform** -- Android, iOS, macOS, Web, Linux, Windows
+- **Multi-platform** -- Android, iOS and Web; macOS, Linux and Windows run
+  for local development only
 
 ## Development
 

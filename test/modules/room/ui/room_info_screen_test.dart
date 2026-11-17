@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart' show FilePickerPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/shared/selectable_content.dart';
@@ -13,7 +15,9 @@ import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 
+import '../../../helpers/fake_platform_file.dart';
 import '../../../helpers/fakes.dart';
+import '../../../helpers/held_file_picker.dart';
 import '../../../helpers/test_server_entry.dart';
 
 const _refusedNote = "You can't add files to this room.";
@@ -203,6 +207,63 @@ void main() {
 
         expect(buttonFor(tester, 'Upload files to room').isLoading, isFalse);
         expect(buttonFor(tester, 'Upload folder to room').isLoading, isFalse);
+      });
+
+      /// Opens the room upload picker and leaves the screen while it is
+      /// still open, returning the picker so the test can answer it.
+      Future<HeldFilePicker> leaveDuringPick(
+        WidgetTester tester,
+        MemorySink sink,
+      ) async {
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+        final picker = HeldFilePicker();
+        final platformPicker = FilePickerPlatform.instance;
+        FilePickerPlatform.instance = picker;
+        addTearDown(() => FilePickerPlatform.instance = platformPicker);
+        await pumpAs(
+          tester,
+          FakeSoliplexApi()..nextIsAdminUser = false,
+          room: _testRoom.copyWith(userHasWrite: true),
+        );
+        await tester.tap(find.text('Upload files to room'));
+        await tester.pump();
+        await tester.pumpWidget(const SizedBox());
+        return picker;
+      }
+
+      Iterable<LogRecord> pickFailures(MemorySink sink) => sink.records.where(
+            (r) =>
+                r.loggerName == 'soliplex.room_info_screen' &&
+                r.message == 'Pick failed',
+          );
+
+      testWidgets('records a picker that failed after the screen closed',
+          (tester) async {
+        final sink = MemorySink();
+        final picker = await leaveDuringPick(tester, sink);
+
+        final cause = Exception('picker failed late');
+        picker.answer.completeError(cause);
+        await tester.pump();
+
+        final failed = pickFailures(sink).single;
+        expect(failed.level, LogLevel.error);
+        expect(failed.error, same(cause));
+      });
+
+      testWidgets('records a file that failed after the screen closed',
+          (tester) async {
+        final sink = MemorySink();
+        final picker = await leaveDuringPick(tester, sink);
+
+        // No path: the native picker reports it as that file's failure.
+        picker.answer.complete([FakePlatformFile(name: 'lost.txt', size: 1)]);
+        await tester.pump();
+
+        final failed = pickFailures(sink).single;
+        expect(failed.level, LogLevel.error);
+        expect(failed.attributes['filename'], 'lost.txt');
       });
 
       testWidgets('a user with the write permission can delete a room upload',

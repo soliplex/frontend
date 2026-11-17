@@ -27,7 +27,7 @@ to — run `fvm global` as well, since the pre-commit hooks call `flutter`
 directly. Homebrew cannot pin a version: `brew install flutter` tracks the
 latest release.
 
-The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.38.4"`) is a
+The `environment:` floor in `pubspec.yaml` (`flutter: ">=3.41.0"`) is a
 different number: the oldest SDK this library promises consumers. It may lag
 `.fvmrc`, and moves only when a dependency forces it.
 
@@ -44,6 +44,11 @@ flutter run -d macos   # or: -d ios, -d chrome, -d android
 ```
 
 ## Platform Setup
+
+The supported targets are iOS, Android and the web. The macOS, Linux and
+Windows runners are for running the app locally while developing: no CI job
+builds them and nobody tests them before a release, so a dependency change can
+break one without anyone noticing.
 
 ### macOS
 

@@ -138,9 +138,12 @@ String mangleRelativePath(String rootName, String relativePath) {
 /// Opens the platform file picker with multi-select enabled.
 ///
 /// Returns `null` when the user cancels. Throws [PickFilePickerException]
-/// when the picker plugin itself fails. Per-file failures do NOT abort
-/// the batch — they appear in [PickFilesResult.errors] so the caller
-/// can route each one to the upload tracker's `recordClientError`.
+/// when the picker plugin itself fails. Per-file failures this side sees
+/// do NOT abort the batch — they appear in [PickFilesResult.errors] so the
+/// caller can route each one to the upload tracker's `recordClientError`.
+/// On Android and iOS an item the plugin could not copy is dropped from a
+/// pick that kept at least one other before it reaches this side, with no
+/// error to report.
 Future<PickFilesResult?> pickFiles() => pickFilesImpl();
 
 /// Opens the platform directory picker and walks the chosen folder for
@@ -150,6 +153,11 @@ Future<PickFilesResult?> pickFiles() => pickFilesImpl();
 /// uploadable files after filtering (dotfiles and entries under
 /// dot-prefixed directories are skipped). Both cases are treated as
 /// cancellation: the caller does not enqueue a phantom empty batch.
+///
+/// A failure of the directory picker itself reads as a cancel too on Android,
+/// iOS and macOS, where the plugin catches it and answers null, and on Linux,
+/// where a failed portal request answers null. On Windows it throws
+/// [PickFilePickerException].
 ///
 /// Each returned [PickedFile] has its name mangled via
 /// [mangleRelativePath] using the picked folder's basename as the root,

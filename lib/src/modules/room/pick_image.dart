@@ -23,10 +23,10 @@ class PickedImage {
   /// [name]'s extension.
   ///
   /// Content first because the name can lie, and one way it lies matters here:
-  /// iOS is asked to hand back a JPEG in place of an iPhone's HEIC, and a HEIC
-  /// delivered under a `.jpeg` name would otherwise be typed as JPEG and sent
-  /// to the model as one. Reading the type from the bytes makes that a
-  /// rejection the user can see instead.
+  /// iOS is asked for its compatible representation, a JPEG in place of an
+  /// iPhone's HEIC, and a HEIC delivered under a `.jpeg` name would otherwise
+  /// be typed as JPEG and sent to the model as one. Reading the type from the
+  /// bytes makes that a rejection the user can see instead.
   ///
   /// It catches the HEIF brands `mime` carries a magic number for — `heic`,
   /// `heix`, `mif1` — and no others. One boxed as `msf1` or `hevc` has nothing
@@ -66,19 +66,6 @@ typedef PickImagesResult = ({
   List<PickFileItemError> errors,
 });
 
-/// What to pass the picker as `compressionQuality`, which means two unrelated
-/// things depending on the platform.
-///
-/// On iOS the number is read only as a boolean: any non-zero value flips
-/// `PHPicker` to Compatible mode, which hands us JPEG in place of the HEIC an
-/// iPhone shoots by default — `1` and `100` are identical there. On Android the
-/// same number is a real re-encode quality handed to `Bitmap.compress`, so
-/// anything above zero silently recompresses every image the user picks, which
-/// is the one thing this path exists to avoid. So one value cannot serve both:
-/// `90` would destroy Android's originals and `1` would keep iOS's transcode
-/// while destroying them anyway.
-int inlineImageCompressionQuality({required bool isIOS}) => isIOS ? 100 : 0;
-
 /// Opens the platform image picker with multi-select enabled, and reads the
 /// bytes of everything it returns.
 ///
@@ -87,14 +74,13 @@ int inlineImageCompressionQuality({required bool isIOS}) => isIOS ? 100 : 0;
 /// abort the batch — it lands in [PickImagesResult.errors], so the composer can
 /// attach the user's other images and still say which one it could not.
 ///
-/// A batch holding neither images nor errors is a third outcome, and not a
-/// cancel: Android answers a pick it could not copy a single item out of with
-/// an empty list, having dropped the names on its side. Handing that back as a
-/// cancel would leave the user looking at a button that did nothing, so it
-/// comes back as the empty batch it is and the composer speaks for it.
+/// A pick the plugin could not load a single item out of is a picker failure,
+/// not a cancel: both mobile platforms answer it with an error, which arrives
+/// here as [PickFilePickerException].
 ///
-/// The per-file guarantee stops at what the plugin reports. iOS's photo picker
-/// handles a per-item failure by logging it natively and returning the items
-/// that did work, so a pick of four photos can arrive as three with nothing to
-/// say the fourth existed. Nothing on this side can see the difference.
+/// The per-file guarantee stops at what the plugin reports. Both mobile
+/// platforms drop an item they could not load and return the items that did
+/// load, with no error — Android logs it natively, iOS leaves no trace — so a
+/// pick of four photos can arrive as three with nothing to say the fourth
+/// existed. Nothing on this side can see the difference.
 Future<PickImagesResult?> pickImages() => pickImagesImpl();

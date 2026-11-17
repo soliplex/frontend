@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Changed
+
+- `file_picker` moves to 13 and `package_info_plus` to 10, both onto `win32`
+  6, which the coming video player's dependencies require.
+- A pick that could not load a single item now reports a picker failure on
+  Android and iOS. Android used to answer it with an empty pick.
+- **Library consumers:** the `pubspec.yaml` Flutter floor rises to 3.41.0,
+  which `file_picker_darwin` 2.5.1 requires, now a direct dependency. The
+  majors to check your own pins against are `file_picker` 13,
+  `package_info_plus` 10 and `win32` 6, and `file_picker` 12 raised the iOS
+  deployment target to 14.
+
+### Fixed
+
+- Images picked from the iOS photo library attach in the order they were
+  picked. They used to arrive in whatever order they finished loading.
+
 ## [0.118.0+107] - 2026-11-16
 
 ### Added

@@ -772,29 +772,10 @@ void main() {
       await tester.tap(find.byTooltip('Add image'));
       await tester.pumpAndSettle();
 
-      // Not the upload path's "could not open file picker": on web the bytes
-      // are read inside the picker call, so this failure is as likely to have
-      // come after the chooser closed, which the user just watched work.
+      // Not the upload path's "could not open file picker": on Android and
+      // iOS a pick none of whose images could be loaded fails here, after the
+      // chooser closed, which the user just watched work.
       expect(find.text('Could not add the images.'), findsOneWidget);
-    });
-
-    testWidgets('tells the user a browser pick was too large to load',
-        (tester) async {
-      // The web picker buffers every image whole, so this is the failure this
-      // path is likeliest to hit, and 'try again' is advice that cannot work.
-      await pumpComposer(
-        tester,
-        openImagePicker: () async =>
-            throw PickFilePickerException(cause: RangeError('out of memory')),
-      );
-
-      await tester.tap(find.byTooltip('Add image'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('The images are too large to load in the browser.'),
-        findsOneWidget,
-      );
     });
 
     testWidgets('names a file it could not read', (tester) async {
@@ -945,9 +926,10 @@ void main() {
     });
 
     testWidgets('speaks for a pick the platform lost entirely', (tester) async {
-      // Android answers a pick it could not copy a single item out of with an
-      // empty batch, having dropped the names on its side. Read as a cancel it
-      // would leave the user tapping a button that does nothing.
+      // No platform picker answers this way since file_picker 13, where a pick
+      // that lost every item fails as a whole, but an injected one can. Read
+      // as a cancel it would leave the user tapping a button that does
+      // nothing.
       await pumpComposer(tester, openImagePicker: () async => picks([]));
 
       await tester.tap(find.byTooltip('Add image'));

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:clock/clock.dart';
+import 'package:file_picker/file_picker.dart' show FilePickerPlatform;
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
@@ -47,8 +48,10 @@ import 'package:soliplex_frontend/src/modules/room/ui/thread_state_warning_banne
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
+import '../../../helpers/fake_platform_file.dart';
 import '../../../helpers/fakes.dart';
 import '../../../helpers/file_name_finder.dart';
+import '../../../helpers/held_file_picker.dart';
 import '../../../helpers/live_session.dart';
 import '../image_fixtures.dart';
 import '../../../helpers/test_server_entry.dart';
@@ -1342,6 +1345,83 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  group('a pick that outlives the screen', () {
+    /// Opens a thread's upload picker and leaves the screen while the picker
+    /// is still open, returning the picker so the test can answer it.
+    Future<HeldFilePicker> leaveDuringPick(
+      WidgetTester tester,
+      _RecordingSink sink,
+    ) async {
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      final picker = HeldFilePicker();
+      final platformPicker = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = picker;
+      addTearDown(() => FilePickerPlatform.instance = platformPicker);
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'General',
+        acceptsThreadUploads: true,
+      );
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          downloadRegistry: downloadRegistry,
+          fileSort: fileSort,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Upload to thread'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Files…'));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      return picker;
+    }
+
+    testWidgets('records a picker that failed after the screen closed',
+        (tester) async {
+      final sink = _RecordingSink('soliplex_frontend.room_screen');
+      final picker = await leaveDuringPick(tester, sink);
+
+      final cause = Exception('picker failed late');
+      picker.answer.completeError(cause);
+      await tester.pump();
+
+      final failed =
+          sink.records.singleWhere((r) => r.message == 'Pick failed');
+      expect(failed.level, LogLevel.error);
+      expect(failed.error, same(cause));
+    });
+
+    testWidgets('records a file that failed after the screen closed',
+        (tester) async {
+      final sink = _RecordingSink('soliplex_frontend.room_screen');
+      final picker = await leaveDuringPick(tester, sink);
+
+      // No path: the native picker reports it as that file's failure.
+      picker.answer.complete([FakePlatformFile(name: 'lost.txt', size: 1)]);
+      await tester.pump();
+
+      final failed = sink.records.singleWhere(
+        (r) => r.message == 'Pick failed for lost.txt',
+      );
+      expect(failed.level, LogLevel.error);
+      expect(failed.error, isA<StateError>());
+    });
   });
 
   group('server label in header', () {

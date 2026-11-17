@@ -7,7 +7,8 @@ version: 0.118.0+107
 
 environment:
   sdk: ^3.6.0
-  flutter: ">=3.38.4"
+  # file_picker_darwin 2.5.1 needs it; see file_picker_darwin below.
+  flutter: ">=3.41.0"
 
 workspace:
   - packages/soliplex_agent
@@ -31,10 +32,16 @@ dependencies:
   flutter_svg: ^2.3.0
   go_router: ^17.3.0
   markdown: ^7.0.0
-  package_info_plus: ^9.0.1
+  package_info_plus: ^10.2.2
   shared_preferences: ^2.5.5
   signals_flutter: ^6.3.1
-  file_picker: ^11.0.0
+  file_picker: ^13.3.3
+  # Named although file_picker brings it in: 2.4.x, which ^13.3.3 still admits,
+  # clears the whole temporary directory rather than its own, and the room
+  # module's comments describe 2.5.1, which keeps picks and saves in a
+  # directory of its own under the temporary directory. It is also what sets
+  # the Flutter floor above.
+  file_picker_darwin: ^2.5.1
   mime: ^2.0.0
   url_launcher: ^6.3.1
   web: ^1.1.1
@@ -57,6 +64,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.7
+  cross_file: ^0.3.5
 
 flutter_launcher_icons:
   android: true
