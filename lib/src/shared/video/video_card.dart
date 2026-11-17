@@ -79,9 +79,8 @@ class _VideoCardState extends State<VideoCard> {
         onError: _fail,
       );
     } on Object catch (error, stackTrace) {
-      // The web player's script failing to load, or the plugin missing. What
-      // either can carry is the script's path or a platform message; the
-      // video's address is not in it.
+      // A VideoPlaybackException, whose reason holds nothing that could be a
+      // credential (see VideoPlaybackException.reason).
       _logger.warning(
         'Could not start the video player',
         error: error,
@@ -101,10 +100,12 @@ class _VideoCardState extends State<VideoCard> {
     });
   }
 
-  void _fail() {
+  /// [reason] holds nothing that could be a credential (see
+  /// [VideoPlaybackException.reason]).
+  void _fail(String reason) {
     _logger.warning(
       'A video could not be played',
-      attributes: _sourceAttributes(widget.uri),
+      attributes: {..._sourceAttributes(widget.uri), 'reason': reason},
     );
     if (!mounted) return;
     _closeOpenRoutes();

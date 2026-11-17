@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:better_player/better_player.dart';
 import 'package:flutter/widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
@@ -6,7 +8,7 @@ import 'video_platform.dart'
     if (dart.library.js_interop) 'video_platform_web.dart';
 import 'video_playback.dart';
 
-/// Plays [uri] through `better_player`, starting at once.
+/// Plays [uri] through `better_player`, completing once the video has loaded.
 ///
 /// What the configuration settles:
 ///
@@ -23,9 +25,11 @@ import 'video_playback.dart';
 /// - An HLS or DASH stream adapts its rendition to the connection: Shaka's
 ///   ABR on the web, ExoPlayer's on Android, AVPlayer's on iOS. Its manifest
 ///   lists the renditions, which become [VideoStatus.qualities].
+/// - better_player logs nothing: its log prints the source URL whole, query
+///   included.
 Future<VideoPlayback> createBetterPlayerPlayback(
   Uri uri, {
-  required VoidCallback onError,
+  required void Function(String reason) onError,
 }) async {
   await ensureVideoRuntime();
   final controller = BetterPlayerController(
@@ -39,6 +43,9 @@ Future<VideoPlayback> createBetterPlayerPlayback(
       controlsConfiguration: const PlayerControlsConfiguration(
         showControls: false,
       ),
+      playerLogConfiguration: const PlayerLoggerConfiguration(
+        logLevel: PlayerLogLevel.none,
+      ),
     ),
     betterPlayerDataSource: PlayerDataSource.network(
       uri.toString(),
@@ -48,11 +55,72 @@ Future<VideoPlayback> createBetterPlayerPlayback(
       useAsmsTracks: true,
     ),
   );
+  final loaded = Completer<void>();
+  // A failure fails the start until the video has loaded, and is reported
+  // through [onError] from then on.
+  void Function(String reason) fail = (reason) {
+    if (!loaded.isCompleted) {
+      loaded.completeError(VideoPlaybackException(reason));
+    }
+  };
   controller.addEventsListener((event) {
-    if (event.betterPlayerEventType == PlayerEventType.exception) onError();
+    final type = event.betterPlayerEventType;
+    if (type == PlayerEventType.initialized && !loaded.isCompleted) {
+      loaded.complete();
+    } else if (type == PlayerEventType.exception) {
+      fail(withoutCredentials('${event.parameters?['exception']}'));
+    }
   });
+  try {
+    await loaded.future.timeout(
+      videoStartLimit,
+      onTimeout: () => throw VideoPlaybackException(
+        'the video did not load within ${videoStartLimit.inSeconds} seconds',
+      ),
+    );
+  } on VideoPlaybackException {
+    controller.dispose(forceDispose: true);
+    rethrow;
+  }
+  fail = onError;
   return _BetterPlayerPlayback(controller);
 }
+
+/// [text], a player's account of a failure, without what could hold a
+/// credential: each URL keeps its scheme, host, port and path, and a Shaka
+/// error keeps its severity, category, code and HTTP status but not the
+/// response body and headers it carries.
+String withoutCredentials(String text) =>
+    _withShakaErrorsReduced(text).replaceAllMapped(_url, (match) {
+      final uri = Uri.tryParse(match[0]!);
+      if (uri == null) return '<url>';
+      final port = uri.hasPort ? ':${uri.port}' : '';
+      return '${uri.scheme}://${uri.host}$port${uri.path}';
+    });
+
+final _url = RegExp(r'''[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>,)]+''');
+
+/// better_player_web reports a failed load as the whole `shaka.util.Error`
+/// in JSON, which nothing follows but the exception's closing fields, so the
+/// match runs to its last brace.
+final _shakaError = RegExp(r'shaka\.util\.Error \{.*\}', dotAll: true);
+
+String _withShakaErrorsReduced(String text) =>
+    text.replaceAllMapped(_shakaError, (match) {
+      final json = match[0]!;
+      String? field(String name) =>
+          RegExp('"$name": (\\d+)').firstMatch(json)?.group(1);
+      final code = field('code');
+      // For 1001 (BAD_HTTP_STATUS) the status follows the URL in `data`.
+      final status = code == '1001'
+          ? RegExp(r'"data": \[\s*"(?:[^"\\]|\\.)*",\s*(\d+)')
+              .firstMatch(json)
+              ?.group(1)
+          : null;
+      return 'shaka.util.Error severity ${field('severity')}, '
+          'category ${field('category')}, code $code'
+          '${status == null ? '' : ', HTTP $status'}';
+    });
 
 class _BetterPlayerPlayback implements VideoPlayback {
   _BetterPlayerPlayback(this._controller) {

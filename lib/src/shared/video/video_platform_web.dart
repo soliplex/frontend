@@ -5,6 +5,8 @@ import 'dart:js_interop_unsafe';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:web/web.dart' as web;
 
+import 'video_playback.dart';
+
 final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 
 /// Where the build serves Shaka Player, which `better_player` plays through on
@@ -25,21 +27,42 @@ Future<void> ensureVideoRuntime() {
 Future<void> _loadShaka() {
   final loaded = Completer<void>();
   final script = web.HTMLScriptElement()..src = _shakaScript;
+  late final Timer limit;
+  void failed(String why) {
+    limit.cancel();
+    if (loaded.isCompleted) return;
+    // Forget the failed load, so the next video tries again.
+    _shakaLoad = null;
+    script.remove();
+    loaded.completeError(VideoPlaybackException('$why from $_shakaScript'));
+  }
+
+  // A request the server accepts and never finishes fires neither event.
+  limit = Timer(
+    videoStartLimit,
+    () => failed(
+      'the video player did not load within '
+      '${videoStartLimit.inSeconds} seconds',
+    ),
+  );
+
   script
     ..addEventListener(
       'load',
-      ((web.Event _) => loaded.complete()).toJS,
+      ((web.Event _) {
+        // A host that answers a missing file with its index page still
+        // "loads" it, and defines nothing.
+        if (globalContext.has('shaka')) {
+          limit.cancel();
+          if (!loaded.isCompleted) loaded.complete();
+        } else {
+          failed('the video player was not defined by the script');
+        }
+      }).toJS,
     )
     ..addEventListener(
       'error',
-      ((web.Event _) {
-        // Forget the failed load, so the next video tries again.
-        _shakaLoad = null;
-        script.remove();
-        loaded.completeError(
-          StateError('could not load the video player from $_shakaScript'),
-        );
-      }).toJS,
+      ((web.Event _) => failed('could not load the video player')).toJS,
     );
   web.document.head!.append(script);
   return loaded.future;

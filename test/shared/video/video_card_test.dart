@@ -4,6 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
 import 'package:soliplex_frontend/src/shared/video/video_card.dart';
 import 'package:soliplex_frontend/src/shared/video/video_playback.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// Stands in for the platform player: a playing flag, a count of resumes, and
 /// a view tests can find.
@@ -49,17 +50,22 @@ final _uri = Uri.parse('https://cdn.example/clip.mp4');
 void main() {
   late _FakePlayback playback;
   late int created;
-  VoidCallback? reportError;
+  void Function(String reason)? reportError;
+  late MemorySink sink;
 
   setUp(() {
     playback = _FakePlayback();
     created = 0;
     reportError = null;
+    sink = MemorySink();
+    LogManager.instance.addSink(sink);
   });
+
+  tearDown(LogManager.instance.reset);
 
   Future<VideoPlayback> factory(
     Uri uri, {
-    required VoidCallback onError,
+    required void Function(String reason) onError,
   }) async {
     created++;
     reportError = onError;
@@ -200,25 +206,29 @@ void main() {
     await tester.tap(find.byTooltip('Expand video'));
     await tester.pumpAndSettle();
 
-    reportError!();
+    reportError!('HTTP 404');
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsNothing, reason: 'nothing left to show');
     expect(find.byKey(_viewKey), findsNothing);
     expect(find.text('Open video'), findsOneWidget);
     expect(playback.disposed, isTrue, reason: 'the dead player is released');
+    final record = sink.records.single;
+    expect(record.message, 'A video could not be played');
+    expect(record.attributes, containsPair('reason', 'HTTP 404'));
+    expect(record.attributes, containsPair('host', 'cdn.example'));
   });
 
   testWidgets('a player that cannot start offers to open the video',
       (tester) async {
+    const failure = VideoPlaybackException('HTTP 404');
     await tester.pumpWidget(
       MaterialApp(
         theme: soliplexLightTheme(),
         home: Scaffold(
           body: VideoCard(
             uri: _uri,
-            playbackFactory: (_, {required onError}) =>
-                Future.error(StateError('no player')),
+            playbackFactory: (_, {required onError}) => Future.error(failure),
           ),
         ),
       ),
@@ -227,6 +237,9 @@ void main() {
     await startPlaying(tester);
 
     expect(find.text('Open video'), findsOneWidget);
+    final record = sink.records.single;
+    expect(record.message, 'Could not start the video player');
+    expect(record.error, failure);
   });
 
   testWidgets('releases the player when the card goes', (tester) async {

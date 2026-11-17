@@ -1,6 +1,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
+/// How long a video, or on the web the player itself, may take to load
+/// before it counts as unplayable.
+///
+/// A dead source is reported by the player itself; this catches what
+/// reports nothing: a platform player whose setup failed, which better_player
+/// starts without waiting on, or a request the server never finishes.
+const videoStartLimit = Duration(seconds: 30);
+
 /// One rendition of a streamed video the viewer can pin playback to.
 @immutable
 class VideoQuality {
@@ -96,11 +104,30 @@ abstract interface class VideoPlayback {
   void dispose();
 }
 
-/// Creates the playback of the video at [uri] and starts it.
+/// Creates the playback of the video at [uri] and asks it to play,
+/// completing once the video has loaded. A browser may still refuse to play
+/// it unprompted, leaving it paused.
 ///
-/// [onError] is called when the video cannot be played: the source failed to
-/// load, or the format is unsupported.
+/// Throws [VideoPlaybackException] when it cannot load: the source failed, the
+/// format is unsupported, the web player's script could not be loaded, or
+/// nothing arrived within [videoStartLimit]. [onError] is called, only after
+/// the returned future completes, when playback fails later.
 typedef VideoPlaybackFactory = Future<VideoPlayback> Function(
   Uri uri, {
-  required VoidCallback onError,
+  required void Function(String reason) onError,
 });
+
+/// Why a video could not be played.
+///
+/// [reason] says why: the player's own account of the failure, or that the
+/// video did not load in time. Nothing in it can hold a credential: each URL
+/// in it keeps only its scheme, host, port and path, and a Shaka error only
+/// its codes and HTTP status.
+class VideoPlaybackException implements Exception {
+  const VideoPlaybackException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'VideoPlaybackException: $reason';
+}
