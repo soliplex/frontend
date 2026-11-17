@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:better_player/better_player.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:soliplex_frontend/src/shared/video/better_player_playback.dart';
 import 'package:soliplex_frontend/src/shared/video/video_playback.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -77,13 +79,17 @@ class _FakePlatform extends BetterPlayerPlatform {
   @override
   Future<void> setSpeed(int? textureId, double speed) async {}
 
+  /// The heights the player was asked to keep to, in order.
+  final List<int?> trackHeights = [];
+
   @override
   Future<void> setTrackParameters(
     int? textureId,
     int? width,
     int? height,
     int? bitrate,
-  ) async {}
+  ) async =>
+      trackHeights.add(height);
 
   @override
   Future<void> setAudioTrack(int? textureId, String? name, int? index) async {}
@@ -308,6 +314,114 @@ void main() {
     expect('${record.attributes}', isNot(contains('secret')));
     // better_player pauses, unawaited, as it disposes.
     platform.refusePause = false;
+    playback!.dispose();
+  });
+
+  testWidgets('its status follows what the player reports', (tester) async {
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: (_) {})
+          .then((p) => playback = p),
+    );
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+
+    void report(VideoEventType type, {List<DurationRange>? buffered}) =>
+        platform.events.add(
+          VideoEvent(eventType: type, key: null, buffered: buffered),
+        );
+
+    report(VideoEventType.pause);
+    await settle(tester);
+    expect(playback!.status.value.isPlaying, isFalse);
+
+    report(VideoEventType.play);
+    report(VideoEventType.bufferingStart);
+    report(
+      VideoEventType.bufferingUpdate,
+      buffered: [
+        DurationRange(Duration.zero, const Duration(seconds: 10)),
+        DurationRange(
+          const Duration(seconds: 20),
+          const Duration(seconds: 35),
+        ),
+        DurationRange(
+          const Duration(seconds: 12),
+          const Duration(seconds: 15),
+        ),
+      ],
+    );
+    await settle(tester);
+
+    final status = playback!.status.value;
+    expect(status.isPlaying, isTrue);
+    expect(status.isBuffering, isTrue);
+    expect(
+      status.buffered,
+      const Duration(seconds: 35),
+      reason: 'the furthest any range reaches',
+    );
+    playback!.dispose();
+  });
+
+  testWidgets(
+      'an HLS stream offers its renditions, and keeps to the chosen one',
+      (tester) async {
+    const master = '''
+#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360
+360.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720
+720.m3u8
+''';
+    VideoPlayback? playback;
+    http.runWithClient(
+      () => unawaited(
+        createBetterPlayerPlayback(
+          Uri.parse('https://cdn.example/stream.m3u8'),
+          onError: (_) {},
+        ).then((p) => playback = p),
+      ),
+      () => MockClient((_) async => http.Response(master, 200)),
+    );
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+
+    expect(
+      playback!.status.value.qualities,
+      [720, 360],
+    );
+
+    playback!.selectQuality(720);
+    await settle(tester);
+    expect(playback!.status.value.quality, 720);
+    expect(platform.trackHeights.last, 720);
+
+    playback!.selectQuality(null);
+    await settle(tester);
+    expect(playback!.status.value.quality, isNull);
+    expect(platform.trackHeights.last, 0, reason: 'no limit: adaptive again');
+    playback!.dispose();
+  });
+
+  testWidgets('a plain file keeps no quality it does not offer',
+      (tester) async {
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: (_) {})
+          .then((p) => playback = p),
+    );
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+
+    playback!.selectQuality(720);
+    await settle(tester);
+
+    expect(playback!.status.value.qualities, isEmpty);
+    expect(playback!.status.value.quality, isNull);
     playback!.dispose();
   });
 

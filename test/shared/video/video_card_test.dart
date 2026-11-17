@@ -70,7 +70,7 @@ class _FakeViewState extends State<_FakeView> {
 }
 
 const _viewKey = ValueKey('video-view');
-final _uri = Uri.parse('https://cdn.example/clip.mp4');
+final _uri = Uri.parse('https://cdn.example/clip.mp4?sig=secret');
 
 /// WCAG contrast between two opaque colours.
 double _contrast(Color a, Color b) {
@@ -394,6 +394,8 @@ void main() {
     expect(record.message, 'A video could not be played');
     expect(record.attributes, containsPair('reason', 'HTTP 404'));
     expect(record.attributes, containsPair('host', 'cdn.example'));
+    expect(record.attributes, containsPair('queryLength', 10));
+    expect('${record.message} ${record.attributes}', isNot(contains('secret')));
   });
 
   testWidgets('a failure reported twice is handled once', (tester) async {
@@ -422,6 +424,11 @@ void main() {
     final record = sink.records.single;
     expect(record.message, 'Could not start the video player');
     expect(record.error, failure);
+    expect(record.attributes, containsPair('queryLength', 10));
+    expect(
+      '${record.message} ${record.attributes} ${record.error}',
+      isNot(contains('secret')),
+    );
   });
 
   group('rebuilt with another video', () {
@@ -531,6 +538,30 @@ void main() {
       expect(find.byKey(_viewKey), findsNothing);
       expect(find.byTooltip('Play video'), findsOneWidget);
     });
+  });
+
+  testWidgets('"Open video" opens the video in the browser', (tester) async {
+    const channel = MethodChannel('plugins.flutter.io/url_launcher');
+    final launched = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method != 'launch') return null;
+      launched.add((call.arguments as Map)['url'] as String);
+      return true;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    await pumpCard(
+      tester,
+      playbackFactory: (_, {required onError}) =>
+          Future.error(const VideoPlaybackException('HTTP 404')),
+    );
+    await startPlaying(tester);
+
+    await tester.tap(find.text('Open video'));
+    await tester.pumpAndSettle();
+
+    expect(launched, [_uri.toString()]);
   });
 
   testWidgets('releases the player when the card goes', (tester) async {
