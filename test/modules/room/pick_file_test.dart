@@ -34,9 +34,11 @@ class _FakeFilePicker extends FilePickerPlatform {
 }
 
 class _FakeFolderPicker extends FilePickerPlatform {
-  _FakeFolderPicker(this._directoryPath);
+  _FakeFolderPicker(this._directoryPath) : _thrown = null;
+  _FakeFolderPicker.throwing(Object this._thrown) : _directoryPath = null;
 
   final String? _directoryPath;
+  final Object? _thrown;
 
   @override
   Future<String?> getDirectoryPath({
@@ -47,6 +49,7 @@ class _FakeFolderPicker extends FilePickerPlatform {
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
   }) async {
+    if (_thrown != null) throw _thrown;
     return _directoryPath;
   }
 }
@@ -184,6 +187,23 @@ void main() {
     expect(result.errors, hasLength(1));
     expect(result.errors.single.filename, 'broken.bin');
     expect(result.errors.single.cause, isA<StateError>());
+  });
+
+  test('takes the size the platform reported without reading the file',
+      () async {
+    // Nothing exists at the path, so a size read from disk would fail.
+    FilePickerPlatform.instance = _FakeFilePicker.result([
+      FakePlatformFile(
+        name: 'reported.bin',
+        path: '${Directory.systemTemp.path}/pick_files_never_written.bin',
+        size: 42,
+      ),
+    ]);
+
+    final result = await pickFiles();
+
+    expect(result!.errors, isEmpty);
+    expect(result.files.single.size, 42);
   });
 
   group('a pick whose result carries no size', () {
@@ -328,6 +348,35 @@ void main() {
     test('returns null when user cancels (no folder selected)', () async {
       FilePickerPlatform.instance = _FakeFolderPicker(null);
       expect(await pickFolder(), isNull);
+    });
+
+    test('wraps a failing directory picker in PickFilePickerException',
+        () async {
+      final error = Exception('picker exploded');
+      FilePickerPlatform.instance = _FakeFolderPicker.throwing(error);
+
+      await expectLater(
+        pickFolder(),
+        throwsA(
+          isA<PickFilePickerException>()
+              .having((e) => e.cause, 'cause', same(error)),
+        ),
+      );
+    });
+
+    test('wraps a folder it cannot list in PickFilePickerException', () async {
+      // What iOS answers for a folder picked outside the app's own storage:
+      // a path the app is not allowed to list.
+      FilePickerPlatform.instance =
+          _FakeFolderPicker('${tempRoot.path}/not_listable');
+
+      await expectLater(
+        pickFolder(),
+        throwsA(
+          isA<PickFilePickerException>()
+              .having((e) => e.cause, 'cause', isA<FileSystemException>()),
+        ),
+      );
     });
 
     test('returns null when folder contains only dotfiles', () async {

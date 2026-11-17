@@ -1,9 +1,13 @@
+import 'package:file_picker/file_picker.dart' show FilePickerPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/mockups/chat/chat_mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup.dart';
 import 'package:soliplex_frontend/src/mockups/mockup_app.dart';
+
+import '../helpers/held_file_picker.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -110,5 +114,40 @@ void main() {
     await tester.tap(find.text('Filter documents'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Document filtering — stubbed'), findsOneWidget);
+  });
+
+  testWidgets('records a picker that failed after the screen closed',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    final picker = HeldFilePicker();
+    final platformPicker = FilePickerPlatform.instance;
+    FilePickerPlatform.instance = picker;
+    addTearDown(() => FilePickerPlatform.instance = platformPicker);
+
+    final chat = Mockup(name: 'Chat', build: (_) => const ChatMockup());
+    await tester.pumpWidget(MockupApp(mockups: [chat], initial: chat));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add to message'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attach files or images…'));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(const SizedBox());
+    final cause = Exception('picker failed late');
+    picker.answer.completeError(cause);
+    await tester.pump();
+
+    final failed = sink.records.singleWhere(
+      (r) =>
+          r.loggerName == 'soliplex_frontend.room_screen' &&
+          r.message == 'Pick failed',
+    );
+    expect(failed.level, LogLevel.error);
+    expect(failed.error, same(cause));
   });
 }

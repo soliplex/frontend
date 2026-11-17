@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/pick_image_web_batch.dart';
 
@@ -49,6 +51,24 @@ void main() {
     ]);
   });
 
+  test('reads every file before revoking any URL', () async {
+    // A file the plugin did not preload is read through its object URL, so a
+    // URL revoked before its read would fail a file the browser can read.
+    final revoked = <String>{};
+
+    final result = await readWebImageBatch(
+      [
+        _ReadThroughUrlFile(name: 'a.png', revoked: revoked),
+        _ReadThroughUrlFile(name: 'b.png', revoked: revoked),
+      ],
+      revokeObjectUrl: revoked.add,
+    );
+
+    expect(result.images.map((image) => image.name), ['a.png', 'b.png']);
+    expect(result.errors, isEmpty);
+    expect(revoked, hasLength(2));
+  });
+
   test('revokes only blob URLs', () async {
     final revoked = <String>[];
 
@@ -59,4 +79,21 @@ void main() {
 
     expect(revoked, isEmpty);
   });
+}
+
+/// A web pick the plugin did not preload: its read fetches the object URL,
+/// which fails once that URL has been revoked.
+final class _ReadThroughUrlFile extends FakePlatformFile {
+  _ReadThroughUrlFile({required super.name, required this.revoked})
+      : super(bytes: onePixelPng);
+
+  final Set<String> revoked;
+
+  @override
+  Future<Uint8List> readAsBytes() async {
+    if (revoked.contains(uri.toString())) {
+      throw StateError('fetch of a revoked object URL');
+    }
+    return super.readAsBytes();
+  }
 }
