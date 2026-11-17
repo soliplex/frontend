@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Changed
+
+- Plain-text workdir files (`.txt`, `.log`, `.ini`, `.cfg`, `.conf`) show as
+  monospace text, line for line, instead of being rendered as markdown.
+- SVGs, in chat and in the workdir, have a Preview / Source switch and a copy
+  button. A broken SVG shows its source with a notice instead of a "looks
+  corrupt" page or a bare broken-image icon; while a reply is still
+  streaming, a half-received SVG shows nothing until the reply finishes.
+
+### Fixed
+
+- Code blocks in chat and code and text files in the workdir can be selected,
+  not only copied; in chat they join the message's drag-selection (#389).
+
 ## [0.119.0+108] - 2026-11-18
 
 ### Added
