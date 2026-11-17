@@ -50,6 +50,56 @@ void main() {
 
       expect(find.byTooltip('Copy SVG'), findsOneWidget);
     });
+
+    for (final (width, scale) in [(260.0, 1.5), (230.0, 1.5), (260.0, 2.0)]) {
+      testWidgets(
+          'with label and switch fits $width px at text scale $scale '
+          'and keeps copy tappable', (tester) async {
+        await tester.pumpWidget(_host(MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              child: ContentHeader(
+                label: 'svg',
+                copyText: 'x',
+                copyTooltip: 'Copy SVG',
+                view: ContentView.rendered,
+                renderedLabel: 'Preview',
+                onViewChanged: (_) {},
+              ),
+            ),
+          ),
+        )));
+
+        expect(tester.takeException(), isNull);
+        expect(find.byTooltip('Copy SVG').hitTestable(), findsOneWidget);
+      });
+    }
+
+    testWidgets('keeps the switch full size when it fits beside a label',
+        (tester) async {
+      await tester.pumpWidget(_host(Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: ContentHeader(
+            label: 'svg',
+            copyText: 'x',
+            copyTooltip: 'Copy SVG',
+            view: ContentView.rendered,
+            renderedLabel: 'Preview',
+            onViewChanged: (_) {},
+          ),
+        ),
+      )));
+
+      final segmented = find.byType(SegmentedButton<ContentView>);
+      final drawnWidth =
+          tester.getBottomRight(segmented).dx - tester.getTopLeft(segmented).dx;
+      expect(drawnWidth, tester.getSize(segmented).width);
+    });
   });
 
   testWidgets('RenderFailureNotice shows its message', (tester) async {

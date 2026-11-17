@@ -82,7 +82,12 @@ class CodeView extends StatelessWidget {
     );
     return ColoredBox(
       color: root?.backgroundColor ?? Colors.transparent,
-      child: selectable ? SelectableText.rich(span) : Text.rich(span),
+      // Replaces the ambient style so prose line height and letter spacing
+      // do not reach the code.
+      child: DefaultTextStyle(
+        style: style,
+        child: selectable ? SelectableText.rich(span) : Text.rich(span),
+      ),
     );
   }
 }

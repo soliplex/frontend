@@ -34,58 +34,80 @@ class ContentHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final label = this.label;
     final view = this.view;
-    return Row(
-      children: [
-        if (label != null)
-          Padding(
-            padding: const EdgeInsets.only(
-              left: SoliplexSpacing.s3,
-              top: SoliplexSpacing.s1,
-            ),
-            child: Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Expanded(
+            child: label == null
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(
+                      left: SoliplexSpacing.s3,
+                      top: SoliplexSpacing.s1,
+                    ),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
           ),
-        const Spacer(),
-        if (view != null)
-          Padding(
-            padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
-            child: SegmentedButton<ContentView>(
-              showSelectedIcon: false,
-              style: SegmentedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                textStyle: theme.textTheme.labelSmall,
-              ),
-              segments: [
-                ButtonSegment(
-                  value: ContentView.rendered,
-                  label: Text(renderedLabel!),
-                ),
-                const ButtonSegment(
-                  value: ContentView.source,
-                  label: Text('Source'),
+          // Laid out before the label, so the switch and copy button get the
+          // width they need and the label is cut short first; the switch
+          // shrinks only when it cannot fit beside the copy button at all.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (view != null)
+                  Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: SegmentedButton<ContentView>(
+                          showSelectedIcon: false,
+                          style: SegmentedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            textStyle: theme.textTheme.labelSmall,
+                          ),
+                          segments: [
+                            ButtonSegment(
+                              value: ContentView.rendered,
+                              label: Text(renderedLabel!),
+                            ),
+                            const ButtonSegment(
+                              value: ContentView.source,
+                              label: Text('Source'),
+                            ),
+                          ],
+                          selected: {view},
+                          onSelectionChanged: (selection) =>
+                              onViewChanged!(selection.single),
+                        ),
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    right: SoliplexSpacing.s1,
+                    top: SoliplexSpacing.s1,
+                  ),
+                  child: CopyButton(
+                    text: copyText,
+                    tooltip: copyTooltip,
+                    iconSize: 16,
+                  ),
                 ),
               ],
-              selected: {view},
-              onSelectionChanged: (selection) =>
-                  onViewChanged!(selection.single),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.only(
-            right: SoliplexSpacing.s1,
-            top: SoliplexSpacing.s1,
-          ),
-          child: CopyButton(
-            text: copyText,
-            tooltip: copyTooltip,
-            iconSize: 16,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
