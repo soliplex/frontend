@@ -1,8 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:web/web.dart' as web;
 
-import 'pick_file.dart';
+import 'pick_file.dart' show PickFilePickerException, pickFiles;
 import 'pick_image.dart';
+import 'pick_image_web_batch.dart';
 
 /// Web implementation of [pickImages].
 ///
@@ -13,14 +14,9 @@ import 'pick_image.dart';
 /// the bypass serves is absent here, and asking `file_picker` for the bytes
 /// costs no interop of our own.
 ///
-/// It does cost one thing that has to be undone. For every picked file the
-/// plugin mints an object URL on the file itself and never revokes it, which
-/// would keep each picked file reachable for the life of the page. Revoking the
-/// URL releases that reference; the bytes we read are unaffected. The plugin
-/// reads each file's bytes at pick time, and a read here goes through the URL
-/// only when that preload failed, so the URLs are revoked once every read is
-/// done, and for the whole batch, so that nothing going wrong with one file can
-/// strand another file's URL.
+/// It does cost one thing that has to be undone: the object URL the plugin
+/// mints on every picked file. [readWebImageBatch] reads the bytes and revokes
+/// them.
 ///
 /// The plugin returns the files in the browser's `FileList` order, which the
 /// browser chooses, not necessarily the order the user picked them in.
@@ -35,28 +31,9 @@ Future<PickImagesResult?> pickImagesImpl() async {
   }
   if (picked.isEmpty) return null;
 
-  final images = <PickedImage>[];
-  final errors = <PickFileItemError>[];
-  try {
-    for (final file in picked) {
-      try {
-        images.add(
-          PickedImage.fromBytes(
-            name: file.name,
-            bytes: await file.readAsBytes(),
-          ),
-        );
-      } on Object catch (error) {
-        // The browser refusing to read a picked file is that file's problem.
-        errors.add(PickFileItemError(filename: file.name, cause: error));
-      }
-    }
-  } finally {
-    for (final file in picked) {
-      if (file.uri.isScheme('blob')) {
-        web.URL.revokeObjectURL(file.uri.toString());
-      }
-    }
-  }
-  return (images: images, errors: errors);
+  return readWebImageBatch(
+    picked,
+    // A lambda: the web compilers refuse a tear-off of an interop member.
+    revokeObjectUrl: (url) => web.URL.revokeObjectURL(url),
+  );
 }
