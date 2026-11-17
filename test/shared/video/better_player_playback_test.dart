@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/shared/video/better_player_playback.dart';
 import 'package:soliplex_frontend/src/shared/video/video_playback.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// The platform side of the player: it creates players and reports their
 /// events as the test feeds them.
@@ -20,6 +21,12 @@ class _FakePlatform extends BetterPlayerPlatform {
           size: const Size(1280, 720),
         ),
       );
+
+  void finished() =>
+      events.add(VideoEvent(eventType: VideoEventType.completed, key: null));
+
+  /// The positions the player was asked to seek to, in order.
+  final List<Duration?> seeks = [];
 
   void failed(String message, {String code = 'VideoError'}) => events.addError(
         PlatformException(code: code, message: message),
@@ -45,13 +52,21 @@ class _FakePlatform extends BetterPlayerPlatform {
   Future<void> play(int? textureId) async {}
 
   @override
-  Future<void> pause(int? textureId) async {}
+  Future<void> pause(int? textureId) async {
+    if (refusePause) {
+      throw PlatformException(code: 'VideoError', message: 'pause refused');
+    }
+  }
+
+  /// Makes [pause] fail, as a platform player can.
+  bool refusePause = false;
 
   @override
   Future<void> setVolume(int? textureId, double volume) async {}
 
   @override
-  Future<void> seekTo(int? textureId, Duration? position) async {}
+  Future<void> seekTo(int? textureId, Duration? position) async =>
+      seeks.add(position);
 
   @override
   Future<Duration> getPosition(int? textureId) async => Duration.zero;
@@ -241,6 +256,58 @@ void main() {
     expect(reasons, hasLength(1));
     expect(reasons.single, contains('connection lost'));
     expect(reasons.single, isNot(contains('secret')));
+    playback!.dispose();
+  });
+
+  testWidgets('playing a finished video starts it from the beginning',
+      (tester) async {
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: (_) {})
+          .then((p) => playback = p),
+    );
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+    platform.finished();
+    await settle(tester);
+    expect(playback!.status.value.isPlaying, isFalse);
+
+    unawaited(playback!.play());
+    await settle(tester);
+
+    expect(platform.seeks, contains(Duration.zero));
+    playback!.dispose();
+  });
+
+  testWidgets('a command the player refuses is logged, not thrown',
+      (tester) async {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(LogManager.instance.reset);
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: (_) {})
+          .then((p) => playback = p),
+    );
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+    platform.refusePause = true;
+
+    Object? thrown;
+    unawaited(playback!.pause().catchError((Object e) => thrown = e));
+    await settle(tester);
+
+    expect(thrown, isNull);
+    final record = sink.records.singleWhere(
+      (r) => r.message == 'A video command failed',
+    );
+    expect(record.attributes, containsPair('operation', 'pause'));
+    expect(record.attributes, containsPair('host', 'cdn.example'));
+    expect('${record.attributes}', isNot(contains('secret')));
+    // better_player pauses, unawaited, as it disposes.
+    platform.refusePause = false;
     playback!.dispose();
   });
 }

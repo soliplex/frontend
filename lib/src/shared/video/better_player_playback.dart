@@ -3,10 +3,14 @@ import 'dart:async';
 import 'package:better_player/better_player.dart';
 import 'package:flutter/widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'video_platform.dart'
     if (dart.library.js_interop) 'video_platform_web.dart';
 import 'video_playback.dart';
+import 'video_uri.dart';
+
+final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 
 /// Plays [uri] through `better_player`, completing once the video has loaded.
 ///
@@ -83,7 +87,7 @@ Future<VideoPlayback> createBetterPlayerPlayback(
     rethrow;
   }
   fail = onError;
-  return _BetterPlayerPlayback(controller);
+  return _BetterPlayerPlayback(controller, uri);
 }
 
 /// [text], a player's account of a failure, without what could hold a
@@ -123,13 +127,14 @@ String _withShakaErrorsReduced(String text) =>
     });
 
 class _BetterPlayerPlayback implements VideoPlayback {
-  _BetterPlayerPlayback(this._controller) {
+  _BetterPlayerPlayback(this._controller, this._uri) {
     _controller.addVideoListener(_update);
     // The video has loaded by now; the status starts from where it stands.
     _update();
   }
 
   final BetterPlayerController _controller;
+  final Uri _uri;
   final Signal<VideoStatus> _status = signal(const VideoStatus());
 
   /// The rendition each listed quality stands for.
@@ -180,17 +185,50 @@ class _BetterPlayerPlayback implements VideoPlayback {
     }
   }
 
+  /// Plays on, or from the beginning once the video has ended: the native
+  /// players only resume, and stay at the end.
   @override
-  Future<void> play() => _controller.play();
+  Future<void> play() => _run('play', () async {
+        final status = _status.value;
+        final duration = status.duration;
+        if (duration != null &&
+            duration > Duration.zero &&
+            status.position >= duration) {
+          await _controller.seekTo(Duration.zero);
+        }
+        await _controller.play();
+      });
 
   @override
-  Future<void> pause() => _controller.pause();
+  Future<void> pause() => _run('pause', _controller.pause);
 
   @override
-  Future<void> seekTo(Duration position) => _controller.seekTo(position);
+  Future<void> seekTo(Duration position) =>
+      _run('seekTo', () => _controller.seekTo(position));
 
   @override
-  Future<void> setVolume(double volume) => _controller.setVolume(volume);
+  Future<void> setVolume(double volume) =>
+      _run('setVolume', () => _controller.setVolume(volume));
+
+  /// Runs [command], logging a failure rather than throwing it: the callers
+  /// fire commands from taps and moves, and a refused command leaves the
+  /// video as it was.
+  Future<void> _run(String operation, Future<void> Function() command) async {
+    try {
+      await command();
+    } on Object catch (error, stackTrace) {
+      _logger.warning(
+        'A video command failed',
+        stackTrace: stackTrace,
+        attributes: {
+          ...videoSourceAttributes(_uri),
+          'operation': operation,
+          // A platform's error text can name the source.
+          'failure': withoutCredentials('$error'),
+        },
+      );
+    }
+  }
 
   @override
   void selectQuality(VideoQuality? quality) {

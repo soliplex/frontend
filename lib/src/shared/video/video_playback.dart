@@ -72,6 +72,9 @@ class VideoStatus {
 ///
 /// The seam the video widgets are written against, so they can be tested
 /// without a platform player; [createBetterPlayerPlayback] is the real one.
+///
+/// Its commands never throw: one the player refuses is logged and leaves the
+/// video as it was, so the widgets fire them without awaiting.
 abstract interface class VideoPlayback {
   /// Where playback stands, updated as it plays.
   ReadonlySignal<VideoStatus> get status;

@@ -14,6 +14,7 @@ import 'video_handoff.dart';
 import 'video_platform.dart'
     if (dart.library.js_interop) 'video_platform_web.dart';
 import 'video_playback.dart';
+import 'video_uri.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 
@@ -114,7 +115,7 @@ class _VideoCardState extends State<VideoCard> {
         'Could not start the video player',
         error: error,
         stackTrace: stackTrace,
-        attributes: _sourceAttributes(uri),
+        attributes: videoSourceAttributes(uri),
       );
       if (mounted && identical(_state, starting)) {
         setState(() => _state = const _Unplayable());
@@ -135,7 +136,7 @@ class _VideoCardState extends State<VideoCard> {
     if (!mounted || _state is! _Playing) return;
     _logger.warning(
       'A video could not be played',
-      attributes: {..._sourceAttributes(widget.uri), 'reason': reason},
+      attributes: {...videoSourceAttributes(widget.uri), 'reason': reason},
     );
     _release();
     setState(() => _state = const _Unplayable());
@@ -279,13 +280,6 @@ class _VideoCardState extends State<VideoCard> {
     );
   }
 }
-
-Map<String, Object> _sourceAttributes(Uri uri) => {
-      // Not the query: a signed media URL carries its credential there.
-      'host': uri.host,
-      'path': uri.path,
-      'queryLength': uri.query.length,
-    };
 
 class _Poster extends StatelessWidget {
   const _Poster({required this.label, required this.onPlay});

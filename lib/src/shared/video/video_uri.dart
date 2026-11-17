@@ -19,3 +19,11 @@ bool isVideoUri(Uri uri) {
   if (dot < 0 || dot < path.lastIndexOf('/')) return false;
   return _videoExtensions.contains(path.substring(dot + 1).toLowerCase());
 }
+
+/// What a log record says of the video at [uri]: its host and path, and only
+/// the length of its query, where a signed media URL carries its credential.
+Map<String, Object> videoSourceAttributes(Uri uri) => {
+      'host': uri.host,
+      'path': uri.path,
+      'queryLength': uri.query.length,
+    };
