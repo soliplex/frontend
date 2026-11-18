@@ -35,10 +35,13 @@ void _logLaunchFailure(
   StackTrace? stackTrace,
 ]) {
   final detail = '$message (scheme: ${uri.scheme})';
+  // The launchers' exceptions quote the link (url_launcher_android: "No
+  // Activity found to handle intent { <url> }").
+  final attributes = {if (error != null) 'failure': describeFailure(error)};
   final isWeb = uri.scheme == 'http' || uri.scheme == 'https';
   if (isWeb) {
-    _logger.error(detail, error: error, stackTrace: stackTrace);
+    _logger.error(detail, stackTrace: stackTrace, attributes: attributes);
   } else {
-    _logger.warning(detail, error: error, stackTrace: stackTrace);
+    _logger.warning(detail, stackTrace: stackTrace, attributes: attributes);
   }
 }
