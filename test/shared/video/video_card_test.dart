@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -134,6 +136,34 @@ void main() {
   Future<void> startPlaying(WidgetTester tester) async {
     await tester.tap(find.byTooltip('Play video'));
     await tester.pumpAndSettle();
+  }
+
+  /// Has focus kept as on the web and the desktop, where Flutter moves it to
+  /// the root while the app is inactive. A focus manager settles that when it
+  /// is made, and the test binding makes one for Android before each test.
+  void useDesktopFocus(WidgetTester tester) {
+    final owner = tester.binding.buildOwner!;
+    // A focus manager registers its key handler here, deprecated or not, and
+    // asserts that no other has.
+    // ignore: deprecated_member_use
+    final keys = ServicesBinding.instance.keyEventManager;
+    final androidFocus = owner.focusManager;
+    // ignore: deprecated_member_use
+    final androidKeys = keys.keyMessageHandler;
+    // ignore: deprecated_member_use
+    keys.keyMessageHandler = null;
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      owner.focusManager = FocusManager()..registerGlobalHandlers();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+    addTearDown(() {
+      owner.focusManager.dispose();
+      owner.focusManager = androidFocus;
+      // ignore: deprecated_member_use
+      keys.keyMessageHandler = androidKeys;
+    });
   }
 
   /// Records the system UI modes the card asks for, in order; a manual mode
@@ -311,6 +341,33 @@ void main() {
       findsOneWidget,
     );
     expect(playback.playing, isTrue);
+  });
+
+  testWidgets(
+      'Escape closes the dialog after full screen was left while the app was '
+      'inactive', (tester) async {
+    useDesktopFocus(tester);
+    recordSystemUiModes();
+    addTearDown(
+      () => tester.binding
+          .handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+    );
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Expand video'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.tap(find.byTooltip('Exit full screen'));
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
   });
 
   testWidgets('full screen hides the system bars until it is left',

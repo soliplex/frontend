@@ -197,12 +197,18 @@ class _VideoCardState extends State<VideoCard> {
 
   void _openFullscreen(VideoHandoff handoff, VideoHost returnTo) {
     final navigator = Navigator.of(context, rootNavigator: true);
+    // Given back as the page leaves. Leaving while the app is inactive, as
+    // Safari makes it on Escape, would otherwise leave focus at the root:
+    // Flutter parks it there while the app is inactive and forgets the page
+    // that had it, so the route beneath would no longer hear Escape.
+    final focusBeneath = FocusManager.instance.primaryFocus;
     final route = PageRouteBuilder<void>(
       pageBuilder: (context, _, __) => _FullscreenPage(
         handoff: handoff,
         onLeave: () {
           unawaited(handoff.moveTo(returnTo));
           _leaveFullscreenChrome();
+          focusBeneath?.requestFocus();
         },
       ),
     );
