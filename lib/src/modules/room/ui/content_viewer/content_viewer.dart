@@ -76,7 +76,7 @@ class ContentViewer extends StatelessWidget {
                 copyTooltip: isJson ? 'Copy JSON' : 'Copy code',
               ),
               notice: tooLarge
-                  ? const RenderFailureNotice(
+                  ? const ContentInfoNotice(
                       message: 'Too large to highlight; showing plain text.',
                     )
                   : null,

@@ -112,11 +112,57 @@ class ContentHeader extends StatelessWidget {
   }
 }
 
-/// A bar explaining why a viewer shows something other than what was asked.
+/// A bar explaining that a viewer could not show its content as asked: an
+/// error bar.
 class RenderFailureNotice extends StatelessWidget {
   const RenderFailureNotice({super.key, required this.message});
 
   final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return _NoticeBar(
+      message: message,
+      icon: Icons.warning_amber_outlined,
+      background: colors.errorContainer,
+      foreground: colors.onErrorContainer,
+    );
+  }
+}
+
+/// A bar explaining why a viewer shows something other than usual, without a
+/// failure: a neutral information bar.
+class ContentInfoNotice extends StatelessWidget {
+  const ContentInfoNotice({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return _NoticeBar(
+      message: message,
+      icon: Icons.info_outline,
+      background: colors.surfaceContainerHighest,
+      foreground: colors.onSurfaceVariant,
+    );
+  }
+}
+
+/// The layout both notices share; they differ in icon and colours.
+class _NoticeBar extends StatelessWidget {
+  const _NoticeBar({
+    required this.message,
+    required this.icon,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String message;
+  final IconData icon;
+  final Color background;
+  final Color foreground;
 
   @override
   Widget build(BuildContext context) {
@@ -126,21 +172,15 @@ class RenderFailureNotice extends StatelessWidget {
         horizontal: SoliplexSpacing.s3,
         vertical: SoliplexSpacing.s2,
       ),
-      color: theme.colorScheme.errorContainer,
+      color: background,
       child: Row(
         children: [
-          Icon(
-            Icons.warning_amber_outlined,
-            size: 16,
-            color: theme.colorScheme.onErrorContainer,
-          ),
+          Icon(icon, size: 16, color: foreground),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               message,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
+              style: theme.textTheme.bodySmall?.copyWith(color: foreground),
             ),
           ),
         ],

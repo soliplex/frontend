@@ -160,6 +160,36 @@ void main() {
           findsOneWidget);
     });
 
+    for (final brightness in Brightness.values) {
+      testWidgets('the notice is a neutral bar in $brightness', (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          theme: ThemeData(brightness: brightness),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ContentViewer(
+                language: 'json',
+                content: overJson,
+                fill: false,
+              ),
+            ),
+          ),
+        ));
+        final colors = Theme.of(tester.element(find.text(notice))).colorScheme;
+
+        final bar = tester.widget<Container>(find
+            .ancestor(of: find.text(notice), matching: find.byType(Container))
+            .first);
+        expect(bar.color, colors.surfaceContainerHighest);
+        final icon = tester.widget<Icon>(find.byIcon(Icons.info_outline));
+        expect(icon.color, colors.onSurfaceVariant);
+        expect(
+          tester.widget<Text>(find.text(notice)).style?.color,
+          colors.onSurfaceVariant,
+        );
+        expect(find.byIcon(Icons.warning_amber_outlined), findsNothing);
+      });
+    }
+
     testWidgets('json at the limit still offers Tree / Source', (tester) async {
       expect(jsonAtLimit.length, maxHighlightedLength);
       await tester.pumpWidget(_inline(ContentViewer(
