@@ -1,0 +1,28 @@
+name: soliplex_folder_picker
+description: >-
+  Picks a folder through the platform's own document picker and reads its
+  files, on the platforms where a plain path cannot.
+version: 1.0.0-dev
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^10.0.0
+
+flutter:
+  plugin:
+    platforms:
+      # iOS goes here beside Android: `ios: {pluginClass: ...}`. See README.
+      android:
+        package: ai.soliplex.folder_picker
+        pluginClass: SoliplexFolderPickerPlugin

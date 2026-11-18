@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_folder_picker/soliplex_folder_picker.dart';
 import 'package:soliplex_frontend/src/modules/room/pick_file.dart';
+import 'package:soliplex_frontend/src/modules/room/pick_file_impl.dart'
+    show folderPicker;
 
 import '../../helpers/fake_platform_file.dart';
 
@@ -55,6 +59,8 @@ class _FakeFolderPicker extends FilePickerPlatform {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late FilePickerPlatform originalPlatform;
 
   setUp(() {
@@ -334,12 +340,21 @@ void main() {
 
   group('pickFolder', () {
     late Directory tempRoot;
+    late SoliplexFolderPicker originalFolderPicker;
 
     setUp(() async {
       tempRoot = await Directory.systemTemp.createTemp('pick_folder_test_');
+      // Tests run as Android; these cover the path-based picker the other
+      // platforms use.
+      originalFolderPicker = folderPicker;
+      folderPicker = SoliplexFolderPicker(
+        platform: TargetPlatform.linux,
+        isWeb: false,
+      );
     });
 
     tearDown(() async {
+      folderPicker = originalFolderPicker;
       if (tempRoot.existsSync()) {
         await tempRoot.delete(recursive: true);
       }
@@ -379,13 +394,17 @@ void main() {
       );
     });
 
-    test('returns null when folder contains only dotfiles', () async {
+    test('reports a folder that holds only dotfiles', () async {
       final folder = await Directory('${tempRoot.path}/empty_proj').create();
       await File('${folder.path}/.DS_Store').writeAsString('mac junk');
       await File('${folder.path}/.gitignore').writeAsString('node_modules');
       FilePickerPlatform.instance = _FakeFolderPicker(folder.path);
 
-      expect(await pickFolder(), isNull);
+      final result = (await pickFolder())!;
+
+      expect(result.files, isEmpty);
+      expect(result.errors.single.filename, 'empty_proj');
+      expect(result.errors.single.cause, isA<NoFilesInFolderError>());
     });
 
     test(
@@ -433,7 +452,132 @@ void main() {
     });
   });
 
+  group('pickFolder through the document picker', () {
+    const channel = MethodChannel('test/folder_picker');
+    late SoliplexFolderPicker originalFolderPicker;
+    final calls = <MethodCall>[];
+
+    void answerPick(Object? folder) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return switch (call.method) {
+          'pick' => folder,
+          'open' => 1,
+          'read' => calls.where((c) => c.method == 'read').length == 1
+              ? Uint8List.fromList(utf8.encode('alpha'))
+              : null,
+          _ => null,
+        };
+      });
+    }
+
+    setUp(() {
+      calls.clear();
+      originalFolderPicker = folderPicker;
+      folderPicker = SoliplexFolderPicker(
+        channel: channel,
+        platform: TargetPlatform.android,
+        isWeb: false,
+      );
+      // Reaching the path-based picker would be the bug under test.
+      FilePickerPlatform.instance =
+          _FakeFolderPicker.throwing(StateError('path picker used'));
+    });
+
+    tearDown(() {
+      folderPicker = originalFolderPicker;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    test('returns null when the user cancels', () async {
+      answerPick(null);
+      expect(await pickFolder(), isNull);
+    });
+
+    test('names, filters and streams the files the picker lists', () async {
+      answerPick({
+        'name': 'testdir',
+        'files': [
+          {'path': 'a.txt', 'uri': 'content://t/a', 'size': 5},
+          {'path': 'sub/b.md', 'uri': 'content://t/b', 'size': 3},
+          {'path': '.hidden', 'uri': 'content://t/h', 'size': 1},
+          {'path': '.git/HEAD', 'uri': 'content://t/g', 'size': 1},
+        ],
+      });
+
+      final result = (await pickFolder())!;
+
+      expect(result.errors, isEmpty);
+      expect(
+        result.files.map((f) => (f.name, f.size, f.mimeType)),
+        [
+          ('testdir__a.txt', 5, 'text/plain'),
+          ('testdir__sub__b.md', 3, 'text/markdown'),
+        ],
+      );
+      final bytes = await result.files.first
+          .openStream()
+          .fold<List<int>>(<int>[], (acc, c) => acc..addAll(c));
+      expect(utf8.decode(bytes), 'alpha');
+      expect(
+        calls.firstWhere((c) => c.method == 'open').arguments,
+        {'uri': 'content://t/a'},
+      );
+    });
+
+    test('reports a file the picker gives no size for', () async {
+      answerPick({
+        'name': 'testdir',
+        'files': [
+          {'path': 'a.txt', 'uri': 'content://t/a', 'size': 5},
+          {'path': 'odd.bin', 'uri': 'content://t/o', 'size': null},
+        ],
+      });
+
+      final result = (await pickFolder())!;
+
+      expect(result.files.map((f) => f.name), ['testdir__a.txt']);
+      expect(result.errors.single.filename, 'odd.bin');
+      expect(result.errors.single.cause, isA<StateError>());
+    });
+
+    test('reports a folder with nothing to upload', () async {
+      answerPick({'name': 'testdir', 'files': <Object?>[]});
+
+      final result = (await pickFolder())!;
+
+      expect(result.files, isEmpty);
+      expect(result.errors.single.filename, 'testdir');
+      expect(result.errors.single.cause, isA<NoFilesInFolderError>());
+    });
+
+    test('wraps a failing picker in PickFilePickerException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        channel,
+        (_) async => throw PlatformException(code: 'list_failed'),
+      );
+
+      await expectLater(
+        pickFolder(),
+        throwsA(
+          isA<PickFilePickerException>()
+              .having((e) => e.cause, 'cause', isA<PlatformException>()),
+        ),
+      );
+    });
+  });
+
   group('pickerErrorMessage', () {
+    test('an empty folder says so', () {
+      expect(
+        pickerErrorMessage(const NoFilesInFolderError()),
+        'No files to upload in this folder.',
+      );
+    });
+
     test('RangeError cause surfaces as a browser-heap message', () {
       expect(
         pickerErrorMessage(RangeError('Maximum allowed length')),

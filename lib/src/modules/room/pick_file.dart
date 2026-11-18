@@ -77,6 +77,17 @@ class PickFilePickerException extends PickFileException {
   String toString() => 'File picker failed: $cause';
 }
 
+/// The cause [pickFolder] reports, under the folder's name, for a folder with
+/// nothing to upload once dotfiles are skipped. Reported rather than read as a
+/// cancel, so a folder the app was not let into does not look like nothing
+/// happened.
+class NoFilesInFolderError implements Exception {
+  const NoFilesInFolderError();
+
+  @override
+  String toString() => 'The folder has no files to upload';
+}
+
 /// User-facing message for a pick-related failure cause.
 ///
 /// `RangeError` is the canonical signal that the browser ran out of
@@ -85,6 +96,9 @@ class PickFilePickerException extends PickFileException {
 /// JS-interop boundary as a generic JS error and still falls through
 /// to the catch-all message; that's an accepted limitation.
 String pickerErrorMessage(Object cause) {
+  if (cause is NoFilesInFolderError) {
+    return 'No files to upload in this folder.';
+  }
   if (cause is RangeError) {
     return 'Selection is too large to load in the browser.';
   }
@@ -149,10 +163,11 @@ Future<PickFilesResult?> pickFiles() => pickFilesImpl();
 /// Opens the platform directory picker and walks the chosen folder for
 /// uploadable files.
 ///
-/// Returns `null` when the user cancels OR when the folder contains no
-/// uploadable files after filtering (dotfiles and entries under
-/// dot-prefixed directories are skipped). Both cases are treated as
-/// cancellation: the caller does not enqueue a phantom empty batch.
+/// Returns `null` when the user cancels. Dotfiles and entries under
+/// dot-prefixed directories are skipped; a native pick left with no files
+/// answers a single [NoFilesInFolderError] in [PickFilesResult.errors]. On web
+/// a folder with no files never reaches the app: the browser reads it as a
+/// cancel.
 ///
 /// A failure of the directory picker itself reads as a cancel too on Android,
 /// iOS and macOS, where the plugin catches it and answers null, and on Linux,
