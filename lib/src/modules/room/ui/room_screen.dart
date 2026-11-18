@@ -1422,6 +1422,13 @@ class _RoomScreenState extends State<RoomScreen> {
   /// closing, and none while the layout has no drawer at all.
   final _drawerKey = GlobalKey();
 
+  /// Keeps the room's content mounted when the layout crosses
+  /// [SoliplexBreakpoints.tablet], as rotating a phone does. The wide and
+  /// narrow layouts put it under different scaffolds, so without the key it
+  /// would be torn down and rebuilt, stopping a playing video and dropping
+  /// whatever else the message list holds (#733).
+  final _contentKey = GlobalKey(debugLabel: 'room content');
+
   /// Whether the room is the surface the user is typing at: its route on top,
   /// and no drawer over it.
   ///
@@ -1758,7 +1765,7 @@ class _RoomScreenState extends State<RoomScreen> {
           // title and its trailing actions. Narrow layouts show the title in
           // the AppBar and hoist those actions up beside it (issue #465).
           final built = _buildContent(room, showHeader: isWide);
-          final content = built.content;
+          final content = KeyedSubtree(key: _contentKey, child: built.content);
 
           if (isWide) {
             final sidebar = ThreadSidebar(

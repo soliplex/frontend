@@ -1347,6 +1347,46 @@ void main() {
     );
   });
 
+  testWidgets('keeps the content mounted across the tablet breakpoint',
+      (tester) async {
+    // Rotating a phone crosses it. A remount would stop a playing video and
+    // drop everything else the message list holds (#733).
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(ProviderScope(
+      child: MaterialApp(
+        home: RoomScreen(
+          appName: 'Test App',
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          downloadRegistry: downloadRegistry,
+          fileSort: fileSort,
+          documentSelections: DocumentSelections(),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.byType(AppBar), findsNothing, reason: 'starts wide');
+    final composer = tester.state(find.byType(ChatInput));
+
+    tester.view.physicalSize = Size(SoliplexBreakpoints.tablet - 1, 800);
+    await tester.pump();
+    expect(find.byType(AppBar), findsOneWidget, reason: 'now narrow');
+    expect(tester.state(find.byType(ChatInput)), same(composer));
+
+    tester.view.physicalSize = const Size(1200, 800);
+    await tester.pump();
+    expect(find.byType(AppBar), findsNothing, reason: 'wide again');
+    expect(tester.state(find.byType(ChatInput)), same(composer));
+  });
+
   group('a pick that outlives the screen', () {
     /// Opens a thread's upload picker and leaves the screen while the picker
     /// is still open, returning the picker so the test can answer it.
@@ -5334,18 +5374,23 @@ void main() {
         await tester.binding.setSurfaceSize(surfaceSize);
         addTearDown(() => tester.binding.setSurfaceSize(null));
       }
-      await tester.pumpWidget(MaterialApp(
-        home: RoomScreen(
-          appName: 'Test App',
-          serverEntry: entry,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          downloadRegistry: downloadRegistry,
-          fileSort: fileSort,
-          documentSelections: DocumentSelections(),
+      // In a ProviderScope, as in the app: crossing the tablet breakpoint
+      // moves the keyed content, and the Riverpod widgets in it look the
+      // scope up again when they move.
+      await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+          home: RoomScreen(
+            appName: 'Test App',
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            downloadRegistry: downloadRegistry,
+            fileSort: fileSort,
+            documentSelections: DocumentSelections(),
+          ),
         ),
       ));
       await drainFrames(tester, settle: settle);
