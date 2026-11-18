@@ -201,8 +201,10 @@ class _VideoCardState extends State<VideoCard> {
     // Given back as the page leaves. Leaving while the app is inactive, as
     // Safari makes it on Escape, would otherwise leave focus at the root:
     // Flutter parks it there while the app is inactive and forgets the page
-    // that had it, so the route beneath would no longer hear Escape.
-    final focusBeneath = FocusManager.instance.primaryFocus;
+    // that had it, so the route beneath would no longer hear Escape. The
+    // route's scope rather than the focused node: a button pressed from the
+    // keyboard holds the focus, and the move to full screen unmounts it.
+    final focusBeneath = FocusManager.instance.primaryFocus?.nearestScope;
     final route = PageRouteBuilder<void>(
       pageBuilder: (context, _, __) => _FullscreenPage(
         handoff: handoff,

@@ -343,32 +343,52 @@ void main() {
     expect(playback.playing, isTrue);
   });
 
-  testWidgets(
-      'Escape closes the dialog after full screen was left while the app was '
-      'inactive', (tester) async {
-    useDesktopFocus(tester);
-    recordSystemUiModes();
-    addTearDown(
-      () => tester.binding
-          .handleAppLifecycleStateChanged(AppLifecycleState.resumed),
-    );
-    await pumpCard(tester);
-    await startPlaying(tester);
-    await tester.tap(find.byTooltip('Expand video'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Full screen'));
-    await tester.pumpAndSettle();
+  for (final (opened, open) in <(String, Future<void> Function(WidgetTester))>[
+    ('clicked', (tester) => tester.tap(find.byTooltip('Full screen'))),
+    (
+      'pressed from the keyboard',
+      (tester) async {
+        // The button holds the focus as it opens full screen, and goes.
+        Focus.of(
+          tester.element(
+            find.descendant(
+              of: find.byTooltip('Full screen'),
+              matching: find.byType(Icon),
+            ),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      }
+    ),
+  ]) {
+    testWidgets(
+        'Escape closes the dialog after full screen, $opened, was left while '
+        'the app was inactive', (tester) async {
+      useDesktopFocus(tester);
+      recordSystemUiModes();
+      addTearDown(
+        () => tester.binding
+            .handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+      );
+      await pumpCard(tester);
+      await startPlaying(tester);
+      await tester.tap(find.byTooltip('Expand video'));
+      await tester.pumpAndSettle();
+      await open(tester);
+      await tester.pumpAndSettle();
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    await tester.tap(find.byTooltip('Exit full screen'));
-    await tester.pumpAndSettle();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpAndSettle();
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.tap(find.byTooltip('Exit full screen'));
+      await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
 
-    expect(find.byType(Dialog), findsNothing);
-  });
+      expect(find.byType(Dialog), findsNothing);
+    });
+  }
 
   testWidgets('Escape leaves full screen where no browser does it',
       (tester) async {
