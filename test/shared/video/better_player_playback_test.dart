@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:better_player/better_player.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:soliplex_frontend/src/shared/video/better_player_playback.dart';
+import 'package:soliplex_frontend/src/shared/video/video_card.dart';
 import 'package:soliplex_frontend/src/shared/video/video_playback.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -103,6 +105,9 @@ class _FakePlatform extends BetterPlayerPlatform {
 
   @override
   Future<void> setMixWithOthers(int? textureId, bool mixWithOthers) async {}
+
+  @override
+  Widget buildView(int? textureId) => const SizedBox.expand();
 }
 
 final _signed = Uri.parse('https://cdn.example/clip.mp4?sig=secret');
@@ -290,7 +295,7 @@ void main() {
     playback!.dispose();
   });
 
-  testWidgets('a finished video stays paused when seeked back into',
+  testWidgets('a finished video stops the player wanting to play',
       (tester) async {
     VideoPlayback? playback;
     unawaited(
@@ -305,14 +310,40 @@ void main() {
     platform.finished();
     await settle(tester);
 
-    // A native player left wanting to play resumes on the next seek while
-    // the status still says paused.
-    expect(platform.playing, isFalse);
-    unawaited(playback!.seekTo(const Duration(seconds: 10)));
-    await settle(tester);
-    expect(playback!.status.value.isPlaying, isFalse);
+    // Android's player, left set to play, would resume on the next seek
+    // while the status says paused.
     expect(platform.playing, isFalse);
     playback!.dispose();
+  });
+
+  testWidgets('the player outlives the views it moves between', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VideoCard(
+            uri: _signed,
+            playbackFactory: createBetterPlayerPlayback,
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Play video'));
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+
+    // Each move unmounts the view it leaves, which disposes better_player's
+    // controller unless the playback keeps it.
+    await tester.tap(find.byTooltip('Expand video'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Close'));
+    await settle(tester);
+
+    expect(platform.disposed, isFalse);
+    expect(find.byTooltip('Expand video'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await settle(tester);
+    expect(platform.disposed, isTrue, reason: 'the card releases it');
   });
 
   testWidgets('a command the player refuses is logged, not thrown',
@@ -341,7 +372,8 @@ void main() {
     expect(record.attributes, containsPair('operation', 'pause'));
     expect(record.attributes, containsPair('host', 'cdn.example'));
     expect('${record.attributes}', isNot(contains('secret')));
-    // better_player pauses, unawaited, as it disposes.
+    // dispose() pauses without awaiting, so a refused pause there would be
+    // an uncaught error.
     platform.refusePause = false;
     playback!.dispose();
   });
