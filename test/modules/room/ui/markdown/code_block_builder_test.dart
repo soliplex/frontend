@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/markdown/code_block_builder.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 
 void main() {
@@ -141,6 +143,24 @@ void main() {
       // with the area.
       final paragraph = tester.renderObject<RenderParagraph>(code);
       expect(paragraph.registrar, isNotNull);
+    });
+
+    testWidgets('outside FenceStreaming, a fence is treated as complete',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MarkdownBody(
+              data: '```svg\nnot valid <svg outside fence streaming\n```',
+              builders: {'pre': CodeBlockBuilder(selectable: true)},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text("Couldn't render this SVG."), findsOneWidget);
     });
   });
 }
