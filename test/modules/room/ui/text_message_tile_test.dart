@@ -785,7 +785,7 @@ void main() {
   testWidgets(
       'a malformed SVG fence shows its notice once the message stops '
       'streaming', (tester) async {
-    const notice = "Couldn't render this SVG; showing its source.";
+    const notice = "Couldn't render this SVG.";
     Widget tile({required bool streaming}) => _wrap(
           SingleChildScrollView(
             child: TextMessageTile(

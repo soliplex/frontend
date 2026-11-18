@@ -3,8 +3,8 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../markdown/flutter_markdown_plus_renderer.dart';
 
-/// Wraps content in a fenced code block so the shared markdown
-/// renderer's code-block builder applies syntax highlighting.
+/// Wraps content in a fenced code block so the shared markdown renderer's
+/// code-block builder hands it to `ContentViewer`, which highlights it.
 class CodePreview extends StatelessWidget {
   const CodePreview({
     super.key,
@@ -14,7 +14,7 @@ class CodePreview extends StatelessWidget {
 
   final String content;
 
-  /// `flutter_highlight` language id (e.g. `dart`, `python`, `plaintext`).
+  /// `highlight` package language id (e.g. `dart`, `python`, `plaintext`).
   final String language;
 
   @override

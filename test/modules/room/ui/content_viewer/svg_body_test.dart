@@ -8,7 +8,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 const _validSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" '
     'height="10"><circle cx="5" cy="5" r="4"/></svg>';
 
-const _notice = "Couldn't render this SVG; showing its source.";
+const _notice = "Couldn't render this SVG.";
 
 Widget _inline(SvgBody body) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: body)),
@@ -231,5 +231,46 @@ void main() {
 
     expect(find.text(_notice), findsNothing);
     expect(find.byType(SvgPicture), findsOneWidget);
+  });
+
+  testWidgets('malformed SVG that is not streaming logs one warning',
+      (tester) async {
+    final sink = MemorySink();
+    LogManager.instance.addSink(sink);
+    addTearDown(() => LogManager.instance.removeSink(sink));
+    const content = 'not valid <svg logged once garbage';
+
+    await tester.pumpWidget(_fill(const SvgBody(
+      content: content,
+      fill: true,
+      isStreaming: false,
+      selectable: true,
+    )));
+    await tester.pumpAndSettle();
+
+    final record =
+        sink.records.where((r) => r.level == LogLevel.warning).single;
+    expect(record.error, isNull);
+    expect(record.attributes['contentLength'], content.length);
+  });
+
+  testWidgets('inline picture is capped at 400 px tall', (tester) async {
+    const tall = '<svg xmlns="http://www.w3.org/2000/svg" width="100" '
+        'height="2000"><rect width="100" height="2000"/></svg>';
+    await tester.runAsync(() async {
+      await tester.pumpWidget(_inline(const SvgBody(
+        content: tall,
+        fill: false,
+        isStreaming: false,
+        selectable: false,
+      )));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await tester.pump();
+    });
+    await tester.pump();
+
+    expect(
+        tester.getSize(find.byType(SvgPicture)).height, lessThanOrEqualTo(400));
+    expect(tester.getSize(find.byType(SvgPicture)).height, greaterThan(0));
   });
 }

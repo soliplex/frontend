@@ -8,8 +8,9 @@ import 'svg_body.dart';
 /// [content] under the shared header, rendered by the viewer for its
 /// [language].
 ///
-/// Inline ([fill] false), the viewer is as tall as its content; filling, it
-/// takes the height it is given. [isStreaming] says the content may still be
+/// Inline ([fill] false), the viewer is as tall as its content, an SVG picture
+/// capped at 400; filling, it takes the height it is given, which must be
+/// bounded. [isStreaming] says the content may still be
 /// incomplete, so a failed rendering shows no notice yet. Pass [selectable]
 /// false inside a `SelectionArea`.
 class ContentViewer extends StatelessWidget {

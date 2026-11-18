@@ -13,9 +13,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Plain-text workdir files (`.txt`, `.log`, `.ini`, `.cfg`, `.conf`) show as
   monospace text, line for line, instead of being rendered as markdown.
 - SVGs, in chat and in the workdir, have a Preview / Source switch and a copy
-  button. A broken SVG shows its source with a notice instead of a "looks
-  corrupt" page or a bare broken-image icon; while a reply is still
-  streaming, a half-received SVG shows nothing until the reply finishes.
+  button. In the workdir, a broken SVG shows a notice with its source below
+  instead of a "looks corrupt" page. In chat it shows the broken-image icon
+  with the notice beside it, and its source is behind the Source switch.
+  While a reply is still streaming, a broken SVG shows no notice until the
+  reply finishes; a partial SVG that happens to parse does render.
 
 ### Fixed
 

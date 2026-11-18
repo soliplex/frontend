@@ -151,10 +151,11 @@ class RenderFailureNotice extends StatelessWidget {
 
 /// The chrome around a viewer body: [header] and [notice] above [body].
 ///
-/// Inline, the frame is as tall as its content. Filling, it takes the height
-/// it is given: header and notice stay put and the body takes the rest,
-/// scrolling vertically when [scrollBody] is set. A body that scrolls or
-/// pans itself sets [scrollBody] to false and is given that height.
+/// Inline, the frame is as tall as its body, which may cap its own height.
+/// Filling, it takes the height it is given and needs it bounded: header and
+/// notice stay put and the body takes the rest, scrolling vertically when
+/// [scrollBody] is set. A body that scrolls or pans itself sets [scrollBody]
+/// to false and is given that height.
 class ContentFrame extends StatelessWidget {
   const ContentFrame({
     super.key,

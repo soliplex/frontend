@@ -521,7 +521,7 @@ void main() {
 
     testWidgets('rebuilds fences when only isStreaming changes',
         (tester) async {
-      const notice = "Couldn't render this SVG; showing its source.";
+      const notice = "Couldn't render this SVG.";
       const data = '```svg\nnot valid <svg renderer-streaming garbage\n```';
 
       await tester.pumpWidget(renderer(data, streaming: true));
