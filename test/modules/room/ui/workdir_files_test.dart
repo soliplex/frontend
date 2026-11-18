@@ -554,6 +554,29 @@ void main() {
     expect(_inPreview(find.byTooltip('Download')), findsOneWidget);
   });
 
+  testWidgets(
+      'a workdir .json over the limit shows the notice and the title bar '
+      'still offers Download', (tester) async {
+    final json = '{"a": "${'x' * maxHighlightedLength}"}';
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([_file('big.json')]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      onFetchBytes: (_) async => Uint8List.fromList(utf8.encode(json)),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Too large to highlight; showing plain text.'),
+        findsOneWidget);
+    expect(find.text('Tree'), findsNothing);
+    expect(
+        tester.widget<CodeView>(find.byType(CodeView)).language, 'plaintext');
+    expect(_inPreview(find.byTooltip('Download')), findsOneWidget);
+  });
+
   testWidgets('a .svg previews zoomable inside the bounded page',
       (tester) async {
     const svg =

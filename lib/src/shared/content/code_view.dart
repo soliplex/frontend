@@ -10,6 +10,12 @@ const _rootKey = 'root';
 // becomes _tabWidth spaces before highlighting, whatever its column.
 const _tabWidth = 8;
 
+/// The `String.length` (UTF-16 code units, about 100 KB for ASCII text) of
+/// content above which a viewer shows plain text instead of highlighting it or
+/// building a tree. Every view lays out all of its text at once, so beyond
+/// this the UI thread blocks for seconds without a frame.
+const maxHighlightedLength = 100 * 1024;
+
 /// Highlighted [code] as spans coloured by [theme]. A [language] the
 /// highlighter does not know is rendered as plain text.
 List<InlineSpan> highlightSpans(

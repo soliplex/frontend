@@ -134,4 +134,85 @@ void main() {
       expect(tester.getTopLeft(find.byType(CodeView)).dy, lessThan(codeTop));
     });
   });
+
+  group('over maxHighlightedLength', () {
+    const notice = 'Too large to highlight; showing plain text.';
+    final overJson = '{"a": "${'x' * maxHighlightedLength}"}';
+    final jsonAtLimit =
+        '{"a": "${'x' * (maxHighlightedLength - '{"a": ""}'.length)}"}';
+
+    testWidgets(
+        'json over the limit shows plain text, the notice and no switch',
+        (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'json',
+        content: overJson,
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsOneWidget);
+      expect(
+          tester.widget<CodeView>(find.byType(CodeView)).language, 'plaintext');
+      expect(find.text('Tree'), findsNothing);
+      expect(find.text('json'), findsOneWidget);
+      expect(find.byTooltip('Copy JSON'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^Code block in json\n')),
+          findsOneWidget);
+    });
+
+    testWidgets('json at the limit still offers Tree / Source', (tester) async {
+      expect(jsonAtLimit.length, maxHighlightedLength);
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'json',
+        content: jsonAtLimit,
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsNothing);
+      expect(find.text('Tree'), findsOneWidget);
+    });
+
+    testWidgets('json over the limit shows the notice while streaming',
+        (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'json',
+        content: overJson,
+        fill: false,
+        isStreaming: true,
+      )));
+
+      expect(find.text(notice), findsOneWidget);
+    });
+
+    testWidgets(
+        'code over the limit is not highlighted and keeps its label '
+        'and Copy code', (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'python',
+        content: '#' * (maxHighlightedLength + 1),
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsOneWidget);
+      expect(
+          tester.widget<CodeView>(find.byType(CodeView)).language, 'plaintext');
+      expect(find.text('python'), findsOneWidget);
+      expect(find.byTooltip('Copy code'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^Code block in python\n')),
+          findsOneWidget);
+    });
+
+    testWidgets('plaintext over the limit shows no label and Code block',
+        (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'plaintext',
+        content: 'a' * (maxHighlightedLength + 1),
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsOneWidget);
+      expect(find.text('plaintext'), findsNothing);
+      expect(find.bySemanticsLabel(RegExp(r'^Code block\n')), findsOneWidget);
+    });
+  });
 }

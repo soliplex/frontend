@@ -14,6 +14,10 @@ import 'svg_body.dart';
 /// bounded. [isStreaming] says the content may still be
 /// incomplete, so a failed rendering shows no notice yet. Pass [selectable]
 /// false inside a `SelectionArea`.
+///
+/// Code and JSON longer than [maxHighlightedLength] show as plain text under a
+/// notice, with no highlighting and no Tree view, streaming or not. SVG has no
+/// limit.
 class ContentViewer extends StatelessWidget {
   const ContentViewer({
     super.key,
@@ -32,7 +36,8 @@ class ContentViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return switch (contentKindOf(language)) {
+    final kind = contentKindOf(language);
+    return switch (kind) {
       ContentKind.svg => Semantics(
           label: 'SVG image',
           child: SvgBody(
@@ -42,34 +47,46 @@ class ContentViewer extends StatelessWidget {
             selectable: selectable,
           ),
         ),
-      ContentKind.json => Semantics(
-          label: 'Code block in json',
-          child: JsonViewer.source(
-            content,
-            initialView: ContentView.source,
-            fill: fill,
-            selectable: selectable,
-            isStreaming: isStreaming,
-          ),
-        ),
-      ContentKind.code => Semantics(
-          label: language == 'plaintext'
-              ? 'Code block'
-              : 'Code block in $language',
-          child: ContentFrame(
-            header: ContentHeader(
-              label: language == 'plaintext' ? null : language,
-              copyText: content,
-              copyTooltip: 'Copy code',
-            ),
-            body: CodeView(
-              code: content,
-              language: language,
-              selectable: selectable,
-            ),
-            fill: fill,
-          ),
-        ),
+      ContentKind.json || ContentKind.code => _codeBlock(kind),
     };
+  }
+
+  Widget _codeBlock(ContentKind kind) {
+    final isJson = kind == ContentKind.json;
+    final label = isJson
+        ? 'json'
+        : language == 'plaintext'
+            ? null
+            : language;
+    final tooLarge = content.length > maxHighlightedLength;
+    return Semantics(
+      label: label == null ? 'Code block' : 'Code block in $label',
+      child: isJson && !tooLarge
+          ? JsonViewer.source(
+              content,
+              initialView: ContentView.source,
+              fill: fill,
+              selectable: selectable,
+              isStreaming: isStreaming,
+            )
+          : ContentFrame(
+              header: ContentHeader(
+                label: label,
+                copyText: content,
+                copyTooltip: isJson ? 'Copy JSON' : 'Copy code',
+              ),
+              notice: tooLarge
+                  ? const RenderFailureNotice(
+                      message: 'Too large to highlight; showing plain text.',
+                    )
+                  : null,
+              body: CodeView(
+                code: content,
+                language: tooLarge ? 'plaintext' : language,
+                selectable: selectable,
+              ),
+              fill: fill,
+            ),
+    );
   }
 }
