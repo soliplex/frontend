@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- Rotating a phone, or resizing a window across the tablet width, no longer
+  rebuilds the room's conversation: a playing video keeps playing, its
+  expanded view stays open, and the composer and message list keep their
+  state.
+
 ## [0.119.0+108] - 2026-11-18
 
 ### Added
