@@ -27,7 +27,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   / Raw", the lobby's list/grid toggle) is drawn in the text colour instead of
   the muted grey that made it look disabled, and it now clears WCAG AA in dark
   mode. The icons of tonal buttons, such as the zoom view's rotate and Close,
-  and the text of attachment pills take the same colour.
+  the checkmark of a selected filter chip, and the text of attachment pills
+  take the same colour.
 - **Library consumers and forks:** `ColorScheme.onSecondaryContainer` is the
   brand's `foreground` rather than its `mutedForeground`; a fork whose own
   widgets used that role for secondary text should use `onSurfaceVariant`.
