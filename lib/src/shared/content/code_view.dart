@@ -6,8 +6,8 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 const _rootKey = 'root';
 
-// Flutter cannot render a tab stop (flutter/flutter#50087), so tabs become
-// spaces before highlighting.
+// Flutter cannot render a tab stop (flutter/flutter#50087), so each tab
+// becomes _tabWidth spaces before highlighting, whatever its column.
 const _tabWidth = 8;
 
 /// Highlighted [code] as spans coloured by [theme]. A [language] the
@@ -37,7 +37,7 @@ List<TextSpan> _convert(List<Node> nodes, Map<String, TextStyle> theme) {
   ];
 }
 
-/// The monospace style shared by every code surface.
+/// The style [CodeView] renders code in.
 TextStyle codeTextStyle(BuildContext context) {
   // design-system exception (approved): 14pt sits between bodySmall (13) and
   // bodyMedium (16); chosen so block code reads at roughly the size of

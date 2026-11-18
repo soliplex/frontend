@@ -10,7 +10,7 @@ import '../markdown/log_source.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.svg_body');
 
-const _notice = "Couldn't render this SVG; showing its source.";
+const _notice = "Couldn't render this SVG.";
 
 /// An SVG under the shared header, with a Preview / Source switch.
 ///
@@ -19,7 +19,8 @@ const _notice = "Couldn't render this SVG; showing its source.";
 /// height it is given. When the SVG fails to render, the Preview shows the
 /// failure (inline, a broken-image icon beside the notice text; filling, the
 /// notice above the source) unless [isStreaming], when the content may still
-/// be incomplete and the Preview stays empty and nothing is logged.
+/// be incomplete: the Preview stays empty and the failure is logged only once
+/// streaming ends.
 class SvgBody extends StatefulWidget {
   const SvgBody({
     super.key,
@@ -74,9 +75,12 @@ class _SvgBodyState extends State<SvgBody> {
   }
 
   void _logFailure() {
-    // vector_graphics_compiler's errors put SVG text in their messages (a
-    // transform, a colour, a data: href) and xml's parse error carries the
-    // source, so only describeFailure's reduction is logged, never `error:`.
+    // xml's parse errors carry a window of the source and
+    // vector_graphics_compiler's put SVG text in their messages (a transform,
+    // a colour, a data: href), so `error:` is never passed. describeFailure
+    // drops the source window, so the SVG text itself is not logged, but a
+    // message can still quote a fragment of it (a tag name, one attribute
+    // value).
     logFailedSourceOnce(
       _logger,
       'svg content failed to render',
@@ -145,8 +149,8 @@ class _SvgBodyState extends State<SvgBody> {
   }
 
   // The bare picture, without the header: the dialog puts its close button
-  // where the header's copy button would be. Only a rendered SVG is tappable,
-  // so the dialog needs no failure presentation.
+  // where the header's copy button would be. A failed picture is not tappable
+  // after its first frame, so the dialog needs no failure presentation.
   void _openFullSize() {
     showZoomableMediaDialog(context, viewer: _zoomable());
   }

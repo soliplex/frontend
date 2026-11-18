@@ -462,8 +462,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
-    // The code-block builder hands the body to CodeView — proves dispatch
-    // landed on CodePreview, not text.
+    // A code file is handed to ContentViewer, which renders it with CodeView
+    // rather than as plain text.
     expect(find.byType(CodeView), findsOneWidget);
   });
 
@@ -974,8 +974,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.visibility_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text("Couldn't render this SVG; showing its source."),
-          findsOneWidget);
+      expect(find.text("Couldn't render this SVG."), findsOneWidget);
       expect(find.textContaining('not actually svg', findRichText: true),
           findsOneWidget);
       expect(find.text('This SVG looks corrupt'), findsNothing);
