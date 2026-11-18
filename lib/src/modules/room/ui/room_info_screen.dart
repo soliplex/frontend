@@ -666,7 +666,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       _tracker.recordClientError(
         roomId: widget.roomId,
         filename: itemError.filename,
-        message: pickerErrorMessage(itemError.cause),
+        message: pickedFileErrorMessage(itemError.cause),
       );
     }
     for (final file in result.files) {

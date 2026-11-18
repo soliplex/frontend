@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart' show PlatformException;
+
 import 'pick_file_impl.dart'
     if (dart.library.js_interop) 'pick_file_impl_web.dart';
 
@@ -88,7 +90,14 @@ class NoFilesInFolderError implements Exception {
   String toString() => 'The folder has no files to upload';
 }
 
-/// User-facing message for a pick-related failure cause.
+/// User-facing message for a failure of the pick itself, the cause of a
+/// [PickFilePickerException].
+///
+/// Some of these happen after the picker closed: Android's `unknown_path`, for
+/// a pick it could not copy, and iOS's `load_failed`, when none of the picked
+/// photos could load (iCloud-only photos while offline, for one). They are
+/// worded as files that could not be loaded, not as a picker that would not
+/// open.
 ///
 /// `RangeError` is the canonical signal that the browser ran out of
 /// heap allocating a file's bytes — historically surfaced by the
@@ -96,13 +105,32 @@ class NoFilesInFolderError implements Exception {
 /// JS-interop boundary as a generic JS error and still falls through
 /// to the catch-all message; that's an accepted limitation.
 String pickerErrorMessage(Object cause) {
+  if (cause is PlatformException) {
+    switch (cause.code) {
+      case 'load_failed':
+        return 'Could not load the picked files. '
+            'If they are in iCloud, check your connection.';
+      case 'unknown_path':
+        return 'Could not load the picked files.';
+    }
+  }
+  if (cause is RangeError) {
+    return 'Selection is too large to load in the browser.';
+  }
+  return 'Could not open file picker';
+}
+
+/// User-facing message for one file of a pick that failed, the cause of a
+/// [PickFileItemError]: the picker opened and closed, so the problem is the
+/// file.
+String pickedFileErrorMessage(Object cause) {
   if (cause is NoFilesInFolderError) {
     return 'No files to upload in this folder.';
   }
   if (cause is RangeError) {
     return 'Selection is too large to load in the browser.';
   }
-  return 'Could not open file picker';
+  return 'Could not read this file.';
 }
 
 /// Flattens a folder-relative path into a single safe filename, joining
