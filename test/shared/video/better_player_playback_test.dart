@@ -69,7 +69,8 @@ class _FakePlatform extends BetterPlayerPlatform {
   @override
   Future<void> pause(int? textureId) async {
     if (refusePause) {
-      throw PlatformException(code: 'VideoError', message: 'pause refused');
+      // A platform's error text can name the source.
+      throw PlatformException(code: 'VideoError', message: 'refused $_signed');
     }
     playing = false;
   }
@@ -264,29 +265,28 @@ void main() {
 
   testWidgets('a failure right as the video loads is still reported',
       (tester) async {
-    final reasons = <String>[];
-    Object? startFailure;
+    final events = <String>[];
     VideoPlayback? playback;
     unawaited(
-      createBetterPlayerPlayback(_signed, onError: reasons.add).then<void>(
-        (p) => playback = p,
-        onError: (Object e) => startFailure = e,
-      ),
+      createBetterPlayerPlayback(_signed, onError: events.add).then((p) {
+        playback = p;
+        events.add('started');
+      }),
     );
     await settle(tester);
 
-    // better_player stops listening for errors as the video initialises and
-    // listens again one platform call later; this one lands in between.
+    // better_player stops listening for errors as it finishes initialising
+    // the video, after the start has completed; this one lands then.
     platform
       ..started()
       ..failed('segment refused: $_signed');
     await settle(tester);
 
-    final reported = [...reasons, if (startFailure != null) '$startFailure'];
-    expect(reported, hasLength(1));
-    expect(reported.single, contains('segment refused'));
-    expect(reported.single, isNot(contains('secret')));
-    playback?.dispose();
+    expect(events, hasLength(2));
+    expect(events.first, 'started', reason: 'the card ignores errors before');
+    expect(events.last, contains('segment refused'));
+    expect(events.last, isNot(contains('secret')));
+    playback!.dispose();
   });
 
   testWidgets('a failure once playing is reported, without its query',
@@ -407,9 +407,10 @@ void main() {
     );
     expect(record.attributes, containsPair('operation', 'pause'));
     expect(record.attributes, containsPair('host', 'cdn.example'));
+    expect(record.attributes['failure'], contains('cdn.example/clip.mp4'));
     expect('${record.attributes}', isNot(contains('secret')));
-    // dispose() pauses without awaiting, so a refused pause there would be
-    // an uncaught error.
+    // better_player's own dispose pauses without awaiting, so a refused
+    // pause there would be an uncaught error.
     platform.refusePause = false;
     playback!.dispose();
   });

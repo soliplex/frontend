@@ -150,12 +150,11 @@ void main() {
     return modes;
   }
 
-  testWidgets('is message-wide and 16:9 before anything loads', (tester) async {
+  testWidgets('is 16:9 and captioned before anything loads', (tester) async {
     await pumpCard(tester, caption: 'A demo');
 
     final size = tester.getSize(find.byType(AspectRatio));
-    expect(size.width, 400);
-    expect(size.height, closeTo(400 * 9 / 16, 0.01));
+    expect(size.height, closeTo(size.width * 9 / 16, 0.01));
     expect(find.text('A demo'), findsOneWidget);
     expect(created, 0, reason: 'nothing loads until the user presses play');
   });
@@ -577,35 +576,37 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
   });
 
-  group('in the dark theme', () {
-    Future<Color> textColour(WidgetTester tester, String text) async =>
-        tester.widget<Text>(find.text(text)).style!.color!;
+  for (final (name, theme) in [
+    ('light', soliplexLightTheme()),
+    ('dark', soliplexDarkTheme()),
+  ]) {
+    group('in the $name theme', () {
+      Color textColour(WidgetTester tester, String text) =>
+          tester.widget<Text>(find.text(text)).style!.color!;
 
-    testWidgets('the failure reads against the black card', (tester) async {
-      final theme = soliplexDarkTheme();
-      await pumpCard(
-        tester,
-        theme: theme,
-        playbackFactory: (_, {required onError}) =>
-            Future.error(const VideoPlaybackException('HTTP 404')),
-      );
-      await startPlaying(tester);
+      testWidgets('the failure reads against the black card', (tester) async {
+        await pumpCard(
+          tester,
+          theme: theme,
+          playbackFactory: (_, {required onError}) =>
+              Future.error(const VideoPlaybackException('HTTP 404')),
+        );
+        await startPlaying(tester);
 
-      final colour =
-          await textColour(tester, "This video can't be played here.");
-      expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
+        final colour = textColour(tester, "This video can't be played here.");
+        expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
+      });
+
+      testWidgets('"playing elsewhere" reads against the black card',
+          (tester) async {
+        await pumpCard(tester, theme: theme);
+        await startPlaying(tester);
+        await tester.tap(find.byTooltip('Expand video'));
+        await tester.pumpAndSettle();
+
+        final colour = textColour(tester, 'Playing in the expanded view');
+        expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
+      });
     });
-
-    testWidgets('"playing elsewhere" reads against the black card',
-        (tester) async {
-      final theme = soliplexDarkTheme();
-      await pumpCard(tester, theme: theme);
-      await startPlaying(tester);
-      await tester.tap(find.byTooltip('Expand video'));
-      await tester.pumpAndSettle();
-
-      final colour = await textColour(tester, 'Playing in the expanded view');
-      expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
-    });
-  });
+  }
 }
