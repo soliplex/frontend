@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/content_viewer.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
+import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 
 Widget _inline(ContentViewer viewer) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: viewer)),
@@ -64,5 +66,57 @@ void main() {
     )));
 
     expect(find.bySemanticsLabel(RegExp(r'^Code block$')), findsOneWidget);
+  });
+
+  group('filling a page', () {
+    Widget page(String content) => MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              height: 600,
+              child: ContentViewer(
+                language: 'python',
+                content: content,
+                fill: true,
+              ),
+            ),
+          ),
+        );
+
+    // The code's own background, painted by CodeView.
+    Finder codeSurface() => find
+        .descendant(
+            of: find.byType(CodeView), matching: find.byType(ColoredBox))
+        .first;
+
+    testWidgets('a short file paints code down to the page bottom',
+        (tester) async {
+      await tester.pumpWidget(page('a = 1\nb = 2\nc = 3'));
+
+      final surface = tester.getRect(codeSurface());
+      final pageBottom = tester.getBottomLeft(find.byType(ContentViewer)).dy;
+      expect(
+          pageBottom - surface.bottom, lessThanOrEqualTo(SoliplexSpacing.s3));
+    });
+
+    testWidgets('a long file still scrolls under a pinned header',
+        (tester) async {
+      await tester.pumpWidget(
+        page(List.generate(200, (i) => 'line_$i = $i').join('\n')),
+      );
+      final headerTop = tester.getTopLeft(find.byTooltip('Copy code')).dy;
+      final codeTop = tester.getTopLeft(find.byType(CodeView)).dy;
+
+      final body = tester.state<ScrollableState>(find
+          .ancestor(
+            of: find.byType(CodeView),
+            matching: find.byType(Scrollable),
+          )
+          .first);
+      body.position.jumpTo(400);
+      await tester.pump();
+
+      expect(tester.getTopLeft(find.byTooltip('Copy code')).dy, headerTop);
+      expect(tester.getTopLeft(find.byType(CodeView)).dy, lessThan(codeTop));
+    });
   });
 }

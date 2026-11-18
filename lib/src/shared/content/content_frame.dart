@@ -153,9 +153,9 @@ class RenderFailureNotice extends StatelessWidget {
 ///
 /// Inline, the frame is as tall as its body, which may cap its own height.
 /// Filling, it takes the height it is given and needs it bounded: header and
-/// notice stay put and the body takes the rest, scrolling vertically when
-/// [scrollBody] is set. A body that scrolls or pans itself sets [scrollBody]
-/// to false and is given that height.
+/// notice stay put and the body takes the rest. When [scrollBody] is set, the
+/// body scrolls vertically and is at least the rest's height. A body that
+/// scrolls or pans itself sets [scrollBody] to false and is given that height.
 class ContentFrame extends StatelessWidget {
   const ContentFrame({
     super.key,
@@ -192,9 +192,21 @@ class ContentFrame extends StatelessWidget {
         if (notice != null) notice,
         if (!fill)
           padded
+        else if (!scrollBody)
+          Expanded(child: padded)
         else
+          // At least the page's height, so a short body's own background
+          // reaches the bottom of the page, as in a file viewer, instead of
+          // ending below its last line.
           Expanded(
-            child: scrollBody ? SingleChildScrollView(child: padded) : padded,
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: padded,
+                ),
+              ),
+            ),
           ),
       ],
     );
