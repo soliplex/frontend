@@ -51,6 +51,10 @@ TextStyle codeTextStyle(BuildContext context) {
 Map<String, TextStyle> codeTheme(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark ? vs2015Theme : githubTheme;
 
+/// The background [CodeView] paints behind code.
+Color codeSurfaceColor(BuildContext context) =>
+    codeTheme(context)[_rootKey]?.backgroundColor ?? Colors.transparent;
+
 /// Syntax-highlighted source code, selectable on its own or, when
 /// [selectable] is false, as part of an enclosing [SelectionArea].
 class CodeView extends StatelessWidget {
@@ -82,7 +86,7 @@ class CodeView extends StatelessWidget {
       ),
     );
     return ColoredBox(
-      color: theme[_rootKey]?.backgroundColor ?? Colors.transparent,
+      color: codeSurfaceColor(context),
       // Replaces the ambient style so prose line height and letter spacing
       // do not reach the code.
       child: DefaultTextStyle(

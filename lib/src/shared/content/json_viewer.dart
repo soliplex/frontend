@@ -171,10 +171,10 @@ class _JsonViewerState extends State<JsonViewer> {
           : null,
       fill: widget.fill,
       body: tree != null && _view == ContentView.rendered
-          // The code's surface, so switching views keeps one background.
-          ? ColoredBox(
-              color: codeTheme(context)['root']?.backgroundColor ??
-                  Colors.transparent,
+          // The code's surface, so switching views keeps one background. A
+          // Material, so the rows' ink paints on it rather than beneath it.
+          ? Material(
+              color: codeSurfaceColor(context),
               child: JsonTreeView(nodes: tree, selectable: widget.selectable),
             )
           : CodeView(

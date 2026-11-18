@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'content/code_view.dart';
 import 'json_tree_model.dart';
+import 'selectable_content.dart';
 
 /// Renders a [List<JsonNode>] as an expandable tree, coloured by each value's
 /// JSON type in the same highlight theme as [CodeView].
@@ -25,13 +26,12 @@ class JsonTreeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (nodes.isEmpty) {
-      final theme = Theme.of(context);
       return Text(
         '(empty)',
-        style: context.monospaceOn(theme.textTheme.bodySmall).copyWith(
-              fontStyle: FontStyle.italic,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+        style: codeTextStyle(context).copyWith(
+          fontStyle: FontStyle.italic,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       );
     }
     // Deep nesting (left indent) and long unbroken values (tokens, URLs) would
@@ -45,7 +45,7 @@ class JsonTreeView extends StatelessWidget {
     // not reach the tree, keeping its rows as tall as CodeView's lines.
     return DefaultTextStyle(
       style: codeTextStyle(context),
-      child: selectable ? SelectionArea(child: tree) : tree,
+      child: selectable ? SelectableContent(child: tree) : tree,
     );
   }
 }

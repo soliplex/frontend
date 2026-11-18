@@ -52,6 +52,22 @@ void main() {
       expect(find.text('(empty)'), findsOneWidget);
     });
 
+    testWidgets('the empty state is as large as a row, italic and muted',
+        (tester) async {
+      await _pumpTree(tester, const [ValueNode(key: 'a', value: 1)]);
+      final rowSize =
+          tester.widget<RichText>(find.byType(RichText)).text.style?.fontSize;
+
+      await _pumpTree(tester, const []);
+      final empty = tester.widget<RichText>(find.byType(RichText)).text.style;
+      final context = tester.element(find.text('(empty)'));
+
+      expect(rowSize, isNotNull);
+      expect(empty?.fontSize, rowSize);
+      expect(empty?.fontStyle, FontStyle.italic);
+      expect(empty?.color, Theme.of(context).colorScheme.onSurfaceVariant);
+    });
+
     testWidgets('shows value node text inline', (tester) async {
       const nodes = [ValueNode(key: 'name', value: 'Alice')];
       await tester.pumpWidget(
@@ -263,6 +279,44 @@ void main() {
 
       expect(find.byType(SelectableText), findsNothing);
       expect(find.byType(SelectionArea), findsOneWidget);
+    });
+
+    testWidgets('keyboard traversal skips a selectable tree with no controls',
+        (tester) async {
+      final first = FocusNode(debugLabel: 'first');
+      final second = FocusNode(debugLabel: 'second');
+      addTearDown(first.dispose);
+      addTearDown(second.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                TextButton(
+                  focusNode: first,
+                  onPressed: () {},
+                  child: const Text('one'),
+                ),
+                const JsonTreeView(nodes: [ValueNode(key: 'a', value: 1)]),
+                TextButton(
+                  focusNode: second,
+                  onPressed: () {},
+                  child: const Text('two'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      first.requestFocus();
+      await tester.pump();
+      expect(primaryFocus, first);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(primaryFocus, second);
     });
 
     testWidgets(

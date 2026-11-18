@@ -93,11 +93,38 @@ void main() {
         find.ancestor(
           of: find.byType(JsonTreeView),
           matching: find.byWidgetPredicate(
-            (widget) => widget is ColoredBox && widget.color == surface,
+            (widget) => widget is Material && widget.color == surface,
           ),
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets("a collapsible row's ink paints on the Tree's surface",
+        (tester) async {
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"a": {"b": 1}}',
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      // An InkWell paints on its nearest Material; any opaque surface between
+      // the two would hide the hover and splash.
+      final rowInk = find.descendant(
+        of: find.byType(JsonTreeView),
+        matching: find.byType(InkWell),
+      );
+      final ancestors = tester
+          .widgetList(find.ancestor(
+              of: rowInk.first, matching: find.byWidgetPredicate((_) => true)))
+          .toList();
+      final inkMaterial = ancestors.whereType<Material>().first;
+      final between = ancestors.takeWhile((widget) => widget is! Material);
+      expect(between.whereType<ColoredBox>(), isEmpty);
+      expect(inkMaterial.color, githubTheme['root']!.backgroundColor);
+      expect(inkMaterial.elevation, 0);
+      expect(inkMaterial.shape, isNull);
+      expect(inkMaterial.borderRadius, isNull);
     });
   });
 
