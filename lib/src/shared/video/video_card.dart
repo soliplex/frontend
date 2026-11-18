@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -417,19 +418,27 @@ class _FullscreenPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = VideoOverlayPalette.of(Theme.of(context).colorScheme);
+    void leave() => unawaited(Navigator.of(context).maybePop());
     return PopScope(
       onPopInvokedWithResult: (_, __) => onLeave(),
-      child: ColoredBox(
-        color: palette.scrim,
-        child: SafeArea(
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: videoAspectRatio,
-              child: VideoHostView(
-                handoff: handoff,
-                host: VideoHost.fullscreen,
-                actions: VideoHostActions(
-                  exitFullscreen: () => Navigator.of(context).maybePop(),
+      // Escape leaves as a browser's full screen does, where there is none.
+      // Escape dismisses no page route by itself, and keys travel up from
+      // the focus, so the page focuses itself to hear it.
+      child: CallbackShortcuts(
+        bindings: {const SingleActivator(LogicalKeyboardKey.escape): leave},
+        child: Focus(
+          autofocus: true,
+          child: ColoredBox(
+            color: palette.scrim,
+            child: SafeArea(
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: videoAspectRatio,
+                  child: VideoHostView(
+                    handoff: handoff,
+                    host: VideoHost.fullscreen,
+                    actions: VideoHostActions(exitFullscreen: leave),
+                  ),
                 ),
               ),
             ),

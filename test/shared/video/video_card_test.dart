@@ -370,6 +370,22 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
   });
 
+  testWidgets('Escape leaves full screen where no browser does it',
+      (tester) async {
+    recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Exit full screen'), findsNothing);
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(playback.playing, isTrue);
+  });
+
   testWidgets('full screen hides the system bars until it is left',
       (tester) async {
     final modes = recordSystemUiModes();
