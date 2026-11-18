@@ -11,9 +11,11 @@ const _rootKey = 'root';
 const _tabWidth = 8;
 
 /// The `String.length` (UTF-16 code units, about 100 KB for ASCII text) of
-/// content above which a viewer shows plain text instead of highlighting it or
-/// building a tree. Every view lays out all of its text at once, so beyond
-/// this the UI thread blocks for seconds without a frame.
+/// text above which it shows as plain text instead of highlighted:
+/// `ContentViewer` measures code, and `JsonViewer` measures JSON's text and its
+/// pretty-print, building no tree for either beyond it. Every view lays out all
+/// of its text at once, so beyond this the UI thread blocks for seconds without
+/// a frame.
 const maxHighlightedLength = 100 * 1024;
 
 /// Highlighted [code] as spans coloured by [theme]. A [language] the

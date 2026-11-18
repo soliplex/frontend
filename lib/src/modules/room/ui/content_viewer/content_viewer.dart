@@ -15,9 +15,9 @@ import 'svg_body.dart';
 /// incomplete, so a failed rendering shows no notice yet. Pass [selectable]
 /// false inside a `SelectionArea`.
 ///
-/// Code and JSON longer than [maxHighlightedLength] show as plain text under a
-/// notice, with no highlighting and no Tree view, streaming or not. SVG has no
-/// limit.
+/// Code longer than [maxHighlightedLength] shows as plain text under a notice,
+/// streaming or not; plain text is never highlighted, so it gets no notice.
+/// [JsonViewer] bounds what JSON renders. SVG has no limit.
 class ContentViewer extends StatelessWidget {
   const ContentViewer({
     super.key,
@@ -36,7 +36,6 @@ class ContentViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tooLarge = content.length > maxHighlightedLength;
     return switch (contentKindOf(language)) {
       ContentKind.svg => Semantics(
           label: 'SVG image',
@@ -49,54 +48,42 @@ class ContentViewer extends StatelessWidget {
         ),
       ContentKind.json => Semantics(
           label: 'JSON',
-          child: tooLarge
-              ? _codeFrame(
-                  label: 'json',
-                  copyTooltip: 'Copy JSON',
-                  highlightAs: null,
-                )
-              : JsonViewer.source(
-                  content,
-                  initialView: ContentView.source,
-                  fill: fill,
-                  selectable: selectable,
-                  isStreaming: isStreaming,
-                ),
+          child: JsonViewer.source(
+            content,
+            initialView: ContentView.source,
+            fill: fill,
+            selectable: selectable,
+            isStreaming: isStreaming,
+          ),
         ),
       ContentKind.code => Semantics(
           label: language == 'plaintext'
               ? 'Code block'
               : 'Code block in $language',
-          child: _codeFrame(
-            label: language == 'plaintext' ? null : language,
-            copyTooltip: 'Copy code',
-            highlightAs: tooLarge ? null : language,
-          ),
+          child: _codeFrame(),
         ),
     };
   }
 
-  /// The header, the code body and, when [highlightAs] is null, the notice
-  /// that it is shown as plain text.
-  Widget _codeFrame({
-    required String? label,
-    required String copyTooltip,
-    required String? highlightAs,
-  }) {
+  /// The header and the code body, under a notice when the code is too large
+  /// to highlight.
+  Widget _codeFrame() {
+    final isPlainText = language == 'plaintext';
+    final tooLarge = !isPlainText && content.length > maxHighlightedLength;
     return ContentFrame(
       header: ContentHeader(
-        label: label,
+        label: isPlainText ? null : language,
         copyText: content,
-        copyTooltip: copyTooltip,
+        copyTooltip: 'Copy code',
       ),
-      notice: highlightAs == null
+      notice: tooLarge
           ? const ContentInfoNotice(
               message: 'Too large to highlight; showing plain text.',
             )
           : null,
       body: CodeView(
         code: content,
-        language: highlightAs ?? 'plaintext',
+        language: tooLarge ? 'plaintext' : language,
         selectable: selectable,
       ),
       fill: fill,

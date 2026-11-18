@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_highlight/themes/github.dart';
@@ -9,6 +11,14 @@ import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 const _notice = "This isn't valid JSON; showing the source.";
+const _sizeNotice = 'Too large to highlight; showing plain text.';
+const _depthNotice = 'Too deeply nested for a tree; showing the source.';
+
+/// JSON text nesting [depth] arrays deep: `[[]]` for 2.
+String _nestedSource(int depth) => '${'[' * depth}${']' * depth}';
+
+CodeView _codeView(WidgetTester tester) =>
+    tester.widget<CodeView>(find.byType(CodeView));
 
 Widget _inline(JsonViewer viewer) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: viewer)),
@@ -232,6 +242,112 @@ void main() {
 
       expect(find.text(_notice), findsNothing);
       expect(find.textContaining('not json'), findsOneWidget);
+    });
+  });
+
+  group('rendering budget', () {
+    testWidgets('invalid JSON over the limit shows plain text, unlogged',
+        (tester) async {
+      final sink = _captureDebugLogs();
+      final source = '{' * (maxHighlightedLength + 1);
+      await tester.pumpWidget(_inline(JsonViewer.source(
+        source,
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(find.text(_sizeNotice), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
+      expect(_viewSwitch(), findsNothing);
+      expect(_codeView(tester).language, 'plaintext');
+      expect(_codeView(tester).code, source);
+      expect(sink.records, isEmpty);
+    });
+
+    testWidgets(
+        'valid JSON whose pretty-print is over the limit shows it plain',
+        (tester) async {
+      final source = '[${List.filled(40000, '1').join(',')}]';
+      expect(source.length, lessThan(maxHighlightedLength));
+      final pretty = const JsonEncoder.withIndent('  ').convert(
+        jsonDecode(source),
+      );
+      expect(pretty.length, greaterThan(maxHighlightedLength));
+      await tester.pumpWidget(_inline(JsonViewer.source(
+        source,
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(find.text(_sizeNotice), findsOneWidget);
+      expect(_viewSwitch(), findsNothing);
+      expect(find.byType(JsonTreeView), findsNothing);
+      expect(_codeView(tester).language, 'plaintext');
+      expect(_codeView(tester).code, pretty);
+    });
+
+    testWidgets('nesting deeper than maxJsonDepth shows the source',
+        (tester) async {
+      final source = _nestedSource(maxJsonDepth + 1);
+      await tester.pumpWidget(_inline(JsonViewer.source(
+        source,
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(_depthNotice), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
+      expect(_viewSwitch(), findsNothing);
+      expect(_codeView(tester).language, 'json');
+      expect(_codeView(tester).code, source);
+    });
+
+    testWidgets('nesting exactly maxJsonDepth deep offers the Tree',
+        (tester) async {
+      await tester.pumpWidget(_inline(JsonViewer.source(
+        _nestedSource(maxJsonDepth),
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      expect(find.text(_depthNotice), findsNothing);
+      expect(_viewSwitch(), findsOneWidget);
+
+      await tester.tap(find.text('Tree'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(JsonTreeView), findsOneWidget);
+    });
+
+    testWidgets('nesting 5,000 deep shows the depth notice', (tester) async {
+      await tester.pumpWidget(_inline(JsonViewer.source(
+        _nestedSource(5000),
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(_depthNotice), findsOneWidget);
+    });
+
+    testWidgets('a decoded value nested too deep shows the depth notice',
+        (tester) async {
+      Object? value = <Object?>[];
+      for (var i = 0; i < maxJsonDepth; i++) {
+        value = [value];
+      }
+      await tester.pumpWidget(_inline(JsonViewer.decoded(
+        value,
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(_depthNotice), findsOneWidget);
+      expect(_viewSwitch(), findsNothing);
+      expect(_codeView(tester).code, isEmpty);
     });
   });
 

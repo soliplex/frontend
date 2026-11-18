@@ -11,19 +11,37 @@ import 'content_frame.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.json_viewer');
 
-const _notice = "This isn't valid JSON; showing the source.";
+const _failureNotice = "This isn't valid JSON; showing the source.";
+const _sizeNotice = 'Too large to highlight; showing plain text.';
+const _depthNotice = 'Too deeply nested for a tree; showing the source.';
 
 const _prettyJson = JsonEncoder.withIndent('  ');
 
+/// The deepest nesting [JsonViewer] builds a tree for or pretty-prints:
+/// building the tree, its widgets, and the pretty-print each recurse once per
+/// level, so much deeper nesting overflows the stack. A scalar is depth 0, `[]`
+/// and `{}` are 1, `[[1]]` is 2.
+const maxJsonDepth = 100;
+
 /// JSON under the shared header, with a Tree / Source switch.
 ///
-/// The Source view is the 2-space pretty-print, and the copy button copies it.
-/// Text that does not parse shows as it is, highlighted, with no switch and a
-/// notice above it, unless [showFailureNotice] is false or [isStreaming], when
-/// the text may still be incomplete. The failure is logged once per distinct
-/// content, and not while streaming.
+/// The Source view is the 2-space pretty-print, and the copy button copies
+/// whatever the Source view shows. Text that does not parse shows as it is,
+/// highlighted, with no switch and a notice above it, unless
+/// [showFailureNotice] is false or [isStreaming], when the text may still be
+/// incomplete. The failure is logged once per distinct content, and not while
+/// streaming.
+///
+/// Content beyond the viewer's budget gets no switch and a neutral notice
+/// instead: text longer than [maxHighlightedLength] shows as plain text,
+/// unparsed; JSON nesting deeper than [maxJsonDepth] shows its text
+/// highlighted; and a pretty-print longer than [maxHighlightedLength] shows
+/// as plain text.
 class JsonViewer extends StatefulWidget {
   /// An already-decoded JSON [value].
+  ///
+  /// There is no text to fall back on, so a [value] nesting deeper than
+  /// [maxJsonDepth] shows only the notice, over an empty Source view.
   const JsonViewer.decoded(
     this.value, {
     super.key,
@@ -80,22 +98,68 @@ class JsonViewer extends StatefulWidget {
   State<JsonViewer> createState() => _JsonViewerState();
 }
 
+/// What [JsonViewer] shows for its content, decided once per change of it.
+sealed class _Shown {
+  const _Shown(this.text);
+
+  /// What the Source view shows, and the copy button copies.
+  final String text;
+}
+
+/// Text past [maxHighlightedLength], shown as plain text.
+final class _TooLarge extends _Shown {
+  const _TooLarge(super.text);
+}
+
+/// Text that does not parse, shown highlighted.
+final class _Invalid extends _Shown {
+  const _Invalid(super.text, this.failure, this.stackTrace);
+
+  final FormatException failure;
+  final StackTrace stackTrace;
+}
+
+/// JSON nesting deeper than [maxJsonDepth], shown as its text highlighted.
+final class _TooDeep extends _Shown {
+  const _TooDeep(super.text);
+}
+
+/// JSON within budget: its tree, and its pretty-print as the source.
+final class _Tree extends _Shown {
+  const _Tree(super.text, this.nodes);
+
+  final List<JsonNode> nodes;
+}
+
+/// Whether [value] nests deeper than [maxJsonDepth], measured with an explicit
+/// stack so that the measuring cannot overflow either.
+bool _nestsTooDeep(Object? value) {
+  final pending = <(Object?, int)>[(value, 0)];
+  while (pending.isNotEmpty) {
+    final (node, depth) = pending.removeLast();
+    final children = switch (node) {
+      List() => node,
+      Map() => node.values,
+      _ => null,
+    };
+    if (children == null) continue;
+    if (depth + 1 > maxJsonDepth) return true;
+    for (final child in children) {
+      pending.add((child, depth + 1));
+    }
+  }
+  return false;
+}
+
 class _JsonViewerState extends State<JsonViewer> {
   late ContentView _view = widget.initialView;
 
-  /// The tree of valid JSON; null when [JsonViewer.source] does not parse.
-  List<JsonNode>? _tree;
-
-  /// What the Source view shows: the pretty-print, or the text that failed.
-  String _text = '';
-
-  FormatException? _failure;
-  StackTrace? _failureStackTrace;
+  late _Shown _shown;
 
   @override
   void initState() {
     super.initState();
-    _parse();
+    _shown = _decide();
     _logFailure();
   }
 
@@ -104,84 +168,90 @@ class _JsonViewerState extends State<JsonViewer> {
     super.didUpdateWidget(old);
     final contentChanged =
         old.source != widget.source || old.value != widget.value;
-    if (contentChanged) _parse();
+    if (contentChanged) _shown = _decide();
     // Streaming ending with the text unchanged is when its failure is final.
     if (contentChanged || old.isStreaming != widget.isStreaming) _logFailure();
   }
 
-  void _parse() {
+  _Shown _decide() {
     final source = widget.source;
-    if (source == null) {
-      _show(widget.value);
-      return;
-    }
+    if (source == null) return _decideDecoded(widget.value, '');
+    if (source.length > maxHighlightedLength) return _TooLarge(source);
     final Object? decoded;
     try {
       decoded = jsonDecode(source);
     } on FormatException catch (e, st) {
-      _tree = null;
-      _text = source;
-      _failure = e;
-      _failureStackTrace = st;
-      return;
+      return _Invalid(source, e, st);
     }
-    _show(decoded);
+    return _decideDecoded(decoded, source);
   }
 
-  void _show(Object? value) {
-    _tree = buildJsonTree(value);
-    _text = _prettyJson.convert(value);
-    _failure = null;
-    _failureStackTrace = null;
+  /// Decides for a decoded [value] whose text, if any, is [source].
+  _Shown _decideDecoded(Object? value, String source) {
+    if (_nestsTooDeep(value)) return _TooDeep(source);
+    final pretty = _prettyJson.convert(value);
+    if (pretty.length > maxHighlightedLength) return _TooLarge(pretty);
+    return _Tree(pretty, buildJsonTree(value));
   }
 
   void _logFailure() {
-    final failure = _failure;
-    if (failure == null || widget.isStreaming) return;
-    final source = widget.source!;
+    final shown = _shown;
+    if (shown is! _Invalid || widget.isStreaming) return;
+    final source = shown.text;
     if (!isFirstOccurrence('json:${widget.label}:$source')) return;
     // jsonDecode's FormatException carries a window of the source, so it goes
     // through describeFailure rather than `error:`.
     _logger.debug(
       'json content failed to parse',
-      stackTrace: _failureStackTrace,
+      stackTrace: shown.stackTrace,
       attributes: {
         'label': widget.label,
         'length': source.length,
-        'failure': describeFailure(failure),
+        'failure': describeFailure(shown.failure),
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final tree = _tree;
+    final shown = _shown;
     final label = widget.label;
     return ContentFrame(
       header: ContentHeader(
         label: label,
-        copyText: _text,
+        copyText: shown.text,
         copyTooltip: label == 'json' ? 'Copy JSON' : 'Copy $label',
-        view: tree == null ? null : _view,
+        view: shown is _Tree ? _view : null,
         renderedLabel: 'Tree',
         onViewChanged: (view) => setState(() => _view = view),
       ),
-      notice: tree == null && widget.showFailureNotice && !widget.isStreaming
-          ? const RenderFailureNotice(message: _notice)
-          : null,
+      notice: switch (shown) {
+        _TooLarge() => const ContentInfoNotice(message: _sizeNotice),
+        _Invalid() when widget.showFailureNotice && !widget.isStreaming =>
+          const RenderFailureNotice(message: _failureNotice),
+        _Invalid() => null,
+        _TooDeep() => const ContentInfoNotice(message: _depthNotice),
+        _Tree() => null,
+      },
       fill: widget.fill,
-      body: tree != null && _view == ContentView.rendered
-          // The code's surface, so switching views keeps one background. A
-          // Material, so the rows' ink paints on it rather than beneath it.
-          ? Material(
-              color: codeSurfaceColor(context),
-              child: JsonTreeView(nodes: tree, selectable: widget.selectable),
-            )
-          : CodeView(
-              code: _text,
-              language: 'json',
-              selectable: widget.selectable,
-            ),
+      body: switch (shown) {
+        _TooLarge() => _sourceView('plaintext'),
+        _Invalid() || _TooDeep() => _sourceView('json'),
+        // The code's surface, so switching views keeps one background. A
+        // Material, so the rows' ink paints on it rather than beneath it.
+        _Tree(:final nodes) when _view == ContentView.rendered => Material(
+            color: codeSurfaceColor(context),
+            child: JsonTreeView(nodes: nodes, selectable: widget.selectable),
+          ),
+        _Tree() => _sourceView('json'),
+      },
     );
   }
+
+  /// The Source view: the text shown, highlighted as [language].
+  Widget _sourceView(String language) => CodeView(
+        code: _shown.text,
+        language: language,
+        selectable: widget.selectable,
+      );
 }

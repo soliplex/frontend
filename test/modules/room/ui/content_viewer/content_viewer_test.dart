@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -136,8 +138,11 @@ void main() {
   group('over maxHighlightedLength', () {
     const notice = 'Too large to highlight; showing plain text.';
     final overJson = '{"a": "${'x' * maxHighlightedLength}"}';
-    final jsonAtLimit =
-        '{"a": "${'x' * (maxHighlightedLength - '{"a": ""}'.length)}"}';
+    // Pretty-printed, `{"a": "<x>"}` gains a newline before and after the
+    // entry and a two-space indent.
+    final prettyAtLimit = '{\n  "a": ""\n}'.length;
+    final jsonPrettyAtLimit =
+        '{"a": "${'x' * (maxHighlightedLength - prettyAtLimit)}"}';
 
     testWidgets(
         'json over the limit shows plain text, the notice and no switch',
@@ -148,9 +153,11 @@ void main() {
         fill: false,
       )));
 
+      expect(find.byType(JsonViewer), findsOneWidget);
       expect(find.text(notice), findsOneWidget);
-      expect(
-          tester.widget<CodeView>(find.byType(CodeView)).language, 'plaintext');
+      final body = tester.widget<CodeView>(find.byType(CodeView));
+      expect(body.language, 'plaintext');
+      expect(body.code, overJson);
       expect(find.text('Tree'), findsNothing);
       expect(find.text('json'), findsOneWidget);
       expect(find.byTooltip('Copy JSON'), findsOneWidget);
@@ -187,11 +194,17 @@ void main() {
       });
     }
 
-    testWidgets('json at the limit still offers Tree / Source', (tester) async {
-      expect(jsonAtLimit.length, maxHighlightedLength);
+    testWidgets('json whose pretty-print is at the limit offers Tree / Source',
+        (tester) async {
+      expect(
+        const JsonEncoder.withIndent('  ')
+            .convert(jsonDecode(jsonPrettyAtLimit))
+            .length,
+        maxHighlightedLength,
+      );
       await tester.pumpWidget(_inline(ContentViewer(
         language: 'json',
-        content: jsonAtLimit,
+        content: jsonPrettyAtLimit,
         fill: false,
       )));
 
@@ -209,6 +222,17 @@ void main() {
       )));
 
       expect(find.text(notice), findsOneWidget);
+    });
+
+    testWidgets('code at the limit is highlighted', (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'python',
+        content: '#' * maxHighlightedLength,
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsNothing);
+      expect(tester.widget<CodeView>(find.byType(CodeView)).language, 'python');
     });
 
     testWidgets(
@@ -229,7 +253,7 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('plaintext over the limit shows no label and Code block',
+    testWidgets('plaintext over the limit shows no notice and no label',
         (tester) async {
       await tester.pumpWidget(_inline(ContentViewer(
         language: 'plaintext',
@@ -237,9 +261,11 @@ void main() {
         fill: false,
       )));
 
-      expect(find.text(notice), findsOneWidget);
+      expect(find.text(notice), findsNothing);
+      expect(
+          tester.widget<CodeView>(find.byType(CodeView)).language, 'plaintext');
       expect(find.text('plaintext'), findsNothing);
-      expect(find.bySemanticsLabel(RegExp(r'^Code block\n')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^Code block$')), findsOneWidget);
     });
   });
 }
