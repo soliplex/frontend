@@ -9,9 +9,13 @@ void main() {
       expect(contentKindOf('SVG'), ContentKind.svg);
     });
 
+    test('json is case-insensitive', () {
+      expect(contentKindOf('json'), ContentKind.json);
+      expect(contentKindOf('JSON'), ContentKind.json);
+    });
+
     test('every other language is code', () {
       for (final language in const [
-        'json',
         'python',
         'plaintext',
         'mermaid',

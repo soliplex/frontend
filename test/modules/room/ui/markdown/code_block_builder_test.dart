@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/code_block_builder.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
+import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 
 void main() {
   group('CodeBlockBuilder', () {
@@ -69,6 +71,49 @@ void main() {
 
       expect(find.text('json'), findsOneWidget);
       expect(find.text('JSON'), findsNothing);
+    });
+
+    testWidgets('a json fence starts in Source and offers Tree',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '```json\n{"a":1}\n```',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(CodeView), findsOneWidget);
+      expect(find.byType(JsonTreeView), findsNothing);
+      expect(find.text('Tree'), findsOneWidget);
+
+      await tester.tap(find.text('Tree'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(JsonTreeView), findsOneWidget);
+    });
+
+    testWidgets('a partial json fence in a streaming message shows no notice',
+        (tester) async {
+      const notice = "This isn't valid JSON; showing the source.";
+      Widget renderer({required bool streaming}) => MaterialApp(
+            home: Scaffold(
+              body: FlutterMarkdownPlusRenderer(
+                data: '```json\n{"partial-fence-streaming": [1, 2\n```',
+                isStreaming: streaming,
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(renderer(streaming: true));
+      await tester.pumpAndSettle();
+      expect(find.text(notice), findsNothing);
+
+      await tester.pumpWidget(renderer(streaming: false));
+      await tester.pumpAndSettle();
+      expect(find.text(notice), findsOneWidget);
     });
 
     testWidgets('SVG block shows preview/source switch and copy button',

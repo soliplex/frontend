@@ -4,6 +4,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/content_viewer.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 
 Widget _inline(ContentViewer viewer) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: viewer)),
@@ -44,6 +45,20 @@ void main() {
 
     expect(find.byType(SvgBody), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp(r'^SVG image\n')), findsOneWidget);
+  });
+
+  testWidgets('json routes to JsonViewer, labelled Code block in json',
+      (tester) async {
+    await tester.pumpWidget(_inline(const ContentViewer(
+      language: 'json',
+      content: '{"a": 1}',
+      fill: false,
+    )));
+
+    expect(find.byType(JsonViewer), findsOneWidget);
+    expect(find.byTooltip('Copy JSON'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^Code block in json\n')),
+        findsOneWidget);
   });
 
   testWidgets('semantics label is Code block in python', (tester) async {

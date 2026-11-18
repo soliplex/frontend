@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/content/code_view.dart';
 import '../../../../shared/content/content_frame.dart';
+import '../../../../shared/content/json_viewer.dart';
 import 'content_kind.dart';
 import 'svg_body.dart';
 
@@ -39,6 +40,16 @@ class ContentViewer extends StatelessWidget {
             fill: fill,
             isStreaming: isStreaming,
             selectable: selectable,
+          ),
+        ),
+      ContentKind.json => Semantics(
+          label: 'Code block in json',
+          child: JsonViewer.source(
+            content,
+            initialView: ContentView.source,
+            fill: fill,
+            selectable: selectable,
+            isStreaming: isStreaming,
           ),
         ),
       ContentKind.code => Semantics(
