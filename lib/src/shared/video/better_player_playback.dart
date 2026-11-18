@@ -220,11 +220,12 @@ class _BetterPlayerPlayback implements VideoPlayback {
             status.position >= duration) {
           await _controller.seekTo(Duration.zero);
         }
-        await _controller.play();
+        await _undoneIfRefused(_controller.play, _controller.pause);
       });
 
   @override
-  Future<void> pause() => _run('pause', _controller.pause);
+  Future<void> pause() => _run(
+      'pause', () => _undoneIfRefused(_controller.pause, _controller.play));
 
   @override
   Future<void> seekTo(Duration position) =>
@@ -233,6 +234,22 @@ class _BetterPlayerPlayback implements VideoPlayback {
   @override
   Future<void> setVolume(double volume) =>
       _run('setVolume', () => _controller.setVolume(volume));
+
+  /// Runs [command], and [undo] if the player refuses it before rethrowing.
+  /// better_player marks the video playing or paused before it asks the
+  /// player, and keeps the mark when the player refuses. [undo]'s own failure
+  /// is dropped: the refusal it follows is the one [_run] logs.
+  Future<void> _undoneIfRefused(
+    Future<void> Function() command,
+    Future<void> Function() undo,
+  ) async {
+    try {
+      await command();
+    } on Object {
+      await undo().catchError((Object _) {});
+      rethrow;
+    }
+  }
 
   /// Runs [command], logging a failure rather than throwing it: the callers
   /// fire commands from taps and moves, and a refused command leaves the

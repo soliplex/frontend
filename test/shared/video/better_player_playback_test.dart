@@ -56,7 +56,15 @@ class _FakePlatform extends BetterPlayerPlatform {
   bool playing = false;
 
   @override
-  Future<void> play(int? textureId) async => playing = true;
+  Future<void> play(int? textureId) async {
+    if (refusePlay) {
+      throw PlatformException(code: 'VideoError', message: 'play refused');
+    }
+    playing = true;
+  }
+
+  /// Makes [play] fail, as a platform player can.
+  bool refusePlay = false;
 
   @override
   Future<void> pause(int? textureId) async {
@@ -402,6 +410,37 @@ void main() {
     // dispose() pauses without awaiting, so a refused pause there would be
     // an uncaught error.
     platform.refusePause = false;
+    playback!.dispose();
+  });
+
+  testWidgets('a refused play or pause leaves the status as the player is',
+      (tester) async {
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: (_) {})
+          .then((p) => playback = p),
+    );
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+    expect(playback!.status.value.isPlaying, isTrue);
+
+    platform.refusePause = true;
+    unawaited(playback!.pause());
+    await settle(tester);
+    expect(playback!.status.value.isPlaying, isTrue, reason: 'still playing');
+
+    platform
+      ..refusePause = false
+      ..refusePlay = false;
+    unawaited(playback!.pause());
+    await settle(tester);
+    platform.refusePlay = true;
+    unawaited(playback!.play());
+    await settle(tester);
+    expect(playback!.status.value.isPlaying, isFalse, reason: 'still paused');
+
+    platform.refusePlay = false;
     playback!.dispose();
   });
 
