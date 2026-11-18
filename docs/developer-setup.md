@@ -173,6 +173,8 @@ flutter run -d chrome
 ```bash
 # Install GTK dependencies (Ubuntu/Debian)
 sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev
+# The video player plays through libmpv, which it loads at run time
+sudo apt-get install libmpv2
 
 flutter run -d linux
 ```
@@ -184,6 +186,15 @@ Requires Visual Studio with "Desktop development with C++" workload:
 ```bash
 flutter run -d windows
 ```
+
+The video player plays through libmpv, which `better_player_windows` does not
+ship. Download the 64-bit `mpv-2.dll` from
+[mpv-player-windows](https://sourceforge.net/projects/mpv-player-windows/files/libmpv/)
+and copy it beside the built app, `build\windows\x64\runner\Debug\` (again
+after `flutter clean`).
+
+On either platform, without libmpv every video waits 30 seconds, then offers
+to open in the browser.
 
 ## Backend sign-in settings
 
