@@ -61,19 +61,18 @@ Future<VideoPlayback> createBetterPlayerPlayback(
     ),
   );
   final loaded = Completer<void>();
-  // A failure fails the start until the video has loaded, and is reported
-  // through [onError] from then on.
-  void Function(String reason) fail = (reason) {
-    if (!loaded.isCompleted) {
-      loaded.completeError(VideoPlaybackException(reason));
-    }
-  };
   controller.addEventsListener((event) {
-    final type = event.betterPlayerEventType;
-    if (type == PlayerEventType.initialized && !loaded.isCompleted) {
-      loaded.complete();
-    } else if (type == PlayerEventType.exception) {
-      fail(withoutCredentials('${event.parameters?['exception']}'));
+    if (loaded.isCompleted) return;
+    switch (event.betterPlayerEventType) {
+      case PlayerEventType.initialized:
+        loaded.complete();
+      case PlayerEventType.exception:
+        loaded.completeError(
+          VideoPlaybackException(
+            withoutCredentials('${event.parameters?['exception']}'),
+          ),
+        );
+      default:
     }
   });
   try {
@@ -83,12 +82,16 @@ Future<VideoPlayback> createBetterPlayerPlayback(
         'the video did not load within ${videoStartLimit.inSeconds} seconds',
       ),
     );
+    // better_player stops listening for errors as the video initialises, so
+    // one that lands then is only recorded in its value.
+    if (controller.videoPlayerValue?.errorDescription case final error?) {
+      throw VideoPlaybackException(withoutCredentials(error));
+    }
   } on VideoPlaybackException {
     controller.dispose(forceDispose: true);
     rethrow;
   }
-  fail = onError;
-  return _BetterPlayerPlayback(controller, uri);
+  return _BetterPlayerPlayback(controller, uri, onError);
 }
 
 /// [text], a player's account of a failure, without what could hold a
@@ -149,7 +152,7 @@ Map<int, PlayerAsmsTrack> qualitiesFrom(
 }
 
 class _BetterPlayerPlayback implements VideoPlayback {
-  _BetterPlayerPlayback(this._controller, this._uri) {
+  _BetterPlayerPlayback(this._controller, this._uri, this._onError) {
     _controller
       ..addVideoListener(_update)
       // A finished video reads as paused, but Android's player is still set
@@ -166,6 +169,12 @@ class _BetterPlayerPlayback implements VideoPlayback {
 
   final BetterPlayerController _controller;
   final Uri _uri;
+
+  /// Told once of the first error better_player records. Its value is the one
+  /// place every platform error lands: the exception event is missed while
+  /// better_player is not listening, as the video initialises.
+  final void Function(String reason) _onError;
+  bool _failed = false;
   final Signal<VideoStatus> _status = signal(const VideoStatus());
 
   /// The rendition each listed quality stands for.
@@ -178,6 +187,10 @@ class _BetterPlayerPlayback implements VideoPlayback {
   void _update() {
     final value = _controller.videoPlayerValue;
     if (value == null) return;
+    if (value.errorDescription case final error? when !_failed) {
+      _failed = true;
+      _onError(withoutCredentials(error));
+    }
     if (_tracks.isEmpty) {
       _tracks.addAll(qualitiesFrom(_controller.betterPlayerAsmsTracks));
     }

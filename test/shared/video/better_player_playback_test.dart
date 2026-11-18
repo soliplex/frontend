@@ -253,6 +253,33 @@ void main() {
     expect(reason, isNot(contains('t=5')));
   });
 
+  testWidgets('a failure right as the video loads is still reported',
+      (tester) async {
+    final reasons = <String>[];
+    Object? startFailure;
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: reasons.add).then<void>(
+        (p) => playback = p,
+        onError: (Object e) => startFailure = e,
+      ),
+    );
+    await settle(tester);
+
+    // better_player stops listening for errors as the video initialises and
+    // listens again one platform call later; this one lands in between.
+    platform
+      ..started()
+      ..failed('segment refused: $_signed');
+    await settle(tester);
+
+    final reported = [...reasons, if (startFailure != null) '$startFailure'];
+    expect(reported, hasLength(1));
+    expect(reported.single, contains('segment refused'));
+    expect(reported.single, isNot(contains('secret')));
+    playback?.dispose();
+  });
+
   testWidgets('a failure once playing is reported, without its query',
       (tester) async {
     final reasons = <String>[];
