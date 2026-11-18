@@ -14,17 +14,19 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 
 /// Plays [uri] through `better_player`, completing once the video has loaded.
 ///
-/// What the configuration settles:
+/// What the playback settles:
 ///
-/// - The controller outlives its views. `BetterPlayer` disposes its controller
-///   when it unmounts unless `autoDispose` is off, and the card unmounts one
-///   view each time it hands the video to the dialog or the fullscreen page.
-///   [VideoPlayback.dispose] is the only teardown.
-/// - better_player draws no controls. The hosts draw `VideoControls` over the
-///   view instead. The package's web controls paint a fixed black gradient
-///   whatever bar colour is configured, stopping short of the bottom edge,
-///   have no slot for the expand action, and their fullscreen button runs the
-///   package's own fullscreen.
+/// - Only the engine's view is shown, never the package's `BetterPlayer`
+///   widget, which manages the video by itself in ways that undo what the
+///   hosts do. It re-creates the view when the video's size becomes known,
+///   and on the web that moves the `<video>` element, which pauses it; Safari
+///   learns the size only as playback starts. Its lifecycle handling makes
+///   `play` do nothing while the app is not resumed, as while Safari blurs
+///   the window on leaving its full screen. It also pauses a video out of
+///   view and plays it again, disposes the controller as a view unmounts, and
+///   draws its own controls. The hosts draw `VideoControls` over the view.
+/// - Going to the background pauses the video, which the package does only
+///   in that widget: Android's player would play on behind other apps.
 /// - An HLS stream adapts its rendition to the connection: Shaka's ABR on the
 ///   web, ExoPlayer's on Android, AVPlayer's on iOS and macOS. libmpv, on
 ///   Windows and Linux, has none and plays the highest bitrate. The
@@ -38,17 +40,9 @@ Future<VideoPlayback> createBetterPlayerPlayback(
 }) async {
   await ensureVideoRuntime();
   final controller = BetterPlayerController(
-    PlayerConfiguration(
+    const PlayerConfiguration(
       autoPlay: true,
-      autoDispose: false,
-      aspectRatio: videoAspectRatio,
-      fit: BoxFit.contain,
-      // The card draws its own failure, with a way to open the video instead.
-      errorBuilder: (_, __) => const SizedBox.shrink(),
-      controlsConfiguration: const PlayerControlsConfiguration(
-        showControls: false,
-      ),
-      playerLogConfiguration: const PlayerLoggerConfiguration(
+      playerLogConfiguration: PlayerLoggerConfiguration(
         logLevel: PlayerLogLevel.none,
       ),
     ),
@@ -89,7 +83,7 @@ Future<VideoPlayback> createBetterPlayerPlayback(
       throw VideoPlaybackException(withoutCredentials(error));
     }
   } on VideoPlaybackException {
-    controller.dispose(forceDispose: true);
+    controller.dispose();
     rethrow;
   }
   return _BetterPlayerPlayback(controller, uri, onError);
@@ -173,12 +167,17 @@ class _BetterPlayerPlayback implements VideoPlayback {
           unawaited(pause());
         }
       });
+    _lifecycle = AppLifecycleListener(onPause: () => unawaited(pause()));
     // The video has loaded by now; the status starts from where it stands.
     _update();
   }
 
   final BetterPlayerController _controller;
   final Uri _uri;
+  late final AppLifecycleListener _lifecycle;
+
+  /// The video's size, null while the player does not know it.
+  final Signal<Size?> _size = signal(null);
 
   /// Told once of the first error better_player records. Its value is the one
   /// place every platform error with a message lands: the exception event is
@@ -205,6 +204,8 @@ class _BetterPlayerPlayback implements VideoPlayback {
     if (_tracks.isEmpty) {
       _tracks.addAll(qualitiesFrom(_controller.betterPlayerAsmsTracks));
     }
+    final size = value.size;
+    _size.value = size == null || size.isEmpty ? null : size;
     _status.value = VideoStatus(
       position: value.position,
       duration: value.duration,
@@ -289,14 +290,27 @@ class _BetterPlayerPlayback implements VideoPlayback {
     _update();
   }
 
+  /// The engine's view, scaled to fit inside the host whole. Its widgets
+  /// keep one shape whatever the size, so the size arriving never re-creates
+  /// the view.
   @override
-  Widget buildView() => BetterPlayer(controller: _controller);
+  Widget buildView() => Watch(
+        (context) => FittedBox(
+          child: SizedBox.fromSize(
+            // The host's own shape until the video's is known.
+            size: _size.value ?? const Size(videoAspectRatio, 1),
+            child: _controller.buildVideoPlayerView(),
+          ),
+        ),
+      );
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _controller
       ..removeVideoListener(_update)
-      ..dispose(forceDispose: true);
+      ..dispose();
     _status.dispose();
+    _size.dispose();
   }
 }

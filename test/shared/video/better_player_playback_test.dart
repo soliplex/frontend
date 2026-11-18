@@ -17,12 +17,12 @@ class _FakePlatform extends BetterPlayerPlatform {
   final events = StreamController<VideoEvent>.broadcast();
   bool disposed = false;
 
-  void started() => events.add(
+  void started({Size size = const Size(1280, 720)}) => events.add(
         VideoEvent(
           eventType: VideoEventType.initialized,
           key: null,
           duration: const Duration(minutes: 1),
-          size: const Size(1280, 720),
+          size: size,
         ),
       );
 
@@ -116,10 +116,25 @@ class _FakePlatform extends BetterPlayerPlatform {
   Future<void> setMixWithOthers(int? textureId, bool mixWithOthers) async {}
 
   @override
-  Widget buildView(int? textureId) => const SizedBox.expand();
+  Widget buildView(int? textureId) => const _PlatformView();
+}
+
+/// Stands in for the platform view; a new one of these is a new view.
+class _PlatformView extends StatefulWidget {
+  const _PlatformView();
+
+  @override
+  State<_PlatformView> createState() => _PlatformViewState();
+}
+
+class _PlatformViewState extends State<_PlatformView> {
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
 }
 
 final _signed = Uri.parse('https://cdn.example/clip.mp4?sig=secret');
+
+const _box = ValueKey('box');
 
 /// Lets the player's chain of platform calls run to where it waits for the
 /// platform to report. Some of better_player's steps wait on more than the
@@ -368,8 +383,8 @@ void main() {
     platform.started();
     await settle(tester);
 
-    // Each move unmounts the view it leaves, which disposes better_player's
-    // controller unless the playback keeps it.
+    // Each move unmounts the view it leaves; only the card releases the
+    // player.
     await tester.tap(find.byTooltip('Expand video'));
     await settle(tester);
     await tester.tap(find.byTooltip('Close'));
@@ -533,6 +548,99 @@ void main() {
     expect(playback!.status.value.quality, isNull);
     expect(platform.trackHeights.last, 0, reason: 'no limit: adaptive again');
     playback!.dispose();
+  });
+
+  /// Starts a playback, reporting [size] as the start does, and shows its
+  /// view in a 320 by 180 box.
+  Future<VideoPlayback> startShown(
+    WidgetTester tester, {
+    Size size = const Size(1280, 720),
+  }) async {
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: (_) {})
+          .then((p) => playback = p),
+    );
+    await settle(tester);
+    platform.started(size: size);
+    await settle(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            key: _box,
+            width: 320,
+            height: 180,
+            child: playback!.buildView(),
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    return playback!;
+  }
+
+  testWidgets('its view outlives the video size arriving', (tester) async {
+    // Safari reports no size until the first frame has been decoded.
+    final playback = await startShown(tester, size: Size.zero);
+    final view = tester.state(find.byType(_PlatformView));
+
+    platform.events.add(
+      VideoEvent(
+        eventType: VideoEventType.changedSize,
+        key: null,
+        size: const Size(1280, 720),
+      ),
+    );
+    await settle(tester);
+
+    // A new platform view moves the <video> element, which pauses it.
+    expect(tester.state(find.byType(_PlatformView)), same(view));
+    playback.dispose();
+  });
+
+  testWidgets('a video of another shape fits inside its view', (tester) async {
+    final playback = await startShown(tester, size: const Size(640, 480));
+
+    final view = tester.getRect(find.byType(_PlatformView));
+    expect(view.size, const Size(240, 180));
+    expect(view.center, tester.getCenter(find.byKey(_box)));
+    playback.dispose();
+  });
+
+  testWidgets('plays while the app is inactive', (tester) async {
+    addTearDown(
+      () => tester.binding
+          .handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+    );
+    final playback = await startShown(tester);
+    unawaited(playback.pause());
+    await settle(tester);
+
+    // Safari blurs the window as Escape leaves its full screen, while the
+    // video moves back to the view it left.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    unawaited(playback.play());
+    await settle(tester);
+
+    expect(platform.playing, isTrue);
+    playback.dispose();
+  });
+
+  testWidgets('going to the background pauses it', (tester) async {
+    addTearDown(
+      () => tester.binding
+          .handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+    );
+    final playback = await startShown(tester);
+    expect(platform.playing, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await settle(tester);
+
+    expect(platform.playing, isFalse);
+    expect(playback.status.value.isPlaying, isFalse);
+    playback.dispose();
   });
 
   group('qualitiesFrom', () {
