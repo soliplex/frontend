@@ -47,8 +47,7 @@ void main() {
     expect(find.bySemanticsLabel(RegExp(r'^SVG image\n')), findsOneWidget);
   });
 
-  testWidgets('json routes to JsonViewer, labelled Code block in json',
-      (tester) async {
+  testWidgets('json routes to JsonViewer, labelled JSON', (tester) async {
     await tester.pumpWidget(_inline(const ContentViewer(
       language: 'json',
       content: '{"a": 1}',
@@ -57,8 +56,7 @@ void main() {
 
     expect(find.byType(JsonViewer), findsOneWidget);
     expect(find.byTooltip('Copy JSON'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^Code block in json\n')),
-        findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^JSON\n')), findsOneWidget);
   });
 
   testWidgets('semantics label is Code block in python', (tester) async {
@@ -156,8 +154,7 @@ void main() {
       expect(find.text('Tree'), findsNothing);
       expect(find.text('json'), findsOneWidget);
       expect(find.byTooltip('Copy JSON'), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp(r'^Code block in json\n')),
-          findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^JSON\n')), findsOneWidget);
     });
 
     for (final brightness in Brightness.values) {

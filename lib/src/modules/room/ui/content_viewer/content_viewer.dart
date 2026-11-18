@@ -60,7 +60,11 @@ class ContentViewer extends StatelessWidget {
             : language;
     final tooLarge = content.length > maxHighlightedLength;
     return Semantics(
-      label: label == null ? 'Code block' : 'Code block in $label',
+      label: isJson
+          ? 'JSON'
+          : label == null
+              ? 'Code block'
+              : 'Code block in $label',
       child: isJson && !tooLarge
           ? JsonViewer.source(
               content,
