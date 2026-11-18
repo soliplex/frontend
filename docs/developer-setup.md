@@ -7,7 +7,7 @@ Platform-specific setup instructions for building and running Soliplex.
 - Flutter SDK, stable channel — exact version in `.fvmrc` (see below)
 - Xcode (for iOS/macOS)
 - CocoaPods (`gem install cocoapods`)
-- Android Studio (for Android)
+- Android Studio (for Android), and JDK 21 or later on the path Gradle uses
 
 ### Flutter SDK version
 
@@ -136,6 +136,11 @@ open -a Transporter build/ios/ipa/soliplex_frontend.ipa
 ```
 
 ### Android
+
+The build needs JDK 21 or later: `better_player_android` ships Java 21
+classes, which a JDK 17 build fails to read (`class file has wrong version
+65.0, should be 61.0`). Android Studio bundles one; elsewhere, install it and
+point Gradle at it, with `JAVA_HOME` or `flutter config --jdk-dir <path>`.
 
 No special signing setup required for debug builds.
 
