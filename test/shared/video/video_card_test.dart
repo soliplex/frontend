@@ -70,6 +70,9 @@ class _FakeViewState extends State<_FakeView> {
 }
 
 const _viewKey = ValueKey('video-view');
+
+/// The system UI an app starts with: both system bars shown.
+const _barsShown = '[SystemUiOverlay.top, SystemUiOverlay.bottom]';
 final _uri = Uri.parse('https://cdn.example/clip.mp4?sig=secret');
 
 /// WCAG contrast between two opaque colours.
@@ -133,7 +136,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Records the system UI modes the card asks for, in order.
+  /// Records the system UI modes the card asks for, in order; a manual mode
+  /// as the overlays it shows.
   List<String> recordSystemUiModes() {
     final modes = <String>[];
     final messenger =
@@ -141,6 +145,8 @@ void main() {
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
         modes.add(call.arguments as String);
+      } else if (call.method == 'SystemChrome.setEnabledSystemUIOverlays') {
+        modes.add('${call.arguments}');
       }
       return null;
     });
@@ -320,7 +326,7 @@ void main() {
     await tester.tap(find.byTooltip('Exit full screen'));
     await tester.pumpAndSettle();
 
-    expect(modes, ['SystemUiMode.immersive', 'SystemUiMode.edgeToEdge']);
+    expect(modes, ['SystemUiMode.immersive', _barsShown]);
     expect(find.byType(Dialog), findsNothing);
     expect(find.byKey(_viewKey), findsOneWidget);
     expect(find.text('Playing in the expanded view'), findsNothing);
@@ -357,7 +363,7 @@ void main() {
 
     expect(find.byTooltip('Exit full screen'), findsNothing);
     expect(find.text('Open video'), findsOneWidget);
-    expect(modes.last, 'SystemUiMode.edgeToEdge');
+    expect(modes.last, _barsShown);
   });
 
   testWidgets('a card that goes in full screen restores the system bars',
@@ -371,7 +377,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
     await tester.pumpAndSettle();
 
-    expect(modes.last, 'SystemUiMode.edgeToEdge');
+    expect(modes.last, _barsShown);
     expect(playback.disposed, isTrue);
   });
 

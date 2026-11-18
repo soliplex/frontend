@@ -17,14 +17,20 @@ Future<void> ensureVideoRuntime() async {}
 void enterFullscreen({required void Function() onExit}) =>
     _setSystemUiMode(SystemUiMode.immersive);
 
-/// Shows the system bars [enterFullscreen] hid.
-void leaveFullscreen() => _setSystemUiMode(SystemUiMode.edgeToEdge);
+/// Shows the system bars [enterFullscreen] hid, as the app started with them:
+/// both shown, which on Android is the embedding's starting state on every
+/// version. `edgeToEdge` is not: it does nothing below Android 10, leaving
+/// the bars hidden.
+void leaveFullscreen() => _setSystemUiMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
 
 /// Only iOS and Android have system bars to hide.
-void _setSystemUiMode(SystemUiMode mode) {
+void _setSystemUiMode(SystemUiMode mode, {List<SystemUiOverlay>? overlays}) {
   if (defaultTargetPlatform != TargetPlatform.android &&
       defaultTargetPlatform != TargetPlatform.iOS) {
     return;
   }
-  unawaited(SystemChrome.setEnabledSystemUIMode(mode));
+  unawaited(SystemChrome.setEnabledSystemUIMode(mode, overlays: overlays));
 }
