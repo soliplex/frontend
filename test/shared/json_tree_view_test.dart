@@ -187,13 +187,11 @@ void main() {
       expect(_colorOf(tester, '}'), root);
     });
 
-    testWidgets(
-        "a key falls back to the root colour when the theme has no "
-        'attr style', (tester) async {
+    testWidgets('a key is coloured as an attribute in the light theme',
+        (tester) async {
       await _pumpTree(tester, const [ValueNode(key: 'id', value: 1)]);
 
-      expect(githubTheme['attr'], isNull);
-      expect(_colorOf(tester, 'id'), githubTheme['root']!.color);
+      expect(_colorOf(tester, 'id'), githubTheme['attribute']!.color);
     });
 
     testWidgets(
@@ -210,10 +208,10 @@ void main() {
       expect(spans.single.style, same(githubTheme['string']));
     });
 
-    testWidgets("a key with no theme entry gets no background", (tester) async {
+    testWidgets("a key gets no background", (tester) async {
       await _pumpTree(tester, const [ValueNode(key: 'id', value: 1)]);
 
-      expect(githubTheme['attr'], isNull);
+      expect(githubTheme['attribute']!.backgroundColor, isNull);
       expect(githubTheme['root']!.backgroundColor, isNotNull);
       final rich = tester.widget<RichText>(find.byType(RichText));
       final backgrounds = <Color?>[];

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_highlight/themes/github.dart';
+import 'package:flutter_highlight/themes/vs2015.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 
@@ -68,6 +69,31 @@ void main() {
       expect(find.byType(SelectableText), findsNothing);
       expect(find.textContaining('"a"', findRichText: true), findsOneWidget);
     });
+
+    for (final (brightness, theme) in [
+      (Brightness.light, githubTheme),
+      (Brightness.dark, vs2015Theme),
+    ]) {
+      testWidgets('colours a JSON key as an attribute in $brightness',
+          (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(brightness: brightness),
+            home: const Scaffold(
+              body: CodeView(code: '{"a": 1}', language: 'json'),
+            ),
+          ),
+        );
+
+        final span = tester
+            .widget<SelectableText>(find.byType(SelectableText))
+            .textSpan!;
+        final key = _leaves([span]).where((leaf) => leaf.text == '"a"');
+        expect(key, hasLength(1));
+        expect(key.single.color, theme['attribute']!.color);
+        expect(key.single.color, isNot(theme['root']!.color));
+      });
+    }
 
     testWidgets('renders a tab as spaces', (tester) async {
       await tester.pumpWidget(

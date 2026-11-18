@@ -53,9 +53,14 @@ TextStyle codeTextStyle(BuildContext context) {
       .copyWith(color: codeTheme(context)[_rootKey]?.color);
 }
 
+// githubTheme styles `attribute` but not `attr`, the class highlight.js gives
+// JSON keys, XML/HTML attribute names and YAML keys; vs2015Theme styles both
+// alike.
+final _lightTheme = {...githubTheme, 'attr': githubTheme['attribute']!};
+
 /// The syntax colours for the current brightness.
 Map<String, TextStyle> codeTheme(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark ? vs2015Theme : githubTheme;
+    Theme.of(context).brightness == Brightness.dark ? vs2015Theme : _lightTheme;
 
 /// The background [CodeView] paints behind code.
 Color codeSurfaceColor(BuildContext context) =>
