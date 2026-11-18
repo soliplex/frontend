@@ -57,7 +57,7 @@ class VideoStatus {
 /// page take turns showing.
 ///
 /// The seam the video widgets are written against, so they can be tested
-/// without a platform player; [createBetterPlayerPlayback] is the real one.
+/// without a platform player; `createBetterPlayerPlayback` is the real one.
 ///
 /// Its play, pause, seek and volume commands never throw: one the player
 /// refuses is logged, so the widgets fire them without awaiting.
@@ -94,7 +94,8 @@ abstract interface class VideoPlayback {
 
 /// Creates the playback of the video at [uri] and asks it to play,
 /// completing once the video has loaded. A browser may still refuse to play
-/// it unprompted, leaving it paused.
+/// it unprompted; better_player_web does not report a refusal, so the status
+/// would then show it playing over a paused video.
 ///
 /// Throws [VideoPlaybackException] when it cannot load: the source failed, the
 /// format is unsupported, the web player's script could not be loaded, or

@@ -25,8 +25,9 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 ///   the window on leaving its full screen. It also pauses a video out of
 ///   view and plays it again, disposes the controller as a view unmounts, and
 ///   draws its own controls. The hosts draw `VideoControls` over the view.
-/// - Going to the background pauses the video, which the package does only
-///   in that widget: Android's player would play on behind other apps.
+/// - On Android and iOS, going to the background pauses the video, which the
+///   package does only in that widget: Android's player would play on behind
+///   other apps.
 /// - An HLS stream adapts its rendition to the connection: Shaka's ABR on the
 ///   web, ExoPlayer's on Android, AVPlayer's on iOS and macOS. libmpv, on
 ///   Windows and Linux, has none and plays the highest bitrate. The

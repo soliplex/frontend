@@ -12,8 +12,8 @@ Future<void> ensureVideoRuntime() async {}
 /// Hides the system bars for the fullscreen page, where the system allows:
 /// Flutter documents `immersive` as ignored by Android for an app that
 /// targets API 36, as this one does. [onExit] goes unused:
-/// natively the page is left only by its exit button or the back gesture,
-/// both of which pop it.
+/// natively the page is left by its exit button, Escape or the back gesture,
+/// all of which pop it.
 void enterFullscreen({required void Function() onExit}) =>
     _setSystemUiMode(SystemUiMode.immersive);
 
