@@ -7,7 +7,7 @@ sealed class JsonNode {
 class ValueNode extends JsonNode {
   const ValueNode({required super.key, required this.value});
 
-  final String value;
+  final Object? value;
 }
 
 class ObjectNode extends JsonNode {
@@ -34,7 +34,7 @@ List<JsonNode> buildJsonTree(dynamic json, {String rootKey = ''}) {
   if (json is List) {
     return _buildArrayChildren(json);
   }
-  return [ValueNode(key: rootKey, value: '$json')];
+  return [ValueNode(key: rootKey, value: json)];
 }
 
 JsonNode _buildNode(String key, dynamic value) {
@@ -52,7 +52,7 @@ JsonNode _buildNode(String key, dynamic value) {
       children: _buildArrayChildren(value),
     );
   }
-  return ValueNode(key: key, value: '$value');
+  return ValueNode(key: key, value: value);
 }
 
 List<JsonNode> _buildArrayChildren(List<dynamic> list) {

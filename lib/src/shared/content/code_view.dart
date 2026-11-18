@@ -37,12 +37,14 @@ List<TextSpan> _convert(List<Node> nodes, Map<String, TextStyle> theme) {
   ];
 }
 
-/// The style [CodeView] renders code in.
+/// The style [CodeView] renders code in, coloured as the theme's plain text.
 TextStyle codeTextStyle(BuildContext context) {
   // design-system exception (approved): 14pt sits between bodySmall (13) and
   // bodyMedium (16); chosen so block code reads at roughly the size of
   // surrounding prose without dominating it.
-  return context.monospaceOn(const TextStyle(fontSize: 14));
+  return context
+      .monospaceOn(const TextStyle(fontSize: 14))
+      .copyWith(color: codeTheme(context)[_rootKey]?.color);
 }
 
 /// The syntax colours for the current brightness.
@@ -70,8 +72,7 @@ class CodeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = codeTheme(context);
-    final root = theme[_rootKey];
-    final style = codeTextStyle(context).copyWith(color: root?.color);
+    final style = codeTextStyle(context);
     final span = TextSpan(
       style: style,
       children: highlightSpans(
@@ -81,7 +82,7 @@ class CodeView extends StatelessWidget {
       ),
     );
     return ColoredBox(
-      color: root?.backgroundColor ?? Colors.transparent,
+      color: theme[_rootKey]?.backgroundColor ?? Colors.transparent,
       // Replaces the ambient style so prose line height and letter spacing
       // do not reach the code.
       child: DefaultTextStyle(
