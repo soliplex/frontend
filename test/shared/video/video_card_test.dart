@@ -1,0 +1,688 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_design/soliplex_design.dart'
+    show soliplexDarkTheme, soliplexLightTheme;
+import 'package:soliplex_frontend/src/shared/video/video_card.dart';
+import 'package:soliplex_frontend/src/shared/video/video_playback.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+/// Stands in for the platform player: it plays until paused, and, as a
+/// browser does to a `<video>` element whose view goes, pauses when
+/// a view of it unmounts.
+class _FakePlayback implements VideoPlayback {
+  bool disposed = false;
+
+  @override
+  final Signal<VideoStatus> status = signal(const VideoStatus(isPlaying: true));
+
+  bool get playing => status.value.isPlaying;
+  set playing(bool value) => status.value = VideoStatus(isPlaying: value);
+
+  @override
+  Future<void> play() async {
+    playing = true;
+  }
+
+  @override
+  Future<void> pause() async => playing = false;
+
+  @override
+  Future<void> seekTo(Duration position) async {}
+
+  @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
+  void selectQuality(int? height) {}
+
+  @override
+  Widget buildView() => _FakeView(onUnmount: () => playing = false);
+
+  @override
+  void dispose() => disposed = true;
+}
+
+class _FakeView extends StatefulWidget {
+  const _FakeView({required this.onUnmount}) : super(key: _viewKey);
+
+  final VoidCallback onUnmount;
+
+  @override
+  State<_FakeView> createState() => _FakeViewState();
+}
+
+class _FakeViewState extends State<_FakeView> {
+  @override
+  void dispose() {
+    // The browser's pause arrives as an event, after the unmount.
+    scheduleMicrotask(widget.onUnmount);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
+}
+
+const _viewKey = ValueKey('video-view');
+
+/// The system UI an app starts with: both system bars shown.
+const _barsShown = '[SystemUiOverlay.top, SystemUiOverlay.bottom]';
+final _uri = Uri.parse('https://cdn.example/clip.mp4?sig=secret');
+
+/// WCAG contrast between two opaque colours.
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  return (la > lb ? la + 0.05 : lb + 0.05) / (la > lb ? lb + 0.05 : la + 0.05);
+}
+
+void main() {
+  late _FakePlayback playback;
+  late int created;
+  void Function(String reason)? reportError;
+  late MemorySink sink;
+
+  setUp(() {
+    playback = _FakePlayback();
+    created = 0;
+    reportError = null;
+    sink = MemorySink();
+    LogManager.instance.addSink(sink);
+  });
+
+  tearDown(LogManager.instance.reset);
+
+  Future<VideoPlayback> factory(
+    Uri uri, {
+    required void Function(String reason) onError,
+  }) async {
+    created++;
+    reportError = onError;
+    return playback;
+  }
+
+  Future<void> pumpCard(
+    WidgetTester tester, {
+    String? caption,
+    ThemeData? theme,
+    VideoPlaybackFactory? playbackFactory,
+  }) =>
+      tester.pumpWidget(
+        MaterialApp(
+          theme: theme ?? soliplexLightTheme(),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SizedBox(
+                width: 400,
+                child: VideoCard(
+                  uri: _uri,
+                  caption: caption,
+                  playbackFactory: playbackFactory ?? factory,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  Future<void> startPlaying(WidgetTester tester) async {
+    await tester.tap(find.byTooltip('Play video'));
+    await tester.pumpAndSettle();
+  }
+
+  /// Has focus kept as on the web and the desktop, where Flutter moves it to
+  /// the root while the app is inactive. A focus manager settles that when it
+  /// is made, and the test binding makes one for Android before each test.
+  void useDesktopFocus(WidgetTester tester) {
+    final owner = tester.binding.buildOwner!;
+    // A focus manager registers its key handler here, deprecated or not, and
+    // asserts that no other has.
+    // ignore: deprecated_member_use
+    final keys = ServicesBinding.instance.keyEventManager;
+    final androidFocus = owner.focusManager;
+    // ignore: deprecated_member_use
+    final androidKeys = keys.keyMessageHandler;
+    // ignore: deprecated_member_use
+    keys.keyMessageHandler = null;
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      owner.focusManager = FocusManager()..registerGlobalHandlers();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+    addTearDown(() {
+      owner.focusManager.dispose();
+      owner.focusManager = androidFocus;
+      // ignore: deprecated_member_use
+      keys.keyMessageHandler = androidKeys;
+    });
+  }
+
+  /// Records the system UI modes the card asks for, in order; a manual mode
+  /// as the overlays it shows.
+  List<String> recordSystemUiModes() {
+    final modes = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+        modes.add(call.arguments as String);
+      } else if (call.method == 'SystemChrome.setEnabledSystemUIOverlays') {
+        modes.add('${call.arguments}');
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    return modes;
+  }
+
+  testWidgets('is 16:9 and captioned before anything loads', (tester) async {
+    await pumpCard(tester, caption: 'A demo');
+
+    final size = tester.getSize(find.byType(AspectRatio));
+    expect(size.height, closeTo(size.width * 9 / 16, 0.01));
+    expect(find.text('A demo'), findsOneWidget);
+    expect(created, 0, reason: 'nothing loads until the user presses play');
+  });
+
+  testWidgets('pressing play starts the player inline', (tester) async {
+    await pumpCard(tester);
+
+    await startPlaying(tester);
+
+    expect(created, 1);
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(find.byTooltip('Expand video'), findsOneWidget);
+  });
+
+  testWidgets('a screen reader can press play, named by the caption',
+      (tester) async {
+    await pumpCard(tester, caption: 'A demo');
+
+    final play = find.bySemanticsLabel('Play A demo');
+    expect(
+      tester.getSemantics(play),
+      matchesSemantics(
+        label: 'Play A demo',
+        isButton: true,
+        hasTapAction: true,
+      ),
+    );
+    tester.semantics.tap(find.semantics.byLabel('Play A demo'));
+    await tester.pumpAndSettle();
+
+    expect(created, 1);
+  });
+
+  testWidgets('pressing play twice before it starts starts one player',
+      (tester) async {
+    await pumpCard(tester);
+
+    await tester.tap(find.byTooltip('Play video'));
+    await tester.tap(find.byTooltip('Play video'));
+    await tester.pumpAndSettle();
+
+    expect(created, 1);
+  });
+
+  testWidgets('shows progress while the player starts', (tester) async {
+    final starting = Completer<VideoPlayback>();
+    await pumpCard(
+      tester,
+      playbackFactory: (_, {required onError}) => starting.future,
+    );
+
+    await tester.tap(find.byTooltip('Play video'));
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(_viewKey), findsNothing);
+
+    starting.complete(playback);
+    await tester.pumpAndSettle();
+    expect(find.byKey(_viewKey), findsOneWidget);
+  });
+
+  testWidgets('a card that goes while the player starts releases it',
+      (tester) async {
+    final starting = Completer<VideoPlayback>();
+    await pumpCard(
+      tester,
+      playbackFactory: (_, {required onError}) => starting.future,
+    );
+    await tester.tap(find.byTooltip('Play video'));
+    await tester.pump();
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    starting.complete(playback);
+    await tester.pumpAndSettle();
+
+    expect(playback.disposed, isTrue);
+  });
+
+  testWidgets('expanding hands the view to the dialog and keeps it playing',
+      (tester) async {
+    await pumpCard(tester);
+    await startPlaying(tester);
+
+    await tester.tap(find.byTooltip('Expand video'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsOneWidget);
+    // One view, in the dialog; the card says where the video went.
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(Dialog), matching: find.byKey(_viewKey)),
+      findsOneWidget,
+    );
+    expect(find.text('Playing in the expanded view'), findsOneWidget);
+    expect(playback.playing, isTrue, reason: 'resumed after the move');
+  });
+
+  testWidgets('closing the dialog hands the view back to the card',
+      (tester) async {
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Expand video'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(find.text('Playing in the expanded view'), findsNothing);
+    expect(playback.playing, isTrue, reason: 'resumed after the move back');
+  });
+
+  testWidgets('a paused video stays paused when it moves', (tester) async {
+    await pumpCard(tester);
+    await startPlaying(tester);
+    playback.playing = false;
+
+    await tester.tap(find.byTooltip('Expand video'));
+    await tester.pumpAndSettle();
+
+    expect(playback.playing, isFalse);
+  });
+
+  testWidgets('fullscreen from the dialog returns to the dialog',
+      (tester) async {
+    recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Expand video'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Exit full screen'), findsOneWidget);
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(playback.playing, isTrue);
+
+    await tester.tap(find.byTooltip('Exit full screen'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Exit full screen'), findsNothing);
+    expect(
+      find.descendant(of: find.byType(Dialog), matching: find.byKey(_viewKey)),
+      findsOneWidget,
+    );
+    expect(playback.playing, isTrue);
+  });
+
+  for (final (opened, open) in <(String, Future<void> Function(WidgetTester))>[
+    ('clicked', (tester) => tester.tap(find.byTooltip('Full screen'))),
+    (
+      'pressed from the keyboard',
+      (tester) async {
+        // The button holds the focus as it opens full screen, and goes.
+        Focus.of(
+          tester.element(
+            find.descendant(
+              of: find.byTooltip('Full screen'),
+              matching: find.byType(Icon),
+            ),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      }
+    ),
+  ]) {
+    testWidgets(
+        'Escape closes the dialog after full screen, $opened, was left while '
+        'the app was inactive', (tester) async {
+      useDesktopFocus(tester);
+      recordSystemUiModes();
+      addTearDown(
+        () => tester.binding
+            .handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+      );
+      await pumpCard(tester);
+      await startPlaying(tester);
+      await tester.tap(find.byTooltip('Expand video'));
+      await tester.pumpAndSettle();
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.tap(find.byTooltip('Exit full screen'));
+      await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dialog), findsNothing);
+    });
+  }
+
+  testWidgets('Escape leaves full screen where no browser does it',
+      (tester) async {
+    recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Exit full screen'), findsNothing);
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(playback.playing, isTrue);
+  });
+
+  testWidgets('full screen hides the system bars until it is left',
+      (tester) async {
+    final modes = recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+    expect(modes, ['SystemUiMode.immersive']);
+
+    await tester.tap(find.byTooltip('Exit full screen'));
+    await tester.pumpAndSettle();
+
+    expect(modes, ['SystemUiMode.immersive', _barsShown]);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byKey(_viewKey), findsOneWidget);
+    expect(find.text('Playing in the expanded view'), findsNothing);
+  });
+
+  testWidgets(
+    'full screen on the desktop leaves the system UI alone',
+    (tester) async {
+      final modes = recordSystemUiModes();
+      await pumpCard(tester);
+      await startPlaying(tester);
+
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Exit full screen'), findsOneWidget);
+      await tester.tap(find.byTooltip('Exit full screen'));
+      await tester.pumpAndSettle();
+
+      expect(modes, isEmpty, reason: 'desktop platforms have no UI modes');
+    },
+    variant: TargetPlatformVariant.desktop(),
+  );
+
+  testWidgets('a failure in full screen closes it and restores the system bars',
+      (tester) async {
+    final modes = recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    reportError!('HTTP 404');
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Exit full screen'), findsNothing);
+    expect(find.text('Open video'), findsOneWidget);
+    expect(modes.last, _barsShown);
+  });
+
+  testWidgets('a card that goes in full screen restores the system bars',
+      (tester) async {
+    final modes = recordSystemUiModes();
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Full screen'));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpAndSettle();
+
+    expect(modes.last, _barsShown);
+    expect(playback.disposed, isTrue);
+  });
+
+  testWidgets('a video that cannot play offers to open it instead',
+      (tester) async {
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Expand video'));
+    await tester.pumpAndSettle();
+
+    reportError!('HTTP 404');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing, reason: 'nothing left to show');
+    expect(find.byKey(_viewKey), findsNothing);
+    expect(find.text('Open video'), findsOneWidget);
+    expect(playback.disposed, isTrue, reason: 'the dead player is released');
+    final record = sink.records.single;
+    expect(record.message, 'A video could not be played');
+    expect(record.attributes, containsPair('reason', 'HTTP 404'));
+    expect(record.attributes, containsPair('host', 'cdn.example'));
+    expect(record.attributes, containsPair('queryLength', 10));
+    expect('${record.message} ${record.attributes}', isNot(contains('secret')));
+  });
+
+  testWidgets('a failure reported twice is handled once', (tester) async {
+    await pumpCard(tester);
+    await startPlaying(tester);
+
+    reportError!('HTTP 404');
+    reportError!('HTTP 404');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open video'), findsOneWidget);
+    expect(sink.records, hasLength(1));
+  });
+
+  testWidgets('a player that cannot start offers to open the video',
+      (tester) async {
+    const failure = VideoPlaybackException('HTTP 404');
+    await pumpCard(
+      tester,
+      playbackFactory: (_, {required onError}) => Future.error(failure),
+    );
+
+    await startPlaying(tester);
+
+    expect(find.text('Open video'), findsOneWidget);
+    final record = sink.records.single;
+    expect(record.message, 'Could not start the video player');
+    expect(record.error, failure);
+    expect(record.attributes, containsPair('queryLength', 10));
+    expect(
+      '${record.message} ${record.attributes} ${record.error}',
+      isNot(contains('secret')),
+    );
+  });
+
+  group('rebuilt with another video', () {
+    final other = Uri.parse('https://cdn.example/other.mp4');
+
+    Future<void> pumpUri(
+      WidgetTester tester,
+      Uri uri,
+      VideoPlaybackFactory playbackFactory,
+    ) =>
+        tester.pumpWidget(
+          MaterialApp(
+            theme: soliplexLightTheme(),
+            home: Scaffold(
+              body: VideoCard(uri: uri, playbackFactory: playbackFactory),
+            ),
+          ),
+        );
+
+    testWidgets('releases the video it played and offers the other',
+        (tester) async {
+      await pumpUri(tester, _uri, factory);
+      await startPlaying(tester);
+      await tester.tap(find.byTooltip('Expand video'));
+      await tester.pumpAndSettle();
+
+      await pumpUri(tester, other, factory);
+      await tester.pumpAndSettle();
+
+      expect(playback.disposed, isTrue);
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.byKey(_viewKey), findsNothing);
+      expect(find.byTooltip('Play video'), findsOneWidget);
+    });
+
+    testWidgets('a start it moved past gives way to the new one',
+        (tester) async {
+      final starts = <Uri, Completer<VideoPlayback>>{};
+      Future<VideoPlayback> slow(
+        Uri uri, {
+        required void Function(String reason) onError,
+      }) =>
+          (starts[uri] = Completer<VideoPlayback>()).future;
+      final first = _FakePlayback();
+      final second = _FakePlayback();
+      await pumpUri(tester, _uri, slow);
+      await tester.tap(find.byTooltip('Play video'));
+      await tester.pump();
+      await pumpUri(tester, other, slow);
+      await tester.tap(find.byTooltip('Play video'));
+      await tester.pump();
+
+      starts[_uri]!.complete(first);
+      await tester.pump();
+      await tester.pump();
+      expect(first.disposed, isTrue);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      starts[other]!.complete(second);
+      await tester.pumpAndSettle();
+      expect(find.byKey(_viewKey), findsOneWidget);
+      expect(second.disposed, isFalse);
+    });
+
+    testWidgets('a start it moved past fails without failing the new one',
+        (tester) async {
+      final starts = <Uri, Completer<VideoPlayback>>{};
+      Future<VideoPlayback> slow(
+        Uri uri, {
+        required void Function(String reason) onError,
+      }) =>
+          (starts[uri] = Completer<VideoPlayback>()).future;
+      await pumpUri(tester, _uri, slow);
+      await tester.tap(find.byTooltip('Play video'));
+      await tester.pump();
+      await pumpUri(tester, other, slow);
+      await tester.tap(find.byTooltip('Play video'));
+      await tester.pump();
+
+      starts[_uri]!.completeError(const VideoPlaybackException('HTTP 404'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Open video'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      starts[other]!.complete(playback);
+      await tester.pumpAndSettle();
+      expect(find.byKey(_viewKey), findsOneWidget);
+    });
+  });
+
+  testWidgets('"Open video" opens the video in the browser', (tester) async {
+    const channel = MethodChannel('plugins.flutter.io/url_launcher');
+    final launched = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method != 'launch') return null;
+      launched.add((call.arguments as Map)['url'] as String);
+      return true;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    await pumpCard(
+      tester,
+      playbackFactory: (_, {required onError}) =>
+          Future.error(const VideoPlaybackException('HTTP 404')),
+    );
+    await startPlaying(tester);
+
+    await tester.tap(find.text('Open video'));
+    await tester.pumpAndSettle();
+
+    expect(launched, [_uri.toString()]);
+  });
+
+  testWidgets('releases the player when the card goes', (tester) async {
+    await pumpCard(tester);
+    await startPlaying(tester);
+    await tester.tap(find.byTooltip('Expand video'));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpAndSettle();
+
+    expect(playback.disposed, isTrue);
+    expect(find.byType(Dialog), findsNothing);
+  });
+
+  for (final (name, theme) in [
+    ('light', soliplexLightTheme()),
+    ('dark', soliplexDarkTheme()),
+  ]) {
+    group('in the $name theme', () {
+      Color textColour(WidgetTester tester, String text) =>
+          tester.widget<Text>(find.text(text)).style!.color!;
+
+      testWidgets('the failure reads against the black card', (tester) async {
+        await pumpCard(
+          tester,
+          theme: theme,
+          playbackFactory: (_, {required onError}) =>
+              Future.error(const VideoPlaybackException('HTTP 404')),
+        );
+        await startPlaying(tester);
+
+        final colour = textColour(tester, "This video can't be played here.");
+        expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
+      });
+
+      testWidgets('"playing elsewhere" reads against the black card',
+          (tester) async {
+        await pumpCard(tester, theme: theme);
+        await startPlaying(tester);
+        await tester.tap(find.byTooltip('Expand video'));
+        await tester.pumpAndSettle();
+
+        final colour = textColour(tester, 'Playing in the expanded view');
+        expect(_contrast(colour, theme.colorScheme.scrim), greaterThan(4.5));
+      });
+    });
+  }
+}

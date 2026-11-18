@@ -7,8 +7,9 @@ version: 0.118.0+107
 
 environment:
   sdk: ^3.6.0
-  # file_picker_darwin 2.5.1 needs it; see file_picker_darwin below.
-  flutter: ">=3.41.0"
+  # better_player 1.37 needs it (Dart 3.12); file_picker_darwin 2.5.1, below,
+  # needs 3.41.0.
+  flutter: ">=3.47.0"
 
 workspace:
   - packages/soliplex_agent
@@ -39,8 +40,7 @@ dependencies:
   # Named although file_picker brings it in: 2.4.x, which ^13.3.3 still admits,
   # clears the whole temporary directory rather than its own, and the room
   # module's comments describe 2.5.1, which keeps picks and saves in a
-  # directory of its own under the temporary directory. It is also what sets
-  # the Flutter floor above.
+  # directory of its own under the temporary directory.
   file_picker_darwin: ^2.5.1
   mime: ^2.0.0
   url_launcher: ^6.3.1
@@ -55,6 +55,7 @@ dependencies:
     path: packages/soliplex_design
   soliplex_logging:
     path: packages/soliplex_logging
+  better_player: ">=1.37.0 <1.38.0"
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +66,7 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.7
   cross_file: ^0.3.5
+  http: ^1.6.0
 
 flutter_launcher_icons:
   android: true

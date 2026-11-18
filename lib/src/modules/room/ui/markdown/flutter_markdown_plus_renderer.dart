@@ -12,6 +12,9 @@ import '../../../../shared/markdown/launch_markdown_link.dart';
 import '../../../../shared/markdown/markdown_renderer.dart';
 import '../../../../shared/markdown/markdown_style_sheet.dart';
 import '../../../../shared/markdown/sanitize_markdown.dart';
+import '../../../../shared/video/better_player_playback.dart';
+import '../../../../shared/video/video_card.dart';
+import '../../../../shared/video/video_uri.dart';
 import '../../../../shared/zoomable_image.dart';
 import '../../../../shared/zoomable_view.dart';
 import '../../citation_markers.dart';
@@ -82,12 +85,20 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
           launchMarkdownLink(href);
         }
       },
-      imageBuilder: (uri, title, alt) => _MaybeZoomableImage(
-        uri: uri,
-        alt: alt,
-        onImageTap: onImageTap,
-        inline: _buildImage(uri, title, alt),
-      ),
+      // A video file in image syntax plays rather than shows. `onImageTap`
+      // is for images; the card owns what a tap on a video does.
+      imageBuilder: (uri, title, alt) => isVideoUri(uri)
+          ? VideoCard(
+              uri: uri,
+              caption: alt,
+              playbackFactory: createBetterPlayerPlayback,
+            )
+          : _MaybeZoomableImage(
+              uri: uri,
+              alt: alt,
+              onImageTap: onImageTap,
+              inline: _buildImage(uri, title, alt),
+            ),
       builders: {
         'code': InlineCodeBuilder(),
         'pre': CodeBlockBuilder(

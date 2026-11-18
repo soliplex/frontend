@@ -165,6 +165,16 @@ URL.
 `callbackParams`, as the example above does. Call them after
 `installLogSinks()`: without a sink, the missing-script error is discarded.
 
+## Web video player
+
+On the web, a video an answer links plays through Shaka Player, which the app
+loads from `vendor/shaka-player.compiled.js` beside `index.html` the first
+time a video plays. A fork's web build serves the fork's own `web/` folder, so
+copy `web/vendor/shaka-player.compiled.js` from this repository into the
+fork's `web/vendor/`. Without it, every video on the web offers to open in the
+browser instead, and the app logs "Could not start the video player" with the
+script's path.
+
 ## Rules
 
 - Build the theme with `buildSoliplexThemeData` (never a bare `ThemeData`) — the

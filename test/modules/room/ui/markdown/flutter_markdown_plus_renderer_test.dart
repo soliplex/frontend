@@ -4,9 +4,11 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
 
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 import 'package:soliplex_frontend/src/shared/failed_image.dart';
+import 'package:soliplex_frontend/src/shared/video/video_card.dart';
 import 'package:soliplex_frontend/src/shared/zoomable_image.dart';
 
 void main() {
@@ -253,6 +255,40 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(FailedImage), findsOneWidget);
+    });
+
+    group('video', () {
+      Future<void> pumpMarkdown(WidgetTester tester, String data) =>
+          tester.pumpWidget(
+            MaterialApp(
+              theme: soliplexLightTheme(),
+              home: Scaffold(
+                body: SizedBox(
+                  width: 500,
+                  child: FlutterMarkdownPlusRenderer(data: data),
+                ),
+              ),
+            ),
+          );
+
+      testWidgets('a video file in image syntax renders a message-wide card',
+          (tester) async {
+        await pumpMarkdown(
+          tester,
+          'Watch this:\n\n![The demo](https://cdn.example/demo.mp4)',
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(VideoCard), findsOneWidget);
+        expect(find.byType(Image), findsNothing);
+        expect(find.text('The demo'), findsOneWidget);
+        // The 16:9 frame spans the whole body, whatever sits around it.
+        final frame = find.descendant(
+          of: find.byType(VideoCard),
+          matching: find.byType(AspectRatio),
+        );
+        expect(tester.getSize(frame).width, 500);
+      });
     });
 
     testWidgets('http image is routed through Image.network', (tester) async {
