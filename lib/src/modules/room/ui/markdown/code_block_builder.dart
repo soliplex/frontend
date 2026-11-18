@@ -20,15 +20,13 @@ class FenceStreaming extends InheritedWidget {
 
   final bool isStreaming;
 
-  static bool of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<FenceStreaming>();
-    assert(
-      scope != null,
-      'No FenceStreaming above this context: CodeBlockBuilder must be used '
-      'inside FlutterMarkdownPlusRenderer, which provides it.',
-    );
-    return scope!.isStreaming;
-  }
+  /// The nearest [isStreaming], or false when no [FenceStreaming] is above:
+  /// markdown without one is complete.
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<FenceStreaming>()
+          ?.isStreaming ??
+      false;
 
   @override
   bool updateShouldNotify(FenceStreaming oldWidget) =>
