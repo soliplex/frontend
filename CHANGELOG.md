@@ -18,11 +18,23 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   with the notice beside it, and its source is behind the Source switch.
   While a reply is still streaming, a broken SVG shows no notice until the
   reply finishes; a partial SVG that happens to parse does render.
+- JSON code blocks in chat and `.json` files in the workdir have a Tree /
+  Source switch and open on Source. Invalid JSON shows its source under a
+  notice; while a reply is still streaming, the notice waits until it
+  finishes.
+- JSON trees, including those in diagnostics and dropped events, quote
+  strings and keep their line breaks, and colour keys and values in the
+  highlighted source's colours. A drag can select across a tree's rows
+  instead of stopping at one.
 
 ### Fixed
 
 - Code blocks in chat and code and text files in the workdir can be selected,
   not only copied; in chat they join the message's drag-selection (#389).
+- A JSON tree no longer shows the string `"42"` as a number or `"null"` as
+  null: values are coloured by their real type.
+- An invalid workdir `.json` file no longer logs a warning every time the
+  page redraws; invalid JSON is logged once, at debug level.
 
 ## [0.119.0+108] - 2026-11-18
 
