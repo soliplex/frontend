@@ -1607,7 +1607,7 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
         threadId: threadId,
         filename: itemError.filename,
-        message: pickerErrorMessage(itemError.cause),
+        message: pickedFileErrorMessage(itemError.cause),
       );
     }
     return result.files;

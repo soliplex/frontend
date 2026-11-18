@@ -16,6 +16,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A picked folder with nothing to upload (empty, or only dotfiles) now shows a
   failed upload row saying so, on Android, iOS and desktop, instead of reading
   as a cancelled pick.
+- A picked file that could not be read now says "Could not read this file."
+  instead of "Could not open file picker". Picked files that could not be
+  loaded at all (Android, or iCloud photos on iOS while offline) say so too.
 
 ### Changed
 

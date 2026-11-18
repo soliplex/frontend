@@ -571,10 +571,25 @@ void main() {
   });
 
   group('pickerErrorMessage', () {
-    test('an empty folder says so', () {
+    test('iOS load_failed says the files could not load, naming iCloud', () {
       expect(
-        pickerErrorMessage(const NoFilesInFolderError()),
-        'No files to upload in this folder.',
+        pickerErrorMessage(PlatformException(code: 'load_failed')),
+        'Could not load the picked files. '
+        'If they are in iCloud, check your connection.',
+      );
+    });
+
+    test('Android unknown_path says the files could not load', () {
+      expect(
+        pickerErrorMessage(PlatformException(code: 'unknown_path')),
+        'Could not load the picked files.',
+      );
+    });
+
+    test('another platform error is the picker failing to open', () {
+      expect(
+        pickerErrorMessage(PlatformException(code: 'already_active')),
+        'Could not open file picker',
       );
     });
 
@@ -589,6 +604,38 @@ void main() {
       expect(
         pickerErrorMessage(StateError('plugin not available')),
         'Could not open file picker',
+      );
+    });
+  });
+
+  group('pickedFileErrorMessage', () {
+    test('an empty folder says so', () {
+      expect(
+        pickedFileErrorMessage(const NoFilesInFolderError()),
+        'No files to upload in this folder.',
+      );
+    });
+
+    test('RangeError cause surfaces as a browser-heap message', () {
+      expect(
+        pickedFileErrorMessage(RangeError('Maximum allowed length')),
+        'Selection is too large to load in the browser.',
+      );
+    });
+
+    test('an unreadable file says so', () {
+      expect(
+        pickedFileErrorMessage(
+          const FileSystemException('Cannot open file', '/x/a.txt'),
+        ),
+        'Could not read this file.',
+      );
+    });
+
+    test('a file with no path says so', () {
+      expect(
+        pickedFileErrorMessage(StateError('picker returned no path for a')),
+        'Could not read this file.',
       );
     });
   });
