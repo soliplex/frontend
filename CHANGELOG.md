@@ -26,6 +26,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   strings and keep their line breaks, and colour keys and values in the
   highlighted source's colours. A drag can select across a tree's rows
   instead of stopping at one.
+- Code and JSON over 100 KB, in chat or in the workdir, show as plain text
+  without highlighting or a tree view. Highlighting a file that large held
+  the app frozen for seconds while it rendered.
 
 ### Fixed
 
