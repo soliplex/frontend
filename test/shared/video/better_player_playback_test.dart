@@ -252,7 +252,7 @@ void main() {
 
     platform.failed(
       'Cannot Open {NSErrorFailingURLKey=https://user:password@cdn.example'
-      ':8443/v/clip.mp4?sig=secret#t=5}',
+      ':8443/v/clip.mp4?exp=1,sig=secret#t=5}',
     );
     await settle(tester);
 

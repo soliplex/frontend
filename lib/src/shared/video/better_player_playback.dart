@@ -110,7 +110,10 @@ String _reduced(String url) {
   return '${uri.scheme}://${uri.host}$port${uri.path}';
 }
 
-final _url = RegExp(r'''[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>,)]+''');
+/// Runs to the next space, quote, angle bracket or closing parenthesis,
+/// commas included: a query may hold one, and what follows it is reduced
+/// with the rest of the query.
+final _url = RegExp(r'''[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>)]+''');
 
 /// better_player_web reports a failed load as the whole `shaka.util.Error`
 /// in JSON, which nothing follows but the exception's closing fields, so the
