@@ -20,11 +20,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   adapts to the connection (on Windows and Linux it plays the highest
   quality). A video that cannot be played offers to open it in
   the browser instead.
-- **Library consumers:** the `pubspec.yaml` Flutter floor rises to 3.47.0,
-  which `better_player` requires. Flutter 3.47 raises a macOS app's
-  deployment target to 12.0 when it builds, so macOS 10.15 and 11 are no
-  longer supported, and moves iOS and macOS plugins that ship a Swift package
-  from CocoaPods to Swift Package Manager. A fork's web build must copy
+- **Library consumers:** a fork's web build must copy
   `web/vendor/shaka-player.compiled.js` into its own `web/vendor/`: the player
   loads it from there the first time a video plays, and without it no video
   plays on the web. See "Web video player" in `docs/authoring-a-flavor.md`.
@@ -32,14 +28,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Changed
 
 - `file_picker` moves to 13 and `package_info_plus` to 10, both onto `win32`
-  6, which the coming video player's dependencies require.
+  6, which the video player's dependencies require.
 - A pick that could not load a single item now reports a picker failure on
   Android and iOS. Android used to answer it with an empty pick.
-- **Library consumers:** the `pubspec.yaml` Flutter floor rises to 3.41.0,
-  which `file_picker_darwin` 2.5.1 requires, now a direct dependency. The
-  majors to check your own pins against are `file_picker` 13,
-  `package_info_plus` 10 and `win32` 6, and `file_picker` 12 raised the iOS
-  deployment target to 14.
+- **Breaking:** **Library consumers:** the `pubspec.yaml` Flutter floor rises
+  to 3.47.0, which `better_player` requires (`file_picker_darwin` 2.5.1, now
+  a direct dependency, needs 3.41.0). Flutter 3.47 raises a macOS app's
+  deployment target to 12.0 when it builds, so macOS 10.15 and 11 are no
+  longer supported, and moves iOS and macOS plugins that ship a Swift package
+  from CocoaPods to Swift Package Manager. The majors to check your own pins
+  against are `file_picker` 13, `package_info_plus` 10 and `win32` 6, and
+  `file_picker` 12 raised the iOS deployment target to 14.
 
 ### Fixed
 

@@ -82,8 +82,9 @@ Future<VideoPlayback> createBetterPlayerPlayback(
         'the video did not load within ${videoStartLimit.inSeconds} seconds',
       ),
     );
-    // better_player stops listening for errors as the video initialises, so
-    // one that lands then is only recorded in its value.
+    // An error recorded by now would otherwise reach onError from the
+    // playback's constructor, while the card still waits on this start and
+    // ignores it.
     if (controller.videoPlayerValue?.errorDescription case final error?) {
       throw VideoPlaybackException(withoutCredentials(error));
     }
@@ -96,8 +97,8 @@ Future<VideoPlayback> createBetterPlayerPlayback(
 
 /// [text], a player's account of a failure, without what could hold a
 /// credential: each URL keeps its scheme, host, port and path, and a Shaka
-/// error keeps its severity, category, code and HTTP status but not the
-/// response body and headers it carries.
+/// error keeps its severity, category, code, HTTP status and request URL but
+/// not the response body and headers it carries.
 String withoutCredentials(String text) => _withShakaErrorsReduced(text)
     .replaceAllMapped(_url, (match) => _reduced(match[0]!));
 
@@ -138,7 +139,7 @@ String _withShakaErrorsReduced(String text) =>
 
 /// The renditions of [tracks] worth offering, each with the track it plays:
 /// one per height, at that height's highest bitrate, tallest first. Tracks
-/// without a height, such as the "auto" entry some manifests parse into, are
+/// without a height, such as the "auto" entry better_player lists first, are
 /// left out, and a single height is nothing to choose between, so gives none.
 Map<int, PlayerAsmsTrack> qualitiesFrom(
   Iterable<PlayerAsmsTrack> tracks,
@@ -177,8 +178,9 @@ class _BetterPlayerPlayback implements VideoPlayback {
   final Uri _uri;
 
   /// Told once of the first error better_player records. Its value is the one
-  /// place every platform error lands: the exception event is missed while
-  /// better_player is not listening, as the video initialises.
+  /// place every platform error with a message lands: the exception event is
+  /// missed while better_player is not listening, as it finishes initialising
+  /// the video.
   final void Function(String reason) _onError;
   bool _failed = false;
   final Signal<VideoStatus> _status = signal(const VideoStatus());

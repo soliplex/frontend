@@ -107,10 +107,9 @@ typedef VideoPlaybackFactory = Future<VideoPlayback> Function(
 
 /// Why a video could not be played.
 ///
-/// [reason] says why: the player's own account of the failure, or that the
-/// video did not load in time, passed through `withoutCredentials`: each
-/// scheme-qualified URL in it keeps only its scheme, host, port and path, and
-/// a Shaka error only its codes and HTTP status.
+/// [reason] says why: the player's own account of the failure, passed
+/// through `withoutCredentials`, or fixed text naming what did not load in
+/// time or at all (the video, or on the web the player's script, by path).
 class VideoPlaybackException implements Exception {
   const VideoPlaybackException(this.reason);
 

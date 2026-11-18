@@ -103,8 +103,8 @@ class _VideoControlsState extends State<VideoControls> {
     _reveal();
   }
 
-  /// A mouse click plays or pauses, as on any web player. A touch shows the
-  /// controls when they are hidden and hides them when they are shown (a
+  /// A mouse click plays or pauses, as on any web player. Any other tap shows
+  /// the controls when they are hidden and hides them when they are shown (a
   /// paused video keeps them regardless), so a finger aimed at the rail never
   /// stops the video by missing.
   void _onTapVideo(PointerDeviceKind kind) {

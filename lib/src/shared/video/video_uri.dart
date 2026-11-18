@@ -9,8 +9,9 @@ const _videoExtensions = {'mp4', 'webm', 'mov', 'm4v', 'm3u8'};
 /// (`![caption](https://host/clip.mp4)`) renders as a player instead of an
 /// image.
 ///
-/// Only `http` and `https`: the players fetch the source over the network,
-/// and a `file:`, `data:` or relative source is not one they can.
+/// Only `http` and `https`: the players fetch the source themselves, without
+/// the app's credentials, so it must be a URL anyone can fetch over the
+/// network, not a `file:` or `data:` source or a path on the app's server.
 bool isVideoUri(Uri uri) {
   if (uri.scheme != 'http' && uri.scheme != 'https') return false;
   final path = uri.path;
