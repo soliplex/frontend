@@ -147,8 +147,7 @@ No special signing setup required for debug builds.
 #### Release Signing
 
 Release builds (`flutter build apk --release`, `flutter build appbundle`,
-`flutter run --release`) sign with the app's release keystore and fail without
-it. The keystore and its passwords are not in the repo; get them from whoever
+`flutter run --release`) sign with the app's release keystore. The keystore and its passwords are not in the repo; get them from whoever
 cuts releases, keep the keystore outside the repo, and create
 `android/key.properties` (gitignored):
 
@@ -159,8 +158,10 @@ keyAlias=soliplex
 storeFile=/absolute/path/to/soliplex-release.jks
 ```
 
-Without it, a release build stops at packaging with
-`SigningConfig "release" is missing required property "storeFile"`.
+Without `android/key.properties`, a release build is signed with the debug key
+instead, so CI and a fresh checkout can still build it. Such a build cannot be
+distributed: it won't install over a release-signed app, and the stores reject
+it.
 
 Every release must be signed with the same keystore: Android refuses to
 install an APK over one signed by a different key.

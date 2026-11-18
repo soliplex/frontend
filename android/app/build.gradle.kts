@@ -47,7 +47,14 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Without key.properties (CI, a fresh checkout) a release build is
+            // signed with the debug key, so it still builds. Such an APK is for
+            // checking the build, not for distribution.
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

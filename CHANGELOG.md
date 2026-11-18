@@ -21,6 +21,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Building for Android needs JDK 21 or later (see
   `docs/developer-setup.md`).
+- An Android release build without `android/key.properties` is signed with
+  the debug key instead of failing, so it can be built to check it (in CI, for
+  one). Builds for distribution still need the keystore.
 - **Library consumers:** the app depends on a new workspace plugin,
   `soliplex_folder_picker` (Android only for now).
 
