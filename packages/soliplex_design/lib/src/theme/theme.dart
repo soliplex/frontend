@@ -57,7 +57,10 @@ ThemeData buildSoliplexThemeData({
     secondary: colors.secondary,
     onSecondary: colors.onSecondary,
     secondaryContainer: colors.muted,
-    onSecondaryContainer: colors.mutedForeground,
+    // Content on the container, such as a selected segment's label, not
+    // secondary text: the muted tone would draw the selection dimmer than the
+    // unselected segments beside it.
+    onSecondaryContainer: colors.foreground,
     tertiary: colors.tertiary,
     onTertiary: colors.onTertiary,
     tertiaryContainer: colors.tertiaryContainer,

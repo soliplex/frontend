@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_design/src/brand/contrast.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 void main() {
@@ -123,7 +124,7 @@ void main() {
       expect(cs.secondary, lightSoliplexColors.secondary);
       expect(cs.onSecondary, lightSoliplexColors.onSecondary);
       expect(cs.secondaryContainer, lightSoliplexColors.muted);
-      expect(cs.onSecondaryContainer, lightSoliplexColors.mutedForeground);
+      expect(cs.onSecondaryContainer, lightSoliplexColors.foreground);
       // Tertiary
       expect(cs.tertiary, lightSoliplexColors.tertiary);
       expect(cs.onTertiary, lightSoliplexColors.onTertiary);
@@ -186,6 +187,26 @@ void main() {
         BorderRadius.circular(radii.md),
       );
     });
+  });
+
+  // A selected segment, a tonal icon button and an attachment pill paint
+  // `onSecondaryContainer` on `secondaryContainer`. Mapped to the muted text
+  // tone, a selected segment read dimmer than the unselected ones beside it,
+  // and fell below AA in the dark palette.
+  group('selected and tonal content stays legible', () {
+    for (final (name, theme) in [
+      ('light', soliplexLightTheme()),
+      ('dark', soliplexDarkTheme()),
+    ]) {
+      test('$name: onSecondaryContainer clears AA on secondaryContainer', () {
+        final cs = theme.colorScheme;
+
+        expect(
+          contrastRatio(cs.onSecondaryContainer, cs.secondaryContainer),
+          greaterThanOrEqualTo(minContrast),
+        );
+      });
+    }
   });
 
   // Regression: component backgrounds were painted with `onPrimary`, whose
