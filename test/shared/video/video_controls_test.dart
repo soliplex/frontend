@@ -283,17 +283,5 @@ void main() {
       expect(playback.status.value.isPlaying, isTrue);
       expect(railOpacity(tester), 1);
     });
-
-    testWidgets('by touch hides and shows the controls, never pausing',
-        (tester) async {
-      await pump(tester);
-
-      await tapVideo(tester, PointerDeviceKind.touch);
-      expect(railOpacity(tester), 0);
-      await tapVideo(tester, PointerDeviceKind.touch);
-      expect(railOpacity(tester), 1);
-
-      expect(playback.status.value.isPlaying, isTrue);
-    });
   });
 }

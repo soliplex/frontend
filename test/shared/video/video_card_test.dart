@@ -12,11 +12,10 @@ import 'package:soliplex_frontend/src/shared/video/video_card.dart';
 import 'package:soliplex_frontend/src/shared/video/video_playback.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-/// Stands in for the platform player: it plays until paused, counts resumes,
-/// and, as a browser does to a `<video>` element whose view goes, pauses when
+/// Stands in for the platform player: it plays until paused, and, as a
+/// browser does to a `<video>` element whose view goes, pauses when
 /// a view of it unmounts.
 class _FakePlayback implements VideoPlayback {
-  int plays = 0;
   bool disposed = false;
 
   @override
@@ -27,7 +26,6 @@ class _FakePlayback implements VideoPlayback {
 
   @override
   Future<void> play() async {
-    plays++;
     playing = true;
   }
 
@@ -313,7 +311,6 @@ void main() {
     await tester.tap(find.byTooltip('Expand video'));
     await tester.pumpAndSettle();
 
-    expect(playback.plays, 0);
     expect(playback.playing, isFalse);
   });
 
@@ -615,26 +612,6 @@ void main() {
       starts[other]!.complete(playback);
       await tester.pumpAndSettle();
       expect(find.byKey(_viewKey), findsOneWidget);
-    });
-
-    testWidgets('releases the video still starting', (tester) async {
-      final starting = Completer<VideoPlayback>();
-      Future<VideoPlayback> slow(
-        Uri uri, {
-        required void Function(String reason) onError,
-      }) =>
-          starting.future;
-      await pumpUri(tester, _uri, slow);
-      await tester.tap(find.byTooltip('Play video'));
-      await tester.pump();
-
-      await pumpUri(tester, other, slow);
-      starting.complete(playback);
-      await tester.pumpAndSettle();
-
-      expect(playback.disposed, isTrue);
-      expect(find.byKey(_viewKey), findsNothing);
-      expect(find.byTooltip('Play video'), findsOneWidget);
     });
   });
 

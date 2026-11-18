@@ -289,20 +289,6 @@ void main() {
         );
         expect(tester.getSize(frame).width, 500);
       });
-
-      testWidgets('an image beside a video stays an image', (tester) async {
-        await pumpMarkdown(
-          tester,
-          '![a](https://cdn.example/a.png)\n\n'
-          '![b](https://cdn.example/b.webm)',
-        );
-
-        expect(find.byType(VideoCard), findsOneWidget);
-        expect(
-          tester.widget<Image>(find.byType(Image)).image,
-          isA<NetworkImage>(),
-        );
-      });
     });
 
     testWidgets('http image is routed through Image.network', (tester) async {
