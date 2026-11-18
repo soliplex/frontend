@@ -50,14 +50,18 @@ class _FakePlatform extends BetterPlayerPlatform {
   @override
   Future<void> setLooping(int? textureId, bool looping) async {}
 
+  /// Whether the player was last told to play rather than pause.
+  bool playing = false;
+
   @override
-  Future<void> play(int? textureId) async {}
+  Future<void> play(int? textureId) async => playing = true;
 
   @override
   Future<void> pause(int? textureId) async {
     if (refusePause) {
       throw PlatformException(code: 'VideoError', message: 'pause refused');
     }
+    playing = false;
   }
 
   /// Makes [pause] fail, as a platform player can.
@@ -283,6 +287,31 @@ void main() {
     await settle(tester);
 
     expect(platform.seeks, contains(Duration.zero));
+    playback!.dispose();
+  });
+
+  testWidgets('a finished video stays paused when seeked back into',
+      (tester) async {
+    VideoPlayback? playback;
+    unawaited(
+      createBetterPlayerPlayback(_signed, onError: (_) {})
+          .then((p) => playback = p),
+    );
+    await settle(tester);
+    platform.started();
+    await settle(tester);
+    expect(platform.playing, isTrue);
+
+    platform.finished();
+    await settle(tester);
+
+    // A native player left wanting to play resumes on the next seek while
+    // the status still says paused.
+    expect(platform.playing, isFalse);
+    unawaited(playback!.seekTo(const Duration(seconds: 10)));
+    await settle(tester);
+    expect(playback!.status.value.isPlaying, isFalse);
+    expect(platform.playing, isFalse);
     playback!.dispose();
   });
 

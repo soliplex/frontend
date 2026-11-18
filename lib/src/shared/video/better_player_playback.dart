@@ -148,7 +148,15 @@ Map<int, PlayerAsmsTrack> qualitiesFrom(
 
 class _BetterPlayerPlayback implements VideoPlayback {
   _BetterPlayerPlayback(this._controller, this._uri) {
-    _controller.addVideoListener(_update);
+    _controller
+      ..addVideoListener(_update)
+      // A finished video reads as paused, but the native players still mean
+      // to play: Android's resumes on the next seek, behind a Play button.
+      ..addEventsListener((event) {
+        if (event.betterPlayerEventType == PlayerEventType.finished) {
+          unawaited(pause());
+        }
+      });
     // The video has loaded by now; the status starts from where it stands.
     _update();
   }
