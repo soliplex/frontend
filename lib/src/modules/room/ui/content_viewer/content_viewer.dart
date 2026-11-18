@@ -36,8 +36,8 @@ class ContentViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kind = contentKindOf(language);
-    return switch (kind) {
+    final tooLarge = content.length > maxHighlightedLength;
+    return switch (contentKindOf(language)) {
       ContentKind.svg => Semantics(
           label: 'SVG image',
           child: SvgBody(
@@ -47,50 +47,59 @@ class ContentViewer extends StatelessWidget {
             selectable: selectable,
           ),
         ),
-      ContentKind.json || ContentKind.code => _codeBlock(kind),
+      ContentKind.json => Semantics(
+          label: 'JSON',
+          child: tooLarge
+              ? _codeFrame(
+                  label: 'json',
+                  copyTooltip: 'Copy JSON',
+                  highlightAs: null,
+                )
+              : JsonViewer.source(
+                  content,
+                  initialView: ContentView.source,
+                  fill: fill,
+                  selectable: selectable,
+                  isStreaming: isStreaming,
+                ),
+        ),
+      ContentKind.code => Semantics(
+          label: language == 'plaintext'
+              ? 'Code block'
+              : 'Code block in $language',
+          child: _codeFrame(
+            label: language == 'plaintext' ? null : language,
+            copyTooltip: 'Copy code',
+            highlightAs: tooLarge ? null : language,
+          ),
+        ),
     };
   }
 
-  Widget _codeBlock(ContentKind kind) {
-    final isJson = kind == ContentKind.json;
-    final label = isJson
-        ? 'json'
-        : language == 'plaintext'
-            ? null
-            : language;
-    final tooLarge = content.length > maxHighlightedLength;
-    return Semantics(
-      label: isJson
-          ? 'JSON'
-          : label == null
-              ? 'Code block'
-              : 'Code block in $label',
-      child: isJson && !tooLarge
-          ? JsonViewer.source(
-              content,
-              initialView: ContentView.source,
-              fill: fill,
-              selectable: selectable,
-              isStreaming: isStreaming,
+  /// The header, the code body and, when [highlightAs] is null, the notice
+  /// that it is shown as plain text.
+  Widget _codeFrame({
+    required String? label,
+    required String copyTooltip,
+    required String? highlightAs,
+  }) {
+    return ContentFrame(
+      header: ContentHeader(
+        label: label,
+        copyText: content,
+        copyTooltip: copyTooltip,
+      ),
+      notice: highlightAs == null
+          ? const ContentInfoNotice(
+              message: 'Too large to highlight; showing plain text.',
             )
-          : ContentFrame(
-              header: ContentHeader(
-                label: label,
-                copyText: content,
-                copyTooltip: isJson ? 'Copy JSON' : 'Copy code',
-              ),
-              notice: tooLarge
-                  ? const ContentInfoNotice(
-                      message: 'Too large to highlight; showing plain text.',
-                    )
-                  : null,
-              body: CodeView(
-                code: content,
-                language: tooLarge ? 'plaintext' : language,
-                selectable: selectable,
-              ),
-              fill: fill,
-            ),
+          : null,
+      body: CodeView(
+        code: content,
+        language: highlightAs ?? 'plaintext',
+        selectable: selectable,
+      ),
+      fill: fill,
     );
   }
 }
