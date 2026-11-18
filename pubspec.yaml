@@ -17,6 +17,7 @@ workspace:
   - packages/soliplex_client_native
   - packages/soliplex_design
   - packages/soliplex_design/example
+  - packages/soliplex_folder_picker
   - packages/soliplex_logging
 
 dependencies:
@@ -53,6 +54,8 @@ dependencies:
     path: packages/soliplex_client_native
   soliplex_design:
     path: packages/soliplex_design
+  soliplex_folder_picker:
+    path: packages/soliplex_folder_picker
   soliplex_logging:
     path: packages/soliplex_logging
   better_player: ">=1.37.0 <1.38.0"
