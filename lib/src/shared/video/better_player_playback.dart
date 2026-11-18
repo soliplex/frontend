@@ -98,13 +98,16 @@ Future<VideoPlayback> createBetterPlayerPlayback(
 /// credential: each URL keeps its scheme, host, port and path, and a Shaka
 /// error keeps its severity, category, code and HTTP status but not the
 /// response body and headers it carries.
-String withoutCredentials(String text) =>
-    _withShakaErrorsReduced(text).replaceAllMapped(_url, (match) {
-      final uri = Uri.tryParse(match[0]!);
-      if (uri == null) return '<url>';
-      final port = uri.hasPort ? ':${uri.port}' : '';
-      return '${uri.scheme}://${uri.host}$port${uri.path}';
-    });
+String withoutCredentials(String text) => _withShakaErrorsReduced(text)
+    .replaceAllMapped(_url, (match) => _reduced(match[0]!));
+
+/// [url] as its scheme, host, port and path, or `<url>` if it does not parse.
+String _reduced(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return '<url>';
+  final port = uri.hasPort ? ':${uri.port}' : '';
+  return '${uri.scheme}://${uri.host}$port${uri.path}';
+}
 
 final _url = RegExp(r'''[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>,)]+''');
 
@@ -119,15 +122,18 @@ String _withShakaErrorsReduced(String text) =>
       String? field(String name) =>
           RegExp('"$name": (\\d+)').firstMatch(json)?.group(1);
       final code = field('code');
-      // For 1001 (BAD_HTTP_STATUS) the status follows the URL in `data`.
-      final status = code == '1001'
-          ? RegExp(r'"data": \[\s*"(?:[^"\\]|\\.)*",\s*(\d+)')
+      final category = field('category');
+      // A network error (category 1) opens `data` with the request's URL,
+      // and for 1001 (BAD_HTTP_STATUS) the status follows it.
+      final request = category == '1'
+          ? RegExp(r'"data": \[\s*"((?:[^"\\]|\\.)*)",\s*(\d+)?')
               .firstMatch(json)
-              ?.group(1)
           : null;
+      final status = code == '1001' ? request?.group(2) : null;
       return 'shaka.util.Error severity ${field('severity')}, '
-          'category ${field('category')}, code $code'
-          '${status == null ? '' : ', HTTP $status'}';
+          'category $category, code $code'
+          '${status == null ? '' : ', HTTP $status'}'
+          '${request == null ? '' : ', request ${_reduced(request[1]!)}'}';
     });
 
 /// The renditions of [tracks] worth offering, each with the track it plays:

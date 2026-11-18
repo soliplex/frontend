@@ -235,6 +235,7 @@ void main() {
     expect(reason, contains('SHAKA_LOAD_ERROR'));
     expect(reason, contains('code 1001'));
     expect(reason, contains('HTTP 403'));
+    expect(reason, contains('request https://cdn.example/clip.m3u8'));
     expect(reason, isNot(contains('secret')));
     expect(reason, isNot(contains('password')));
   });
