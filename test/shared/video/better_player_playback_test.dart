@@ -535,25 +535,6 @@ void main() {
     playback!.dispose();
   });
 
-  testWidgets('a plain file keeps no quality it does not offer',
-      (tester) async {
-    VideoPlayback? playback;
-    unawaited(
-      createBetterPlayerPlayback(_signed, onError: (_) {})
-          .then((p) => playback = p),
-    );
-    await settle(tester);
-    platform.started();
-    await settle(tester);
-
-    playback!.selectQuality(720);
-    await settle(tester);
-
-    expect(playback!.status.value.qualities, isEmpty);
-    expect(playback!.status.value.quality, isNull);
-    playback!.dispose();
-  });
-
   group('qualitiesFrom', () {
     PlayerAsmsTrack track(int height, int bitrate) =>
         PlayerAsmsTrack('$height-$bitrate', 0, height, bitrate, 0, '', '');

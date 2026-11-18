@@ -14,9 +14,8 @@ const _videoExtensions = {'mp4', 'webm', 'mov', 'm4v', 'm3u8'};
 bool isVideoUri(Uri uri) {
   if (uri.scheme != 'http' && uri.scheme != 'https') return false;
   final path = uri.path;
-  final dot = path.lastIndexOf('.');
-  if (dot < 0 || dot < path.lastIndexOf('/')) return false;
-  return _videoExtensions.contains(path.substring(dot + 1).toLowerCase());
+  final extension = path.substring(path.lastIndexOf('.') + 1).toLowerCase();
+  return _videoExtensions.contains(extension);
 }
 
 /// What a log record says of the video at [uri]: its host and path, and only

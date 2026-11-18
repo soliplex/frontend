@@ -279,9 +279,8 @@ class _BetterPlayerPlayback implements VideoPlayback {
 
   @override
   void selectQuality(int? height) {
-    final track = _tracks[height];
-    _controller.setTrack(track ?? PlayerAsmsTrack.defaultTrack());
-    _quality = track == null ? null : height;
+    _controller.setTrack(_tracks[height] ?? PlayerAsmsTrack.defaultTrack());
+    _quality = height;
     _update();
   }
 
