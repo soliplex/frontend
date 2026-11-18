@@ -1,5 +1,7 @@
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../../shared/log_once.dart';
+
 /// Returns a triage-friendly representation of a markdown image source URI
 /// for logging. For `data:` URIs the payload is replaced with a length
 /// marker (the bytes can be PII for image scans or text content); for
@@ -18,15 +20,6 @@ String safeSourceForLog(String src, {int max = 120}) {
       : '${src.substring(0, max)}…(${src.length} chars)';
 }
 
-/// Hashes of source keys already logged once at warning level. Flutter's
-/// `errorBuilder` is invoked on every rebuild while the failed image is
-/// mounted; without dedupe a single broken image in chat history can flood the
-/// log sink. Shared across all callers of [logFailedSourceOnce] so a key that
-/// fails in several of those paths logs once total. Only each key's hash is
-/// retained, so a `data:` URI's (potentially multi-megabyte) base64 payload is
-/// not held for the process lifetime.
-final _loggedSources = <int>{};
-
 /// Logs [message] at warning level the first time [key] is seen, otherwise
 /// silently drops it. A key names whatever the caller wants deduped: a URI for
 /// per-source dedupe, a short tag like `'scheme:ftp'` for per-category dedupe,
@@ -43,7 +36,7 @@ void logFailedSourceOnce(
   StackTrace? stackTrace,
   Map<String, Object?>? attributes,
 }) {
-  if (_loggedSources.add(key.hashCode)) {
+  if (isFirstOccurrence(key)) {
     logger.warning(
       message,
       error: error,
