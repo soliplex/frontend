@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- Uploading a folder on Android sent nothing and said nothing: the app could
+  not list the folder it had been let into. It now reads the folder through
+  Android's document access, subfolders included.
+- A picked folder with nothing to upload (empty, or only dotfiles) now shows a
+  failed upload row saying so, on Android, iOS and desktop, instead of reading
+  as a cancelled pick.
+
+### Changed
+
+- Building for Android needs JDK 21 or later (see
+  `docs/developer-setup.md`).
+- **Library consumers:** the app depends on a new workspace plugin,
+  `soliplex_folder_picker` (Android only for now).
+
 ## [0.119.0+108] - 2026-11-18
 
 ### Added
