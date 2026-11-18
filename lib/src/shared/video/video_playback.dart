@@ -5,8 +5,8 @@ import 'package:signals_flutter/signals_flutter.dart';
 /// before it counts as unplayable.
 ///
 /// A dead source is reported by the player itself; this catches what
-/// reports nothing: a platform player whose setup failed, which better_player
-/// starts without waiting on, or a request the server never finishes.
+/// reports nothing: a platform player that never reports the video loaded,
+/// or a request the server never finishes.
 const videoStartLimit = Duration(seconds: 30);
 
 /// The shape of every place a video is shown; a video of another shape is
@@ -32,7 +32,7 @@ class VideoStatus {
   /// Null or zero while the player does not know it, as for a live stream.
   final Duration? duration;
 
-  /// How far ahead of the start the player has loaded.
+  /// The end of the furthest range the player has loaded.
   final Duration buffered;
 
   final bool isPlaying;
@@ -48,8 +48,8 @@ class VideoStatus {
   /// file, or a stream whose renditions are all one height.
   final List<int> qualities;
 
-  /// The height chosen in [VideoPlayback.selectQuality], or null when the
-  /// player picks a rendition to suit the connection, which is the default.
+  /// The height chosen in [VideoPlayback.selectQuality], or null for the
+  /// player's own choice, which is the default.
   final int? quality;
 }
 
@@ -59,8 +59,8 @@ class VideoStatus {
 /// The seam the video widgets are written against, so they can be tested
 /// without a platform player; [createBetterPlayerPlayback] is the real one.
 ///
-/// Its commands never throw: one the player refuses is logged and leaves the
-/// video as it was, so the widgets fire them without awaiting.
+/// Its play, pause, seek and volume commands never throw: one the player
+/// refuses is logged, so the widgets fire them without awaiting.
 abstract interface class VideoPlayback {
   /// Where playback stands, updated as it plays.
   ReadonlySignal<VideoStatus> get status;
@@ -76,9 +76,9 @@ abstract interface class VideoPlayback {
   Future<void> setVolume(double volume);
 
   /// Keeps playback to the rendition [height] tall, one of
-  /// [VideoStatus.qualities], or, when null, lets the player adapt it to the
-  /// connection again. The web plays that rendition; the native players cap
-  /// the resolution at it.
+  /// [VideoStatus.qualities], or, when null, returns to the player's own
+  /// choice. The web, Windows and Linux play that rendition; Android, iOS and
+  /// macOS cap resolution and bitrate at it.
   void selectQuality(int? height);
 
   /// A view of the video alone; the hosts draw the controls over it.
@@ -108,9 +108,9 @@ typedef VideoPlaybackFactory = Future<VideoPlayback> Function(
 /// Why a video could not be played.
 ///
 /// [reason] says why: the player's own account of the failure, or that the
-/// video did not load in time. Nothing in it can hold a credential: each URL
-/// in it keeps only its scheme, host, port and path, and a Shaka error only
-/// its codes and HTTP status.
+/// video did not load in time, passed through `withoutCredentials`: each
+/// scheme-qualified URL in it keeps only its scheme, host, port and path, and
+/// a Shaka error only its codes and HTTP status.
 class VideoPlaybackException implements Exception {
   const VideoPlaybackException(this.reason);
 

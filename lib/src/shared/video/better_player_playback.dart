@@ -22,11 +22,13 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.video');
 ///   [VideoPlayback.dispose] is the only teardown.
 /// - better_player draws no controls. The hosts draw `VideoControls` over the
 ///   view instead. The package's web controls paint a fixed black gradient
-///   that ignores the configured colours and stops short of the bottom edge,
-///   and they have no slot for the expand and fullscreen actions.
+///   whatever bar colour is configured, stopping short of the bottom edge,
+///   have no slot for the expand action, and their fullscreen button runs the
+///   package's own fullscreen.
 /// - An HLS stream adapts its rendition to the connection: Shaka's ABR on the
-///   web, ExoPlayer's on Android, AVPlayer's on iOS and macOS, libmpv's on
-///   Windows and Linux. The renditions its manifest lists become
+///   web, ExoPlayer's on Android, AVPlayer's on iOS and macOS. libmpv, on
+///   Windows and Linux, has none and plays the highest bitrate. The
+///   renditions its manifest lists become
 ///   [VideoStatus.qualities], as [qualitiesFrom] picks them.
 /// - better_player logs nothing: its log prints the source URL whole, query
 ///   included.
@@ -150,8 +152,9 @@ class _BetterPlayerPlayback implements VideoPlayback {
   _BetterPlayerPlayback(this._controller, this._uri) {
     _controller
       ..addVideoListener(_update)
-      // A finished video reads as paused, but the native players still mean
-      // to play: Android's resumes on the next seek, behind a Play button.
+      // A finished video reads as paused, but Android's player is still set
+      // to play when ready, and resumes on the next seek behind a Play
+      // button.
       ..addEventsListener((event) {
         if (event.betterPlayerEventType == PlayerEventType.finished) {
           unawaited(pause());

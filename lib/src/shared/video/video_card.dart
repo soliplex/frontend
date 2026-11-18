@@ -106,8 +106,9 @@ class _VideoCardState extends State<VideoCard> {
     try {
       playback = await widget.playbackFactory(uri, onError: _fail);
     } on Object catch (error, stackTrace) {
-      // A VideoPlaybackException, whose reason holds nothing that could be a
-      // credential (see VideoPlaybackException.reason).
+      // The factory throws a VideoPlaybackException (see
+      // VideoPlaybackFactory), whose reason has passed through
+      // withoutCredentials (see VideoPlaybackException.reason).
       _logger.warning(
         'Could not start the video player',
         error: error,

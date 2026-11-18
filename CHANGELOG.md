@@ -17,7 +17,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   where it was. Its controls sit on one rail along the bottom: a progress bar,
   play, mute, time, expand and full screen, and for a streamed (HLS) video
   with renditions of more than one height a quality menu whose default, Auto,
-  adapts to the connection. A video that cannot be played offers to open it in
+  adapts to the connection (on Windows and Linux it plays the highest
+  quality). A video that cannot be played offers to open it in
   the browser instead.
 - **Library consumers:** the `pubspec.yaml` Flutter floor rises to 3.47.0,
   which `better_player` requires. Flutter 3.47 raises a macOS app's

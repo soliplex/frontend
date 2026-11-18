@@ -9,8 +9,9 @@ import 'package:flutter/services.dart';
 /// Makes the player's runtime available. Nothing to load on native platforms.
 Future<void> ensureVideoRuntime() async {}
 
-/// Hides the system bars for the fullscreen page. [onExit] goes unused: only
-/// a browser can leave fullscreen on its own.
+/// Hides the system bars for the fullscreen page. [onExit] goes unused:
+/// natively the page is left only by its exit button or the back gesture,
+/// both of which pop it.
 void enterFullscreen({required void Function() onExit}) =>
     _setSystemUiMode(SystemUiMode.immersive);
 
