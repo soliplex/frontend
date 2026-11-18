@@ -146,6 +146,36 @@ void main() {
     expect(find.byType(ZoomableView), findsNothing);
   });
 
+  testWidgets('fill malformed SVG offers no Preview / Source switch',
+      (tester) async {
+    await tester.pumpWidget(_fill(const SvgBody(
+      content: 'not valid <svg fill switch garbage',
+      fill: true,
+      isStreaming: false,
+      selectable: true,
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text(_notice), findsOneWidget);
+    expect(find.text('Preview'), findsNothing);
+    expect(find.text('Source'), findsNothing);
+    expect(find.byTooltip('Copy SVG'), findsOneWidget);
+  });
+
+  testWidgets('inline malformed SVG keeps the switch to its source',
+      (tester) async {
+    await tester.pumpWidget(_inline(const SvgBody(
+      content: 'not valid <svg inline switch garbage',
+      fill: false,
+      isStreaming: false,
+      selectable: false,
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Preview'), findsOneWidget);
+    expect(find.text('Source'), findsOneWidget);
+  });
+
   testWidgets(
       'malformed SVG while streaming shows neither icon nor notice and logs '
       'nothing', (tester) async {
@@ -188,8 +218,10 @@ void main() {
 
   testWidgets('a valid SVG replaced by a malformed one shows the notice',
       (tester) async {
-    // The pager reuses the element across pages; a picture that kept the
-    // previous content's rendering would never report the new failure.
+    // The same body can be handed new content: a streamed fence, or a pager
+    // page whose index shows another file after the listing refreshes. A
+    // picture that kept the previous rendering would never report the new
+    // failure.
     await tester.pumpWidget(_fill(const SvgBody(
       content: _validSvg,
       fill: true,
@@ -210,8 +242,9 @@ void main() {
   });
 
   testWidgets('failure state resets when content changes', (tester) async {
-    // Paging to a different file reuses the same SvgBody element with new
-    // content; a failure that did not reset would stay stuck on a valid SVG.
+    // A listing refresh can show another file in the same pager page, handing
+    // the same body new content; a failure that did not reset would stay stuck
+    // on a valid SVG.
     await tester.pumpWidget(_fill(const SvgBody(
       content: 'not valid <svg reset garbage',
       fill: true,

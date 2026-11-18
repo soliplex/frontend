@@ -18,9 +18,9 @@ const _notice = "Couldn't render this SVG.";
 /// full size in a zoomable dialog. Filling, the picture is zoomable in the
 /// height it is given. When the SVG fails to render, the Preview shows the
 /// failure (inline, a broken-image icon beside the notice text; filling, the
-/// notice above the source) unless [isStreaming], when the content may still
-/// be incomplete: the Preview stays empty and the failure is logged only once
-/// streaming ends.
+/// notice above the source, with no switch) unless [isStreaming], when the
+/// content may still be incomplete: the Preview stays empty and the failure is
+/// logged only once streaming ends.
 class SvgBody extends StatefulWidget {
   const SvgBody({
     super.key,
@@ -103,7 +103,9 @@ class _SvgBodyState extends State<SvgBody> {
         label: 'svg',
         copyText: widget.content,
         copyTooltip: 'Copy SVG',
-        view: _view,
+        // Filling, a failure's Preview already is the source under the
+        // notice, so a switch would offer the same view twice.
+        view: showsFailure && widget.fill ? null : _view,
         renderedLabel: 'Preview',
         onViewChanged: (view) => setState(() => _view = view),
       ),
