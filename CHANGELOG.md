@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [Unreleased]
+## [0.119.0+108] - 2026-11-18
 
 ### Added
 
@@ -44,6 +44,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Images picked from the iOS photo library attach in the order they were
   picked. They used to arrive in whatever order they finished loading.
+- An iOS build no longer links camera and location code it never calls, so
+  App Store Connect stops asking for `NSCameraUsageDescription` and
+  `NSLocationWhenInUseUsageDescription`. Under Flutter 3.47's Swift Package
+  Manager, `file_picker` 11 linked all of DKImagePickerController, DKCamera
+  included; `file_picker` 13's iOS picker has no such dependency.
 
 ## [0.118.0+107] - 2026-11-16
 
