@@ -26,7 +26,8 @@ final class ArrayNode extends JsonNode {
 }
 
 /// The nodes of [json]. It recurses once per nesting level and does not bound
-/// depth, so callers check depth first.
+/// depth; `JsonViewer` checks depth before calling it, and other callers must
+/// bound it themselves.
 List<JsonNode> buildJsonTree(dynamic json, {String rootKey = ''}) {
   if (json is Map) {
     return json.entries.map((e) => _buildNode('${e.key}', e.value)).toList();
