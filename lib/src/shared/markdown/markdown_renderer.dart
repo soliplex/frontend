@@ -13,8 +13,9 @@ abstract class MarkdownRenderer extends StatelessWidget {
 
   final String data;
 
-  /// Overrides the default link-tap behavior. When null, taps open the link
-  /// in the platform's default handler (browser, mail client, etc.).
+  /// Overrides the default link-tap behavior. When null, a tap goes to the
+  /// nearest `MarkdownLinkScope` and, if it leaves the link, to the
+  /// platform's default handler (browser, mail client, etc.).
   final MarkdownLinkHandler? onLinkTap;
   final MarkdownImageHandler? onImageTap;
 }

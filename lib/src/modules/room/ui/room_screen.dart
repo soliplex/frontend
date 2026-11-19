@@ -84,6 +84,7 @@ import 'file_sort_bar.dart';
 import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
 import '../file_downloads_registry.dart';
+import '../../../shared/markdown/markdown_link_scope.dart';
 import '../../../shared/pdf/pdf_document_view.dart';
 import '../../../shared/pdf/pdf_viewer_pane.dart';
 import '../../../shared/pdf/present_pdf_viewer.dart';
@@ -2117,47 +2118,63 @@ class _RoomScreenState extends State<RoomScreen> {
       RoomPdfScope(
         open: _openPdf,
         openQuote: _openQuote,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final total = constraints.maxWidth;
-            final target = _pdfTarget;
-            final fits = showHeader && total >= 2 * PdfViewerPane.minWidth;
-            final beside = target != null && fits && !_pdfPresented;
-            if (target != null && !fits) _presentPdfAfterFrame();
-            final paneWidth = beside
-                ? (total * _pdfPaneFraction).clamp(
-                    PdfViewerPane.minWidth,
-                    total - PdfViewerPane.minWidth,
-                  )
-                : 0.0;
-            return Row(
-              children: [
-                Expanded(child: chat),
-                if (beside) ...[
-                  _PdfPaneDivider(
-                    onDrag: (dx) => setState(() {
-                      _pdfPaneFraction =
-                          ((paneWidth - dx) / total).clamp(0.2, 0.8);
-                    }),
-                  ),
-                  SizedBox(
-                    width: paneWidth,
-                    child: Focus(
-                      focusNode: _pdfPaneFocus,
-                      skipTraversal: true,
-                      child: _buildPdfPane(
-                        target,
-                        page: _pdfPage,
-                        onClose: _closePdf,
+        child: MarkdownLinkScope(
+          onLink: _openPdfLink,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final total = constraints.maxWidth;
+              final target = _pdfTarget;
+              final fits = showHeader && total >= 2 * PdfViewerPane.minWidth;
+              final beside = target != null && fits && !_pdfPresented;
+              if (target != null && !fits) _presentPdfAfterFrame();
+              final paneWidth = beside
+                  ? (total * _pdfPaneFraction).clamp(
+                      PdfViewerPane.minWidth,
+                      total - PdfViewerPane.minWidth,
+                    )
+                  : 0.0;
+              return Row(
+                children: [
+                  Expanded(child: chat),
+                  if (beside) ...[
+                    _PdfPaneDivider(
+                      onDrag: (dx) => setState(() {
+                        _pdfPaneFraction =
+                            ((paneWidth - dx) / total).clamp(0.2, 0.8);
+                      }),
+                    ),
+                    SizedBox(
+                      width: paneWidth,
+                      child: Focus(
+                        focusNode: _pdfPaneFocus,
+                        skipTraversal: true,
+                        child: _buildPdfPane(
+                          target,
+                          page: _pdfPage,
+                          onClose: _closePdf,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            );
-          },
+              );
+            },
+          ),
         ),
       );
+
+  /// Opens a `.pdf` link from a message in the viewer: one of the server's
+  /// own uploads with this client's credentials, any other with none.
+  /// Leaves every other link to the platform.
+  bool _openPdfLink(String href) {
+    final target = pdfTargetForHref(
+      href,
+      serverUrl: widget.serverEntry.serverUrl,
+    );
+    if (target == null) return false;
+    _openPdf(target);
+    return true;
+  }
 
   void _openPdf(PdfOpenTarget target, {int page = 1}) {
     _openedPdfs.add(target);
