@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
@@ -17,6 +18,7 @@ class UploadEntryRow extends StatelessWidget {
     required this.onCancel,
     required this.onDismiss,
     this.onDelete,
+    this.onOpen,
   });
 
   final DisplayUpload entry;
@@ -26,6 +28,11 @@ class UploadEntryRow extends StatelessWidget {
   /// Deletes a stored room upload by filename, once the user confirms. Null
   /// where the row offers no delete.
   final void Function(String filename)? onDelete;
+
+  /// Opens a stored upload — a PDF, in the PDF viewer. Tapping the row
+  /// invokes it, as does its eye action. Null where the file has nowhere to
+  /// open.
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +90,8 @@ class UploadEntryRow extends StatelessWidget {
       FailedUpload() => null,
     };
 
-    return FileListRow(
+    final open = entry is PersistedUpload ? onOpen : null;
+    final row = FileListRow(
       isFailed: isFailed,
       details: details,
       leading: leading,
@@ -111,6 +119,12 @@ class UploadEntryRow extends StatelessWidget {
         ],
       ),
       actions: [
+        if (open != null)
+          FileRowAction(
+            icon: Icons.visibility_outlined,
+            tooltip: 'Open',
+            onTap: open,
+          ),
         if (entry case PersistedUpload(:final filename, :final isDeleting)
             when onDelete != null)
           isDeleting
@@ -122,6 +136,12 @@ class UploadEntryRow extends StatelessWidget {
                 ),
         if (close != null) close,
       ],
+    );
+    if (open == null) return row;
+    return InkWell(
+      onTap: open,
+      borderRadius: BorderRadius.circular(context.radii.sm),
+      child: row,
     );
   }
 

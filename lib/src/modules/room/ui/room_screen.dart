@@ -84,11 +84,12 @@ import 'file_sort_bar.dart';
 import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
 import '../file_downloads_registry.dart';
-import '../../../shared/adaptive_surface.dart';
 import '../../../shared/pdf/pdf_document_view.dart';
 import '../../../shared/pdf/pdf_viewer_pane.dart';
+import '../../../shared/pdf/present_pdf_viewer.dart';
 import '../../../shared/pdf/pdfrx_document_view.dart';
 import '../pdf/pdf_quote.dart';
+import 'workdir_preview/preview_kind.dart';
 import '../pdf/pdf_targets.dart';
 import '../pdf/pending_quotes.dart';
 import '../pdf/quoted_context.dart';
@@ -2271,61 +2272,28 @@ class _RoomScreenState extends State<RoomScreen> {
         _pdfPresented = false;
         return;
       }
-      await presentAdaptively<void>(
+      await presentPdfViewer(
         context,
-        build: (asDialog) => Builder(
-          builder: (routeContext) =>
-              _buildPresentedPdf(routeContext, asDialog, target),
+        build: (viewerContext, close) => _buildPdfPane(
+          target,
+          page: _pdfPage,
+          onClose: close,
+          onQuoteAdded: () => ScaffoldMessenger.of(viewerContext)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: const Text('Added to your message'),
+                action: SnackBarAction(
+                  label: 'Back to chat',
+                  onPressed: close,
+                ),
+              ),
+            ),
         ),
       );
       _pdfPresented = false;
       if (mounted) _closePdf();
     });
-  }
-
-  Widget _buildPresentedPdf(
-    BuildContext routeContext,
-    bool asDialog,
-    PdfOpenTarget target,
-  ) {
-    // Its own messenger and scaffold: the room's would show a snackbar under
-    // the dialog's barrier.
-    final viewer = ScaffoldMessenger(
-      child: Builder(
-        builder: (context) => Scaffold(
-          body: SafeArea(
-            child: _buildPdfPane(
-              target,
-              page: _pdfPage,
-              onClose: () => Navigator.of(routeContext).pop(),
-              onQuoteAdded: () => ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: const Text('Added to your message'),
-                    action: SnackBarAction(
-                      label: 'Back to chat',
-                      onPressed: () => Navigator.of(routeContext).pop(),
-                    ),
-                  ),
-                ),
-            ),
-          ),
-        ),
-      ),
-    );
-    if (!asDialog) return viewer;
-    return Dialog(
-      insetPadding: const EdgeInsets.all(SoliplexSpacing.s4),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 800,
-          maxHeight: MediaQuery.sizeOf(routeContext).height * 0.85,
-        ),
-        child: viewer,
-      ),
-    );
   }
 
   /// Centers [child] within [_maxContentWidth] so the conversation column does
@@ -2711,6 +2679,8 @@ class _RoomScreenState extends State<RoomScreen> {
           roomStatus,
           theme,
           sort,
+          pdfTarget: (filename) =>
+              RoomUploadPdf(roomId: roomId, filename: filename),
           onDelete: (room?.acceptsRoomUploads ?? false) &&
                   _state.mayWriteRoom.watch(context)
               ? (filename) => unawaited(
@@ -2725,6 +2695,13 @@ class _RoomScreenState extends State<RoomScreen> {
           theme,
           sort,
           onDelete: null,
+          pdfTarget: threadId == null
+              ? null
+              : (filename) => ThreadUploadPdf(
+                    roomId: roomId,
+                    threadId: threadId,
+                    filename: filename,
+                  ),
         ),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))
         // The section and the collapse button read the toggles in scopes of
@@ -2739,6 +2716,9 @@ class _RoomScreenState extends State<RoomScreen> {
               threadId: threadId,
             ),
             onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
+            onOpenPdf: (file) => _openPdf(
+              WorkdirPdf(roomId: roomId, threadId: threadId, file: file),
+            ),
             onRetry: () {
               _logger.debug('workspace refresh: retry threadId=$threadId');
               unawaited(_workdirs.refresh(threadId));
@@ -2851,6 +2831,7 @@ class _RoomScreenState extends State<RoomScreen> {
     ThemeData theme,
     FileSort sort, {
     required void Function(String filename)? onDelete,
+    PdfOpenTarget Function(String filename)? pdfTarget,
   }) {
     return switch (status) {
       UploadsLoading() => Row(
@@ -2876,6 +2857,10 @@ class _RoomScreenState extends State<RoomScreen> {
                 onCancel: _state.uploadTracker.cancelUpload,
                 onDismiss: _state.uploadTracker.dismissFailed,
                 onDelete: onDelete,
+                onOpen: pdfTarget != null &&
+                        PreviewKind.from(entry.filename) == PreviewKind.pdf
+                    ? () => _openPdf(pdfTarget(entry.filename))
+                    : null,
               ),
           ],
         ),

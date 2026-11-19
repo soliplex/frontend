@@ -267,6 +267,41 @@ void main() {
     });
   });
 
+  group('from the files panel', () {
+    testWidgets("a room upload that is a PDF opens in the viewer",
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      api
+        ..nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          acceptsRoomUploads: true,
+          acceptsThreadUploads: true,
+        )
+        ..nextRoomUploads = [
+          FileUpload(
+            filename: 'brief.pdf',
+            url: Uri.parse('https://example.com/brief.pdf'),
+          ),
+          FileUpload(
+            filename: 'notes.txt',
+            url: Uri.parse('https://example.com/notes.txt'),
+          ),
+        ];
+      await pump(tester);
+      await tester.tap(find.byIcon(Icons.folder));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Open'), findsOneWidget,
+          reason: 'only the PDF has somewhere to open');
+      await tester.tap(find.text('brief.pdf'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PdfViewerPane), findsOneWidget);
+      expect(api.fetched, ['room-1/brief.pdf']);
+    });
+  });
+
   group('over the conversation', () {
     testWidgets('on a phone it opens as a page, and Back to chat returns',
         (tester) async {
