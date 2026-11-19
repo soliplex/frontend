@@ -49,6 +49,19 @@ void main() {
     );
   });
 
+  testWidgets('a tool call without arguments shows only its name',
+      (tester) async {
+    final body = _sseBody([
+      {'type': 'TOOL_CALL_START', 'toolCallId': 'tc1', 'toolCallName': 'calc'},
+      {'type': 'TOOL_CALL_END', 'toolCallId': 'tc1'},
+    ]);
+
+    await tester.pumpWidget(_wrap(StreamContentView(body: body)));
+
+    expect(find.text('calc'), findsOneWidget);
+    expect(find.byType(JsonViewer), findsNothing);
+  });
+
   testWidgets('a STATE_SNAPSHOT shows its state as Tree / Source',
       (tester) async {
     final body = _sseBody([
