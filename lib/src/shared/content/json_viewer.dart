@@ -1,16 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../json_tree_model.dart';
 import '../json_tree_view.dart';
-import '../log_once.dart';
 import 'code_view.dart';
 import 'content_frame.dart';
 import 'json_text.dart';
-
-final _logger = LogManager.instance.getLogger('soliplex_frontend.json_viewer');
 
 const _failureNotice = "This isn't valid JSON; showing the source.";
 const _emptyNotice = 'This JSON is empty.';
@@ -87,7 +83,7 @@ class JsonViewer extends StatefulWidget {
   final bool selectable;
 
   /// Whether [source] may still be incomplete: a failure to parse shows no
-  /// notice and is not logged until this is false.
+  /// notice until this is false.
   final bool isStreaming;
 
   /// Whether text that does not parse gets the notice. A site that already
@@ -114,10 +110,7 @@ final class _TooLarge extends _Shown {
 
 /// Text that does not parse, shown highlighted.
 final class _Invalid extends _Shown {
-  const _Invalid(super.text, this.failure, this.stackTrace);
-
-  final FormatException failure;
-  final StackTrace stackTrace;
+  const _Invalid(super.text);
 }
 
 /// JSON nesting deeper than [maxJsonDepth], shown as its text highlighted.
@@ -141,16 +134,12 @@ class _JsonViewerState extends State<JsonViewer> {
   void initState() {
     super.initState();
     _shown = _decide();
-    _logFailure();
   }
 
   @override
   void didUpdateWidget(JsonViewer old) {
     super.didUpdateWidget(old);
-    final contentChanged = old.source != widget.source;
-    if (contentChanged) _shown = _decide();
-    // Streaming ending with the text unchanged is when its failure is final.
-    if (contentChanged || old.isStreaming != widget.isStreaming) _logFailure();
+    if (old.source != widget.source) _shown = _decide();
   }
 
   _Shown _decide() {
@@ -160,8 +149,8 @@ class _JsonViewerState extends State<JsonViewer> {
     final Object? decoded;
     try {
       decoded = jsonDecode(source);
-    } on FormatException catch (e, st) {
-      return _Invalid(source, e, st);
+    } on FormatException {
+      return _Invalid(source);
     }
     // The tree's cost follows its rows, and the laid-out text has about one
     // line per row, so it is measured whether or not it is shown.
@@ -170,25 +159,6 @@ class _JsonViewerState extends State<JsonViewer> {
     return _Tree(
       widget.formatSource ? formatted : source,
       buildJsonTree(decoded),
-    );
-  }
-
-  void _logFailure() {
-    final shown = _shown;
-    if (shown is! _Invalid || widget.isStreaming) return;
-    final source = shown.text;
-    if (source.trim().isEmpty) return;
-    if (!isFirstOccurrence('json:${widget.label}:$source')) return;
-    // jsonDecode's FormatException carries a window of the source, so it goes
-    // through describeFailure rather than `error:`.
-    _logger.debug(
-      'json content failed to parse',
-      stackTrace: shown.stackTrace,
-      attributes: {
-        'label': widget.label,
-        'length': source.length,
-        'failure': describeFailure(shown.failure),
-      },
     );
   }
 

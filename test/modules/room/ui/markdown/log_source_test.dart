@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/log_source.dart';
-import 'package:soliplex_frontend/src/shared/log_once.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 void main() {
@@ -13,10 +12,7 @@ void main() {
     logger = LogManager.instance.getLogger('test.log_source');
   });
 
-  tearDown(() {
-    LogManager.instance.removeSink(sink);
-    forgetOccurrences();
-  });
+  tearDown(() => LogManager.instance.removeSink(sink));
 
   group('safeSourceForLog', () {
     test('redacts a data: URI payload to a length marker', () {

@@ -1,7 +1,5 @@
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../../shared/log_once.dart';
-
 /// Returns a triage-friendly representation of a markdown image source URI
 /// for logging. For `data:` URIs the payload is replaced with a length
 /// marker (the bytes can be PII for image scans or text content); for
@@ -20,12 +18,23 @@ String safeSourceForLog(String src, {int max = 120}) {
       : '${src.substring(0, max)}…(${src.length} chars)';
 }
 
+/// Hashes of source keys already logged once at warning level. Flutter's
+/// `errorBuilder` is invoked on every rebuild while the failed image is
+/// mounted; without dedupe a single broken image in chat history can flood the
+/// log sink. Shared across all callers of [logFailedSourceOnce] so a key that
+/// fails in several of those paths logs once total. Only each key's hash is
+/// retained, so a `data:` URI's (potentially multi-megabyte) base64 payload is
+/// not held for the process lifetime.
+final _loggedSources = <int>{};
+
 /// Logs [message] at warning level the first time [key] is seen, otherwise
 /// silently drops it. A key names whatever the caller wants deduped: a URI for
 /// per-source dedupe, a short tag like `'scheme:ftp'` for per-category dedupe,
-/// or a message-and-slot tag for one attachment. Dedupe is best-effort; see
-/// [isFirstOccurrence]. Pass [logger] so the call site's logger namespace
-/// appears in the output; [attributes] are forwarded to the record.
+/// or a message-and-slot tag for one attachment. Dedupe is best-effort: keyed on
+/// [key]'s hash so large payloads are never retained, at the cost that two keys
+/// whose hashes collide are treated as one — an acceptable, rare miss for log
+/// dedupe. Pass [logger] so the call site's logger namespace appears in the
+/// output; [attributes] are forwarded to the record.
 void logFailedSourceOnce(
   Logger logger,
   String message,
@@ -34,7 +43,7 @@ void logFailedSourceOnce(
   StackTrace? stackTrace,
   Map<String, Object?>? attributes,
 }) {
-  if (isFirstOccurrence(key)) {
+  if (_loggedSources.add(key.hashCode)) {
     logger.warning(
       message,
       error: error,

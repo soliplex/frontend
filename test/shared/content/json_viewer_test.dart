@@ -8,8 +8,6 @@ import 'package:soliplex_frontend/src/shared/content/content_frame.dart';
 import 'package:soliplex_frontend/src/shared/content/json_text.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
-import 'package:soliplex_frontend/src/shared/log_once.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 const _notice = "This isn't valid JSON; showing the source.";
 const _emptyNotice = 'This JSON is empty.';
@@ -28,19 +26,7 @@ Widget _inline(JsonViewer viewer) => MaterialApp(
 
 Finder _viewSwitch() => find.byType(SegmentedButton<ContentView>);
 
-/// Debug records captured while the test runs; LogManager is reset after it.
-MemorySink _captureDebugLogs() {
-  final sink = MemorySink();
-  LogManager.instance
-    ..minimumLevel = LogLevel.debug
-    ..addSink(sink);
-  addTearDown(LogManager.instance.reset);
-  return sink;
-}
-
 void main() {
-  tearDown(forgetOccurrences);
-
   group('valid source', () {
     testWidgets('starts in the requested view: Tree', (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
@@ -263,9 +249,7 @@ void main() {
       expect(find.byIcon(Icons.warning_amber_outlined), findsNothing);
     });
 
-    testWidgets('empty source says it is empty and logs nothing',
-        (tester) async {
-      final sink = _captureDebugLogs();
+    testWidgets('empty source says it is empty', (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
         '',
         initialView: ContentView.rendered,
@@ -278,7 +262,6 @@ void main() {
       expect(find.text(_notice), findsNothing);
       expect(_viewSwitch(), findsNothing);
       expect(find.byType(CodeView), findsOneWidget);
-      expect(sink.records, isEmpty);
     });
 
     testWidgets('whitespace-only source says nothing while streaming',
@@ -302,10 +285,9 @@ void main() {
       expect(find.text(_notice), findsNothing);
     });
 
-    testWidgets('while streaming shows no notice and logs nothing',
+    testWidgets('while streaming shows no notice until it ends',
         (tester) async {
-      final sink = _captureDebugLogs();
-      const source = '{"streamed": "hunter2-partial';
+      const source = '{"streamed": "partial';
       Widget viewer({required bool isStreaming}) => _inline(JsonViewer.source(
             source,
             initialView: ContentView.source,
@@ -317,56 +299,10 @@ void main() {
       await tester.pumpWidget(viewer(isStreaming: true));
 
       expect(find.text(_notice), findsNothing);
-      expect(sink.records, isEmpty);
 
       await tester.pumpWidget(viewer(isStreaming: false));
 
       expect(find.text(_notice), findsOneWidget);
-      final record = sink.records.single;
-      expect(record.level, LogLevel.debug);
-      expect(record.attributes['length'], source.length);
-      expect(record.attributes['label'], 'json');
-      expect(record.attributes['failure'], startsWith('FormatException: '));
-      for (final part in ['streamed', 'hunter2', 'partial']) {
-        expect(record.message, isNot(contains(part)));
-        expect('${record.attributes}', isNot(contains(part)));
-        expect('${record.error}', isNot(contains(part)));
-      }
-    });
-
-    testWidgets('the same invalid source logs once across rebuilds',
-        (tester) async {
-      final sink = _captureDebugLogs();
-      Widget viewer(ContentView view) => _inline(JsonViewer.source(
-            '{"rebuilt": ',
-            initialView: view,
-            fill: false,
-            formatSource: true,
-          ));
-
-      await tester.pumpWidget(viewer(ContentView.source));
-      await tester.pumpWidget(viewer(ContentView.rendered));
-      // A second mount of the same content, as when a tile scrolls back in.
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpWidget(viewer(ContentView.source));
-
-      expect(sink.records, hasLength(1));
-    });
-
-    testWidgets('different invalid sources under one label log once each',
-        (tester) async {
-      final sink = _captureDebugLogs();
-      Widget viewer(String source) => _inline(JsonViewer.source(
-            source,
-            initialView: ContentView.source,
-            fill: false,
-            formatSource: true,
-          ));
-
-      await tester.pumpWidget(viewer('{"first": '));
-      await tester.pumpWidget(viewer('{"second": '));
-
-      expect(sink.records, hasLength(2));
     });
 
     testWidgets('showFailureNotice false hides the notice', (tester) async {
@@ -384,9 +320,7 @@ void main() {
   });
 
   group('rendering budget', () {
-    testWidgets('invalid JSON over the limit shows plain text, unlogged',
-        (tester) async {
-      final sink = _captureDebugLogs();
+    testWidgets('invalid JSON over the limit shows plain text', (tester) async {
       final source = '{' * (maxHighlightedLength + 1);
       await tester.pumpWidget(_inline(JsonViewer.source(
         source,
@@ -400,7 +334,6 @@ void main() {
       expect(_viewSwitch(), findsNothing);
       expect(_codeView(tester).language, 'plaintext');
       expect(_codeView(tester).code, source);
-      expect(sink.records, isEmpty);
     });
 
     testWidgets(
