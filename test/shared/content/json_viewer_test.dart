@@ -34,11 +34,12 @@ MemorySink _captureDebugLogs() {
     ..minimumLevel = LogLevel.debug
     ..addSink(sink);
   addTearDown(LogManager.instance.reset);
-  addTearDown(forgetOccurrences);
   return sink;
 }
 
 void main() {
+  tearDown(forgetOccurrences);
+
   group('valid source', () {
     testWidgets('starts in the requested view: Tree', (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
@@ -151,8 +152,8 @@ void main() {
 
   group('content change', () {
     testWidgets(
-        'invalid then valid (streaming) offers the switch and drops '
-        'the notice', (tester) async {
+        'invalid then valid content offers the switch and drops the notice',
+        (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
         '{"a": ',
         initialView: ContentView.source,
@@ -305,6 +306,21 @@ void main() {
       await tester.pumpWidget(viewer(ContentView.source));
 
       expect(sink.records, hasLength(1));
+    });
+
+    testWidgets('different invalid sources under one label log once each',
+        (tester) async {
+      final sink = _captureDebugLogs();
+      Widget viewer(String source) => _inline(JsonViewer.source(
+            source,
+            initialView: ContentView.source,
+            fill: false,
+          ));
+
+      await tester.pumpWidget(viewer('{"first": '));
+      await tester.pumpWidget(viewer('{"second": '));
+
+      expect(sink.records, hasLength(2));
     });
 
     testWidgets('showFailureNotice false hides the notice', (tester) async {
