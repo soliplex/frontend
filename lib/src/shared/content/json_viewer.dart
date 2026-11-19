@@ -49,9 +49,11 @@ const maxJsonDepth = 100;
 /// gets this notice rather than the failure notice; and a Source view longer
 /// than [maxHighlightedLength] shows as plain text.
 class JsonViewer extends StatefulWidget {
-  /// An already-decoded JSON [value], which must be what `jsonDecode` returns:
-  /// anything else may not encode. Keep the same instance across rebuilds; a
-  /// new instance is re-encoded and its tree rebuilt.
+  /// An already-decoded JSON [value], which must be JSON-encodable: maps with
+  /// string keys, lists, strings, booleans, null and finite numbers.
+  /// `jsonDecode` can return more, such as `Infinity` for `1e999`, which cannot
+  /// be encoded here yet. Keep the same instance across rebuilds; a new
+  /// instance is re-encoded and its tree rebuilt.
   ///
   /// There is no text to fall back on, so a [value] nesting deeper than
   /// [maxJsonDepth] shows only the notice, over an empty Source view.
@@ -128,7 +130,9 @@ sealed class _Shown {
   final String text;
 }
 
-/// Text past [maxHighlightedLength], shown as plain text.
+/// Text past [maxHighlightedLength], shown as plain text: the text itself, or,
+/// when the text as written is shown, only its laid-out form (for a decoded
+/// value, the pretty-print).
 final class _TooLarge extends _Shown {
   const _TooLarge(super.text);
 }
