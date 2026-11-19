@@ -10,17 +10,20 @@ void main() {
   final cancelled = <String>[];
   final dismissed = <String>[];
   final deleted = <String>[];
+  var opened = 0;
 
   setUp(() {
     cancelled.clear();
     dismissed.clear();
     deleted.clear();
+    opened = 0;
   });
 
   Future<void> pumpRow(
     WidgetTester tester,
     DisplayUpload entry, {
     bool canDelete = false,
+    bool canOpen = false,
   }) =>
       tester.pumpWidget(
         MaterialApp(
@@ -31,6 +34,7 @@ void main() {
               onCancel: cancelled.add,
               onDismiss: dismissed.add,
               onDelete: canDelete ? deleted.add : null,
+              onOpen: canOpen ? () => opened++ : null,
             ),
           ),
         ),
@@ -336,5 +340,38 @@ void main() {
         Theme.of(tester.element(find.byType(UploadEntryRow))).colorScheme;
     expect(icon.color, scheme.onSurfaceVariant,
         reason: 'a stored file is not a success to report');
+  });
+
+  group('opening', () {
+    testWidgets('a stored upload that can open offers to, by tap and by eye',
+        (tester) async {
+      await pumpRow(tester, stored(), canOpen: true);
+
+      await tester.tap(find.byTooltip('Open'));
+      await tester.tap(find.text('report.pdf'));
+      expect(opened, 2);
+    });
+
+    testWidgets('a row with nowhere to open offers nothing', (tester) async {
+      await pumpRow(tester, stored());
+
+      expect(find.byTooltip('Open'), findsNothing);
+      expect(find.byType(InkWell), findsNothing);
+    });
+
+    testWidgets('an upload still in flight does not open', (tester) async {
+      await pumpRow(
+        tester,
+        PendingUpload(
+          id: 'p1',
+          filename: 'report.pdf',
+          sentBytes: 500,
+          totalBytes: 1000,
+        ),
+        canOpen: true,
+      );
+
+      expect(find.byTooltip('Open'), findsNothing);
+    });
   });
 }
