@@ -84,6 +84,25 @@ outlives the session but not the next launch.
 
 Read from the plugin's Swift (`file_picker_darwin` 2.5.1), not exercised.
 
+## The boot-time sweep cannot report a failed delete
+
+The shell's `clearTemporaryFiles()` call (`lib/src/core/shell.dart`) records a
+failure only when the platform channel itself fails. A delete that fails is
+answered as success on both platforms:
+
+- **iOS** (`file_picker_darwin` 2.5.1): the handler catches the file system
+  error, and the `clear` method answers `nil` regardless.
+- **Android** (`android_file_picker` 2.1.6): `recursiveDeleteFile` ignores the
+  result of each `File.delete()`, and the `clear` method answers `null`.
+
+So when the sweep fails, last session's picked files, and on iOS the saved
+reports above, stay on disk past the next launch with nothing recorded. The
+app cannot detect this without forking the plugin. The stakes are low: the
+copies live under the temporary directory, which the OS also purges under
+storage pressure.
+
+Read from both plugins' sources, not exercised.
+
 ## Smaller, recorded rather than fixed
 
 - The report's `Requests captured: N` counts the groups it renders.
