@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
 
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
+import 'package:soliplex_frontend/src/shared/markdown/markdown_link_scope.dart';
+import 'package:soliplex_frontend/src/shared/markdown/markdown_renderer.dart';
 import 'package:soliplex_frontend/src/shared/failed_image.dart';
 import 'package:soliplex_frontend/src/shared/video/video_card.dart';
 import 'package:soliplex_frontend/src/shared/zoomable_image.dart';
@@ -106,6 +108,68 @@ void main() {
 
         expect(tappedHref, 'mailto:someone@example.com');
         expect(launchedUrls, isEmpty);
+      });
+
+      Future<void> pumpInScope(
+        WidgetTester tester, {
+        required bool Function(String href) onLink,
+        MarkdownLinkHandler? onLinkTap,
+      }) =>
+          tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: MarkdownLinkScope(
+                  onLink: onLink,
+                  child: FlutterMarkdownPlusRenderer(
+                    data: '[the report](https://example.com/report.pdf)',
+                    onLinkTap: onLinkTap,
+                  ),
+                ),
+              ),
+            ),
+          );
+
+      testWidgets('a link scope is offered the link first', (tester) async {
+        final offered = <String>[];
+        await pumpInScope(
+          tester,
+          onLink: (href) {
+            offered.add(href);
+            return true;
+          },
+        );
+
+        await tester.tap(find.text('the report'));
+        await tester.pump();
+
+        expect(offered, ['https://example.com/report.pdf']);
+        expect(launchedUrls, isEmpty);
+      });
+
+      testWidgets('a link the scope leaves is launched as before',
+          (tester) async {
+        await pumpInScope(tester, onLink: (_) => false);
+
+        await tester.tap(find.text('the report'));
+        await tester.pump();
+
+        expect(launchedUrls, ['https://example.com/report.pdf']);
+      });
+
+      testWidgets('an explicit onLinkTap wins over the scope', (tester) async {
+        var offered = false;
+        String? tapped;
+        await pumpInScope(
+          tester,
+          onLink: (_) => offered = true,
+          onLinkTap: (href, _) => tapped = href,
+        );
+
+        await tester.tap(find.text('the report'));
+        await tester.pump();
+
+        expect(tapped, 'https://example.com/report.pdf');
+        expect(offered, isFalse);
       });
     });
   });

@@ -51,6 +51,11 @@ enum PreviewKind {
         PreviewKind.pdf || PreviewKind.unknown => false,
       };
 
+  /// Whether a file of this kind opens somewhere it is shown: in the preview
+  /// pager, or — a PDF — in the PDF viewer. Drives the row's icon and its
+  /// preview action; [canRender] still says what the pager itself renders.
+  bool get opensInViewer => canRender || this == PreviewKind.pdf;
+
   /// Whether the renderer for this kind expects a decoded `String`
   /// (true) or raw `Uint8List` bytes (false).
   bool get isText => switch (this) {

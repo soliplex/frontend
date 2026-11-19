@@ -84,6 +84,17 @@ import 'file_sort_bar.dart';
 import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
 import '../file_downloads_registry.dart';
+import '../../../shared/markdown/markdown_link_scope.dart';
+import '../../../shared/pdf/pdf_document_view.dart';
+import '../../../shared/pdf/pdf_viewer_pane.dart';
+import '../../../shared/pdf/present_pdf_viewer.dart';
+import '../../../shared/pdf/pdfrx_document_view.dart';
+import '../pdf/pdf_quote.dart';
+import 'workdir_preview/preview_kind.dart';
+import '../pdf/pdf_targets.dart';
+import '../pdf/pending_quotes.dart';
+import '../pdf/quoted_context.dart';
+import '../pdf/room_pdf_scope.dart';
 import '../upload_tracker_registry.dart';
 import '../../../shared/selectable_content.dart';
 import '../../../shared/type_to_focus.dart';
@@ -208,6 +219,8 @@ class RoomScreen extends StatefulWidget {
     this.databaseSelections,
     this.roomReadMarkers,
     this.serverReadMarkers,
+    this.pendingQuotes,
+    this.pdfDocumentViewFactory = pdfrxDocumentView,
   });
 
   final ServerEntry serverEntry;
@@ -242,6 +255,15 @@ class RoomScreen extends StatefulWidget {
   /// and thread on the server, so the rail's unread computations read up to it.
   /// Null in tests, where each screen gets its own isolated store.
   final ServerReadMarkers? serverReadMarkers;
+
+  /// The quotes waiting to go with each thread's next message, kept by the
+  /// module so they outlive a visit to another room. Null in tests, where
+  /// each screen keeps its own.
+  final PendingQuotesRegistry? pendingQuotes;
+
+  /// Builds the PDF viewer's document. pdfrx by default; tests supply a fake
+  /// so no widget test loads PDFium.
+  final PdfDocumentViewFactory pdfDocumentViewFactory;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -379,6 +401,41 @@ class _RoomScreenState extends State<RoomScreen> {
 
   late final DatabaseSelections _databaseSelections =
       widget.databaseSelections ?? DatabaseSelections();
+
+  /// Stands in for the module's registry in tests that pass none.
+  final _ownQuotes = RoomQuotes();
+
+  /// The current room's waiting quotes. Looked up each time: the screen
+  /// outlives a switch to another room.
+  RoomQuotes get _quotes =>
+      widget.pendingQuotes
+          ?.quotesFor(entry: widget.serverEntry, roomId: widget.roomId) ??
+      _ownQuotes;
+
+  /// The unsent text whose quotes were last put back, so a failed send
+  /// returns them once, not on every build that shows the failure.
+  String? _quotesRestoredFrom;
+
+  /// The PDF open in the viewer, and the page it was opened at. Beside the
+  /// conversation where the content area holds both at [PdfViewerPane]'s
+  /// minimum width; otherwise presented over it, as a dialog or a page.
+  PdfOpenTarget? _pdfTarget;
+  var _pdfPage = 1;
+
+  /// The viewer's share of the content area's width, beside the chat.
+  var _pdfPaneFraction = 0.45;
+
+  /// Whether the viewer is presented over the conversation rather than
+  /// beside it.
+  var _pdfPresented = false;
+
+  /// PDFs opened in this room this visit, so a quote read back from a sent
+  /// message finds its file first among them.
+  final _openedPdfs = <PdfOpenTarget>{};
+
+  /// Holds focus inside the viewer beside the chat, so typing there — in its
+  /// search field — stays there rather than moving to the composer.
+  final _pdfPaneFocus = FocusNode(debugLabel: 'PDF viewer');
 
   /// The databases the room's RAG skills search, read from the loaded room.
   /// [RagDatabaseScope.none] until the room manifest lands, so nothing is
@@ -668,6 +725,7 @@ class _RoomScreenState extends State<RoomScreen> {
           serverId: serverId, roomId: roomId, threadId: threadId);
       _databaseSelections.clearThread(
           serverId: serverId, roomId: roomId, threadId: threadId);
+      _quotes.clearThread(threadId);
       unawaited(
         ThreadReadMarkerStorage.clearThread(serverId, roomId, threadId)
             .catchError((Object error, StackTrace st) {
@@ -1065,8 +1123,17 @@ class _RoomScreenState extends State<RoomScreen> {
       // rows pops a spinner over the incoming thread and closes again when the
       // fetch lands.
       _filesExpanded = false;
+      // The viewer shows the room's files; a thread's own, only in that
+      // thread. The move from no thread to the one a first send creates keeps
+      // it: that is the same conversation.
+      final pdf = _pdfTarget;
+      if (roomChanged ||
+          (pdf != null && pdf.isThreadScoped && oldWidget.threadId != null)) {
+        _pdfTarget = null;
+      }
     }
     if (roomChanged) {
+      _openedPdfs.clear();
       // Mark the room being left read (under its own coordinates) before its
       // _state is torn down, so the lobby agrees the user caught up there.
       // _userId still holds the leaving room's captured identity here (it is
@@ -1144,6 +1211,7 @@ class _RoomScreenState extends State<RoomScreen> {
               serverId: _serverId,
               roomId: widget.roomId,
               threadId: widget.threadId!);
+          _quotes.migrateToThread(widget.threadId!);
         }
         _state.selectThread(widget.threadId!);
         _beginUnreadTracking(widget.threadId!);
@@ -1322,6 +1390,8 @@ class _RoomScreenState extends State<RoomScreen> {
     _chatController.removeListener(_onDraftChanged);
     _chatController.dispose();
     _chatFocusNode.dispose();
+    _pdfPaneFocus.dispose();
+    _ownQuotes.dispose();
     super.dispose();
   }
 
@@ -1353,6 +1423,7 @@ class _RoomScreenState extends State<RoomScreen> {
       }
       return false;
     }
+    if (_pdfPaneFocus.hasFocus) return false;
     if (!_roomIsFrontmost) return false;
     if (isPasteChord()) {
       // Abstain rather than claim a chord the composer won't act on, so
@@ -1929,10 +2000,21 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _restoreUnsentText(String? unsentText) {
-    if (unsentText == null || _chatController.text.isNotEmpty) return;
+    if (unsentText == null) return;
+    // Quotes went out ahead of the text (see onSend); they go back to the
+    // chips, and only what was typed goes back to the field.
+    final (:quotes, :rest) = parseQuotedContext(unsentText);
+    if (quotes.isNotEmpty && !identical(unsentText, _quotesRestoredFrom)) {
+      _quotesRestoredFrom = unsentText;
+      final threadId = widget.threadId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _quotes.restore(threadId, quotes);
+      });
+    }
+    if (rest.isEmpty || _chatController.text.isNotEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _chatController.restoreDraft(unsentText);
+      _chatController.restoreDraft(rest);
     });
   }
 
@@ -1983,33 +2065,36 @@ class _RoomScreenState extends State<RoomScreen> {
         : _buildThreadBody(threadView, room, messagesStatus);
 
     return (
-      content: Column(
-        children: [
-          StatusMessageBanner(
-            key: ValueKey(widget.serverEntry.serverUrl),
-            baseUrl: widget.serverEntry.serverUrl,
-            client: widget.serverEntry.httpClient,
-            serverLabel: widget.serverEntry.displayName,
-          ),
-          if (showHeader)
-            _buildRoomHeader(room, roomStatus, threadStatus, workspaceStatus),
-          // Below the header slot, so the band lands under the app bar on
-          // narrow layouts and under the in-page header on wide ones.
-          const ChatClassificationBand(),
-          if (_filesExpanded)
-            _buildFilePanel(
-              room,
-              roomStatus,
-              threadStatus,
-              workspaceStatus,
-              threadId,
+      content: _withPdfViewer(
+        showHeader: showHeader,
+        chat: Column(
+          children: [
+            StatusMessageBanner(
+              key: ValueKey(widget.serverEntry.serverUrl),
+              baseUrl: widget.serverEntry.serverUrl,
+              client: widget.serverEntry.httpClient,
+              serverLabel: widget.serverEntry.displayName,
             ),
-          Expanded(child: _capWidth(body)),
-          _capWidth(_buildChatInput(threadView, room, messagesStatus)),
-          // Last in the column so the caveat is the last thing read before
-          // sending.
-          _capWidth(ChatAiDisclaimer(appName: widget.appName)),
-        ],
+            if (showHeader)
+              _buildRoomHeader(room, roomStatus, threadStatus, workspaceStatus),
+            // Below the header slot, so the band lands under the app bar on
+            // narrow layouts and under the in-page header on wide ones.
+            const ChatClassificationBand(),
+            if (_filesExpanded)
+              _buildFilePanel(
+                room,
+                roomStatus,
+                threadStatus,
+                workspaceStatus,
+                threadId,
+              ),
+            Expanded(child: _capWidth(body)),
+            _capWidth(_buildChatInput(threadView, room, messagesStatus)),
+            // Last in the column so the caveat is the last thing read before
+            // sending.
+            _capWidth(ChatAiDisclaimer(appName: widget.appName)),
+          ],
+        ),
       ),
       // Shown only in the narrow layout's AppBar, narrower than
       // SoliplexBreakpoints.tablet and so always compact.
@@ -2021,6 +2106,211 @@ class _RoomScreenState extends State<RoomScreen> {
         compact: true,
       ),
     );
+  }
+
+  /// Puts the PDF viewer beside [chat] when the content area holds both, and
+  /// offers the conversation's quote cards a way to open it.
+  ///
+  /// [chat] is always the first child of the same row, so opening and closing
+  /// the viewer never re-inflates the conversation: the composer keeps its
+  /// text input connection and the timeline its scroll position.
+  Widget _withPdfViewer({required bool showHeader, required Widget chat}) =>
+      RoomPdfScope(
+        open: _openPdf,
+        openQuote: _openQuote,
+        child: MarkdownLinkScope(
+          onLink: _openPdfLink,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final total = constraints.maxWidth;
+              final target = _pdfTarget;
+              final fits = showHeader && total >= 2 * PdfViewerPane.minWidth;
+              final beside = target != null && fits && !_pdfPresented;
+              if (target != null && !fits) _presentPdfAfterFrame();
+              final paneWidth = beside
+                  ? (total * _pdfPaneFraction).clamp(
+                      PdfViewerPane.minWidth,
+                      total - PdfViewerPane.minWidth,
+                    )
+                  : 0.0;
+              return Row(
+                children: [
+                  Expanded(child: chat),
+                  if (beside) ...[
+                    _PdfPaneDivider(
+                      onDrag: (dx) => setState(() {
+                        _pdfPaneFraction =
+                            ((paneWidth - dx) / total).clamp(0.2, 0.8);
+                      }),
+                    ),
+                    SizedBox(
+                      width: paneWidth,
+                      child: Focus(
+                        focusNode: _pdfPaneFocus,
+                        skipTraversal: true,
+                        child: _buildPdfPane(
+                          target,
+                          page: _pdfPage,
+                          onClose: _closePdf,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      );
+
+  /// Opens a `.pdf` link from a message in the viewer: one of the server's
+  /// own uploads with this client's credentials, any other with none.
+  /// Leaves every other link to the platform.
+  bool _openPdfLink(String href) {
+    final target = pdfTargetForHref(
+      href,
+      serverUrl: widget.serverEntry.serverUrl,
+    );
+    if (target == null) return false;
+    _openPdf(target);
+    return true;
+  }
+
+  void _openPdf(PdfOpenTarget target, {int page = 1}) {
+    _openedPdfs.add(target);
+    setState(() {
+      _pdfTarget = target;
+      _pdfPage = page;
+    });
+  }
+
+  void _closePdf() {
+    if (_pdfTarget == null) return;
+    setState(() => _pdfTarget = null);
+  }
+
+  /// Reopens the file [quote] came from, at its page. A quote taken this
+  /// visit knows its file; one read back from a sent message knows only the
+  /// file's name, so it is looked for among the room's.
+  void _openQuote(PdfQuote quote) {
+    final target = quote.source ?? _findQuotedFile(quote.documentTitle);
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Can't find ${quote.documentTitle} in this thread."),
+        ),
+      );
+      return;
+    }
+    _openPdf(target, page: quote.pageNumber);
+  }
+
+  PdfOpenTarget? _findQuotedFile(String title) {
+    final roomId = widget.roomId;
+    final threadId = widget.threadId;
+    List<PdfOpenTarget> uploads(
+      UploadsStatus status,
+      PdfOpenTarget Function(String filename) target,
+    ) =>
+        switch (status) {
+          UploadsLoaded(:final uploads) => [
+              for (final upload in uploads)
+                if (upload is PersistedUpload) target(upload.filename),
+            ],
+          _ => const [],
+        };
+    final tracker = _state.uploadTracker;
+    return resolveQuoteTarget(
+      title,
+      opened: _openedPdfs,
+      threadUploads: threadId == null
+          ? const []
+          : uploads(
+              tracker.threadUploads(roomId, threadId).peek(),
+              (name) => ThreadUploadPdf(
+                roomId: roomId,
+                threadId: threadId,
+                filename: name,
+              ),
+            ),
+      roomUploads: uploads(
+        tracker.roomUploads(roomId).peek(),
+        (name) => RoomUploadPdf(roomId: roomId, filename: name),
+      ),
+      workdirFiles: threadId == null
+          ? const []
+          : switch (_workdirs.files(threadId).peek()) {
+              WorkdirFilesLoaded(:final files) => [
+                  for (final file in files)
+                    WorkdirPdf(roomId: roomId, threadId: threadId, file: file),
+                ],
+              _ => const [],
+            },
+    );
+  }
+
+  Widget _buildPdfPane(
+    PdfOpenTarget target, {
+    required int page,
+    required VoidCallback onClose,
+    VoidCallback? onQuoteAdded,
+  }) =>
+      PdfViewerPane(
+        source: pdfViewerSourceFor(target, widget.serverEntry.connection.api),
+        initialPage: page,
+        documentViewFactory: widget.pdfDocumentViewFactory,
+        onClose: onClose,
+        onAskAbout: (selection) {
+          _quotes.add(
+            widget.threadId,
+            PdfQuote(
+              text: selection.text,
+              documentTitle: target.title,
+              pageNumber: selection.pageNumber,
+              source: target,
+            ),
+          );
+          onQuoteAdded?.call();
+        },
+        onSave: (bytes, name) async {
+          await widget.downloadRegistry.saveFile(fileName: name, bytes: bytes);
+        },
+      );
+
+  /// Shows the open PDF over the conversation, where the content area is too
+  /// narrow for it beside: a dialog on a wide window, a page of its own on a
+  /// phone. Closing it closes the viewer.
+  void _presentPdfAfterFrame() {
+    if (_pdfPresented) return;
+    _pdfPresented = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final target = _pdfTarget;
+      if (!mounted || target == null) {
+        _pdfPresented = false;
+        return;
+      }
+      await presentPdfViewer(
+        context,
+        build: (viewerContext, close) => _buildPdfPane(
+          target,
+          page: _pdfPage,
+          onClose: close,
+          onQuoteAdded: () => ScaffoldMessenger.of(viewerContext)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: const Text('Added to your message'),
+                action: SnackBarAction(
+                  label: 'Back to chat',
+                  onPressed: close,
+                ),
+              ),
+            ),
+        ),
+      );
+      _pdfPresented = false;
+      if (mounted) _closePdf();
+    });
   }
 
   /// Centers [child] within [_maxContentWidth] so the conversation column does
@@ -2406,6 +2696,8 @@ class _RoomScreenState extends State<RoomScreen> {
           roomStatus,
           theme,
           sort,
+          pdfTarget: (filename) =>
+              RoomUploadPdf(roomId: roomId, filename: filename),
           onDelete: (room?.acceptsRoomUploads ?? false) &&
                   _state.mayWriteRoom.watch(context)
               ? (filename) => unawaited(
@@ -2420,6 +2712,13 @@ class _RoomScreenState extends State<RoomScreen> {
           theme,
           sort,
           onDelete: null,
+          pdfTarget: threadId == null
+              ? null
+              : (filename) => ThreadUploadPdf(
+                    roomId: roomId,
+                    threadId: threadId,
+                    filename: filename,
+                  ),
         ),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))
         // The section and the collapse button read the toggles in scopes of
@@ -2434,6 +2733,9 @@ class _RoomScreenState extends State<RoomScreen> {
               threadId: threadId,
             ),
             onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
+            onOpenPdf: (file) => _openPdf(
+              WorkdirPdf(roomId: roomId, threadId: threadId, file: file),
+            ),
             onRetry: () {
               _logger.debug('workspace refresh: retry threadId=$threadId');
               unawaited(_workdirs.refresh(threadId));
@@ -2546,6 +2848,7 @@ class _RoomScreenState extends State<RoomScreen> {
     ThemeData theme,
     FileSort sort, {
     required void Function(String filename)? onDelete,
+    PdfOpenTarget Function(String filename)? pdfTarget,
   }) {
     return switch (status) {
       UploadsLoading() => Row(
@@ -2571,6 +2874,10 @@ class _RoomScreenState extends State<RoomScreen> {
                 onCancel: _state.uploadTracker.cancelUpload,
                 onDismiss: _state.uploadTracker.dismissFailed,
                 onDelete: onDelete,
+                onOpen: pdfTarget != null &&
+                        PreviewKind.from(entry.filename) == PreviewKind.pdf
+                    ? () => _openPdf(pdfTarget(entry.filename))
+                    : null,
               ),
           ],
         ),
@@ -2852,6 +3159,9 @@ class _RoomScreenState extends State<RoomScreen> {
       // composer has nothing to count, and the gauge stays hidden there
       // rather than showing a confident zero.
       contextUsage: threadView?.contextUsage.usage,
+      quotes: _quotes.all.watch(context)[widget.threadId] ?? const [],
+      onQuoteRemoved: (quote) => _quotes.remove(widget.threadId, quote),
+      onQuoteTap: _openQuote,
       // The composer's transient state belongs to the thread it is composing
       // for, and what the composer is saying about that state is held in widget
       // state, so a notice about a pick made into one thread would otherwise
@@ -2861,7 +3171,13 @@ class _RoomScreenState extends State<RoomScreen> {
       // a value rather than as a `key` so the composer is not re-inflated — see
       // [ChatInput.composerScope] for what that would cost.
       composerScope: (_serverId, widget.roomId, threadView?.threadId),
-      onSend: (parts) {
+      onSend: (typed) {
+        // Quotes waiting for this thread go first, as markdown quote blocks:
+        // the backend passes no other channel to the model.
+        final quoted = _quotes.take(widget.threadId);
+        final parts = quoted.isEmpty
+            ? typed
+            : [TextPart(formatQuotedContext(quoted)), ...typed];
         if (threadView != null) {
           threadView.sendMessage(
             parts,
@@ -3104,4 +3420,50 @@ class _SpinnerIcon extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The handle between the conversation and the PDF viewer beside it.
+/// Dragging it, or the arrow keys while it has focus, moves the split.
+class _PdfPaneDivider extends StatelessWidget {
+  const _PdfPaneDivider({required this.onDrag});
+
+  /// Called with how far the split moved, in logical pixels; positive is
+  /// toward the viewer.
+  final void Function(double dx) onDrag;
+
+  /// How far one arrow key press moves the split.
+  static const _step = SoliplexSpacing.s6;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Resize the PDF viewer',
+        hint: 'Use the left and right arrow keys',
+        child: Focus(
+          onKeyEvent: (node, event) {
+            if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+              return KeyEventResult.ignored;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              onDrag(-_step);
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              onDrag(_step);
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.resizeColumn,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
+              child: const SizedBox(
+                width: SoliplexSpacing.s2,
+                child: VerticalDivider(width: SoliplexSpacing.s2),
+              ),
+            ),
+          ),
+        ),
+      );
 }

@@ -13,6 +13,7 @@ import '../workdir_files_status.dart';
 import '../workspace_groups.dart';
 import 'file_list_row.dart';
 import 'workdir_files.dart';
+import 'workdir_preview/preview_kind.dart';
 
 /// A section heading in the room's files panel.
 class FilePanelSectionLabel extends StatelessWidget {
@@ -49,6 +50,7 @@ class WorkspaceFilesSection extends StatelessWidget {
     required this.onRetry,
     required this.folderToggles,
     required this.onFolderToggled,
+    this.onOpenPdf,
   });
 
   final WorkdirFilesStatus status;
@@ -66,6 +68,10 @@ class WorkspaceFilesSection extends StatelessWidget {
 
   /// Called with the path of a folder the reader opens or closes.
   final void Function(String folder, {required bool expanded}) onFolderToggled;
+
+  /// Opens a PDF in the PDF viewer. Null leaves PDFs to the preview pager,
+  /// which cannot show them.
+  final void Function(WorkdirFile file)? onOpenPdf;
 
   /// The levels whose contents indent fully. Past them each level indents
   /// by a little, which keeps a depth cue at every level while giving the
@@ -183,13 +189,20 @@ class WorkspaceFilesSection extends StatelessWidget {
             file: files[i],
             directory: directoryOf(files[i]),
             downloads: downloads,
-            onOpenPreview: () => WorkdirPreviewPage.show(
-              context: context,
-              files: files,
-              initialIndex: i,
-              fetchBytes: onFetchBytes,
-              downloads: downloads,
-            ),
+            onOpenPreview: switch ((
+              PreviewKind.from(files[i].filename),
+              onOpenPdf
+            )) {
+              (PreviewKind.pdf, final open?) => () => open(files[i]),
+              _ => () => WorkdirPreviewPage.show(
+                    context: context,
+                    files: files,
+                    initialIndex: i,
+                    fetchBytes: onFetchBytes,
+                    downloads: downloads,
+                    onOpenPdf: onOpenPdf,
+                  ),
+            },
           ),
       ];
 }

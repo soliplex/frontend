@@ -13,6 +13,8 @@ import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
+import 'package:soliplex_frontend/src/modules/room/pdf/pdf_quote.dart';
+import 'package:soliplex_frontend/src/modules/room/pdf/pending_quotes.dart';
 import 'package:soliplex_frontend/src/modules/room/user_switch_teardown.dart';
 
 import '../../helpers/fakes.dart';
@@ -20,6 +22,8 @@ import '../../helpers/test_server_entry.dart';
 
 const _key = (serverId: 's1', roomId: 'room', threadId: 'thread');
 const _doc = RagDocument(id: 'd1', title: 'Doc');
+const _quote =
+    PdfQuote(text: 'a passage', documentTitle: 'a.pdf', pageNumber: 1);
 
 void _login(ServerEntry entry, String sub) {
   entry.auth.login(
@@ -45,6 +49,7 @@ typedef _Wired = ({
   FileDownloadsRegistry downloadRegistry,
   DocumentSelections docs,
   DatabaseSelections databases,
+  PendingQuotesRegistry quotes,
 });
 
 void main() {
@@ -77,8 +82,10 @@ void main() {
     final downloadRegistry = FileDownloadsRegistry(servers: manager.servers);
     final docs = DocumentSelections();
     final databases = DatabaseSelections();
+    final quotes = PendingQuotesRegistry(servers: manager.servers);
 
     addTearDown(() async {
+      quotes.dispose();
       registry.dispose();
       uploadRegistry.dispose();
       downloadRegistry.dispose();
@@ -96,6 +103,7 @@ void main() {
       downloadRegistry: downloadRegistry,
       docs: docs,
       databases: databases,
+      quotes: quotes,
     );
   }
 
@@ -108,6 +116,7 @@ void main() {
       downloadRegistry: w.downloadRegistry,
       documentSelections: w.docs,
       databaseSelections: w.databases,
+      pendingQuotes: w.quotes,
     );
     addTearDown(teardown.dispose);
     return teardown;
@@ -127,6 +136,7 @@ void main() {
         .set(serverId: 's1', roomId: 'room', threadId: 'thread', docs: {_doc});
     w.databases.set(
         serverId: 's1', roomId: 'room', threadId: 'thread', names: {'wiki'});
+    w.quotes.quotesFor(entry: w.entry, roomId: 'room').add('thread', _quote);
     return (runtime: runtime, tracker: tracker, downloads: downloads);
   }
 
@@ -155,6 +165,11 @@ void main() {
     expect(w.databases.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
         isEmpty,
         reason: 'database selections should be cleared');
+    expect(
+      w.quotes.quotesFor(entry: w.entry, roomId: 'room').peek('thread'),
+      isEmpty,
+      reason: 'pending quotes should be cleared',
+    );
   }
 
   void expectRetained(
@@ -182,6 +197,11 @@ void main() {
     expect(w.databases.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
         isNotEmpty,
         reason: 'database selections should be retained');
+    expect(
+      w.quotes.quotesFor(entry: w.entry, roomId: 'room').peek('thread'),
+      isNotEmpty,
+      reason: 'pending quotes should be retained',
+    );
   }
 
   group('UserSwitchTeardown', () {
@@ -414,6 +434,7 @@ void main() {
         downloadRegistry: w.downloadRegistry,
         documentSelections: w.docs,
         databaseSelections: w.databases,
+        pendingQuotes: w.quotes,
       );
       addTearDown(teardown.dispose);
 

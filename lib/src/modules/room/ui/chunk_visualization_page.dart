@@ -7,6 +7,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
+import '../../../shared/adaptive_surface.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/zoomable_image.dart';
 import 'paged_zoomable_images.dart';
@@ -132,33 +133,8 @@ class ChunkVisualizationPage extends StatefulWidget {
   static Future<void> _present(
     BuildContext context,
     ChunkVisualizationPage Function(bool useDialogLayout) build,
-  ) {
-    final useDialog =
-        MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
-    final child = build(useDialog);
-
-    if (useDialog) {
-      // Zero-duration transition — the default fade adds a visible
-      // flash when the user is expecting an immediate jump from the
-      // citation to its rendered pages.
-      return showGeneralDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        barrierLabel:
-            MaterialLocalizations.of(context).modalBarrierDismissLabel,
-        transitionDuration: Duration.zero,
-        pageBuilder: (_, __, ___) => child,
-      );
-    }
-
-    return Navigator.of(context).push<void>(
-      PageRouteBuilder<void>(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (_, __, ___) => child,
-      ),
-    );
-  }
+  ) =>
+      presentAdaptively<void>(context, build: build);
 
   @override
   State<ChunkVisualizationPage> createState() => _ChunkVisualizationPageState();
