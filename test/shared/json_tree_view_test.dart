@@ -97,12 +97,16 @@ void main() {
       // Initially expanded: child value visible
       expect(find.textContaining('1'), findsOneWidget);
 
-      // Tap the expandable header to collapse
-      await tester.tap(find.byIcon(Icons.expand_more).first);
+      // Tap the key text, which the selection area could swallow
+      await tester.tap(
+        find.textContaining('user'),
+        kind: PointerDeviceKind.mouse,
+      );
       await tester.pump();
 
       // After collapse, child is hidden
       expect(find.textContaining('1'), findsNothing);
+      expect(find.textContaining('{…}'), findsOneWidget);
     });
 
     testWidgets('array node shows item count in collapsed label',
@@ -282,7 +286,7 @@ void main() {
       expect(copied, contains('omega'));
     });
 
-    testWidgets('a selectable tree has no SelectableText', (tester) async {
+    testWidgets('a selectable tree has one SelectionArea', (tester) async {
       await _pumpTree(tester, [
         ObjectNode(
           key: 'user',
@@ -290,7 +294,6 @@ void main() {
         ),
       ]);
 
-      expect(find.byType(SelectableText), findsNothing);
       expect(find.byType(SelectionArea), findsOneWidget);
     });
 
@@ -354,7 +357,6 @@ void main() {
       );
 
       expect(find.byType(SelectionArea), findsOneWidget);
-      expect(find.byType(SelectableText), findsNothing);
     });
 
     for (final selectable in [true, false]) {
