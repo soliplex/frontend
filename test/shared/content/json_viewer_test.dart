@@ -46,6 +46,7 @@ void main() {
         '{"a": 1}',
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.byType(JsonTreeView), findsOneWidget);
@@ -59,6 +60,7 @@ void main() {
         '{"a": 1}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.byType(CodeView), findsOneWidget);
@@ -71,6 +73,7 @@ void main() {
         '{"a": 1}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       await tester.tap(find.text('Tree'));
@@ -85,6 +88,7 @@ void main() {
         '{"a":1}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.textContaining('  "a": 1'), findsOneWidget);
@@ -96,6 +100,7 @@ void main() {
         '{"a":1e999}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       expect(tester.takeException(), isNull);
@@ -110,6 +115,7 @@ void main() {
         '{"a": 1}',
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       final surface = githubTheme['root']!.backgroundColor;
@@ -131,6 +137,7 @@ void main() {
         '{"a": {"b": 1}}',
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       // An InkWell paints on its nearest Material; any opaque surface between
@@ -158,6 +165,7 @@ void main() {
         '{"a": ',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
       expect(find.text(_notice), findsOneWidget);
       expect(_viewSwitch(), findsNothing);
@@ -166,6 +174,7 @@ void main() {
         '{"a": 1}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.text(_notice), findsNothing);
@@ -179,12 +188,14 @@ void main() {
         '{"a": 1}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       await tester.pumpWidget(_inline(const JsonViewer.source(
         '{"b": 2}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       expect(_codeView(tester).code, '{\n  "b": 2\n}');
@@ -199,6 +210,7 @@ void main() {
         '{"a": 1}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
       await tester.tap(find.text('Tree'));
       await tester.pumpAndSettle();
@@ -207,6 +219,7 @@ void main() {
         '{"b": 2}',
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.byType(JsonTreeView), findsOneWidget);
@@ -220,6 +233,7 @@ void main() {
         '{"a": raw',
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.textContaining('{"a": raw'), findsOneWidget);
@@ -233,6 +247,7 @@ void main() {
         '{"a": broken',
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
       final colors = Theme.of(tester.element(find.text(_notice))).colorScheme;
 
@@ -251,6 +266,7 @@ void main() {
         '',
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(tester.takeException(), isNull);
@@ -267,6 +283,7 @@ void main() {
             source,
             initialView: ContentView.source,
             fill: false,
+            formatSource: true,
             isStreaming: isStreaming,
           ));
 
@@ -297,6 +314,7 @@ void main() {
             '{"rebuilt": ',
             initialView: view,
             fill: false,
+            formatSource: true,
           ));
 
       await tester.pumpWidget(viewer(ContentView.source));
@@ -315,6 +333,7 @@ void main() {
             source,
             initialView: ContentView.source,
             fill: false,
+            formatSource: true,
           ));
 
       await tester.pumpWidget(viewer('{"first": '));
@@ -328,6 +347,7 @@ void main() {
         'not json',
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
         showFailureNotice: false,
       )));
 
@@ -345,6 +365,7 @@ void main() {
         source,
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.text(_sizeNotice), findsOneWidget);
@@ -356,7 +377,7 @@ void main() {
     });
 
     testWidgets(
-        'valid JSON whose pretty-print is over the limit shows it plain',
+        'valid JSON whose pretty-print is over the limit shows the source plain',
         (tester) async {
       final source = '[${List.filled(40000, '1').join(',')}]';
       expect(source.length, lessThan(maxHighlightedLength));
@@ -368,13 +389,14 @@ void main() {
         source,
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.text(_sizeNotice), findsOneWidget);
       expect(_viewSwitch(), findsNothing);
       expect(find.byType(JsonTreeView), findsNothing);
       expect(_codeView(tester).language, 'plaintext');
-      expect(_codeView(tester).code, pretty);
+      expect(_codeView(tester).code, source);
     });
 
     testWidgets('nesting deeper than maxJsonDepth shows the source',
@@ -384,6 +406,7 @@ void main() {
         source,
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(tester.takeException(), isNull);
@@ -400,6 +423,7 @@ void main() {
         _nestedSource(maxJsonDepth),
         initialView: ContentView.source,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.text(_depthNotice), findsNothing);
@@ -417,6 +441,7 @@ void main() {
         _nestedSource(5000),
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(tester.takeException(), isNull);
@@ -429,6 +454,7 @@ void main() {
         '[' * (maxJsonDepth + 1),
         initialView: ContentView.rendered,
         fill: false,
+        formatSource: true,
       )));
 
       expect(find.text(_depthNotice), findsOneWidget);
@@ -460,6 +486,7 @@ void main() {
       initialView: ContentView.rendered,
       label: 'Body',
       fill: false,
+      formatSource: true,
     )));
 
     expect(find.text('Body'), findsOneWidget);

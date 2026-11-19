@@ -62,6 +62,32 @@ void main() {
     expect(find.bySemanticsLabel(RegExp(r'^JSON\n')), findsOneWidget);
   });
 
+  testWidgets('chat JSON shows as written, a workdir file formatted',
+      (tester) async {
+    const compact = '{"a":[1,2]}';
+    Widget viewer({required bool fill}) => _inline(ContentViewer(
+          language: 'json',
+          content: compact,
+          fill: fill,
+        ));
+
+    await tester.pumpWidget(viewer(fill: false));
+    expect(tester.widget<CodeView>(find.byType(CodeView)).code, compact);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          height: 600,
+          child: ContentViewer(language: 'json', content: compact, fill: true),
+        ),
+      ),
+    ));
+    expect(
+      tester.widget<CodeView>(find.byType(CodeView)).code,
+      '{\n  "a": [\n    1,\n    2\n  ]\n}',
+    );
+  });
+
   testWidgets('semantics label is Code block in python', (tester) async {
     await tester.pumpWidget(_inline(const ContentViewer(
       language: 'python',

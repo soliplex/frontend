@@ -53,6 +53,9 @@ class ContentViewer extends StatelessWidget {
             content,
             initialView: ContentView.source,
             fill: fill,
+            // A workdir file page (fill) shows a file laid out for reading; a
+            // chat fence (inline) shows what the model wrote.
+            formatSource: fill,
             selectable: selectable,
             isStreaming: isStreaming,
           ),

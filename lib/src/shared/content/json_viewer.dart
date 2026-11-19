@@ -26,11 +26,12 @@ const maxJsonDepth = 100;
 
 /// JSON under the shared header, with a Tree / Source switch.
 ///
-/// The Source view is the text laid out with a 2-space indent, every string and
-/// number as written; for a decoded value it is the 2-space pretty-print. The
-/// copy button copies whatever the Source view shows. The Tree shows decoded
-/// values, so `1e999` reads `Infinity` there, and integers beyond 2^53 round on
-/// the web.
+/// The Source view is the text as written, or laid out with a 2-space indent,
+/// every string and number as written, when [formatSource] is set; for a
+/// decoded value it is the 2-space pretty-print. The copy button copies whatever
+/// the Source view shows. The Tree shows decoded values, so `1e999` reads
+/// `Infinity` there, integers beyond 2^53 round on the web, and on native
+/// platforms integers beyond the 64-bit range become doubles.
 ///
 /// Text that does not parse shows as it is, highlighted, with no switch and a
 /// notice above it, unless [showFailureNotice] is false or [isStreaming], when
@@ -59,15 +60,18 @@ class JsonViewer extends StatefulWidget {
     this.selectable = true,
   })  : source = null,
         isStreaming = false,
-        showFailureNotice = true;
+        showFailureNotice = true,
+        formatSource = true;
 
-  /// JSON text, parsed once per change of [source].
+  /// JSON text, parsed once per change of [source]. [formatSource] is
+  /// required: each site decides whether its text is shown as written.
   const JsonViewer.source(
     String this.source, {
     super.key,
     required this.initialView,
     this.label = 'json',
     required this.fill,
+    required this.formatSource,
     this.selectable = true,
     this.isStreaming = false,
     this.showFailureNotice = true,
@@ -85,6 +89,12 @@ class JsonViewer extends StatefulWidget {
   /// The header's text. It also names the copy button: `Copy JSON` for the
   /// default `json`, `Copy <label>` otherwise.
   final String label;
+
+  /// Whether the Source view and the copy button show [source] laid out with
+  /// a 2-space indent rather than exactly as written. A decoded value is always
+  /// pretty-printed. When the laid-out text is longer than
+  /// [maxHighlightedLength], [source] shows instead.
+  final bool formatSource;
 
   /// Whether the viewer takes the bounded height it is given, scrolling its
   /// body, rather than being as tall as its content; see [ContentFrame].
@@ -192,20 +202,27 @@ class _JsonViewerState extends State<JsonViewer> {
     } on FormatException catch (e, st) {
       return _Invalid(source, e, st);
     }
-    return _treeWithin(formatJson(source), decoded);
+    final text = widget.formatSource ? formatJson(source) : source;
+    return _treeWithin(text, decoded, ifTooLarge: source);
   }
 
   /// Decides for a decoded [value], which has no text of its own.
   _Shown _decideDecoded(Object? value) {
     if (_nestsTooDeep(value)) return const _TooDeep('');
-    return _treeWithin(_prettyJson.convert(value), value);
+    final text = _prettyJson.convert(value);
+    return _treeWithin(text, value, ifTooLarge: text);
   }
 
   /// The tree of [value] with [text] as its Source view, unless [text] is
-  /// longer than [maxHighlightedLength].
-  _Shown _treeWithin(String text, Object? value) =>
+  /// longer than [maxHighlightedLength]: then [ifTooLarge] shown plain. Laid
+  /// out, text can be far longer than the source it came from.
+  _Shown _treeWithin(
+    String text,
+    Object? value, {
+    required String ifTooLarge,
+  }) =>
       text.length > maxHighlightedLength
-          ? _TooLarge(text)
+          ? _TooLarge(ifTooLarge)
           : _Tree(text, buildJsonTree(value));
 
   void _logFailure() {
