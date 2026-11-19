@@ -30,9 +30,10 @@ const maxJsonDepth = 100;
 ///
 /// Oversized, too deeply nested ([maxJsonDepth]), invalid and empty content
 /// shows its text under a notice, with no Tree. A decoded value JSON cannot
-/// encode, such as `double.infinity`, shows its `toString()`, as invalid or,
-/// past [maxHighlightedLength], as oversized. While [isStreaming], the
-/// invalid and empty notices wait, since the text may be incomplete.
+/// encode, such as `double.infinity`, shows only its Tree, with no notice,
+/// and the copy button copies its `toString()`; past [maxHighlightedLength]
+/// that text shows instead, as oversized. While [isStreaming], the invalid and
+/// empty notices wait, since the text may be incomplete.
 class JsonViewer extends StatefulWidget {
   /// JSON text, parsed once per change of [source]. [formatSource] is
   /// required: each site decides whether its text is shown as written.
@@ -142,6 +143,15 @@ final class _TooDeep extends _Shown {
   const _TooDeep(super.text);
 }
 
+/// A decoded value JSON cannot encode, within budget: its tree, shown with no
+/// Source view, and its `toString()` for the copy button. Its nesting is not
+/// measured against [maxJsonDepth].
+final class _Unencodable extends _Shown {
+  const _Unencodable(super.text, this.nodes);
+
+  final List<JsonNode> nodes;
+}
+
 /// JSON within budget: its tree, and its Source view's text.
 final class _Tree extends _Shown {
   const _Tree(super.text, this.nodes);
@@ -177,7 +187,7 @@ class _JsonViewerState extends State<JsonViewer> {
     } on JsonUnsupportedObjectError {
       final text = value.toString();
       if (text.length > maxHighlightedLength) return _TooLarge(text);
-      return _Invalid(text);
+      return _Unencodable(text, buildJsonTree(value));
     }
     return _decideText(encoded);
   }
@@ -224,23 +234,28 @@ class _JsonViewerState extends State<JsonViewer> {
           const ContentInfoNotice(message: _failureNotice),
         _Invalid() => null,
         _TooDeep() => const ContentInfoNotice(message: _depthNotice),
-        _Tree() => null,
+        _Unencodable() || _Tree() => null,
       },
       fill: widget.fill,
       maxBodyHeight: widget.maxBodyHeight,
       body: switch (shown) {
         _TooLarge() => _sourceView('plaintext'),
         _Invalid() || _TooDeep() => _sourceView('json'),
-        // The code's surface, so switching views keeps one background. A
-        // Material, so the rows' ink paints on it rather than beneath it.
-        _Tree(:final nodes) when _view == ContentView.rendered => Material(
-            color: codeSurfaceColor(context),
-            child: JsonTreeView(nodes: nodes, selectable: widget.selectable),
-          ),
+        _Unencodable(:final nodes) => _treeView(nodes),
+        _Tree(:final nodes) when _view == ContentView.rendered =>
+          _treeView(nodes),
         _Tree() => _sourceView('json'),
       },
     );
   }
+
+  /// The Tree view of [nodes]. The code's surface, so switching views keeps
+  /// one background. A Material, so the rows' ink paints on it rather than
+  /// beneath it.
+  Widget _treeView(List<JsonNode> nodes) => Material(
+        color: codeSurfaceColor(context),
+        child: JsonTreeView(nodes: nodes, selectable: widget.selectable),
+      );
 
   /// The Source view: the text shown, highlighted as [language].
   Widget _sourceView(String language) => CodeView(

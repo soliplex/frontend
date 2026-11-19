@@ -384,19 +384,28 @@ void main() {
   });
 
   group('decoded value', () {
-    testWidgets('a value JSON cannot encode shows its text under the notice',
-        (tester) async {
-      await tester.pumpWidget(_inline(const JsonViewer.decoded(
-        {'a': double.infinity},
-        initialView: ContentView.rendered,
-        fill: false,
-      )));
+    for (final initialView in ContentView.values) {
+      testWidgets(
+          'a value JSON cannot encode shows its tree, '
+          'starting in ${initialView.name}', (tester) async {
+        await tester.pumpWidget(_inline(JsonViewer.decoded(
+          const {'a': double.infinity},
+          initialView: initialView,
+          fill: false,
+        )));
 
-      expect(tester.takeException(), isNull);
-      expect(find.text(_notice), findsOneWidget);
-      expect(_viewSwitch(), findsNothing);
-      expect(_codeView(tester).code, '{a: Infinity}');
-    });
+        expect(tester.takeException(), isNull);
+        expect(find.byType(JsonTreeView), findsOneWidget);
+        expect(find.textContaining('a: Infinity'), findsOneWidget);
+        expect(find.byType(CodeView), findsNothing);
+        expect(find.byType(ContentInfoNotice), findsNothing);
+        expect(_viewSwitch(), findsNothing);
+        expect(
+          tester.widget<ContentHeader>(find.byType(ContentHeader)).copyText,
+          '{a: Infinity}',
+        );
+      });
+    }
 
     testWidgets('an unencodable value over the limit shows plain text',
         (tester) async {

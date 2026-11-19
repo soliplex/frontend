@@ -738,7 +738,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   /// The text a [JsonViewer.decoded] Source view lays out for [content]. A
   /// value JSON cannot encode, such as `double.infinity`, is measured by its
-  /// `toString()`, which is what the viewer shows in its place.
+  /// `toString()`, which is what the viewer copies in its place. The viewer
+  /// shows such a value only as its Tree, which has a row per value where
+  /// this text may have a single line, so the clamp can miss it.
   ///
   /// Called only for a row the reader has expanded — `content` reaches tens of
   /// KB, so encoding it to decide whether to draw a chevron would cost that on
