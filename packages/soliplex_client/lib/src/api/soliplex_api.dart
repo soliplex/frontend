@@ -1755,6 +1755,104 @@ class SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
+    _requireUploadName(filename);
+
+    await _transport.request<void>(
+      'DELETE',
+      _urlBuilder.build(pathSegments: ['uploads', roomId, filename]),
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// Downloads a file uploaded to a room.
+  ///
+  /// Built from the room and the name rather than taken from
+  /// [FileUpload.url]: the server forms that URL from the request it
+  /// answered, which behind a proxy can name another scheme or host — one
+  /// this client's credentials must not be sent to.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room's ID (must not be empty)
+  /// - [filename]: The uploaded file's name, as the listing gave it (one path
+  ///   segment)
+  /// - [timeout]: Overrides the transport's default for this request
+  ///
+  /// Returns the raw file bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] or [filename] is empty, or [filename] is
+  ///   not one path segment
+  /// - [NotFoundException] if the room has no upload by that name (404)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] without access to the room (403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getRoomUploadFile(
+    String roomId,
+    String filename, {
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireUploadName(filename);
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(pathSegments: ['uploads', roomId, 'file', filename]),
+      timeout: timeout,
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// Downloads a file uploaded to a thread.
+  ///
+  /// Built from its parts rather than taken from [FileUpload.url], for the
+  /// reason [getRoomUploadFile] gives.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room's ID (must not be empty)
+  /// - [threadId]: The thread's ID (must not be empty)
+  /// - [filename]: The uploaded file's name, as the listing gave it (one path
+  ///   segment)
+  /// - [timeout]: Overrides the transport's default for this request
+  ///
+  /// Returns the raw file bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any parameter is empty, or [filename] is not one
+  ///   path segment
+  /// - [NotFoundException] if the thread has no upload by that name (404)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] without access to the room (403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getThreadUploadFile(
+    String roomId,
+    String threadId,
+    String filename, {
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+    _requireUploadName(filename);
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['uploads', roomId, 'thread', threadId, 'file', filename],
+      ),
+      timeout: timeout,
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// Rejects an upload name that is empty or more than one path segment.
+  /// Uploads live flat in their directory, so a name with a `/`, or one of
+  /// `.` and `..`, can only be a mistake or an attempt to reach elsewhere.
+  void _requireUploadName(String filename) {
     _requireNonEmpty(filename, 'filename');
     if (filename.contains('/') || filename == '.' || filename == '..') {
       throw ArgumentError.value(
@@ -1763,12 +1861,6 @@ class SoliplexApi {
         'must be one path segment',
       );
     }
-
-    await _transport.request<void>(
-      'DELETE',
-      _urlBuilder.build(pathSegments: ['uploads', roomId, filename]),
-      cancelToken: cancelToken,
-    );
   }
 
   /// Uploads a file to a thread's upload directory.
