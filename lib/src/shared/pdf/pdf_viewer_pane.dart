@@ -105,6 +105,7 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   var _passwordTries = 0;
   var _searching = false;
   final _query = TextEditingController();
+  final _searchFocus = FocusNode(debugLabel: 'PDF search');
 
   /// False while [initState] runs, where the first load's opening phase is
   /// assigned rather than set: there is no build yet to schedule.
@@ -139,6 +140,7 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   @override
   void dispose() {
     _query.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -309,6 +311,11 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
       _closeSearch();
     } else {
       setState(() => _searching = true);
+      // Asked for rather than autofocused: autofocus yields to whatever
+      // already holds focus in the scope — the composer, beside the chat.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _searching) _searchFocus.requestFocus();
+      });
     }
   }
 
@@ -345,7 +352,11 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             onClose: widget.onClose,
           ),
           if (_searching && document != null)
-            _SearchBar(query: _query, document: document),
+            _SearchBar(
+              query: _query,
+              focusNode: _searchFocus,
+              document: document,
+            ),
           const Divider(height: 1),
           Expanded(child: _buildBody(context)),
         ],
@@ -601,9 +612,14 @@ class _Header extends StatelessWidget {
 }
 
 class _SearchBar extends StatelessWidget {
-  const _SearchBar({required this.query, required this.document});
+  const _SearchBar({
+    required this.query,
+    required this.focusNode,
+    required this.document,
+  });
 
   final TextEditingController query;
+  final FocusNode focusNode;
   final PdfDocumentController document;
 
   @override
@@ -621,9 +637,9 @@ class _SearchBar extends StatelessWidget {
           Expanded(
             child: SoliplexInput(
               controller: query,
+              focusNode: focusNode,
               hintText: 'Search in document',
               leadingIcon: const Icon(Icons.search),
-              autofocus: true,
               onChanged: document.search,
               onSubmitted: (_) => unawaited(document.nextMatch()),
             ),
