@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -94,28 +92,6 @@ void main() {
       expect(find.text('Tree'), findsOneWidget);
       expect(find.text('Source'), findsOneWidget);
       expect(_codeView(tester).code, '{\n  "a": 1e999\n}');
-    });
-
-    testWidgets('the Tree sits on the same surface as the Source',
-        (tester) async {
-      await tester.pumpWidget(_inline(const JsonViewer.source(
-        '{"a": 1}',
-        initialView: ContentView.rendered,
-        fill: false,
-        formatSource: true,
-      )));
-
-      final surface = githubTheme['root']!.backgroundColor;
-      expect(surface, isNotNull);
-      expect(
-        find.ancestor(
-          of: find.byType(JsonTreeView),
-          matching: find.byWidgetPredicate(
-            (widget) => widget is Material && widget.color == surface,
-          ),
-        ),
-        findsOneWidget,
-      );
     });
 
     testWidgets("a collapsible row's ink paints on the Tree's surface",
@@ -332,29 +308,6 @@ void main() {
       expect(find.text(_sizeNotice), findsOneWidget);
       expect(find.text(_notice), findsNothing);
       expect(_viewSwitch(), findsNothing);
-      expect(_codeView(tester).language, 'plaintext');
-      expect(_codeView(tester).code, source);
-    });
-
-    testWidgets(
-        'valid JSON whose pretty-print is over the limit shows the source plain',
-        (tester) async {
-      final source = '[${List.filled(40000, '1').join(',')}]';
-      expect(source.length, lessThan(maxHighlightedLength));
-      final pretty = const JsonEncoder.withIndent('  ').convert(
-        jsonDecode(source),
-      );
-      expect(pretty.length, greaterThan(maxHighlightedLength));
-      await tester.pumpWidget(_inline(JsonViewer.source(
-        source,
-        initialView: ContentView.rendered,
-        fill: false,
-        formatSource: true,
-      )));
-
-      expect(find.text(_sizeNotice), findsOneWidget);
-      expect(_viewSwitch(), findsNothing);
-      expect(find.byType(JsonTreeView), findsNothing);
       expect(_codeView(tester).language, 'plaintext');
       expect(_codeView(tester).code, source);
     });

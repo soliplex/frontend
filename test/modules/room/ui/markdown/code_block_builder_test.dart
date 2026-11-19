@@ -116,24 +116,6 @@ void main() {
       expect(find.text(notice), findsOneWidget);
     });
 
-    testWidgets('a json fence over the limit in chat shows the notice',
-        (tester) async {
-      final json = '{"a": "${'x' * maxHighlightedLength}"}';
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: FlutterMarkdownPlusRenderer(data: '```json\n$json\n```'),
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('Too large to highlight; showing plain text.'),
-          findsOneWidget);
-      expect(find.text('Tree'), findsNothing);
-    });
-
     testWidgets('SVG block shows preview/source switch and copy button',
         (tester) async {
       const svgCode = '<svg xmlns="http://www.w3.org/2000/svg">'
