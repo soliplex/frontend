@@ -167,6 +167,12 @@ class _JsonViewerState extends State<JsonViewer> {
 
   late _Shown _shown;
 
+  /// The body built for [_shown], [_view] and [JsonViewer.selectable], reused
+  /// until one of them changes so that a parent's rebuild does not highlight
+  /// the text again. It holds nothing read from the context: the widgets in it
+  /// depend on the theme themselves.
+  Widget? _body;
+
   @override
   void initState() {
     super.initState();
@@ -178,7 +184,9 @@ class _JsonViewerState extends State<JsonViewer> {
     super.didUpdateWidget(old);
     if (old.source != widget.source || !identical(old.value, widget.value)) {
       _shown = _decide();
+      _body = null;
     }
+    if (old.selectable != widget.selectable) _body = null;
   }
 
   _Shown _decide() {
@@ -225,7 +233,10 @@ class _JsonViewerState extends State<JsonViewer> {
         copyTooltip: label == _defaultLabel ? 'Copy JSON' : 'Copy $label',
         view: shown is _Tree ? _view : null,
         renderedLabel: 'Tree',
-        onViewChanged: (view) => setState(() => _view = view),
+        onViewChanged: (view) => setState(() {
+          _view = view;
+          _body = null;
+        }),
       ),
       notice: switch (shown) {
         _TooLarge() =>
@@ -241,24 +252,30 @@ class _JsonViewerState extends State<JsonViewer> {
       },
       fill: widget.fill,
       maxBodyHeight: widget.maxBodyHeight,
-      body: switch (shown) {
+      body: switch (_body ??= _buildBody(shown)) {
+        final JsonTreeView tree => _onCodeSurface(tree),
+        final body => body,
+      },
+    );
+  }
+
+  Widget _buildBody(_Shown shown) => switch (shown) {
         _TooLarge() => _sourceView('plaintext'),
         _Invalid() || _TooDeep() => _sourceView('json'),
         _Unencodable(:final nodes) => _treeView(nodes),
         _Tree(:final nodes) when _view == ContentView.rendered =>
           _treeView(nodes),
         _Tree() => _sourceView('json'),
-      },
-    );
-  }
+      };
 
-  /// The Tree view of [nodes]. The code's surface, matching the Source view's
-  /// background. A Material, so the rows' ink paints on it rather than beneath
-  /// it.
-  Widget _treeView(List<JsonNode> nodes) => Material(
-        color: codeSurfaceColor(context),
-        child: JsonTreeView(nodes: nodes, selectable: widget.selectable),
-      );
+  /// The Tree view of [nodes].
+  Widget _treeView(List<JsonNode> nodes) =>
+      JsonTreeView(nodes: nodes, selectable: widget.selectable);
+
+  /// [tree] on the code's surface, matching the Source view's background. A
+  /// Material, so the rows' ink paints on it rather than beneath it.
+  Widget _onCodeSurface(JsonTreeView tree) =>
+      Material(color: codeSurfaceColor(context), child: tree);
 
   /// The Source view: the text shown, highlighted as [language].
   Widget _sourceView(String language) => CodeView(
