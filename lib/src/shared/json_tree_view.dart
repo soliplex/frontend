@@ -124,7 +124,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
           children: [
             ..._keySpans(theme, node.key),
             TextSpan(
-              text: value is String ? '"$value"' : '$value',
+              text: value is String ? '"${_escape(value)}"' : '$value',
               style: _valueStyle(theme, value),
             ),
           ],
@@ -197,7 +197,37 @@ TextStyle? _valueStyle(Map<String, TextStyle> theme, Object? value) =>
 
 List<InlineSpan> _keySpans(Map<String, TextStyle> theme, String key) => [
       if (key.isNotEmpty) ...[
-        TextSpan(text: key, style: theme['attr']),
+        TextSpan(text: _escape(key), style: theme['attr']),
         const TextSpan(text: ': '),
       ],
     ];
+
+/// [text] with what would misread or break layout escaped as in JSON:
+/// backslash, double quote, control characters other than line feed and tab,
+/// and unpaired surrogates, which the text engine rejects.
+String _escape(String text) {
+  final out = StringBuffer();
+  for (var i = 0; i < text.length; i++) {
+    final unit = text.codeUnitAt(i);
+    final isHighSurrogate = unit >= 0xD800 && unit <= 0xDBFF;
+    final isLowSurrogate = unit >= 0xDC00 && unit <= 0xDFFF;
+    if (isHighSurrogate &&
+        i + 1 < text.length &&
+        text.codeUnitAt(i + 1) >= 0xDC00 &&
+        text.codeUnitAt(i + 1) <= 0xDFFF) {
+      out.write(text.substring(i, i + 2));
+      i++;
+    } else if (unit == 0x5C) {
+      out.write(r'\\');
+    } else if (unit == 0x22) {
+      out.write(r'\"');
+    } else if ((unit < 0x20 && unit != 0x0A && unit != 0x09) ||
+        isHighSurrogate ||
+        isLowSurrogate) {
+      out.write('\\u${unit.toRadixString(16).toUpperCase().padLeft(4, '0')}');
+    } else {
+      out.writeCharCode(unit);
+    }
+  }
+  return out.toString();
+}

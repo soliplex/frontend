@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -226,6 +228,18 @@ void main() {
 
       expect(find.textContaining('"x\ny"'), findsOneWidget);
       expect(find.textContaining(r'\n'), findsNothing);
+    });
+
+    testWidgets('strings and keys are escaped so any string renders',
+        (tester) async {
+      final decoded = jsonDecode(
+        r'{"k\ud800": "a\"b\ud800", "e": "\ud83d\ude00"}',
+      );
+      await _pumpTree(tester, buildJsonTree(decoded));
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining(r'k\uD800: "a\"b\uD800"'), findsOneWidget);
+      expect(find.textContaining('e: "😀"'), findsOneWidget);
     });
 
     testWidgets('a selectable tree selects across rows', (tester) async {
