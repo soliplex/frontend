@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'sse_event_parser.dart';
 
 sealed class RunEntry {
@@ -90,17 +88,12 @@ AccumulatedRun accumulateEvents(List<SseEvent> events) {
     final buffer = toolArgBuffers.remove(toolCallId);
     final name = toolNames.remove(toolCallId);
     if (name != null) {
-      final rawArgs = buffer?.toString() ?? '';
-      String formattedArgs;
-      try {
-        final parsed = jsonDecode(rawArgs);
-        formattedArgs = const JsonEncoder.withIndent('  ').convert(parsed);
-      } on FormatException {
-        formattedArgs = rawArgs;
-      }
       entries.add(
         ToolCallEntry(
-            toolCallId: toolCallId, toolName: name, args: formattedArgs),
+          toolCallId: toolCallId,
+          toolName: name,
+          args: buffer?.toString() ?? '',
+        ),
       );
     }
   }

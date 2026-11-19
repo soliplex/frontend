@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
+import '../../../shared/content/content_frame.dart';
+import '../../../shared/content/json_viewer.dart';
 import '../models/event_accumulator.dart';
-import '../../../shared/json_tree_model.dart';
 import '../models/sse_event_parser.dart';
-import '../../../shared/json_tree_view.dart';
 
 /// How the parsed SSE stream is rendered.
 enum StreamView {
@@ -196,11 +196,11 @@ class _RunEntryCard extends StatelessWidget {
               : colorScheme.onSecondaryContainer,
           text,
         ),
-      ToolCallEntry(:final toolName, :final args) => (
+      ToolCallEntry(:final toolName) => (
           'TOOL CALL',
           colorScheme.tertiaryContainer,
           colorScheme.onTertiaryContainer,
-          '$toolName\n$args',
+          toolName,
         ),
       ToolResultEntry(:final content) => (
           'TOOL RESULT',
@@ -243,6 +243,15 @@ class _RunEntryCard extends StatelessWidget {
             if (content.isNotEmpty) ...[
               const SizedBox(height: SoliplexSpacing.s2),
               SelectableText(content, style: theme.textTheme.bodySmall),
+            ],
+            if (entry case ToolCallEntry(:final args) when args.isNotEmpty) ...[
+              const SizedBox(height: SoliplexSpacing.s2),
+              JsonViewer.source(
+                args,
+                initialView: ContentView.source,
+                fill: false,
+                formatSource: true,
+              ),
             ],
           ],
         ),
@@ -329,7 +338,6 @@ class _SseEventCardState extends State<_SseEventCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final summary = sseEventSummary(widget.event);
-    final nodes = buildJsonTree(widget.event.payload);
 
     return Card(
       margin: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
@@ -375,7 +383,11 @@ class _SseEventCardState extends State<_SseEventCard> {
                 SoliplexSpacing.s3,
                 SoliplexSpacing.s3,
               ),
-              child: JsonTreeView(nodes: nodes),
+              child: JsonViewer.decoded(
+                widget.event.payload,
+                initialView: ContentView.rendered,
+                fill: false,
+              ),
             ),
         ],
       ),
