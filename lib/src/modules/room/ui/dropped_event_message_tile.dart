@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-import '../../../shared/json_tree_model.dart';
-import '../../../shared/json_tree_view.dart';
+import '../../../shared/content/content_frame.dart';
+import '../../../shared/content/json_viewer.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 /// Renders a [DroppedEventMessage] as a low-emphasis, collapsed-by-default
@@ -109,14 +109,27 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
         style: mono?.copyWith(fontStyle: FontStyle.italic),
       );
     }
+    // Both viewers are non-selectable so the tile joins the transcript's
+    // SelectionArea rather than capturing the drag with its own selection.
     if (raw is String) {
       // Top-level JSON parse failure: show the raw bytes the parser
-      // rejected, so a developer can see the malformed wire content.
-      return Text(raw, style: mono);
+      // rejected, as received, so a developer can see the malformed wire
+      // content. The tile already says why it is here.
+      return JsonViewer.source(
+        raw,
+        initialView: ContentView.source,
+        fill: false,
+        formatSource: false,
+        selectable: false,
+        showFailureNotice: false,
+      );
     }
-    // Non-selectable so the tile joins the transcript's SelectionArea rather
-    // than capturing the drag with its own selection.
-    return JsonTreeView(nodes: buildJsonTree(raw), selectable: false);
+    return JsonViewer.decoded(
+      raw,
+      initialView: ContentView.rendered,
+      fill: false,
+      selectable: false,
+    );
   }
 
   String _humanizeSource(DropSource source) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_frontend/src/modules/room/ui/dropped_event_message_tile.dart';
+import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 
 Future<void> _pump(WidgetTester tester, DroppedEventMessage message) {
   return tester.pumpWidget(
@@ -122,9 +124,56 @@ void main() {
     await tester.tap(find.byType(InkWell));
     await tester.pump();
 
-    expect(find.text('not valid json at all'), findsOneWidget);
+    expect(
+      tester.widget<CodeView>(find.byType(CodeView)).code,
+      'not valid json at all',
+    );
+    // The tile already says why it is here; the viewer adds no notice.
+    expect(
+        find.text("This isn't valid JSON; showing the source."), findsNothing);
+    expect(find.text('Tree'), findsNothing);
     // Belt-and-suspenders: not the unavailable fallback.
     expect(find.text('(payload unavailable)'), findsNothing);
+  });
+
+  testWidgets('a decoded payload shows Tree / Source', (tester) async {
+    final msg = DroppedEventMessage.create(
+      id: 'dropped-run-1-3',
+      source: DropSource.decode,
+      reason: 'unknown event type',
+      rawPayload: const {'type': 'WIDGET'},
+    );
+
+    await _pump(tester, msg);
+    await tester.tap(find.byType(InkWell));
+    await tester.pump();
+
+    expect(find.byType(JsonViewer), findsOneWidget);
+    expect(find.text('Tree'), findsOneWidget);
+    expect(find.text('Source'), findsOneWidget);
+  });
+
+  testWidgets('an unparseable payload is non-selectable inside a SelectionArea',
+      (tester) async {
+    final msg = DroppedEventMessage.create(
+      id: 'dropped-pre-run-456',
+      source: DropSource.decode,
+      reason: 'parse failure',
+      rawPayload: 'not valid json at all',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(child: DroppedEventMessageTile(message: msg)),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(InkWell).first);
+    await tester.pump();
+
+    expect(find.byType(CodeView), findsOneWidget);
+    expect(find.byType(SelectableText), findsNothing);
   });
 
   testWidgets('expanded JSON payload is non-selectable inside a SelectionArea',
@@ -153,5 +202,10 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.textContaining('foo'), findsWidgets);
     expect(find.byType(SelectionArea), findsOneWidget);
+    expect(find.byType(SelectableText), findsNothing);
+
+    await tester.tap(find.text('Source'));
+    await tester.pump();
+    expect(find.byType(SelectableText), findsNothing);
   });
 }
