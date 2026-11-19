@@ -35,11 +35,12 @@ const maxJsonDepth = 100;
 /// platforms integers beyond the 64-bit range become doubles.
 ///
 /// Text that does not parse shows as it is, highlighted, with no switch and a
-/// notice above it, unless [showFailureNotice] is false or [isStreaming], when
-/// the text may still be incomplete. Empty or whitespace-only text gets a
-/// neutral notice that it is empty instead, not subject to
-/// [showFailureNotice], and is not logged. The failure is logged once per
-/// process for each label and content pair, and never while streaming.
+/// neutral notice above it, unless [showFailureNotice] is false or
+/// [isStreaming], when the text may still be incomplete. Empty or
+/// whitespace-only text gets a neutral notice that it is empty instead, shown
+/// once streaming ends, not subject to [showFailureNotice], and not logged.
+/// The failure is logged once per process for each label and content pair,
+/// and never while streaming.
 ///
 /// Content beyond the viewer's budget gets no switch and a neutral notice
 /// instead, checked in this order: text longer than [maxHighlightedLength]
@@ -267,7 +268,7 @@ class _JsonViewerState extends State<JsonViewer> {
             ? null
             : const ContentInfoNotice(message: _emptyNotice),
         _Invalid() when widget.showFailureNotice && !widget.isStreaming =>
-          const RenderFailureNotice(message: _failureNotice),
+          const ContentInfoNotice(message: _failureNotice),
         _Invalid() => null,
         _TooDeep() => const ContentInfoNotice(message: _depthNotice),
         _Tree() => null,

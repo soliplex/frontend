@@ -106,7 +106,17 @@ void main() {
     await tester.pumpWidget(_host(const RenderFailureNotice(message: 'Oops')));
 
     expect(find.text('Oops'), findsOneWidget);
-    expect(find.byIcon(Icons.warning_amber_outlined), findsOneWidget);
+    final colors = Theme.of(tester.element(find.text('Oops'))).colorScheme;
+    final bar = tester.widget<Container>(
+      find
+          .ancestor(of: find.text('Oops'), matching: find.byType(Container))
+          .first,
+    );
+    expect(bar.color, colors.errorContainer);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.warning_amber_outlined)).color,
+      colors.onErrorContainer,
+    );
   });
 
   group('ContentFrame', () {

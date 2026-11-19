@@ -243,7 +243,7 @@ void main() {
       expect(find.byType(JsonTreeView), findsNothing);
     });
 
-    testWidgets('notice is an error bar', (tester) async {
+    testWidgets('notice is a neutral bar', (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
         '{"a": broken',
         initialView: ContentView.rendered,
@@ -255,11 +255,12 @@ void main() {
       final bar = tester.widget<Container>(find
           .ancestor(of: find.text(_notice), matching: find.byType(Container))
           .first);
-      expect(bar.color, colors.errorContainer);
+      expect(bar.color, colors.surfaceContainerHighest);
       expect(
-        tester.widget<Icon>(find.byIcon(Icons.warning_amber_outlined)).color,
-        colors.onErrorContainer,
+        tester.widget<Icon>(find.byIcon(Icons.info_outline)).color,
+        colors.onSurfaceVariant,
       );
+      expect(find.byIcon(Icons.warning_amber_outlined), findsNothing);
     });
 
     testWidgets('empty source says it is empty and logs nothing',
