@@ -63,6 +63,11 @@ class FileDownloadsRegistry {
 
   final SaveFile _saveFile;
   final bool _isWeb;
+
+  /// Saves bytes already in hand the way this registry saves a download: a
+  /// save dialog natively, a browser download on the web. For files fetched
+  /// elsewhere, such as a PDF the viewer holds.
+  SaveFile get saveFile => _saveFile;
   final PerServerCache<(String, String), FileDownloads> _downloads;
 
   /// The downloads of [threadId] in [roomId] for [entry]. Throws
