@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Hashes of the keys [isFirstOccurrence] has seen. The same failure is met
 /// again and again: Flutter's `errorBuilder` is invoked on every rebuild while
 /// a failed image is mounted, and a viewer meets its content anew each time it
@@ -12,3 +14,8 @@ final _seenKeys = <int>{};
 /// failure once. Keyed on [key]'s hash, so two keys whose hashes collide are
 /// treated as one — an acceptable, rare miss for log dedupe.
 bool isFirstOccurrence(String key) => _seenKeys.add(key.hashCode);
+
+/// Forgets every key seen so far, so a test that asserts on a record logged
+/// once per key starts from a clean set.
+@visibleForTesting
+void forgetOccurrences() => _seenKeys.clear();

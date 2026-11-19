@@ -8,6 +8,7 @@ import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 import 'package:soliplex_frontend/src/shared/content/content_frame.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
+import 'package:soliplex_frontend/src/shared/log_once.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 const _notice = "This isn't valid JSON; showing the source.";
@@ -33,11 +34,10 @@ MemorySink _captureDebugLogs() {
     ..minimumLevel = LogLevel.debug
     ..addSink(sink);
   addTearDown(LogManager.instance.reset);
+  addTearDown(forgetOccurrences);
   return sink;
 }
 
-// Invalid sources are logged once per process, so each test that logs uses a
-// source no other test uses.
 void main() {
   group('valid source', () {
     testWidgets('starts in the requested view: Tree', (tester) async {

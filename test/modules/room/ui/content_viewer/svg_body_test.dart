@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
+import 'package:soliplex_frontend/src/shared/log_once.dart';
 import 'package:soliplex_frontend/src/shared/zoomable_view.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -182,6 +183,7 @@ void main() {
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
+    addTearDown(forgetOccurrences);
     const content = 'not valid <svg streaming garbage';
     Iterable<LogRecord> warnings() =>
         sink.records.where((r) => r.level == LogLevel.warning);
@@ -271,6 +273,7 @@ void main() {
     final sink = MemorySink();
     LogManager.instance.addSink(sink);
     addTearDown(() => LogManager.instance.removeSink(sink));
+    addTearDown(forgetOccurrences);
     const content = 'not valid <svg logged once garbage';
 
     await tester.pumpWidget(_fill(const SvgBody(
