@@ -89,6 +89,20 @@ void main() {
       expect(find.textContaining('  "a": 1'), findsOneWidget);
     });
 
+    testWidgets('a number beyond double range shows as written',
+        (tester) async {
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"a":1e999}',
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Tree'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
+      expect(_codeView(tester).code, '{\n  "a": 1e999\n}');
+    });
+
     testWidgets('the Tree sits on the same surface as the Source',
         (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
@@ -391,6 +405,18 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text(_depthNotice), findsOneWidget);
+    });
+
+    testWidgets('unclosed nesting too deep gets the depth notice, unparsed',
+        (tester) async {
+      await tester.pumpWidget(_inline(JsonViewer.source(
+        '[' * (maxJsonDepth + 1),
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(find.text(_depthNotice), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
     });
 
     testWidgets('a decoded value nested too deep shows the depth notice',

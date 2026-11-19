@@ -8,6 +8,7 @@ import '../json_tree_view.dart';
 import '../log_once.dart';
 import 'code_view.dart';
 import 'content_frame.dart';
+import 'json_text.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.json_viewer');
 
@@ -17,26 +18,32 @@ const _depthNotice = 'Too deeply nested for a tree; showing the source.';
 
 const _prettyJson = JsonEncoder.withIndent('  ');
 
-/// The deepest nesting [JsonViewer] builds a tree for or pretty-prints:
-/// building the tree, its widgets, and the pretty-print each recurse once per
-/// level, so much deeper nesting overflows the stack. A scalar is depth 0, `[]`
+/// The deepest nesting [JsonViewer] builds a tree for: building the tree and
+/// its widgets, re-encoding a decoded value, and, on the web, decoding text
+/// each recurse once per level, so much deeper nesting overflows the stack.
+/// That is why text is measured before it is decoded. A scalar is depth 0, `[]`
 /// and `{}` are 1, `[[1]]` is 2.
 const maxJsonDepth = 100;
 
 /// JSON under the shared header, with a Tree / Source switch.
 ///
-/// The Source view is the 2-space pretty-print, and the copy button copies
-/// whatever the Source view shows. Text that does not parse shows as it is,
-/// highlighted, with no switch and a notice above it, unless
-/// [showFailureNotice] is false or [isStreaming], when the text may still be
-/// incomplete. The failure is logged once per process for each label and
-/// content pair, and never while streaming.
+/// The Source view is the text laid out with a 2-space indent, every string and
+/// number as written; for a decoded value it is the 2-space pretty-print. The
+/// copy button copies whatever the Source view shows. The Tree shows decoded
+/// values, so `1e999` reads `Infinity` there, and integers beyond 2^53 round on
+/// the web.
+///
+/// Text that does not parse shows as it is, highlighted, with no switch and a
+/// notice above it, unless [showFailureNotice] is false or [isStreaming], when
+/// the text may still be incomplete. The failure is logged once per process
+/// for each label and content pair, and never while streaming.
 ///
 /// Content beyond the viewer's budget gets no switch and a neutral notice
-/// instead: text longer than [maxHighlightedLength] shows as plain text,
-/// unparsed; JSON nesting deeper than [maxJsonDepth] shows its text
-/// highlighted; and a pretty-print longer than [maxHighlightedLength] shows
-/// as plain text.
+/// instead, checked in this order: text longer than [maxHighlightedLength]
+/// shows as plain text, unparsed; nesting deeper than [maxJsonDepth] shows the
+/// text highlighted, measured before parsing, so text that is also invalid
+/// gets this notice rather than the failure notice; and a Source view longer
+/// than [maxHighlightedLength] shows as plain text.
 class JsonViewer extends StatefulWidget {
   /// An already-decoded JSON [value], which must be what `jsonDecode` returns:
   /// anything else may not encode. Keep the same instance across rebuilds; a
@@ -126,7 +133,7 @@ final class _TooDeep extends _Shown {
   const _TooDeep(super.text);
 }
 
-/// JSON within budget: its tree, and its pretty-print as the source.
+/// JSON within budget: its tree, and its Source view's text.
 final class _Tree extends _Shown {
   const _Tree(super.text, this.nodes);
 
@@ -177,24 +184,30 @@ class _JsonViewerState extends State<JsonViewer> {
 
   _Shown _decide() {
     final source = widget.source;
-    if (source == null) return _decideDecoded(widget.value, '');
+    if (source == null) return _decideDecoded(widget.value);
     if (source.length > maxHighlightedLength) return _TooLarge(source);
+    if (jsonNestingDepth(source) > maxJsonDepth) return _TooDeep(source);
     final Object? decoded;
     try {
       decoded = jsonDecode(source);
     } on FormatException catch (e, st) {
       return _Invalid(source, e, st);
     }
-    return _decideDecoded(decoded, source);
+    return _treeWithin(formatJson(source), decoded);
   }
 
-  /// Decides for a decoded [value] whose text, if any, is [source].
-  _Shown _decideDecoded(Object? value, String source) {
-    if (_nestsTooDeep(value)) return _TooDeep(source);
-    final pretty = _prettyJson.convert(value);
-    if (pretty.length > maxHighlightedLength) return _TooLarge(pretty);
-    return _Tree(pretty, buildJsonTree(value));
+  /// Decides for a decoded [value], which has no text of its own.
+  _Shown _decideDecoded(Object? value) {
+    if (_nestsTooDeep(value)) return const _TooDeep('');
+    return _treeWithin(_prettyJson.convert(value), value);
   }
+
+  /// The tree of [value] with [text] as its Source view, unless [text] is
+  /// longer than [maxHighlightedLength].
+  _Shown _treeWithin(String text, Object? value) =>
+      text.length > maxHighlightedLength
+          ? _TooLarge(text)
+          : _Tree(text, buildJsonTree(value));
 
   void _logFailure() {
     final shown = _shown;
