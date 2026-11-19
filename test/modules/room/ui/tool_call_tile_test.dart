@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/tool_call_tile.dart';
+import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 
 Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -59,8 +61,7 @@ void main() {
     expect(find.text('pending'), findsOneWidget);
   });
 
-  testWidgets('expansion shows arguments when hasArguments', (tester) async {
-    const args = '{"query": "flutter test"}';
+  testWidgets('expansion shows arguments in a JsonViewer', (tester) async {
     await tester.pumpWidget(
       wrap(
         ToolCallTile(
@@ -68,7 +69,7 @@ void main() {
             const ToolCallInfo(
               id: 'tc-1',
               name: 'search_web',
-              arguments: args,
+              arguments: '{"query": "flutter test"}',
               status: ToolCallStatus.completed,
             ),
           ]),
@@ -79,8 +80,43 @@ void main() {
     await tester.tap(find.byType(ExpansionTile));
     await tester.pumpAndSettle();
 
+    expect(find.byType(JsonViewer), findsOneWidget);
     expect(find.text('Arguments'), findsOneWidget);
-    expect(find.text(args), findsOneWidget);
+    expect(find.text('Tree'), findsOneWidget);
+    expect(find.text('Source'), findsOneWidget);
+    expect(find.byTooltip('Copy Arguments'), findsOneWidget);
+    expect(
+      tester.widget<CodeView>(find.byType(CodeView)).code,
+      '{\n  "query": "flutter test"\n}',
+    );
+  });
+
+  testWidgets('arguments inside a SelectionArea add no SelectableText',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: ToolCallTile(
+              message: makeMessage([
+                const ToolCallInfo(
+                  id: 'tc-1',
+                  name: 'search_web',
+                  arguments: '{"query": "flutter test"}',
+                  status: ToolCallStatus.completed,
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(ExpansionTile));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(JsonViewer), findsOneWidget);
+    expect(find.byType(SelectableText), findsNothing);
   });
 
   testWidgets('expansion shows result when hasResult', (tester) async {

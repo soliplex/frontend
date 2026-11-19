@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../shared/content/content_frame.dart';
+import '../../../shared/content/json_viewer.dart';
+
 class ToolCallTile extends StatelessWidget {
   const ToolCallTile({super.key, required this.message});
   final ToolCallMessage message;
@@ -17,6 +20,9 @@ class ToolCallTile extends StatelessWidget {
     );
   }
 }
+
+const _blockPadding = EdgeInsets.fromLTRB(
+    SoliplexSpacing.s4, 0, SoliplexSpacing.s4, SoliplexSpacing.s2);
 
 class _ToolCallCard extends StatelessWidget {
   const _ToolCallCard({required this.toolCall});
@@ -52,10 +58,32 @@ class _ToolCallCard extends StatelessWidget {
         dense: true,
         children: [
           if (toolCall.hasArguments)
-            _CodeBlock(label: 'Arguments', text: toolCall.arguments),
+            _ArgumentsBlock(arguments: toolCall.arguments),
           if (toolCall.hasResult)
             _CodeBlock(label: 'Result', text: toolCall.result),
         ],
+      ),
+    );
+  }
+}
+
+/// The arguments sit in the chat transcript's `SelectionArea`, so the viewer
+/// does not add its own selection.
+class _ArgumentsBlock extends StatelessWidget {
+  const _ArgumentsBlock({required this.arguments});
+  final String arguments;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: _blockPadding,
+      child: JsonViewer.source(
+        arguments,
+        initialView: ContentView.source,
+        label: 'Arguments',
+        fill: false,
+        formatSource: true,
+        selectable: false,
       ),
     );
   }
@@ -70,8 +98,7 @@ class _CodeBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          SoliplexSpacing.s4, 0, SoliplexSpacing.s4, SoliplexSpacing.s2),
+      padding: _blockPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

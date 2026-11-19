@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/models/http_event_group.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/ui/http_exchange_tile.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 
 import '../../../helpers/http_event_factories.dart';
 
@@ -44,7 +46,8 @@ void main() {
       expect(find.text('Summary'), findsOneWidget);
     });
 
-    testWidgets('offers a JSON⇄Raw toggle for a JSON body', (tester) async {
+    testWidgets('a JSON body shows Tree / Source and one Copy Body',
+        (tester) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(),
@@ -55,9 +58,31 @@ void main() {
         _wrap(HttpExchangeTile(group: group, initiallyExpanded: true)),
       );
 
-      // The segmented toggle exists for the parseable response body.
-      expect(find.text('JSON'), findsOneWidget);
-      expect(find.text('Raw'), findsOneWidget);
+      expect(find.byType(JsonViewer), findsOneWidget);
+      expect(find.text('Tree'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
+      expect(find.byTooltip('Copy Body'), findsOneWidget);
+      expect(find.byType(JsonTreeView), findsOneWidget);
+    });
+
+    testWidgets('an already-decoded request body shows Tree / Source',
+        (tester) async {
+      final group = HttpEventGroup(
+        requestId: 'req-1',
+        request: createRequestEvent(
+          method: 'POST',
+          body: const {'hello': 'world'},
+        ),
+        response: createResponseEvent(),
+      );
+
+      await tester.pumpWidget(
+        _wrap(HttpExchangeTile(group: group, initiallyExpanded: true)),
+      );
+
+      expect(find.byType(JsonViewer), findsOneWidget);
+      expect(find.text('Tree'), findsOneWidget);
+      expect(find.byTooltip('Copy Body'), findsOneWidget);
     });
 
     testWidgets('shows a Copy as curl action', (tester) async {
@@ -88,7 +113,8 @@ void main() {
       expect(find.text('Connection failed'), findsOneWidget);
     });
 
-    testWidgets('plain-text body shows no JSON toggle', (tester) async {
+    testWidgets('a non-JSON body keeps its Body heading and plain text',
+        (tester) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(),
@@ -99,8 +125,11 @@ void main() {
         _wrap(HttpExchangeTile(group: group, initiallyExpanded: true)),
       );
 
+      expect(find.text('Body'), findsOneWidget);
+      expect(find.byTooltip('Copy Body'), findsOneWidget);
       expect(find.text('not json at all'), findsOneWidget);
-      expect(find.text('JSON'), findsNothing);
+      expect(find.byType(JsonViewer), findsNothing);
+      expect(find.text('Tree'), findsNothing);
     });
 
     testWidgets('stream response offers Conversation/Events/Raw views',

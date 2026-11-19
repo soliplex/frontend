@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/documents_card.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 
 void main() {
   Widget wrap(Widget child) => MaterialApp(
@@ -493,6 +494,61 @@ void main() {
       expect(find.text('Alice'), findsOneWidget);
       expect(find.text('pages'), findsOneWidget);
       expect(find.text('42'), findsOneWidget);
+    });
+
+    testWidgets('a scalar value is still plain selectable text',
+        (tester) async {
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [docWithMeta]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('meta.pdf'));
+      await tester.pump();
+      await tester.tap(find.text('Show metadata'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(SelectableText, 'Alice'), findsOneWidget);
+      expect(find.byType(JsonViewer), findsNothing);
+    });
+
+    testWidgets('a nested map value shows the JSON viewer in the dialog',
+        (tester) async {
+      const doc = RagDocument(
+        id: 'id-nested',
+        title: 'Nested Doc',
+        uri: '/files/nested.pdf',
+        metadata: {
+          'source': {
+            'origin': {'kind': 'upload', 'pages': 3},
+          },
+        },
+      );
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [doc]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('nested.pdf'));
+      await tester.pump();
+      await tester.tap(find.text('Show metadata'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(JsonViewer),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Tree'), findsOneWidget);
     });
   });
 }

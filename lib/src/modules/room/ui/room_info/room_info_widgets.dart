@@ -1,7 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+import '../../../../shared/content/content_frame.dart';
+import '../../../../shared/content/json_viewer.dart';
 
 class SectionCard extends StatelessWidget {
   const SectionCard({super.key, required this.title, required this.children});
@@ -122,30 +123,26 @@ class DialogButton extends StatelessWidget {
   }
 }
 
-const jsonPrettyEncoder = JsonEncoder.withIndent('  ');
-
-/// Formats a dynamic value for display, using pretty-printed JSON for
-/// complex values (maps/lists) and plain text for scalars.
-SelectableText formatDynamicValue(
+/// The widget showing a dynamic value: a [JsonViewer] for a complex value (a
+/// map or list), and plain text in [style] for a scalar. Pass [selectable]
+/// false inside a `SelectionArea`, which then selects the value.
+Widget dynamicValueView(
   BuildContext context,
   Object? value, {
   TextStyle? style,
+  required bool selectable,
 }) {
-  final isComplex = value is Map || value is Iterable;
-  String text;
-  if (isComplex) {
-    try {
-      text = jsonPrettyEncoder.convert(value);
-    } catch (_) {
-      text = value.toString();
-    }
-  } else {
-    text = '$value';
+  if (value is Map || value is Iterable) {
+    return JsonViewer.decoded(
+      value,
+      initialView: ContentView.source,
+      fill: false,
+      selectable: selectable,
+    );
   }
-  return SelectableText(
-    text,
-    style: isComplex ? context.monospaceOn(style) : style,
-  );
+  return selectable
+      ? SelectableText('$value', style: style)
+      : Text('$value', style: style);
 }
 
 /// Dialog rendering one or more raw parameter maps the backend passes
@@ -203,10 +200,11 @@ class RawParametersDialog extends StatelessWidget {
                       children: [
                         Text(entry.key, style: labelStyle),
                         const SizedBox(height: SoliplexSpacing.s1),
-                        formatDynamicValue(
+                        dynamicValueView(
                           context,
                           entry.value,
                           style: valueStyle,
+                          selectable: true,
                         ),
                       ],
                     ),

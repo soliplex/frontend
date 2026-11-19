@@ -542,8 +542,9 @@ class _MessageTimelineState extends State<MessageTimeline> {
                         final isLastItem = index == displayMessages.length - 1;
                         // The loading tile and the reply's tile carry different
                         // keys, so a band moving from one to the other mounts
-                        // fresh widgets; what the reader opened on it crosses
-                        // over through MessageExpansions.forBand.
+                        // fresh widgets except its ExecutionTimeline, which its
+                        // global key moves; what the reader opened on the band
+                        // crosses over through MessageExpansions.forBand.
                         final tile = MessageTile(
                           roomId: widget.roomId,
                           message: message,

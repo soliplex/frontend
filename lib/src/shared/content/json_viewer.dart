@@ -11,6 +11,7 @@ import 'json_text.dart';
 const _failureNotice = "This isn't valid JSON; showing the source.";
 const _emptyNotice = 'This JSON is empty.';
 const _depthNotice = 'Too deeply nested for a tree; showing the source.';
+const _defaultLabel = 'json';
 
 /// The deepest nesting [JsonViewer] builds a tree for: building the tree and
 /// its widgets and, on the web, decoding text each recurse once per level, so
@@ -21,32 +22,67 @@ const maxJsonDepth = 100;
 
 /// JSON under the shared header, with a Tree / Source switch.
 ///
-/// The Source view is the text as written, or laid out with a 2-space indent,
-/// every string and number as written, when [formatSource] is set. The copy
+/// The Source view of [JsonViewer.source] text is the text as written, or laid
+/// out with a 2-space indent, every string and number as written, when
+/// [formatSource] is set. A [JsonViewer.decoded] value's Source view is its
+/// encoding, always laid out, so its numbers read as Dart encodes them: a
+/// decoded `1e2` reads `100.0` (`100` on the web). The copy
 /// button copies what the Source view shows. The Tree shows decoded values, so
 /// `1e999` reads `Infinity` there, integers beyond 2^53 round on the web, and
 /// on native platforms integers beyond the 64-bit range become doubles.
 ///
 /// Oversized, too deeply nested ([maxJsonDepth]), invalid and empty content
-/// shows its text under a notice, with no Tree. While [isStreaming], the
-/// invalid and empty notices wait, since the text may be incomplete.
+/// shows its text under a notice, with no Tree. A decoded value JSON cannot
+/// encode, such as `double.infinity`, shows only its Tree, with no notice,
+/// and the copy button copies its `toString()`; past [maxHighlightedLength]
+/// that text shows instead, as oversized. While [isStreaming], the invalid and
+/// empty notices wait, since the text may be incomplete.
 class JsonViewer extends StatefulWidget {
   /// JSON text, parsed once per change of [source]. [formatSource] is
   /// required: each site decides whether its text is shown as written.
   const JsonViewer.source(
-    this.source, {
+    String this.source, {
     super.key,
     required this.initialView,
-    this.label = 'json',
+    this.label = _defaultLabel,
     required this.fill,
     required this.formatSource,
     this.selectable = true,
     this.isStreaming = false,
     this.showFailureNotice = true,
-  });
+    this.maxBodyHeight,
+  })  : value = null,
+        assert(
+          maxBodyHeight == null || !fill,
+          'only an inline viewer caps its body',
+        );
 
-  /// The JSON text.
-  final String source;
+  /// A decoded JSON [value], encoded once per change of it, by identity:
+  /// callers pass the same instance across rebuilds, or it is encoded and
+  /// parsed again on each one. Its encoding always parses, so it never gets
+  /// the invalid-JSON notice.
+  const JsonViewer.decoded(
+    this.value, {
+    super.key,
+    required this.initialView,
+    this.label = _defaultLabel,
+    required this.fill,
+    this.selectable = true,
+    this.maxBodyHeight,
+  })  : source = null,
+        formatSource = true,
+        isStreaming = false,
+        showFailureNotice = true,
+        assert(
+          maxBodyHeight == null || !fill,
+          'only an inline viewer caps its body',
+        );
+
+  /// The JSON text; null for a [JsonViewer.decoded] value.
+  final String? source;
+
+  /// The decoded JSON value; null for [JsonViewer.source] text.
+  final Object? value;
 
   /// The view shown first; [ContentView.rendered] is the Tree.
   final ContentView initialView;
@@ -55,10 +91,12 @@ class JsonViewer extends StatefulWidget {
   /// default `json`, `Copy <label>` otherwise.
   final String label;
 
-  /// Whether the Source view and the copy button show [source] laid out with
-  /// a 2-space indent rather than exactly as written. When the laid-out text
-  /// is longer than [maxHighlightedLength], [source] shows instead, as plain
-  /// text with no Tree, whatever this is.
+  /// Whether the Source view and the copy button show the JSON text laid out
+  /// with a 2-space indent rather than exactly as written. When the laid-out
+  /// text is longer than [maxHighlightedLength], the unlaid text shows
+  /// instead, as plain text with no Tree, whatever this is: [source], or the
+  /// compact encoding of a [JsonViewer.decoded] value. Always true for
+  /// [JsonViewer.decoded].
   final bool formatSource;
 
   /// Whether the viewer takes the bounded height it is given, scrolling its
@@ -75,7 +113,12 @@ class JsonViewer extends StatefulWidget {
 
   /// Whether text that does not parse gets the notice. A site that already
   /// explains the failure passes false. Empty text always gets its notice.
+  /// Always true for [JsonViewer.decoded].
   final bool showFailureNotice;
+
+  /// When set, the inline body is clipped to at most this height; see
+  /// [ContentFrame.maxBodyHeight].
+  final double? maxBodyHeight;
 
   @override
   State<JsonViewer> createState() => _JsonViewerState();
@@ -105,6 +148,15 @@ final class _TooDeep extends _Shown {
   const _TooDeep(super.text);
 }
 
+/// A decoded value JSON cannot encode, within budget: its tree, shown with no
+/// Source view, and its `toString()` for the copy button. Its nesting is not
+/// measured against [maxJsonDepth].
+final class _Unencodable extends _Shown {
+  const _Unencodable(super.text, this.nodes);
+
+  final List<JsonNode> nodes;
+}
+
 /// JSON within budget: its tree, and its Source view's text.
 final class _Tree extends _Shown {
   const _Tree(super.text, this.nodes);
@@ -117,6 +169,12 @@ class _JsonViewerState extends State<JsonViewer> {
 
   late _Shown _shown;
 
+  /// The body built for [_shown], [_view] and [JsonViewer.selectable], reused
+  /// until one of them changes so that a parent's rebuild does not highlight
+  /// the text again. It holds nothing read from the context: the widgets in it
+  /// depend on the theme themselves.
+  Widget? _body;
+
   @override
   void initState() {
     super.initState();
@@ -126,11 +184,28 @@ class _JsonViewerState extends State<JsonViewer> {
   @override
   void didUpdateWidget(JsonViewer old) {
     super.didUpdateWidget(old);
-    if (old.source != widget.source) _shown = _decide();
+    if (old.source != widget.source || !identical(old.value, widget.value)) {
+      _shown = _decide();
+      _body = null;
+    }
+    if (old.selectable != widget.selectable) _body = null;
   }
 
   _Shown _decide() {
-    final source = widget.source;
+    if (widget.source case final source?) return _decideText(source);
+    final value = widget.value;
+    final String encoded;
+    try {
+      encoded = jsonEncode(value);
+    } on JsonUnsupportedObjectError {
+      final text = value.toString();
+      if (text.length > maxHighlightedLength) return _TooLarge(text);
+      return _Unencodable(text, buildJsonTree(value));
+    }
+    return _decideText(encoded);
+  }
+
+  _Shown _decideText(String source) {
     if (source.length > maxHighlightedLength) return _TooLarge(source);
     if (jsonNestingDepth(source) > maxJsonDepth) return _TooDeep(source);
     final Object? decoded;
@@ -157,10 +232,13 @@ class _JsonViewerState extends State<JsonViewer> {
       header: ContentHeader(
         label: label,
         copyText: shown.text,
-        copyTooltip: label == 'json' ? 'Copy JSON' : 'Copy $label',
+        copyTooltip: label == _defaultLabel ? 'Copy JSON' : 'Copy $label',
         view: shown is _Tree ? _view : null,
         renderedLabel: 'Tree',
-        onViewChanged: (view) => setState(() => _view = view),
+        onViewChanged: (view) => setState(() {
+          _view = view;
+          _body = null;
+        }),
       ),
       notice: switch (shown) {
         _TooLarge() =>
@@ -172,22 +250,34 @@ class _JsonViewerState extends State<JsonViewer> {
           const ContentInfoNotice(message: _failureNotice),
         _Invalid() => null,
         _TooDeep() => const ContentInfoNotice(message: _depthNotice),
-        _Tree() => null,
+        _Unencodable() || _Tree() => null,
       },
       fill: widget.fill,
-      body: switch (shown) {
-        _TooLarge() => _sourceView('plaintext'),
-        _Invalid() || _TooDeep() => _sourceView('json'),
-        // The code's surface, so switching views keeps one background. A
-        // Material, so the rows' ink paints on it rather than beneath it.
-        _Tree(:final nodes) when _view == ContentView.rendered => Material(
-            color: codeSurfaceColor(context),
-            child: JsonTreeView(nodes: nodes, selectable: widget.selectable),
-          ),
-        _Tree() => _sourceView('json'),
+      maxBodyHeight: widget.maxBodyHeight,
+      body: switch (_body ??= _buildBody(shown)) {
+        final JsonTreeView tree => _onCodeSurface(tree),
+        final body => body,
       },
     );
   }
+
+  Widget _buildBody(_Shown shown) => switch (shown) {
+        _TooLarge() => _sourceView('plaintext'),
+        _Invalid() || _TooDeep() => _sourceView('json'),
+        _Unencodable(:final nodes) => _treeView(nodes),
+        _Tree(:final nodes) when _view == ContentView.rendered =>
+          _treeView(nodes),
+        _Tree() => _sourceView('json'),
+      };
+
+  /// The Tree view of [nodes].
+  Widget _treeView(List<JsonNode> nodes) =>
+      JsonTreeView(nodes: nodes, selectable: widget.selectable);
+
+  /// [tree] on the code's surface, matching the Source view's background. A
+  /// Material, so the rows' ink paints on it rather than beneath it.
+  Widget _onCodeSurface(JsonTreeView tree) =>
+      Material(color: codeSurfaceColor(context), child: tree);
 
   /// The Source view: the text shown, highlighted as [language].
   Widget _sourceView(String language) => CodeView(

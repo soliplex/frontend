@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
+import '../../../shared/content/content_frame.dart';
+import '../../../shared/content/json_viewer.dart';
 import '../../../shared/copy_button.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
-import '../../../shared/json_tree_model.dart';
 import 'http_event_tile.dart';
 import 'http_status_display.dart';
-import '../../../shared/json_tree_view.dart';
 import 'stream_content_view.dart';
 
 /// One HTTP exchange rendered as an expandable row.
@@ -360,10 +360,6 @@ class _HeadersAndBody extends StatelessWidget {
         ],
         if (body != null) ...[
           if (headers.isNotEmpty) const SizedBox(height: SoliplexSpacing.s4),
-          _SubHeader(
-            title: 'Body',
-            copyText: HttpEventGroup.formatBody(body),
-          ),
           _BodyView(body: body),
         ],
       ],
@@ -371,68 +367,51 @@ class _HeadersAndBody extends StatelessWidget {
   }
 }
 
-/// A request/response body shown as a structured JSON tree or raw text, with
-/// a toggle when the payload parses as JSON. Replaces the old separate
-/// "Overview" tab — raw vs. structured is a rendering mode, not a category.
-class _BodyView extends StatefulWidget {
+/// A request/response body: JSON in a [JsonViewer], anything else as plain
+/// text under a `Body` heading.
+class _BodyView extends StatelessWidget {
   const _BodyView({required this.body});
 
-  final dynamic body;
+  final Object body;
 
-  @override
-  State<_BodyView> createState() => _BodyViewState();
-}
-
-enum _BodyMode { structured, raw }
-
-class _BodyViewState extends State<_BodyView> {
-  _BodyMode _mode = _BodyMode.structured;
-
-  /// The parsed JSON value, or null when the body isn't JSON.
-  dynamic get _parsed {
-    final body = widget.body;
-    if (body is String) {
-      try {
-        return jsonDecode(body);
-      } on FormatException {
-        return null;
-      }
+  static bool _parses(String text) {
+    try {
+      jsonDecode(text);
+      return true;
+    } on FormatException {
+      return false;
     }
-    return body;
   }
 
   @override
   Widget build(BuildContext context) {
-    final parsed = _parsed;
-    final structurable = parsed != null;
-
+    final body = this.body;
+    if (body is! String) {
+      return JsonViewer.decoded(
+        body,
+        initialView: ContentView.rendered,
+        label: 'Body',
+        fill: false,
+      );
+    }
+    if (_parses(body)) {
+      return JsonViewer.source(
+        body,
+        initialView: ContentView.rendered,
+        label: 'Body',
+        fill: false,
+        formatSource: true,
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (structurable) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<_BodyMode>(
-              segments: const [
-                ButtonSegment(value: _BodyMode.structured, label: Text('JSON')),
-                ButtonSegment(value: _BodyMode.raw, label: Text('Raw')),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            ),
-          ),
-          const SizedBox(height: SoliplexSpacing.s2),
-        ],
+        _SubHeader(title: 'Body', copyText: body),
         _CodeSurface(
-          child: structurable && _mode == _BodyMode.structured
-              ? JsonTreeView(nodes: buildJsonTree(parsed))
-              : SelectableText(
-                  HttpEventGroup.formatBody(widget.body),
-                  style: context.monospaceOn(
-                    Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
+          child: SelectableText(
+            body,
+            style: context.monospaceOn(Theme.of(context).textTheme.bodySmall),
+          ),
         ),
       ],
     );

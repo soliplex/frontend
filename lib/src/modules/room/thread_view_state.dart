@@ -435,8 +435,15 @@ class ThreadViewState {
 
   void _attachSession(AgentSession session, {List<MessagePart>? prompt}) {
     if (_isDisposed) return;
-    _detachSession();
     _cancelToken?.cancel('session attached');
+    // A spawn into a new thread attaches the session the view already
+    // restored from the registry. Detaching it would absorb its live bands
+    // as historical while the session still moves them to other keys.
+    if (identical(session, _activeSession.value)) {
+      _attachedPrompt = prompt;
+      return;
+    }
+    _detachSession();
     _activeSession.value = session;
     _attachedPrompt = prompt;
     _sessionState.value = session.state;

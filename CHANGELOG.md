@@ -37,6 +37,22 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A workdir `.json` file is shown formatted, with every string, key and
   number as written: `1e2` stays `1e2`, escapes stay escaped, duplicate keys
   are kept, and long integers keep every digit.
+- Every other place JSON is shown uses the same viewer, with a header, a
+  copy button and, when the JSON parses, a Tree / Source switch: room info
+  values, diagnostics request and response bodies (labelled "Body"), stream
+  events, tool-call arguments and state snapshots and deltas, dropped-event
+  payloads, the execution timeline's tool arguments (labelled "Arguments")
+  and activity content, and, in chat, the arguments of tools the app runs
+  itself. Tool results stay plain text, as do timeline arguments that carry
+  a `script`, `code`, `query` or `command` string, which show that string,
+  and timeline arguments still streaming in that don't parse yet.
+  Diagnostics' JSON / Raw switch becomes Tree / Source, and its source is
+  highlighted. A dropped event's payload that couldn't be parsed is
+  highlighted, without the invalid-JSON notice; diagnostics tool-call
+  arguments that don't parse show under that notice.
+- In the execution timeline, a long JSON block shows its header and first 8
+  lines until "Show more"; collapsed tree nodes stay collapsed when it is
+  expanded.
 
 ### Fixed
 
@@ -45,7 +61,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A JSON tree no longer shows the string `"42"` as a number or `"null"` as
   null: values are coloured by their real type.
 - A `.json` file containing a number beyond the range of a double (such as
-  `1e999`) opens instead of failing with an error.
+  `1e999`) opens instead of failing with an error. Diagnostics tool-call
+  arguments and the execution timeline's tool arguments and activity content
+  holding such a number show too.
 - A JSON tree in diagnostics or a dropped event no longer fails to draw on
   iOS, Android and desktop when a string holds an unpaired surrogate
   (`"\ud800"`).

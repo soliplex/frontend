@@ -84,7 +84,6 @@ class NoResponseTileWidget extends StatelessWidget {
       if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
       if (hasTracker)
         ExecutionTimeline(
-          key: const ValueKey('execution-timeline'),
           roomId: roomId,
           messageId: message.id,
           tracker: executionTracker!,

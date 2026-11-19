@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_highlight/themes/github.dart';
+import 'package:flutter_highlight/themes/vs2015.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 import 'package:soliplex_frontend/src/shared/content/content_frame.dart';
@@ -168,6 +169,23 @@ void main() {
       expect(find.textContaining('a: 1', findRichText: true), findsNothing);
     });
 
+    testWidgets('a different decoded value shows the new content',
+        (tester) async {
+      await tester.pumpWidget(_inline(JsonViewer.decoded(
+        <String, Object?>{'a': 1},
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      await tester.pumpWidget(_inline(JsonViewer.decoded(
+        <String, Object?>{'a': 2},
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      expect(_codeView(tester).code, '{\n  "a": 2\n}');
+    });
+
     testWidgets('the chosen view survives new content', (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
         '{"a": 1}',
@@ -187,6 +205,83 @@ void main() {
 
       expect(find.byType(JsonTreeView), findsOneWidget);
       expect(find.byType(CodeView), findsNothing);
+    });
+
+    testWidgets(
+        'a parent rebuild with the same content does not highlight it again',
+        (tester) async {
+      // Not const, so each pump hands the viewer a new widget, as a parent
+      // rebuilding on every streamed delta does.
+      JsonViewer viewer(String source) => JsonViewer.source(
+            source,
+            initialView: ContentView.source,
+            fill: false,
+            formatSource: true,
+          );
+      await tester.pumpWidget(_inline(viewer('{"a": 1}')));
+      final first = _codeView(tester);
+
+      await tester.pumpWidget(_inline(viewer('{"a": 1}')));
+      expect(identical(_codeView(tester), first), isTrue);
+
+      await tester.pumpWidget(_inline(viewer('{"b": 2}')));
+      expect(identical(_codeView(tester), first), isFalse);
+      expect(_codeView(tester).code, '{\n  "b": 2\n}');
+    });
+
+    testWidgets('a theme switch recolours a viewer whose body is reused',
+        (tester) async {
+      // Guards against the reused body capturing a colour read from the
+      // context, which would keep the light colours after a switch to dark.
+      Widget app(Brightness brightness) => MaterialApp(
+            theme: ThemeData(brightness: brightness),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    JsonViewer.source(
+                      '{"a": 1}',
+                      initialView: ContentView.source,
+                      fill: false,
+                      formatSource: true,
+                    ),
+                    JsonViewer.source(
+                      '{"a": 1}',
+                      initialView: ContentView.rendered,
+                      fill: false,
+                      formatSource: true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+      Color? treeSurface() => tester
+          .widget<Material>(find
+              .ancestor(
+                of: find.byType(JsonTreeView),
+                matching: find.byType(Material),
+              )
+              .first)
+          .color;
+      Color? codeColor() => tester
+          .widget<SelectableText>(find.descendant(
+            of: find.byType(CodeView),
+            matching: find.byType(SelectableText),
+          ))
+          .textSpan
+          ?.style
+          ?.color;
+
+      await tester.pumpWidget(app(Brightness.light));
+      expect(treeSurface(), githubTheme['root']!.backgroundColor);
+      expect(codeColor(), githubTheme['root']!.color);
+
+      await tester.pumpWidget(app(Brightness.dark));
+      await tester.pumpAndSettle();
+
+      expect(treeSurface(), vs2015Theme['root']!.backgroundColor);
+      expect(codeColor(), vs2015Theme['root']!.color);
     });
   });
 
@@ -380,6 +475,46 @@ void main() {
 
       expect(find.text(_depthNotice), findsOneWidget);
       expect(find.text(_notice), findsNothing);
+    });
+  });
+
+  group('decoded value', () {
+    for (final initialView in ContentView.values) {
+      testWidgets(
+          'a value JSON cannot encode shows its tree, '
+          'starting in ${initialView.name}', (tester) async {
+        await tester.pumpWidget(_inline(JsonViewer.decoded(
+          const {'a': double.infinity},
+          initialView: initialView,
+          fill: false,
+        )));
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(JsonTreeView), findsOneWidget);
+        expect(find.textContaining('a: Infinity'), findsOneWidget);
+        expect(find.byType(CodeView), findsNothing);
+        expect(find.byType(ContentInfoNotice), findsNothing);
+        expect(_viewSwitch(), findsNothing);
+        expect(
+          tester.widget<ContentHeader>(find.byType(ContentHeader)).copyText,
+          '{a: Infinity}',
+        );
+      });
+    }
+
+    testWidgets('an unencodable value over the limit shows plain text',
+        (tester) async {
+      final value = {'a': double.infinity, 'b': 'x' * maxHighlightedLength};
+      await tester.pumpWidget(_inline(JsonViewer.decoded(
+        value,
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(find.text(_sizeNotice), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
+      expect(_codeView(tester).language, 'plaintext');
+      expect(_codeView(tester).code, value.toString());
     });
   });
 

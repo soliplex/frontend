@@ -191,7 +191,8 @@ class _NoticeBar extends StatelessWidget {
 
 /// The chrome around a viewer body: [header] and [notice] above [body].
 ///
-/// Inline, the frame is as tall as its body, which may cap its own height.
+/// Inline, the frame is as tall as its body; when [maxBodyHeight] is set, the
+/// frame clips the body to at most that height.
 /// Filling, it takes the height it is given and needs it bounded: header and
 /// notice stay put and the body takes the rest. When [scrollBody] is set, the
 /// body scrolls vertically and is at least the rest's height. A body that
@@ -204,13 +205,21 @@ class ContentFrame extends StatelessWidget {
     required this.body,
     required this.fill,
     this.scrollBody = true,
-  });
+    this.maxBodyHeight,
+  }) : assert(
+          maxBodyHeight == null || !fill,
+          'only an inline frame caps its body',
+        );
 
   final Widget header;
   final Widget? notice;
   final Widget body;
   final bool fill;
   final bool scrollBody;
+
+  /// When set, an inline body is laid out at its full height and clipped to
+  /// at most this height, showing its top, with no scrolling.
+  final double? maxBodyHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +230,21 @@ class ContentFrame extends StatelessWidget {
         SoliplexSpacing.s3,
         SoliplexSpacing.s3,
       ),
-      child: body,
+      // One shape with or without a cap, so a change of the cap keeps the
+      // body's state; uncapped, both boxes pass the constraints through.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxBodyHeight ?? double.infinity,
+        ),
+        child: ConstraintsTransformBox(
+          constraintsTransform: maxBodyHeight == null
+              ? ConstraintsTransformBox.unmodified
+              : ConstraintsTransformBox.heightUnconstrained,
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.hardEdge,
+          child: body,
+        ),
+      ),
     );
     final notice = this.notice;
     return Column(
