@@ -46,7 +46,12 @@ class JsonViewer extends StatefulWidget {
     this.selectable = true,
     this.isStreaming = false,
     this.showFailureNotice = true,
-  }) : value = null;
+    this.maxBodyHeight,
+  })  : value = null,
+        assert(
+          maxBodyHeight == null || !fill,
+          'only an inline viewer caps its body',
+        );
 
   /// A decoded JSON [value], encoded once per change of it, by identity:
   /// callers pass the same instance across rebuilds, or it is encoded and
@@ -59,9 +64,14 @@ class JsonViewer extends StatefulWidget {
     required this.fill,
     this.selectable = true,
     this.showFailureNotice = true,
+    this.maxBodyHeight,
   })  : source = null,
         formatSource = true,
-        isStreaming = false;
+        isStreaming = false,
+        assert(
+          maxBodyHeight == null || !fill,
+          'only an inline viewer caps its body',
+        );
 
   /// The JSON text; null for a [JsonViewer.decoded] value.
   final String? source;
@@ -99,6 +109,10 @@ class JsonViewer extends StatefulWidget {
   /// Whether text that does not parse gets the notice. A site that already
   /// explains the failure passes false. Empty text always gets its notice.
   final bool showFailureNotice;
+
+  /// When set, the inline body is clipped to at most this height; see
+  /// [ContentFrame.maxBodyHeight].
+  final double? maxBodyHeight;
 
   @override
   State<JsonViewer> createState() => _JsonViewerState();
@@ -213,6 +227,7 @@ class _JsonViewerState extends State<JsonViewer> {
         _Tree() => null,
       },
       fill: widget.fill,
+      maxBodyHeight: widget.maxBodyHeight,
       body: switch (shown) {
         _TooLarge() => _sourceView('plaintext'),
         _Invalid() || _TooDeep() => _sourceView('json'),

@@ -10,6 +10,10 @@ import '../../execution_step.dart';
 import '../../execution_tracker.dart';
 import '../../message_expansions.dart';
 import '../../room_providers.dart';
+import '../../../../shared/content/code_view.dart';
+import '../../../../shared/content/content_frame.dart';
+import '../../../../shared/content/json_text.dart';
+import '../../../../shared/content/json_viewer.dart';
 import '../copy_button.dart';
 import 'timeline_entry.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -292,11 +296,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           ),
           if (isExpanded) ...[
             if (hasArgs)
-              _sourceBlock(
-                _formatArgs(entry.args),
+              _argsBlock(
+                entry.args,
                 theme,
-                label: 'Arguments',
                 clampId: '$id$_argsClampSuffix',
+                isStreaming: step.status == StepStatus.active,
               ),
             // AG-UI carries no field for a failed outcome, so a tool that hit a
             // limit or raised delivers its message through the ordinary result
@@ -361,29 +365,139 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
               ],
             ),
           ),
+          // What an expanded row discloses: the whole content, which is all an
+          // opaque payload affords and loses nothing the record carried.
           if (hasSource && isExpanded)
-            _sourceBlock(
-              _encodeContent(activity.content),
+            _jsonBlock(
+              _layOutContent(activity.content),
               theme,
               clampId: '${activity.messageId}$_contentClampSuffix',
+              viewer: (maxBodyHeight) => JsonViewer.decoded(
+                activity.content,
+                initialView: ContentView.source,
+                fill: false,
+                selectable: false,
+                maxBodyHeight: maxBodyHeight,
+              ),
             ),
         ],
       ),
     );
   }
 
-  /// A source block whose body clamps to [_collapsedSourceLines] until the
-  /// reader asks for the rest.
+  /// A tool call's accumulated `TOOL_CALL_ARGS`: the one field carrying the
+  /// call's intent as plain text when the args hold one ([_sourceArg]), and
+  /// otherwise the args as JSON. While the call is still streaming the
+  /// accumulation is a JSON prefix, which the viewer shows as written; a
+  /// partial payload is more useful shown than hidden.
   ///
-  /// [clampId] keys that per block, so expanding one call's result leaves every
-  /// other row alone. Every body here can run to tens of KB, so there is no
-  /// unclamped path — one would bury every row below it.
+  /// Called only for a row the reader has expanded, and only once
+  /// [_isEmptyArgsObject] has ruled out the payload of a tool that takes no
+  /// arguments — which is why every path here yields something to show.
+  Widget _argsBlock(
+    String args,
+    ThemeData theme, {
+    required String clampId,
+    required bool isStreaming,
+  }) {
+    if (_sourceArg(args) case final source?) {
+      return _sourceBlock(
+        source,
+        theme,
+        label: 'Arguments',
+        clampId: clampId,
+      );
+    }
+    return _jsonBlock(
+      formatJson(args),
+      theme,
+      clampId: clampId,
+      viewer: (maxBodyHeight) => JsonViewer.source(
+        args,
+        initialView: ContentView.source,
+        label: 'Arguments',
+        fill: false,
+        formatSource: true,
+        selectable: false,
+        isStreaming: isStreaming,
+        maxBodyHeight: maxBodyHeight,
+      ),
+    );
+  }
+
+  /// A plain-text block whose body clamps to [_collapsedSourceLines] until the
+  /// reader asks for the rest.
   Widget _sourceBlock(
     String source,
     ThemeData theme, {
     required String clampId,
     String? label,
   }) {
+    final style =
+        context.monospaceOn(theme.textTheme.labelSmall).copyWith(height: 1.3);
+    return _block(
+      theme,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              if (label != null)
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              const Spacer(),
+              // Copies the whole body regardless of what is on screen.
+              CopyButton(text: source, iconSize: 14),
+            ],
+          ),
+          _clampedBody(
+            source,
+            style,
+            clampId: clampId,
+            body: (maxBodyHeight) {
+              final clamped = maxBodyHeight != null;
+              return Text(
+                source,
+                style: style,
+                maxLines: clamped ? _collapsedSourceLines : null,
+                overflow: clamped ? TextOverflow.ellipsis : TextOverflow.clip,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A JSON block: the [viewer] built with the body height cap, whose header
+  /// carries the block's label and copy button.
+  ///
+  /// [laidOut] is the text the viewer's Source view lays out. Measured in the
+  /// code text style, it decides the clamp for the Tree view too, since a
+  /// laid-out JSON text has about one line per tree row.
+  Widget _jsonBlock(
+    String laidOut,
+    ThemeData theme, {
+    required String clampId,
+    required Widget Function(double? maxBodyHeight) viewer,
+  }) {
+    return _block(
+      theme,
+      _clampedBody(
+        laidOut,
+        codeTextStyle(context),
+        clampId: clampId,
+        body: viewer,
+      ),
+    );
+  }
+
+  /// The indented, tinted surface every disclosed block sits on.
+  Widget _block(ThemeData theme, Widget child) {
     return Padding(
       padding: const EdgeInsets.only(
         top: SoliplexSpacing.s1,
@@ -396,33 +510,25 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           color: theme.colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(context.radii.sm),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                if (label != null)
-                  Text(
-                    label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                const Spacer(),
-                // Copies the whole body regardless of what is on screen.
-                CopyButton(text: source, iconSize: 14),
-              ],
-            ),
-            _sourceBody(source, theme, clampId),
-          ],
-        ),
+        child: child,
       ),
     );
   }
 
-  Widget _sourceBody(String source, ThemeData theme, String clampId) {
-    final style =
-        context.monospaceOn(theme.textTheme.labelSmall).copyWith(height: 1.3);
+  /// [body] above a "Show more" / "Show less" control when [measured] in
+  /// [style] overflows [_collapsedSourceLines]. While clamped, [body] is given
+  /// the height of that many lines of [style]; otherwise null.
+  ///
+  /// [clampId] keys the clamp per block, so expanding one call's result leaves
+  /// every other row alone. Every body here can run to tens of KB, so there is
+  /// no unclamped path — one would bury every row below it. A body is clamped
+  /// only when it overflows, so nothing is hidden without the control.
+  Widget _clampedBody(
+    String measured,
+    TextStyle style, {
+    required String clampId,
+    required Widget Function(double? maxBodyHeight) body,
+  }) {
     final expanded = _isSourceExpanded(clampId);
     // Read outside the builder so layout does not take a MediaQuery dependency.
     final textScaler = MediaQuery.textScalerOf(context);
@@ -430,23 +536,22 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     // reason a step with no detail shows no chevron.
     return LayoutBuilder(
       builder: (context, constraints) {
+        final textDirection = Directionality.of(context);
         final overflows = _overflowsClamp(
-          source,
+          measured,
           style,
           textScaler,
-          Directionality.of(context),
+          textDirection,
           constraints.maxWidth,
         );
-        final clamped = overflows && !expanded;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              source,
-              style: style,
-              maxLines: clamped ? _collapsedSourceLines : null,
-              overflow: clamped ? TextOverflow.ellipsis : TextOverflow.clip,
+            body(
+              overflows && !expanded
+                  ? _collapsedBodyHeight(style, textScaler, textDirection)
+                  : null,
             ),
             // A labelled control rather than a bare tap target, so it carries
             // button semantics and the design system's minimum tap target.
@@ -552,24 +657,33 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     return overflows;
   }
 
-  /// Renders a tool call's accumulated `TOOL_CALL_ARGS` for display.
-  ///
-  /// Prefers the one field that carries the intent — the script, the code, the
-  /// query, the command — over the whole object. Falls back to the raw string
-  /// when it does not parse: while the call is still streaming the accumulation
-  /// is a JSON prefix, and a partial payload is more useful shown than hidden.
-  ///
-  /// Called only for a row the reader has expanded, and only once
-  /// [_isEmptyArgsObject] has ruled out the payload of a tool that takes no
-  /// arguments — which is why every path here yields something to show.
-  static String _formatArgs(String args) {
+  /// The height of [_collapsedSourceLines] lines of [style] at [textScaler].
+  static double _collapsedBodyHeight(
+    TextStyle style,
+    TextScaler textScaler,
+    TextDirection textDirection,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: ' ', style: style),
+      textDirection: textDirection,
+      textScaler: textScaler,
+    );
+    final height = painter.preferredLineHeight * _collapsedSourceLines;
+    painter.dispose();
+    return height;
+  }
+
+  /// The value of the first of [_sourceKeys] that [args] decode to an object
+  /// holding as a non-empty string; null for anything else, including args
+  /// that do not parse yet.
+  static String? _sourceArg(String args) {
     final decoded = _tryDecodeObject(args);
-    if (decoded == null) return args;
+    if (decoded == null) return null;
     for (final key in _sourceKeys) {
       final value = decoded[key];
       if (value is String && value.isNotEmpty) return value;
     }
-    return const JsonEncoder.withIndent('  ').convert(decoded);
+    return null;
   }
 
   /// Whether [args] is a JSON object with no members — what a tool that takes
@@ -622,14 +736,20 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     return activity.activityType;
   }
 
-  /// What an expanded row discloses: the whole content, which is all an opaque
-  /// payload affords and loses nothing the record carried.
+  /// The text a [JsonViewer.decoded] Source view lays out for [content]. A
+  /// value JSON cannot encode, such as `double.infinity`, is measured by its
+  /// `toString()`, which is what the viewer shows in its place.
   ///
   /// Called only for a row the reader has expanded — `content` reaches tens of
   /// KB, so encoding it to decide whether to draw a chevron would cost that on
   /// every rebuild.
-  static String _encodeContent(Map<String, dynamic> content) =>
-      const JsonEncoder.withIndent('  ').convert(content);
+  static String _layOutContent(Map<String, dynamic> content) {
+    try {
+      return formatJson(jsonEncode(content));
+    } on JsonUnsupportedObjectError {
+      return content.toString();
+    }
+  }
 
   static String _formatDuration(Duration d) {
     final seconds = d.inMilliseconds / 1000;

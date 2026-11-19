@@ -14,6 +14,10 @@ import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
+import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/content_frame.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
+import 'package:soliplex_frontend/src/shared/copy_button.dart';
 import 'package:soliplex_frontend/src/modules/room/lay_out_timeline.dart'
     show loadingMessageId;
 
@@ -81,6 +85,26 @@ void main() {
           home: Scaffold(body: SingleChildScrollView(child: child)),
         ),
       );
+
+  // The tallest a collapsed JsonViewer may be: its header, eight lines of
+  // code text, and the frame's padding below its body.
+  double collapsedViewerLimit(WidgetTester tester) {
+    final viewer = find.byType(JsonViewer);
+    final context = tester.element(viewer);
+    final painter = TextPainter(
+      text: TextSpan(text: ' ', style: codeTextStyle(context)),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    addTearDown(painter.dispose);
+    final header = find.descendant(
+      of: viewer,
+      matching: find.byType(ContentHeader),
+    );
+    return tester.getSize(header).height +
+        8 * painter.preferredLineHeight +
+        SoliplexSpacing.s3;
+  }
 
   ExecutionTimeline build({
     String roomId = _roomId,
@@ -432,15 +456,41 @@ void main() {
       await tester.tap(find.text('search'));
       await tester.pump();
 
-      final body = find.textContaining('chunk line 0');
-      expect(tester.widget<Text>(body).maxLines, 8);
+      final collapsed = tester.getSize(find.byType(JsonViewer)).height;
+      expect(collapsed, lessThanOrEqualTo(collapsedViewerLimit(tester)));
       expect(find.text('Show more'), findsOneWidget);
 
       await tester.tap(find.text('Show more'));
       await tester.pump();
 
-      expect(tester.widget<Text>(body).maxLines, isNull);
+      expect(
+        tester.getSize(find.byType(JsonViewer)).height,
+        greaterThan(collapsed),
+      );
       expect(find.text('Show less'), findsOneWidget);
+    });
+
+    testWidgets('activity content shows in a JsonViewer with one copy button',
+        (tester) async {
+      pushSnapshot(
+        messageId: 'plan:1',
+        activityType: 'plan',
+        content: {'steps': 3},
+        timestamp: 100,
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+      await tester.tap(find.text('plan'));
+      await tester.pump();
+
+      expect(find.byType(JsonViewer), findsOneWidget);
+      expect(find.text('Tree'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
+      expect(find.byType(CopyButton), findsOneWidget);
+      expect(find.byTooltip('Copy JSON'), findsOneWidget);
     });
 
     testWidgets('a stored call/result pair still renders one row',
@@ -982,6 +1032,127 @@ void main() {
             '  "skill_name": "rag"\n}'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('JSON args show in a JsonViewer labelled Arguments',
+        (tester) async {
+      tracker.observe(const ServerToolCallStarted(
+        toolName: 'execute_skill',
+        toolCallId: 'tc-1',
+      ));
+      tracker.observe(const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"request":"Search the docs","skill_name":"rag"}',
+      ));
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'execute_skill');
+
+      expect(find.byType(JsonViewer), findsOneWidget);
+      expect(find.text('Arguments'), findsOneWidget);
+      expect(find.text('Tree'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
+      expect(find.byType(CopyButton), findsOneWidget);
+      expect(find.byTooltip('Copy Arguments'), findsOneWidget);
+    });
+
+    testWidgets('args holding a number JSON cannot encode still show',
+        (tester) async {
+      tracker.observe(const ServerToolCallStarted(
+        toolName: 'execute_skill',
+        toolCallId: 'tc-1',
+      ));
+      tracker.observe(const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"limit":1e999}',
+      ));
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'execute_skill');
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(JsonViewer), findsOneWidget);
+      expect(find.textContaining('1e999'), findsOneWidget);
+    });
+
+    testWidgets('args with a source key keep the plain text block',
+        (tester) async {
+      tracker.observe(const ServerToolCallStarted(
+        toolName: 'run_python',
+        toolCallId: 'tc-1',
+      ));
+      tracker.observe(const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"script":"print(1)","timeout":5}',
+      ));
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'run_python');
+
+      expect(find.byType(JsonViewer), findsNothing);
+      expect(find.text('print(1)'), findsOneWidget);
+    });
+
+    testWidgets('Show more keeps the nodes the reader collapsed in the Tree',
+        (tester) async {
+      final args = {
+        'nested': {'a': 1},
+        for (var i = 0; i < 40; i++) 'key$i': i,
+      };
+      tracker.observe(const ServerToolCallStarted(
+        toolName: 'execute_skill',
+        toolCallId: 'tc-1',
+      ));
+      tracker.observe(ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: jsonEncode(args),
+      ));
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'execute_skill');
+      await tester.tap(find.text('Tree'));
+      await tester.pump();
+      await tester.tap(find.text('nested: {'));
+      await tester.pump();
+      expect(find.text('nested: {…}'), findsOneWidget);
+
+      await tester.tap(find.text('Show more'));
+      await tester.pump();
+
+      expect(find.text('nested: {…}'), findsOneWidget);
+    });
+
+    testWidgets('long JSON args are clamped until expanded', (tester) async {
+      final args = {for (var i = 0; i < 40; i++) 'key$i': i};
+      tracker.observe(const ServerToolCallStarted(
+        toolName: 'execute_skill',
+        toolCallId: 'tc-1',
+      ));
+      tracker.observe(ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: jsonEncode(args),
+      ));
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'execute_skill');
+
+      final collapsed = tester.getSize(find.byType(JsonViewer)).height;
+      expect(collapsed, lessThanOrEqualTo(collapsedViewerLimit(tester)));
+      expect(find.text('Show more'), findsOneWidget);
+
+      await tester.tap(find.text('Show more'));
+      await tester.pump();
+
+      expect(
+        tester.getSize(find.byType(JsonViewer)).height,
+        greaterThan(collapsed),
+      );
+      expect(find.text('Show less'), findsOneWidget);
     });
   });
 
