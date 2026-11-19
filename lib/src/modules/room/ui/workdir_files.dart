@@ -58,7 +58,7 @@ class WorkdirFileRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final kind = PreviewKind.from(file.filename);
-    final canPreview = kind.canRender;
+    final canPreview = kind.opensInViewer;
     // Rows that can't preview show the generic file icon so the leading
     // icon doesn't imply their content can be shown.
     final leadingIcon =
@@ -396,6 +396,7 @@ class WorkdirPreviewPage extends StatefulWidget {
     required this.initialIndex,
     required this.fetchBytes,
     required this.downloads,
+    this.onOpenPdf,
   })  : assert(
             files.isNotEmpty, 'WorkdirPreviewPage requires at least one file'),
         assert(initialIndex >= 0 && initialIndex < files.length,
@@ -409,12 +410,17 @@ class WorkdirPreviewPage extends StatefulWidget {
   /// start it, shared with the file rows.
   final FileDownloads downloads;
 
+  /// Opens a PDF in the PDF viewer, which the pager hands it to rather than
+  /// rendering it. Null leaves a PDF at the pager's can't-preview page.
+  final void Function(WorkdirFile file)? onOpenPdf;
+
   static Future<void> show({
     required BuildContext context,
     required List<WorkdirFile> files,
     required int initialIndex,
     required Future<Uint8List> Function(WorkdirFile file) fetchBytes,
     required FileDownloads downloads,
+    void Function(WorkdirFile file)? onOpenPdf,
   }) {
     assert(
         files.isNotEmpty, 'WorkdirPreviewPage.show requires non-empty files');
@@ -428,6 +434,7 @@ class WorkdirPreviewPage extends StatefulWidget {
         initialIndex: clampedIndex,
         fetchBytes: fetchBytes,
         downloads: downloads,
+        onOpenPdf: onOpenPdf,
       ),
     );
   }
@@ -509,6 +516,31 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     final file = widget.files[index];
     final kind = PreviewKind.from(file.filename);
     final download = _DownloadButton(file: file, downloads: widget.downloads);
+    final onOpenPdf = widget.onOpenPdf;
+    if (kind == PreviewKind.pdf && onOpenPdf != null) {
+      // Swiped onto from a neighbour: the pager does not render PDFs, the
+      // PDF viewer does — with search, and Ask about this beside the chat.
+      return _CannotPreview(
+        icon: Icons.picture_as_pdf_outlined,
+        message: 'PDFs open in the PDF viewer',
+        downloadButton: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: SoliplexSpacing.s2,
+          runSpacing: SoliplexSpacing.s2,
+          children: [
+            SoliplexButton.filled(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onOpenPdf(file);
+              },
+              icon: const Icon(Icons.open_in_full),
+              child: const Text('Open in PDF viewer'),
+            ),
+            download,
+          ],
+        ),
+      );
+    }
     final cannot = _CannotPreview(downloadButton: download);
     if (!kind.canRender) return cannot;
     return FutureBuilder<Uint8List>(

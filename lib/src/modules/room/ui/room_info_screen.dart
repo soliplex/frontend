@@ -28,6 +28,13 @@ import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
 import 'file_sort_bar.dart';
 import 'upload_entry_row.dart';
+import 'workdir_preview/preview_kind.dart';
+import '../pdf/pdf_quote.dart';
+import '../pdf/pdf_targets.dart';
+import '../../../shared/pdf/pdf_document_view.dart';
+import '../../../shared/pdf/pdf_viewer_pane.dart';
+import '../../../shared/pdf/pdfrx_document_view.dart';
+import '../../../shared/pdf/present_pdf_viewer.dart';
 import '../../../shared/selectable_content.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -44,6 +51,7 @@ class RoomInfoScreen extends StatefulWidget {
     required this.fileSort,
     required this.appName,
     this.logo,
+    this.pdfDocumentViewFactory = pdfrxDocumentView,
   });
 
   final ServerEntry serverEntry;
@@ -55,6 +63,10 @@ class RoomInfoScreen extends StatefulWidget {
   final FileSortPreference fileSort;
   final String appName;
   final Widget? logo;
+
+  /// Builds the PDF viewer's document. pdfrx by default; tests supply a fake
+  /// so no widget test loads PDFium.
+  final PdfDocumentViewFactory pdfDocumentViewFactory;
 
   @override
   State<RoomInfoScreen> createState() => _RoomInfoScreenState();
@@ -144,6 +156,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
                     onRetryDocuments: _retryDocuments,
                     uploadRegistry: widget.uploadRegistry,
                     fileSort: widget.fileSort,
+                    pdfDocumentViewFactory: widget.pdfDocumentViewFactory,
                   );
                 },
               ),
@@ -168,6 +181,7 @@ class _RoomInfoBody extends StatelessWidget {
     required this.onRetryDocuments,
     required this.uploadRegistry,
     required this.fileSort,
+    required this.pdfDocumentViewFactory,
   });
 
   final Room room;
@@ -181,6 +195,7 @@ class _RoomInfoBody extends StatelessWidget {
   final VoidCallback onRetryDocuments;
   final UploadTrackerRegistry uploadRegistry;
   final FileSortPreference fileSort;
+  final PdfDocumentViewFactory pdfDocumentViewFactory;
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +287,7 @@ class _RoomInfoBody extends StatelessWidget {
                 serverEntry: serverEntry,
                 roomId: roomId,
                 userHasWrite: room.userHasWrite,
+                pdfDocumentViewFactory: pdfDocumentViewFactory,
               ),
             DocumentsCard(
               documentsFuture: documentsFuture,
@@ -443,12 +459,14 @@ class _UploadedFilesCard extends StatefulWidget {
     required this.serverEntry,
     required this.roomId,
     required this.userHasWrite,
+    required this.pdfDocumentViewFactory,
   });
 
   final UploadTrackerRegistry uploadRegistry;
   final FileSortPreference fileSort;
   final ServerEntry serverEntry;
   final String roomId;
+  final PdfDocumentViewFactory pdfDocumentViewFactory;
 
   /// The user's write permission for the room as the server returned it, or
   /// `null` when it was not returned, in which case the administrator check
@@ -494,6 +512,22 @@ enum _UploadPermission {
 }
 
 class _UploadedFilesCardState extends State<_UploadedFilesCard> {
+  /// Opens an uploaded PDF over the room's details. There is no composer
+  /// here, so no Ask about this.
+  void _openPdf(String filename) => unawaited(
+        presentPdfViewer(
+          context,
+          build: (_, close) => PdfViewerPane(
+            source: pdfViewerSourceFor(
+              RoomUploadPdf(roomId: widget.roomId, filename: filename),
+              widget.serverEntry.connection.api,
+            ),
+            documentViewFactory: widget.pdfDocumentViewFactory,
+            onClose: close,
+          ),
+        ),
+      );
+
   late final UploadTracker _tracker;
 
   /// What is known about the caller's permission to upload here.
@@ -855,6 +889,9 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
             entry: entry,
             onCancel: _tracker.cancelUpload,
             onDismiss: _tracker.dismissFailed,
+            onOpen: PreviewKind.from(entry.filename) == PreviewKind.pdf
+                ? () => _openPdf(entry.filename)
+                : null,
             // The upload controls' answer: deleting a room upload needs
             // the same permission as adding one.
             onDelete: _permission == _UploadPermission.permitted

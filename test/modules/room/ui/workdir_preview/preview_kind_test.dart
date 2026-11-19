@@ -188,4 +188,18 @@ void main() {
       expect(extensionOf('dir/.env'), isNull);
     });
   });
+
+  test('opensInViewer: everything the pager renders, and PDFs', () {
+    for (final kind in PreviewKind.values) {
+      expect(
+        kind.opensInViewer,
+        kind.canRender || kind == PreviewKind.pdf,
+        reason: '$kind',
+      );
+    }
+    expect(PreviewKind.pdf.opensInViewer, isTrue);
+    expect(PreviewKind.pdf.canRender, isFalse,
+        reason: 'the pager itself still cannot render one');
+    expect(PreviewKind.unknown.opensInViewer, isFalse);
+  });
 }
