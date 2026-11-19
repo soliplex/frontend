@@ -191,8 +191,8 @@ class _NoticeBar extends StatelessWidget {
 
 /// The chrome around a viewer body: [header] and [notice] above [body].
 ///
-/// Inline, the frame is as tall as its body, which may cap its own height, up
-/// to [maxBodyHeight] when that is set.
+/// Inline, the frame is as tall as its body; when [maxBodyHeight] is set, the
+/// frame clips the body to at most that height.
 /// Filling, it takes the height it is given and needs it bounded: header and
 /// notice stay put and the body takes the rest. When [scrollBody] is set, the
 /// body scrolls vertically and is at least the rest's height. A body that

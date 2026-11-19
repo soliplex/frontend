@@ -168,6 +168,23 @@ void main() {
       expect(find.textContaining('a: 1', findRichText: true), findsNothing);
     });
 
+    testWidgets('a different decoded value shows the new content',
+        (tester) async {
+      await tester.pumpWidget(_inline(JsonViewer.decoded(
+        <String, Object?>{'a': 1},
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      await tester.pumpWidget(_inline(JsonViewer.decoded(
+        <String, Object?>{'a': 2},
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      expect(_codeView(tester).code, '{\n  "a": 2\n}');
+    });
+
     testWidgets('the chosen view survives new content', (tester) async {
       await tester.pumpWidget(_inline(const JsonViewer.source(
         '{"a": 1}',
