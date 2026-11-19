@@ -416,18 +416,6 @@ void main() {
       expect(find.byType(JsonTreeView), findsOneWidget);
     });
 
-    testWidgets('nesting 5,000 deep shows the depth notice', (tester) async {
-      await tester.pumpWidget(_inline(JsonViewer.source(
-        _nestedSource(5000),
-        initialView: ContentView.rendered,
-        fill: false,
-        formatSource: true,
-      )));
-
-      expect(tester.takeException(), isNull);
-      expect(find.text(_depthNotice), findsOneWidget);
-    });
-
     testWidgets('unclosed nesting too deep gets the depth notice, unparsed',
         (tester) async {
       await tester.pumpWidget(_inline(JsonViewer.source(

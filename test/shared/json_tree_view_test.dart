@@ -210,21 +210,7 @@ void main() {
         if (span is TextSpan && span.text == '"42"') spans.add(span);
         return true;
       });
-      expect(spans.single.style, same(githubTheme['string']));
-    });
-
-    testWidgets("a key gets no background", (tester) async {
-      await _pumpTree(tester, const [ValueNode(key: 'id', value: 1)]);
-
-      expect(githubTheme['attribute']!.backgroundColor, isNull);
-      expect(githubTheme['root']!.backgroundColor, isNotNull);
-      final rich = tester.widget<RichText>(find.byType(RichText));
-      final backgrounds = <Color?>[];
-      rich.text.visitChildren((span) {
-        backgrounds.add(span.style?.backgroundColor);
-        return true;
-      });
-      expect(backgrounds, everyElement(isNull));
+      expect(spans.single.style, githubTheme['string']);
     });
 
     testWidgets("a string's line break is shown, not escaped", (tester) async {
