@@ -38,16 +38,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   number as written: `1e2` stays `1e2`, escapes stay escaped, duplicate keys
   are kept, and long integers keep every digit.
 - Every other place JSON is shown uses the same viewer, with a header, a
-  Tree / Source switch and a copy button: room info values, diagnostics
-  request and response bodies (labelled "Body"), stream events, tool-call
-  arguments and state snapshots and deltas, dropped-event payloads, the
-  execution timeline's tool arguments (labelled "Arguments") and activity
-  content, and, in chat, the arguments of tools the app runs itself. Tool
-  results stay plain text. Diagnostics' JSON /
-  Raw switch becomes Tree / Source, and its source is highlighted. A dropped
-  event's payload that couldn't be parsed is highlighted, without a notice;
-  diagnostics tool-call arguments that don't parse show under the
-  invalid-JSON notice.
+  copy button and, when the JSON parses, a Tree / Source switch: room info
+  values, diagnostics request and response bodies (labelled "Body"), stream
+  events, tool-call arguments and state snapshots and deltas, dropped-event
+  payloads, the execution timeline's tool arguments (labelled "Arguments")
+  and activity content, and, in chat, the arguments of tools the app runs
+  itself. Tool results stay plain text, as do timeline arguments that carry
+  a `script`, `code`, `query` or `command` string, which show that string.
+  Diagnostics' JSON / Raw switch becomes Tree / Source, and its source is
+  highlighted. A dropped event's payload that couldn't be parsed is
+  highlighted, without the invalid-JSON notice; diagnostics tool-call
+  arguments that don't parse show under that notice.
 - In the execution timeline, a long JSON block shows its header and first 8
   lines until "Show more"; collapsed tree nodes stay collapsed when it is
   expanded.
