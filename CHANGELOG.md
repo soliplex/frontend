@@ -32,11 +32,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   YAML keys) are coloured, as they already were in the dark theme.
 - Code and JSON over 100 KiB, in chat or in the workdir, show as plain text
   under a notice, without highlighting or a tree view, as does JSON whose
-  formatted form would be over that size or that is nested more than 100
-  levels deep.
-- A workdir `.json` file is still shown formatted, but with every string,
-  key and number as written: `1e2` stays `1e2`, escapes stay escaped,
-  duplicate keys are kept, and long integers keep every digit.
+  formatted form would be over that size. JSON nested more than 100 levels
+  deep shows its highlighted source under a notice, without a tree view.
+- A workdir `.json` file is shown formatted, with every string, key and
+  number as written: `1e2` stays `1e2`, escapes stay escaped, duplicate keys
+  are kept, and long integers keep every digit.
 
 ### Fixed
 
@@ -44,8 +44,6 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   not only copied; in chat they join the message's drag-selection (#389).
 - A JSON tree no longer shows the string `"42"` as a number or `"null"` as
   null: values are coloured by their real type.
-- An invalid workdir `.json` file no longer logs a warning every time the
-  page redraws.
 - A `.json` file containing a number beyond the range of a double (such as
   `1e999`) opens instead of failing with an error.
 - A JSON tree in diagnostics or a dropped event no longer fails to draw on
