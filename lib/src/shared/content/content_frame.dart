@@ -112,8 +112,8 @@ class ContentHeader extends StatelessWidget {
   }
 }
 
-/// A bar explaining that a viewer could not show its content as asked: an
-/// error bar.
+/// A bar in error colours explaining that a viewer could not show its content
+/// as asked.
 class RenderFailureNotice extends StatelessWidget {
   const RenderFailureNotice({super.key, required this.message});
 
@@ -131,8 +131,8 @@ class RenderFailureNotice extends StatelessWidget {
   }
 }
 
-/// A bar explaining why a viewer shows something other than usual, without a
-/// failure: a neutral information bar.
+/// A bar in neutral colours explaining why a viewer shows something other than
+/// usual, without a failure.
 class ContentInfoNotice extends StatelessWidget {
   const ContentInfoNotice({super.key, required this.message});
 

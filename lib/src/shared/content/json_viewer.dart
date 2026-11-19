@@ -29,8 +29,8 @@ const maxJsonDepth = 100;
 /// whatever the Source view shows. Text that does not parse shows as it is,
 /// highlighted, with no switch and a notice above it, unless
 /// [showFailureNotice] is false or [isStreaming], when the text may still be
-/// incomplete. The failure is logged once per distinct content, and not while
-/// streaming.
+/// incomplete. The failure is logged once per process for each label and
+/// content pair, and never while streaming.
 ///
 /// Content beyond the viewer's budget gets no switch and a neutral notice
 /// instead: text longer than [maxHighlightedLength] shows as plain text,
@@ -38,7 +38,9 @@ const maxJsonDepth = 100;
 /// highlighted; and a pretty-print longer than [maxHighlightedLength] shows
 /// as plain text.
 class JsonViewer extends StatefulWidget {
-  /// An already-decoded JSON [value].
+  /// An already-decoded JSON [value], which must be what `jsonDecode` returns:
+  /// anything else may not encode. Keep the same instance across rebuilds; a
+  /// new instance is re-encoded and its tree rebuilt.
   ///
   /// There is no text to fall back on, so a [value] nesting deeper than
   /// [maxJsonDepth] shows only the notice, over an empty Source view.

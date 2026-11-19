@@ -5,7 +5,7 @@ import 'content/code_view.dart';
 import 'json_tree_model.dart';
 import 'selectable_content.dart';
 
-/// Renders a [List<JsonNode>] as an expandable tree, coloured by each value's
+/// Renders [nodes] as an expandable tree, coloured by each value's
 /// JSON type in the same highlight theme as [CodeView].
 class JsonTreeView extends StatelessWidget {
   const JsonTreeView({
@@ -42,7 +42,7 @@ class JsonTreeView extends StatelessWidget {
       child: _JsonNodeList(nodes: nodes, depth: 0),
     );
     // Replaces the ambient style so prose line height and letter spacing do
-    // not reach the tree, keeping its rows as tall as CodeView's lines.
+    // not reach the tree, which uses CodeView's text style.
     return DefaultTextStyle(
       style: codeTextStyle(context),
       child: selectable ? SelectableContent(child: tree) : tree,

@@ -108,7 +108,6 @@ void main() {
       final nodes = [
         ArrayNode(
           key: 'items',
-          itemCount: 3,
           children: [
             const ValueNode(key: '[0]', value: 'a'),
             const ValueNode(key: '[1]', value: 'b'),

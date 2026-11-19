@@ -17,14 +17,11 @@ class ObjectNode extends JsonNode {
 }
 
 class ArrayNode extends JsonNode {
-  const ArrayNode({
-    required super.key,
-    required this.itemCount,
-    required this.children,
-  });
+  const ArrayNode({required super.key, required this.children});
 
-  final int itemCount;
   final List<JsonNode> children;
+
+  int get itemCount => children.length;
 }
 
 List<JsonNode> buildJsonTree(dynamic json, {String rootKey = ''}) {
@@ -48,7 +45,6 @@ JsonNode _buildNode(String key, dynamic value) {
   if (value is List) {
     return ArrayNode(
       key: key,
-      itemCount: value.length,
       children: _buildArrayChildren(value),
     );
   }

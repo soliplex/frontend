@@ -23,11 +23,9 @@ String safeSourceForLog(String src, {int max = 120}) {
 /// Logs [message] at warning level the first time [key] is seen, otherwise
 /// silently drops it. A key names whatever the caller wants deduped: a URI for
 /// per-source dedupe, a short tag like `'scheme:ftp'` for per-category dedupe,
-/// or a message-and-slot tag for one attachment. Dedupe is best-effort: keyed on
-/// [key]'s hash so large payloads are never retained, at the cost that two keys
-/// whose hashes collide are treated as one — an acceptable, rare miss for log
-/// dedupe. Pass [logger] so the call site's logger namespace appears in the
-/// output; [attributes] are forwarded to the record.
+/// or a message-and-slot tag for one attachment. Dedupe is best-effort; see
+/// [isFirstOccurrence]. Pass [logger] so the call site's logger namespace
+/// appears in the output; [attributes] are forwarded to the record.
 void logFailedSourceOnce(
   Logger logger,
   String message,
