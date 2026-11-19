@@ -23,15 +23,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   notice; while a reply is still streaming, the notice waits until it
   finishes.
 - JSON trees, including those in diagnostics and dropped events, quote
-  strings and keep their line breaks, and colour keys and values in the
-  highlighted source's colours. A drag can select across a tree's rows
+  strings and colour keys and values in the highlighted source's colours. A drag can select across a tree's rows
   instead of stopping at one.
 - Screen readers announce a JSON block as "JSON" rather than "Code block in
   json". In the light theme, JSON keys (and HTML/XML attribute names and
   YAML keys) are coloured, as they already were in the dark theme.
 - Code and JSON over 100 KB, in chat or in the workdir, show as plain text
-  without highlighting or a tree view; for JSON the formatted text counts.
-  Highlighting a file that large froze the app for seconds.
+  without highlighting or a tree view; for JSON, both the text and its
+  formatted form count. Highlighting or laying out a tree for text that
+  large blocked the app for seconds.
+- JSON nested more than 100 levels deep shows its source under a notice,
+  without a Tree view.
+- The Source view of JSON shows numbers as written: `1e2` stays `1e2`, and
+  long integers keep every digit.
 
 ### Fixed
 
@@ -41,8 +45,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   null: values are coloured by their real type.
 - An invalid workdir `.json` file no longer logs a warning every time the
   page redraws; invalid JSON is logged once, at debug level.
-- JSON nested more than 100 levels deep shows its source under a notice
-  instead of crashing the workdir page or the chat message.
+- A `.json` file containing a number beyond the range of a double (such as
+  `1e999`) opens instead of failing with an error.
 
 ## [0.119.0+108] - 2026-11-18
 
