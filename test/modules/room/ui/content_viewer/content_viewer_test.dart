@@ -255,19 +255,27 @@ void main() {
       });
     }
 
-    testWidgets('json whose pretty-print is at the limit offers Tree / Source',
-        (tester) async {
+    testWidgets(
+        'a workdir json whose pretty-print is at the limit offers '
+        'Tree / Source', (tester) async {
       expect(
         const JsonEncoder.withIndent('  ')
             .convert(jsonDecode(jsonPrettyAtLimit))
             .length,
         maxHighlightedLength,
       );
-      await tester.pumpWidget(_inline(ContentViewer(
-        language: 'json',
-        content: jsonPrettyAtLimit,
-        fill: false,
-      )));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 600,
+            child: ContentViewer(
+              language: 'json',
+              content: jsonPrettyAtLimit,
+              fill: true,
+            ),
+          ),
+        ),
+      ));
 
       expect(find.text(notice), findsNothing);
       expect(find.text('Tree'), findsOneWidget);

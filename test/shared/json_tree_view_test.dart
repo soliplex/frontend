@@ -237,13 +237,14 @@ void main() {
     testWidgets('strings and keys are escaped so any string renders',
         (tester) async {
       final decoded = jsonDecode(
-        r'{"k\ud800": "a\"b\ud800", "e": "\ud83d\ude00"}',
+        r'{"k\ud800": "a\"b\ud800", "e": "\ud83d\ude00", "l": "\udc00"}',
       );
       await _pumpTree(tester, buildJsonTree(decoded));
 
       expect(tester.takeException(), isNull);
       expect(find.textContaining(r'k\uD800: "a\"b\uD800"'), findsOneWidget);
       expect(find.textContaining('e: "😀"'), findsOneWidget);
+      expect(find.textContaining(r'l: "\uDC00"'), findsOneWidget);
     });
 
     testWidgets('a selectable tree selects across rows', (tester) async {
