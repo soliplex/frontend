@@ -30,8 +30,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   json". In the light theme, JSON keys (and HTML/XML attribute names and
   YAML keys) are coloured, as they already were in the dark theme.
 - Code and JSON over 100 KB, in chat or in the workdir, show as plain text
-  without highlighting or a tree view. Highlighting a file that large held
-  the app frozen for seconds while it rendered.
+  without highlighting or a tree view; for JSON the formatted text counts.
+  Highlighting a file that large froze the app for seconds.
 
 ### Fixed
 
@@ -41,6 +41,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   null: values are coloured by their real type.
 - An invalid workdir `.json` file no longer logs a warning every time the
   page redraws; invalid JSON is logged once, at debug level.
+- JSON nested more than 100 levels deep shows its source under a notice
+  instead of crashing the workdir page or the chat message.
 
 ## [0.119.0+108] - 2026-11-18
 
