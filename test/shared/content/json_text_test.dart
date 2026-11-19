@@ -9,6 +9,7 @@ void main() {
       const document = r'''
  {
   "text" : "a [b] {c}: d, \"e\"",
+  "path" : "C:\\", "after": "[x], {y}: z",
   "empty" : {},  "none": [ ],
   "nested": {
     "items": [1, -2.5, true, false, null, {"k": []}],
@@ -39,6 +40,7 @@ void main() {
       '{"a":{}}': 2,
       '["[[{"]': 1,
       r'["\"[[{"]': 1,
+      r'["\\", [1]]': 2,
       '{"a":[{"b":[]}]}': 4,
     };
     for (final MapEntry(key: source, value: depth) in cases.entries) {

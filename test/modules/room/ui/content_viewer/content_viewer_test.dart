@@ -162,6 +162,40 @@ void main() {
     });
   });
 
+  testWidgets('a long JSON file scrolls under a pinned header in both views',
+      (tester) async {
+    final content = jsonEncode(List.generate(200, (i) => {'key_$i': i}));
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          height: 600,
+          child: ContentViewer(language: 'json', content: content, fill: true),
+        ),
+      ),
+    ));
+
+    Future<void> expectBodyScrollsUnderHeader(Finder body) async {
+      final scrollable = tester.state<ScrollableState>(
+          find.ancestor(of: body, matching: find.byType(Scrollable)).first);
+      scrollable.position.jumpTo(0);
+      await tester.pump();
+      final headerTop = tester.getTopLeft(find.byTooltip('Copy JSON')).dy;
+      final bodyTop = tester.getTopLeft(body).dy;
+      scrollable.position.jumpTo(400);
+      await tester.pump();
+
+      expect(tester.getTopLeft(find.byTooltip('Copy JSON')).dy, headerTop);
+      expect(tester.getTopLeft(body).dy, lessThan(bodyTop));
+      expect(tester.takeException(), isNull);
+    }
+
+    await expectBodyScrollsUnderHeader(find.byType(CodeView));
+
+    await tester.tap(find.text('Tree'));
+    await tester.pumpAndSettle();
+    await expectBodyScrollsUnderHeader(find.byType(JsonTreeView));
+  });
+
   group('over maxHighlightedLength', () {
     const notice = 'Too large to highlight; showing plain text.';
     final overJson = '{"a": "${'x' * maxHighlightedLength}"}';
