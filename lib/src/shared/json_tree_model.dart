@@ -4,19 +4,20 @@ sealed class JsonNode {
   final String key;
 }
 
-class ValueNode extends JsonNode {
+final class ValueNode extends JsonNode {
   const ValueNode({required super.key, required this.value});
 
+  /// The decoded scalar: a String, num, bool or null.
   final Object? value;
 }
 
-class ObjectNode extends JsonNode {
+final class ObjectNode extends JsonNode {
   const ObjectNode({required super.key, required this.children});
 
   final List<JsonNode> children;
 }
 
-class ArrayNode extends JsonNode {
+final class ArrayNode extends JsonNode {
   const ArrayNode({required super.key, required this.children});
 
   final List<JsonNode> children;
@@ -24,6 +25,8 @@ class ArrayNode extends JsonNode {
   int get itemCount => children.length;
 }
 
+/// The nodes of [json]. It recurses once per nesting level and does not bound
+/// depth, so callers check depth first.
 List<JsonNode> buildJsonTree(dynamic json, {String rootKey = ''}) {
   if (json is Map) {
     return json.entries.map((e) => _buildNode('${e.key}', e.value)).toList();

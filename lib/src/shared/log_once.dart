@@ -10,9 +10,11 @@ import 'package:flutter/foundation.dart';
 /// the process lifetime.
 final _seenKeys = <int>{};
 
-/// Whether this is the first time [key] is seen in this process, for logging a
-/// failure once. Keyed on [key]'s hash, so two keys whose hashes collide are
-/// treated as one — an acceptable, rare miss for log dedupe.
+/// Records [key] and returns whether this is the first time it is seen in this
+/// process, for logging a failure once. Callers prefix keys by category (such
+/// as `json:`) so unrelated failures cannot collide. Keyed on [key]'s hash, so
+/// two keys whose hashes collide are treated as one — an acceptable, rare miss
+/// for log dedupe.
 bool isFirstOccurrence(String key) => _seenKeys.add(key.hashCode);
 
 /// Forgets every key seen so far, so a test that asserts on a record logged

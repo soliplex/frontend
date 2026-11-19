@@ -13,7 +13,6 @@ import 'json_text.dart';
 final _logger = LogManager.instance.getLogger('soliplex_frontend.json_viewer');
 
 const _failureNotice = "This isn't valid JSON; showing the source.";
-const _sizeNotice = 'Too large to highlight; showing plain text.';
 const _depthNotice = 'Too deeply nested for a tree; showing the source.';
 
 const _prettyJson = JsonEncoder.withIndent('  ');
@@ -241,7 +240,8 @@ class _JsonViewerState extends State<JsonViewer> {
         onViewChanged: (view) => setState(() => _view = view),
       ),
       notice: switch (shown) {
-        _TooLarge() => const ContentInfoNotice(message: _sizeNotice),
+        _TooLarge() =>
+          const ContentInfoNotice(message: tooLargeToHighlightNotice),
         _Invalid() when widget.showFailureNotice && !widget.isStreaming =>
           const RenderFailureNotice(message: _failureNotice),
         _Invalid() => null,

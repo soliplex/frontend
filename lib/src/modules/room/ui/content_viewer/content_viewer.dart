@@ -16,8 +16,9 @@ import 'svg_body.dart';
 /// false inside a `SelectionArea`.
 ///
 /// Code longer than [maxHighlightedLength] shows as plain text under a notice,
-/// streaming or not; plain text is never highlighted, so it gets no notice.
-/// [JsonViewer] bounds what JSON renders. SVG has no limit.
+/// streaming or not. Code whose language is `plaintext` is never highlighted, so
+/// it gets no notice. JSON has its own limits in [JsonViewer]: size and nesting
+/// depth. SVG has no limit.
 class ContentViewer extends StatelessWidget {
   const ContentViewer({
     super.key,
@@ -65,8 +66,8 @@ class ContentViewer extends StatelessWidget {
     };
   }
 
-  /// The header and the code body, under a notice when the code is too large
-  /// to highlight.
+  /// The header, a notice when the code is too large to highlight, then the
+  /// code body.
   Widget _codeFrame() {
     final isPlainText = language == 'plaintext';
     final tooLarge = !isPlainText && content.length > maxHighlightedLength;
@@ -77,9 +78,7 @@ class ContentViewer extends StatelessWidget {
         copyTooltip: 'Copy code',
       ),
       notice: tooLarge
-          ? const ContentInfoNotice(
-              message: 'Too large to highlight; showing plain text.',
-            )
+          ? const ContentInfoNotice(message: tooLargeToHighlightNotice)
           : null,
       body: CodeView(
         code: content,
