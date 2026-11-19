@@ -164,25 +164,6 @@ class HttpEventGroup {
     return '$methodText to $pathWithQuery, $statusDescription';
   }
 
-  static String formatBody(dynamic body) {
-    if (body == null) return '';
-    if (body is String) {
-      try {
-        final parsed = jsonDecode(body);
-        return _jsonEncoder.convert(parsed);
-      } on FormatException {
-        return body;
-      }
-    }
-    try {
-      return _jsonEncoder.convert(body);
-    } on Object {
-      return body.toString();
-    }
-  }
-
-  static const _jsonEncoder = JsonEncoder.withIndent('  ');
-
   String? toCurl() {
     if (!hasEvents) return null;
     if (request == null && streamStart == null) return null;

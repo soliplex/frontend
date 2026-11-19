@@ -157,26 +157,6 @@ void main() {
       });
     });
 
-    group('formatBody', () {
-      test('pretty-prints JSON map', () {
-        final result = HttpEventGroup.formatBody({'key': 'value'});
-        expect(result, contains('"key": "value"'));
-      });
-
-      test('pretty-prints JSON string', () {
-        final result = HttpEventGroup.formatBody('{"key":"value"}');
-        expect(result, contains('"key": "value"'));
-      });
-
-      test('returns original string for non-JSON', () {
-        expect(HttpEventGroup.formatBody('plain text'), 'plain text');
-      });
-
-      test('returns empty string for null', () {
-        expect(HttpEventGroup.formatBody(null), '');
-      });
-    });
-
     group('uri', () {
       test('extracts from request event', () {
         final uri = Uri.parse('http://localhost/api/v1/rooms');
