@@ -84,6 +84,8 @@ import 'file_sort_bar.dart';
 import 'workspace_files_section.dart';
 import '../upload_tracker.dart';
 import '../file_downloads_registry.dart';
+import '../pdf/pending_quotes.dart';
+import '../pdf/quoted_context.dart';
 import '../upload_tracker_registry.dart';
 import '../../../shared/selectable_content.dart';
 import '../../../shared/type_to_focus.dart';
@@ -208,6 +210,7 @@ class RoomScreen extends StatefulWidget {
     this.databaseSelections,
     this.roomReadMarkers,
     this.serverReadMarkers,
+    this.pendingQuotes,
   });
 
   final ServerEntry serverEntry;
@@ -242,6 +245,11 @@ class RoomScreen extends StatefulWidget {
   /// and thread on the server, so the rail's unread computations read up to it.
   /// Null in tests, where each screen gets its own isolated store.
   final ServerReadMarkers? serverReadMarkers;
+
+  /// The quotes waiting to go with each thread's next message, kept by the
+  /// module so they outlive a visit to another room. Null in tests, where
+  /// each screen keeps its own.
+  final PendingQuotesRegistry? pendingQuotes;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -379,6 +387,20 @@ class _RoomScreenState extends State<RoomScreen> {
 
   late final DatabaseSelections _databaseSelections =
       widget.databaseSelections ?? DatabaseSelections();
+
+  /// Stands in for the module's registry in tests that pass none.
+  final _ownQuotes = RoomQuotes();
+
+  /// The current room's waiting quotes. Looked up each time: the screen
+  /// outlives a switch to another room.
+  RoomQuotes get _quotes =>
+      widget.pendingQuotes
+          ?.quotesFor(entry: widget.serverEntry, roomId: widget.roomId) ??
+      _ownQuotes;
+
+  /// The unsent text whose quotes were last put back, so a failed send
+  /// returns them once, not on every build that shows the failure.
+  String? _quotesRestoredFrom;
 
   /// The databases the room's RAG skills search, read from the loaded room.
   /// [RagDatabaseScope.none] until the room manifest lands, so nothing is
@@ -668,6 +690,7 @@ class _RoomScreenState extends State<RoomScreen> {
           serverId: serverId, roomId: roomId, threadId: threadId);
       _databaseSelections.clearThread(
           serverId: serverId, roomId: roomId, threadId: threadId);
+      _quotes.clearThread(threadId);
       unawaited(
         ThreadReadMarkerStorage.clearThread(serverId, roomId, threadId)
             .catchError((Object error, StackTrace st) {
@@ -1144,6 +1167,7 @@ class _RoomScreenState extends State<RoomScreen> {
               serverId: _serverId,
               roomId: widget.roomId,
               threadId: widget.threadId!);
+          _quotes.migrateToThread(widget.threadId!);
         }
         _state.selectThread(widget.threadId!);
         _beginUnreadTracking(widget.threadId!);
@@ -1322,6 +1346,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _chatController.removeListener(_onDraftChanged);
     _chatController.dispose();
     _chatFocusNode.dispose();
+    _ownQuotes.dispose();
     super.dispose();
   }
 
@@ -1929,10 +1954,21 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _restoreUnsentText(String? unsentText) {
-    if (unsentText == null || _chatController.text.isNotEmpty) return;
+    if (unsentText == null) return;
+    // Quotes went out ahead of the text (see onSend); they go back to the
+    // chips, and only what was typed goes back to the field.
+    final (:quotes, :rest) = parseQuotedContext(unsentText);
+    if (quotes.isNotEmpty && !identical(unsentText, _quotesRestoredFrom)) {
+      _quotesRestoredFrom = unsentText;
+      final threadId = widget.threadId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _quotes.restore(threadId, quotes);
+      });
+    }
+    if (rest.isEmpty || _chatController.text.isNotEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _chatController.restoreDraft(unsentText);
+      _chatController.restoreDraft(rest);
     });
   }
 
@@ -2852,6 +2888,8 @@ class _RoomScreenState extends State<RoomScreen> {
       // composer has nothing to count, and the gauge stays hidden there
       // rather than showing a confident zero.
       contextUsage: threadView?.contextUsage.usage,
+      quotes: _quotes.all.watch(context)[widget.threadId] ?? const [],
+      onQuoteRemoved: (quote) => _quotes.remove(widget.threadId, quote),
       // The composer's transient state belongs to the thread it is composing
       // for, and what the composer is saying about that state is held in widget
       // state, so a notice about a pick made into one thread would otherwise
@@ -2861,7 +2899,13 @@ class _RoomScreenState extends State<RoomScreen> {
       // a value rather than as a `key` so the composer is not re-inflated — see
       // [ChatInput.composerScope] for what that would cost.
       composerScope: (_serverId, widget.roomId, threadView?.threadId),
-      onSend: (parts) {
+      onSend: (typed) {
+        // Quotes waiting for this thread go first, as markdown quote blocks:
+        // the backend passes no other channel to the model.
+        final quoted = _quotes.take(widget.threadId);
+        final parts = quoted.isEmpty
+            ? typed
+            : [TextPart(formatQuotedContext(quoted)), ...typed];
         if (threadView != null) {
           threadView.sendMessage(
             parts,
