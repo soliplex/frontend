@@ -13,6 +13,7 @@ import 'json_text.dart';
 final _logger = LogManager.instance.getLogger('soliplex_frontend.json_viewer');
 
 const _failureNotice = "This isn't valid JSON; showing the source.";
+const _emptyNotice = 'This JSON is empty.';
 const _depthNotice = 'Too deeply nested for a tree; showing the source.';
 
 const _prettyJson = JsonEncoder.withIndent('  ');
@@ -35,8 +36,10 @@ const maxJsonDepth = 100;
 ///
 /// Text that does not parse shows as it is, highlighted, with no switch and a
 /// notice above it, unless [showFailureNotice] is false or [isStreaming], when
-/// the text may still be incomplete. The failure is logged once per process
-/// for each label and content pair, and never while streaming.
+/// the text may still be incomplete. Empty or whitespace-only text gets a
+/// neutral notice that it is empty instead, not subject to
+/// [showFailureNotice], and is not logged. The failure is logged once per
+/// process for each label and content pair, and never while streaming.
 ///
 /// Content beyond the viewer's budget gets no switch and a neutral notice
 /// instead, checked in this order: text longer than [maxHighlightedLength]
@@ -229,6 +232,7 @@ class _JsonViewerState extends State<JsonViewer> {
     final shown = _shown;
     if (shown is! _Invalid || widget.isStreaming) return;
     final source = shown.text;
+    if (source.trim().isEmpty) return;
     if (!isFirstOccurrence('json:${widget.label}:$source')) return;
     // jsonDecode's FormatException carries a window of the source, so it goes
     // through describeFailure rather than `error:`.
@@ -259,6 +263,9 @@ class _JsonViewerState extends State<JsonViewer> {
       notice: switch (shown) {
         _TooLarge() =>
           const ContentInfoNotice(message: tooLargeToHighlightNotice),
+        _Invalid() when shown.text.trim().isEmpty => widget.isStreaming
+            ? null
+            : const ContentInfoNotice(message: _emptyNotice),
         _Invalid() when widget.showFailureNotice && !widget.isStreaming =>
           const RenderFailureNotice(message: _failureNotice),
         _Invalid() => null,

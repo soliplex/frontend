@@ -12,6 +12,7 @@ import 'package:soliplex_frontend/src/shared/log_once.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 const _notice = "This isn't valid JSON; showing the source.";
+const _emptyNotice = 'This JSON is empty.';
 const _sizeNotice = 'Too large to highlight; showing plain text.';
 const _depthNotice = 'Too deeply nested for a tree; showing the source.';
 
@@ -261,7 +262,9 @@ void main() {
       );
     });
 
-    testWidgets('empty source is invalid', (tester) async {
+    testWidgets('empty source says it is empty and logs nothing',
+        (tester) async {
+      final sink = _captureDebugLogs();
       await tester.pumpWidget(_inline(const JsonViewer.source(
         '',
         initialView: ContentView.rendered,
@@ -270,9 +273,32 @@ void main() {
       )));
 
       expect(tester.takeException(), isNull);
-      expect(find.text(_notice), findsOneWidget);
+      expect(find.text(_emptyNotice), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
       expect(_viewSwitch(), findsNothing);
       expect(find.byType(CodeView), findsOneWidget);
+      expect(sink.records, isEmpty);
+    });
+
+    testWidgets('whitespace-only source says nothing while streaming',
+        (tester) async {
+      Widget viewer({required bool isStreaming}) => _inline(JsonViewer.source(
+            ' \n\t ',
+            initialView: ContentView.rendered,
+            fill: false,
+            formatSource: true,
+            isStreaming: isStreaming,
+          ));
+
+      await tester.pumpWidget(viewer(isStreaming: true));
+
+      expect(find.text(_emptyNotice), findsNothing);
+      expect(find.text(_notice), findsNothing);
+
+      await tester.pumpWidget(viewer(isStreaming: false));
+
+      expect(find.text(_emptyNotice), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
     });
 
     testWidgets('while streaming shows no notice and logs nothing',
