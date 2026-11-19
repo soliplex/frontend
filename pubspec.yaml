@@ -57,6 +57,9 @@ dependencies:
   soliplex_logging:
     path: packages/soliplex_logging
   better_player: ">=1.37.0 <1.38.0"
+  # 3.0.1 and later need Flutter 3.50; the solver settles on 3.0.0 until the
+  # pin moves.
+  pdfrx: ^3.0.0
 
 dev_dependencies:
   flutter_test:
