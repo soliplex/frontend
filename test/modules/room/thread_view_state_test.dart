@@ -1757,6 +1757,98 @@ void main() {
       ext.onDispose();
     });
 
+    test(
+        'attaching the session the view restored keeps its band under the '
+        'key the band moves to', () async {
+      const threadKey = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final ext = ExecutionTrackerExtension(logger: testLogger());
+      addTearDown(ext.onDispose);
+      final session = _FakeAgentSession(extensions: [ext]);
+      await ext.onAttach(session);
+      // The run has a band before anything speaks, keyed by the run.
+      session.foldStart('run-1');
+      final band = ext.trackers[noResponseMessageId('run-1')];
+      expect(band, isNotNull);
+      registry.register(threadKey, session);
+
+      // As a spawn into a new thread does: the view restores the registered
+      // session, then the room attaches it again with its prompt.
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        followRun: neverFollowed,
+        contextWindow: Signal<int?>(null),
+      );
+      addTearDown(state.dispose);
+      state.attachSession(session, prompt: [const TextPart('Hello')]);
+
+      session.foldEvents(const [
+        TextMessageStartEvent(messageId: 'asst-1'),
+        TextMessageContentEvent(messageId: 'asst-1', delta: 'reply'),
+      ]);
+
+      expect(
+        state.executionTrackers.entries
+            .where((entry) => identical(entry.value, band))
+            .map((entry) => entry.key),
+        ['asst-1'],
+      );
+    });
+
+    test(
+        "attaching the session the view restored drops the history fetch's "
+        'answer', () async {
+      const threadKey = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final session = _FakeAgentSession();
+      registry.register(threadKey, session);
+      final historyApi = _PendingHistoryApi();
+
+      // As a spawn into a new thread does: the view restores the registered
+      // session, then the room attaches it again with its prompt.
+      final state = ThreadViewState(
+        connection: _fakeConnection(historyApi),
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+        followRun: neverFollowed,
+        contextWindow: Signal<int?>(null),
+      );
+      addTearDown(state.dispose);
+      state.attachSession(session, prompt: [const TextPart('Hello')]);
+
+      final sent =
+          TextMessage.create(id: 'u-1', user: ChatUser.user, text: 'Hello');
+      session.emit(RunningState(
+        threadKey: threadKey,
+        runId: 'run-1',
+        conversation: Conversation(threadId: 'thread-1', messages: [sent]),
+        streaming: const AwaitingText(),
+      ));
+      await historyApi.completeWith(ThreadHistory(messages: [
+        TextMessage.create(
+          id: 'stored-1',
+          user: ChatUser.assistant,
+          text: 'stored',
+        ),
+      ]));
+      await Future<void>.delayed(Duration.zero);
+
+      final loaded = state.messages.value as MessagesLoaded;
+      expect(loaded.messages.map((m) => m.id), ['u-1']);
+    });
+
     test('executionTrackers are cleaned up on dispose', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
