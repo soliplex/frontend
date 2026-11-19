@@ -24,18 +24,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   is still streaming, either notice waits until it finishes.
 - JSON trees, including those in diagnostics and dropped events, quote and
   escape strings and colour keys and values in the highlighted source's
-  colours. A drag can select across a tree's rows instead of stopping at
-  one; text copied that way runs the rows together, so use Copy or the
-  Source view to copy a whole block.
+  colours. In chat and diagnostics, a drag can select across a tree's rows
+  instead of stopping at one; text copied that way runs the rows together,
+  so use Copy or the Source view to copy a whole block.
 - Screen readers announce a JSON block as "JSON" rather than "Code block in
   json". In the light theme, JSON keys (and HTML/XML attribute names and
   YAML keys) are coloured, as they already were in the dark theme.
 - Code and JSON over 100 KiB, in chat or in the workdir, show as plain text
-  under a notice, without highlighting or a tree view; for a workdir JSON
-  file, its formatted text counts as well as the file's own. In a widget test, a 100 KB JSON took 0.5 s to
-  highlight and 2.1 s to lay out as a tree, and larger text took longer.
-- JSON nested more than 100 levels deep shows its source under a notice,
-  without a Tree view.
+  under a notice, without highlighting or a tree view, as does JSON whose
+  formatted form would be over that size or that is nested more than 100
+  levels deep.
 - A workdir `.json` file is still shown formatted, but with every string,
   key and number as written: `1e2` stays `1e2`, escapes stay escaped,
   duplicate keys are kept, and long integers keep every digit.
@@ -47,7 +45,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A JSON tree no longer shows the string `"42"` as a number or `"null"` as
   null: values are coloured by their real type.
 - An invalid workdir `.json` file no longer logs a warning every time the
-  page redraws; invalid JSON is logged once, at debug level.
+  page redraws.
 - A `.json` file containing a number beyond the range of a double (such as
   `1e999`) opens instead of failing with an error.
 - A JSON tree in diagnostics or a dropped event no longer fails to draw on
