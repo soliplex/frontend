@@ -20,8 +20,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   reply finishes; a partial SVG that happens to parse does render.
 - JSON code blocks in chat and `.json` files in the workdir have a Tree /
   Source switch and open on Source. Invalid JSON shows its source under a
-  notice; while a reply is still streaming, the notice waits until it
-  finishes.
+  neutral notice, and empty JSON says "This JSON is empty."; while a reply
+  is still streaming, either notice waits until it finishes.
 - JSON trees, including those in diagnostics and dropped events, quote and
   escape strings and colour keys and values in the highlighted source's
   colours. A drag can select across a tree's rows instead of stopping at
@@ -31,13 +31,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   json". In the light theme, JSON keys (and HTML/XML attribute names and
   YAML keys) are coloured, as they already were in the dark theme.
 - Code and JSON over 100 KiB, in chat or in the workdir, show as plain text
-  without highlighting or a tree view; for JSON, both the text and its
-  formatted form count. In a widget test, a 100 KB JSON took 0.5 s to
+  under a notice, without highlighting or a tree view; for a workdir JSON
+  file, its formatted text counts as well as the file's own. In a widget test, a 100 KB JSON took 0.5 s to
   highlight and 2.1 s to lay out as a tree, and larger text took longer.
 - JSON nested more than 100 levels deep shows its source under a notice,
   without a Tree view.
-- A workdir `.json` file is still shown formatted, but with numbers as
-  written: `1e2` stays `1e2`, and long integers keep every digit.
+- A workdir `.json` file is still shown formatted, but with every string,
+  key and number as written: `1e2` stays `1e2`, escapes stay escaped,
+  duplicate keys are kept, and long integers keep every digit.
 
 ### Fixed
 
@@ -49,8 +50,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   page redraws; invalid JSON is logged once, at debug level.
 - A `.json` file containing a number beyond the range of a double (such as
   `1e999`) opens instead of failing with an error.
-- A JSON tree in diagnostics no longer fails to draw on iOS, Android and
-  desktop when a string holds an unpaired surrogate (`"\ud800"`).
+- A JSON tree in diagnostics or a dropped event no longer fails to draw on
+  iOS, Android and desktop when a string holds an unpaired surrogate
+  (`"\ud800"`).
 
 ## [0.119.0+108] - 2026-11-18
 
