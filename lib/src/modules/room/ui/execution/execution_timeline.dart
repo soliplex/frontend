@@ -392,8 +392,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   /// A tool call's accumulated `TOOL_CALL_ARGS`: the one field carrying the
   /// call's intent as plain text when the args hold one ([_sourceArg]), and
   /// otherwise the args as JSON. While the call is still streaming the
-  /// accumulation is a JSON prefix, which the viewer shows as written; a
-  /// partial payload is more useful shown than hidden.
+  /// accumulation is a JSON prefix, which shows as plain text until it parses:
+  /// a partial payload is more useful shown than hidden, and the JSON viewer
+  /// would re-highlight the whole prefix on every delta.
   ///
   /// Called only for a row the reader has expanded, and only once
   /// [_isEmptyArgsObject] has ruled out the payload of a tool that takes no
@@ -405,9 +406,17 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     required bool isStreaming,
   }) {
     final decoded = _tryDecode(args);
-    if (_sourceArg(decoded?.value) case final source?) {
+    if (_sourceArg(decoded) case final source?) {
       return _sourceBlock(
         source,
+        theme,
+        label: 'Arguments',
+        clampId: clampId,
+      );
+    }
+    if (decoded == null && isStreaming) {
+      return _sourceBlock(
+        args,
         theme,
         label: 'Arguments',
         clampId: clampId,
@@ -424,7 +433,6 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         fill: false,
         formatSource: true,
         selectable: false,
-        isStreaming: isStreaming,
         maxBodyHeight: maxBodyHeight,
       ),
     );
@@ -486,7 +494,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   /// decides the clamp for the Tree view too, since a laid-out JSON text has
   /// about one line per tree row. Text past the viewer's size or depth budget
   /// shows as written too, which this does not account for, so the clamp can
-  /// misjudge it.
+  /// misjudge it. The text is also measured at the block's width, a little
+  /// wider than the code text inside the viewer's frame, so the clamp can miss
+  /// by a line; a body is still clamped only with the control beside it.
   Widget _jsonBlock(
     String laidOut,
     ThemeData theme, {
@@ -724,11 +734,12 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     return index;
   }
 
-  /// [raw] decoded, or null when it does not parse. The record tells a
-  /// failure from text that decodes to JSON `null`.
-  static ({Object? value})? _tryDecode(String raw) {
+  /// [raw] decoded, or null when it does not parse. Text that decodes to JSON
+  /// `null` reads the same as a failure, which no caller needs to tell apart:
+  /// it shows as `null` either way.
+  static Object? _tryDecode(String raw) {
     try {
-      return (value: jsonDecode(raw));
+      return jsonDecode(raw);
     } on FormatException {
       return null;
     }

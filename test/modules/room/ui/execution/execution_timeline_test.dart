@@ -891,10 +891,11 @@ void main() {
       expect(find.byIcon(Icons.chevron_right), findsNothing);
     });
 
-    testWidgets('partial JSON args render raw rather than throwing',
+    testWidgets('partial JSON args of a running call show as plain text',
         (tester) async {
       // While TOOL_CALL_ARGS is still streaming, the accumulated string is a
-      // JSON prefix, so the formatter must not require it to parse.
+      // JSON prefix, which shows as written without the JSON viewer, so a
+      // delta does not re-highlight the whole prefix.
       tracker.observe(const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
@@ -909,6 +910,7 @@ void main() {
       await expand(tester, 'rag_search');
 
       expect(find.text('{"query":"Soli'), findsOneWidget);
+      expect(find.byType(JsonViewer), findsNothing);
       expect(find.byType(ContentInfoNotice), findsNothing);
     });
 
