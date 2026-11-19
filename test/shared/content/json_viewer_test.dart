@@ -383,6 +383,37 @@ void main() {
     });
   });
 
+  group('decoded value', () {
+    testWidgets('a value JSON cannot encode shows its text under the notice',
+        (tester) async {
+      await tester.pumpWidget(_inline(const JsonViewer.decoded(
+        {'a': double.infinity},
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(_notice), findsOneWidget);
+      expect(_viewSwitch(), findsNothing);
+      expect(_codeView(tester).code, '{a: Infinity}');
+    });
+
+    testWidgets('an unencodable value over the limit shows plain text',
+        (tester) async {
+      final value = {'a': double.infinity, 'b': 'x' * maxHighlightedLength};
+      await tester.pumpWidget(_inline(JsonViewer.decoded(
+        value,
+        initialView: ContentView.rendered,
+        fill: false,
+      )));
+
+      expect(find.text(_sizeNotice), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
+      expect(_codeView(tester).language, 'plaintext');
+      expect(_codeView(tester).code, value.toString());
+    });
+  });
+
   testWidgets('label Body gives Copy Body', (tester) async {
     await tester.pumpWidget(_inline(const JsonViewer.source(
       '{"a": 1}',

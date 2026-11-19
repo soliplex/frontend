@@ -22,19 +22,22 @@ const maxJsonDepth = 100;
 /// JSON under the shared header, with a Tree / Source switch.
 ///
 /// The Source view is the text as written, or laid out with a 2-space indent,
-/// every string and number as written, when [formatSource] is set. The copy
+/// every string and number as written, when [formatSource] is set; a
+/// [JsonViewer.decoded] value is encoded and always laid out. The copy
 /// button copies what the Source view shows. The Tree shows decoded values, so
 /// `1e999` reads `Infinity` there, integers beyond 2^53 round on the web, and
 /// on native platforms integers beyond the 64-bit range become doubles.
 ///
 /// Oversized, too deeply nested ([maxJsonDepth]), invalid and empty content
-/// shows its text under a notice, with no Tree. While [isStreaming], the
+/// shows its text under a notice, with no Tree. A decoded value JSON cannot
+/// encode, such as `double.infinity`, shows its `toString()`, as invalid or,
+/// past [maxHighlightedLength], as oversized. While [isStreaming], the
 /// invalid and empty notices wait, since the text may be incomplete.
 class JsonViewer extends StatefulWidget {
   /// JSON text, parsed once per change of [source]. [formatSource] is
   /// required: each site decides whether its text is shown as written.
   const JsonViewer.source(
-    this.source, {
+    String this.source, {
     super.key,
     required this.initialView,
     this.label = 'json',
@@ -43,10 +46,28 @@ class JsonViewer extends StatefulWidget {
     this.selectable = true,
     this.isStreaming = false,
     this.showFailureNotice = true,
-  });
+  }) : value = null;
 
-  /// The JSON text.
-  final String source;
+  /// A decoded JSON [value], encoded once per change of it, by identity:
+  /// callers pass the same instance across rebuilds, or it is encoded and
+  /// parsed again on each one.
+  const JsonViewer.decoded(
+    this.value, {
+    super.key,
+    required this.initialView,
+    this.label = 'json',
+    required this.fill,
+    this.selectable = true,
+    this.showFailureNotice = true,
+  })  : source = null,
+        formatSource = true,
+        isStreaming = false;
+
+  /// The JSON text; null for a [JsonViewer.decoded] value.
+  final String? source;
+
+  /// The decoded JSON value; null for [JsonViewer.source] text.
+  final Object? value;
 
   /// The view shown first; [ContentView.rendered] is the Tree.
   final ContentView initialView;
@@ -57,8 +78,10 @@ class JsonViewer extends StatefulWidget {
 
   /// Whether the Source view and the copy button show [source] laid out with
   /// a 2-space indent rather than exactly as written. When the laid-out text
-  /// is longer than [maxHighlightedLength], [source] shows instead, as plain
-  /// text with no Tree, whatever this is.
+  /// is longer than [maxHighlightedLength], the unlaid text shows instead, as
+  /// plain text with no Tree, whatever this is: [source], or the compact
+  /// encoding of a [JsonViewer.decoded] value. Always true for
+  /// [JsonViewer.decoded].
   final bool formatSource;
 
   /// Whether the viewer takes the bounded height it is given, scrolling its
@@ -126,11 +149,26 @@ class _JsonViewerState extends State<JsonViewer> {
   @override
   void didUpdateWidget(JsonViewer old) {
     super.didUpdateWidget(old);
-    if (old.source != widget.source) _shown = _decide();
+    if (old.source != widget.source || !identical(old.value, widget.value)) {
+      _shown = _decide();
+    }
   }
 
   _Shown _decide() {
-    final source = widget.source;
+    if (widget.source case final source?) return _decideText(source);
+    final value = widget.value;
+    final String encoded;
+    try {
+      encoded = jsonEncode(value);
+    } on JsonUnsupportedObjectError {
+      final text = value.toString();
+      if (text.length > maxHighlightedLength) return _TooLarge(text);
+      return _Invalid(text);
+    }
+    return _decideText(encoded);
+  }
+
+  _Shown _decideText(String source) {
     if (source.length > maxHighlightedLength) return _TooLarge(source);
     if (jsonNestingDepth(source) > maxJsonDepth) return _TooDeep(source);
     final Object? decoded;
