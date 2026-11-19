@@ -23,6 +23,7 @@ export 'src/theme/theme_extensions.dart';
 export 'src/tokens/breakpoints.dart';
 export 'src/tokens/colors.dart';
 export 'src/tokens/hashed_color.dart';
+export 'src/tokens/paper_highlights.dart';
 export 'src/tokens/radii.dart';
 export 'src/tokens/spacing.dart';
 export 'src/tokens/swatch.dart';
