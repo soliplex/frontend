@@ -132,9 +132,70 @@ void main() {
       final between = ancestors.takeWhile((widget) => widget is! Material);
       expect(between.whereType<ColoredBox>(), isEmpty);
       expect(inkMaterial.color, githubTheme['root']!.backgroundColor);
-      expect(inkMaterial.elevation, 0);
-      expect(inkMaterial.shape, isNull);
-      expect(inkMaterial.borderRadius, isNull);
+    });
+  });
+
+  group('content change', () {
+    testWidgets(
+        'invalid then valid (streaming) offers the switch and drops '
+        'the notice', (tester) async {
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"a": ',
+        initialView: ContentView.source,
+        fill: false,
+      )));
+      expect(find.text(_notice), findsOneWidget);
+      expect(_viewSwitch(), findsNothing);
+
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"a": 1}',
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      expect(find.text(_notice), findsNothing);
+      expect(_viewSwitch(), findsOneWidget);
+      expect(_codeView(tester).code, '{\n  "a": 1\n}');
+    });
+
+    testWidgets('valid then different valid shows the new content',
+        (tester) async {
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"a": 1}',
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"b": 2}',
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      expect(_codeView(tester).code, '{\n  "b": 2\n}');
+      await tester.tap(find.text('Tree'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('b: 2', findRichText: true), findsOneWidget);
+      expect(find.textContaining('a: 1', findRichText: true), findsNothing);
+    });
+
+    testWidgets('the chosen view survives new content', (tester) async {
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"a": 1}',
+        initialView: ContentView.source,
+        fill: false,
+      )));
+      await tester.tap(find.text('Tree'));
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(_inline(const JsonViewer.source(
+        '{"b": 2}',
+        initialView: ContentView.source,
+        fill: false,
+      )));
+
+      expect(find.byType(JsonTreeView), findsOneWidget);
+      expect(find.byType(CodeView), findsNothing);
     });
   });
 

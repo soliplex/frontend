@@ -208,6 +208,39 @@ void main() {
       expect(paragraph.registrar, isNotNull);
     });
 
+    testWidgets('a json fence joins the transcript selection in both views',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SelectionArea(
+              child: FlutterMarkdownPlusRenderer(
+                data: '```json\n{"needle": 1}\n```',
+                selectable: false,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      void expectJoinsTranscriptArea() {
+        expect(find.byType(SelectionArea), findsOneWidget);
+        final text = find.textContaining('needle', findRichText: true);
+        expect(text, findsOneWidget);
+        final paragraph = tester.renderObject<RenderParagraph>(text);
+        expect(paragraph.registrar, isNotNull);
+      }
+
+      expect(find.byType(CodeView), findsOneWidget);
+      expectJoinsTranscriptArea();
+
+      await tester.tap(find.text('Tree'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(JsonTreeView), findsOneWidget);
+      expectJoinsTranscriptArea();
+    });
+
     testWidgets('outside FenceStreaming, a fence is treated as complete',
         (tester) async {
       await tester.pumpWidget(

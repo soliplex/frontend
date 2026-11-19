@@ -259,8 +259,10 @@ void main() {
       await drag.up();
       await tester.pump();
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      addTearDown(
+        () => tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft),
+      );
       await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pump();
 
       expect(copied, contains('first'));

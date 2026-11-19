@@ -7,6 +7,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/content_vie
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 
 Widget _inline(ContentViewer viewer) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: viewer)),
@@ -222,6 +223,42 @@ void main() {
       )));
 
       expect(find.text(notice), findsOneWidget);
+    });
+
+    testWidgets(
+        'json crossing the limit and back keeps its State and its Tree view',
+        (tester) async {
+      const under = '{"a": 1}';
+      await tester.pumpWidget(_inline(const ContentViewer(
+        language: 'json',
+        content: under,
+        fill: false,
+      )));
+      final state = tester.state(find.byType(JsonViewer));
+      await tester.tap(find.text('Tree'));
+      await tester.pumpAndSettle();
+      expect(find.byType(JsonTreeView), findsOneWidget);
+
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'json',
+        content: overJson,
+        fill: false,
+      )));
+
+      expect(tester.state(find.byType(JsonViewer)), same(state));
+      expect(find.text(notice), findsOneWidget);
+      expect(find.byType(JsonTreeView), findsNothing);
+      expect(find.text('Tree'), findsNothing);
+
+      await tester.pumpWidget(_inline(const ContentViewer(
+        language: 'json',
+        content: under,
+        fill: false,
+      )));
+
+      expect(tester.state(find.byType(JsonViewer)), same(state));
+      expect(find.text(notice), findsNothing);
+      expect(find.byType(JsonTreeView), findsOneWidget);
     });
 
     testWidgets('code at the limit is highlighted', (tester) async {
