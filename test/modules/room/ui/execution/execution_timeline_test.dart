@@ -889,6 +889,57 @@ void main() {
       await expand(tester, 'rag_search');
 
       expect(find.text('{"query":"Soli'), findsOneWidget);
+      expect(find.byType(ContentInfoNotice), findsNothing);
+    });
+
+    testWidgets('args a completed call left unparseable show the notice',
+        (tester) async {
+      tracker.observe(const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      ));
+      tracker.observe(const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"query":"Soli',
+      ));
+      tracker.observe(const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'ok',
+      ));
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'rag_search');
+
+      expect(find.text('{"query":"Soli'), findsOneWidget);
+      expect(find.byType(ContentInfoNotice), findsOneWidget);
+    });
+
+    testWidgets('unparseable args are clamped by the text the viewer shows',
+        (tester) async {
+      // Laid out, these members would run to a line each; the viewer shows
+      // them as written, on one line, so there is nothing to show more of.
+      const args = '{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"g":7,"h":8,"i":9,'
+          '"j"';
+      tracker.observe(const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      ));
+      tracker.observe(const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: args,
+      ));
+      tracker.observe(const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'ok',
+      ));
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'rag_search');
+
+      expect(find.text(args), findsOneWidget);
+      expect(find.text('Show more'), findsNothing);
     });
 
     testWidgets('a long result is clamped until expanded', (tester) async {

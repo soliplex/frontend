@@ -400,7 +400,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     required String clampId,
     required bool isStreaming,
   }) {
-    if (_sourceArg(args) case final source?) {
+    final decoded = _tryDecode(args);
+    if (_sourceArg(decoded?.value) case final source?) {
       return _sourceBlock(
         source,
         theme,
@@ -409,7 +410,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
       );
     }
     return _jsonBlock(
-      formatJson(args),
+      decoded == null ? args : formatJson(args),
       theme,
       clampId: clampId,
       viewer: (maxBodyHeight) => JsonViewer.source(
@@ -476,9 +477,12 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   /// A JSON block: the [viewer] built with the body height cap, whose header
   /// carries the block's label and copy button.
   ///
-  /// [laidOut] is the text the viewer's Source view lays out. Measured in the
-  /// code text style, it decides the clamp for the Tree view too, since a
-  /// laid-out JSON text has about one line per tree row.
+  /// [laidOut] is the text the viewer's Source view shows: laid out when it
+  /// parses, as written when it does not. Measured in the code text style, it
+  /// decides the clamp for the Tree view too, since a laid-out JSON text has
+  /// about one line per tree row. Text past the viewer's size or depth budget
+  /// shows as written too, which this does not account for, so the clamp can
+  /// misjudge it.
   Widget _jsonBlock(
     String laidOut,
     ThemeData theme, {
@@ -673,12 +677,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     return height;
   }
 
-  /// The value of the first of [_sourceKeys] that [args] decode to an object
-  /// holding as a non-empty string; null for anything else, including args
-  /// that do not parse yet.
-  static String? _sourceArg(String args) {
-    final decoded = _tryDecodeObject(args);
-    if (decoded == null) return null;
+  /// The first non-empty string among [decoded]'s [_sourceKeys] members when
+  /// [decoded] is an object; null otherwise, including while the args are
+  /// still a partial prefix and so decode to nothing.
+  static String? _sourceArg(Object? decoded) {
+    if (decoded is! Map<String, dynamic>) return null;
     for (final key in _sourceKeys) {
       final value = decoded[key];
       if (value is String && value.isNotEmpty) return value;
@@ -716,10 +719,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     return index;
   }
 
-  static Map<String, dynamic>? _tryDecodeObject(String raw) {
+  /// [raw] decoded, or null when it does not parse. The record tells a
+  /// failure from text that decodes to JSON `null`.
+  static ({Object? value})? _tryDecode(String raw) {
     try {
-      final decoded = jsonDecode(raw);
-      return decoded is Map<String, dynamic> ? decoded : null;
+      return (value: jsonDecode(raw));
     } on FormatException {
       return null;
     }
@@ -738,9 +742,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   /// The text a [JsonViewer.decoded] Source view lays out for [content]. A
   /// value JSON cannot encode, such as `double.infinity`, is measured by its
-  /// `toString()`, which is what the viewer copies in its place. The viewer
-  /// shows such a value only as its Tree, which has a row per value where
-  /// this text may have a single line, so the clamp can miss it.
+  /// `toString()`, which is what the viewer copies in its place. Within
+  /// [maxHighlightedLength] the viewer shows such a value only as its Tree,
+  /// which has a row per value where this text may have a single line, so the
+  /// clamp can miss it; past it, the viewer shows this text under the size
+  /// notice.
   ///
   /// Called only for a row the reader has expanded — `content` reaches tens of
   /// KB, so encoding it to decide whether to draw a chevron would cost that on
