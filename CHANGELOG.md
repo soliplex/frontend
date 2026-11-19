@@ -44,7 +44,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   payloads, the execution timeline's tool arguments (labelled "Arguments")
   and activity content, and, in chat, the arguments of tools the app runs
   itself. Tool results stay plain text, as do timeline arguments that carry
-  a `script`, `code`, `query` or `command` string, which show that string.
+  a `script`, `code`, `query` or `command` string, which show that string,
+  and timeline arguments still streaming in that don't parse yet.
   Diagnostics' JSON / Raw switch becomes Tree / Source, and its source is
   highlighted. A dropped event's payload that couldn't be parsed is
   highlighted, without the invalid-JSON notice; diagnostics tool-call

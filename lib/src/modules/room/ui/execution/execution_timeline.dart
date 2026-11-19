@@ -68,8 +68,9 @@ const int _rightBrace = 0x7D;
 /// any activity rows under their owning step. A step row carrying a server tool
 /// call expands to its result, and to the string its arguments carry under a
 /// `script`, `code`, `query` or `command` key, as a monospace preview with a
-/// copy button, and to any other arguments in a JSON viewer. An activity row
-/// carrying content expands to that content in a JSON viewer.
+/// copy button, and to any other arguments in a JSON viewer, or as that
+/// preview while the call is still running and they do not parse yet. An
+/// activity row carrying content expands to that content in a JSON viewer.
 class ExecutionTimeline extends ConsumerStatefulWidget {
   /// Keyed by [tracker]: a band moves between the tiles that show it (loading,
   /// reply, no-response), and the state its viewers hold, such as a JSON
