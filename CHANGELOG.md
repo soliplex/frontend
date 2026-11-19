@@ -39,9 +39,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   are kept, and long integers keep every digit.
 - Every other place JSON is shown uses the same viewer, with a header, a
   Tree / Source switch and a copy button: room info values, diagnostics
-  request and response bodies (labelled "Body"), stream events and tool-call
-  arguments, dropped-event payloads, and the execution timeline's tool
-  arguments (labelled "Arguments") and activity content. Diagnostics' JSON /
+  request and response bodies (labelled "Body"), stream events, tool-call
+  arguments and state snapshots and deltas, dropped-event payloads, the
+  execution timeline's tool arguments (labelled "Arguments") and activity
+  content, and, in chat, the arguments of tools the app runs itself. Tool
+  results stay plain text. Diagnostics' JSON /
   Raw switch becomes Tree / Source, and its source is highlighted. A dropped
   event's payload that couldn't be parsed is highlighted, without a notice;
   diagnostics tool-call arguments that don't parse show under the
