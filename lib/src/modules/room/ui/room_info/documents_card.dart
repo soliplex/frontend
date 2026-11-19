@@ -331,8 +331,12 @@ class MetadataDialog extends StatelessWidget {
         _card(
           context,
           entry.key,
-          formatDynamicValue(context, entry.value,
-              style: theme.textTheme.bodySmall),
+          dynamicValueView(
+            context,
+            entry.value,
+            style: theme.textTheme.bodySmall,
+            selectable: true,
+          ),
         ),
     ];
 

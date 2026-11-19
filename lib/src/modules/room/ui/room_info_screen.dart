@@ -409,10 +409,11 @@ class _AgentCard extends StatelessWidget {
                             ),
                       ),
                       const SizedBox(height: SoliplexSpacing.s1),
-                      formatDynamicValue(
+                      dynamicValueView(
                         context,
                         extraConfig,
                         style: Theme.of(context).textTheme.bodySmall,
+                        selectable: false,
                       ),
                     ],
                   ),

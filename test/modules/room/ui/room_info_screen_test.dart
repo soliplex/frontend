@@ -10,6 +10,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 import 'package:soliplex_frontend/src/shared/selectable_content.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
@@ -825,6 +826,27 @@ void main() {
       expect(
         tester.widget<CodeView>(find.byType(CodeView)).code,
         '{\n  "temperature": 0.7,\n  "top_k": 50\n}',
+      );
+    });
+
+    testWidgets("a map value's viewer leaves selection to the screen",
+        (tester) async {
+      final room = _testRoom.copyWith(
+        agent: const FactoryRoomAgent(
+          id: 'agent-factory',
+          factoryName: 'my_module.create_agent',
+          extraConfig: {'temperature': 0.7, 'top_k': 50},
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(room: room));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byType(JsonViewer),
+          matching: find.byType(SelectableText),
+        ),
+        findsNothing,
       );
     });
 

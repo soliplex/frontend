@@ -123,21 +123,26 @@ class DialogButton extends StatelessWidget {
   }
 }
 
-/// Shows a dynamic value: complex values (maps/lists) in a [JsonViewer], and
-/// scalars as plain text in [style].
-Widget formatDynamicValue(
+/// The widget showing a dynamic value: a [JsonViewer] for a complex value (a
+/// map or list), and plain text in [style] for a scalar. Pass [selectable]
+/// false inside a `SelectionArea`, which then selects the value.
+Widget dynamicValueView(
   BuildContext context,
   Object? value, {
   TextStyle? style,
+  required bool selectable,
 }) {
   if (value is Map || value is Iterable) {
     return JsonViewer.decoded(
       value,
       initialView: ContentView.source,
       fill: false,
+      selectable: selectable,
     );
   }
-  return SelectableText('$value', style: style);
+  return selectable
+      ? SelectableText('$value', style: style)
+      : Text('$value', style: style);
 }
 
 /// Dialog rendering one or more raw parameter maps the backend passes
@@ -195,10 +200,11 @@ class RawParametersDialog extends StatelessWidget {
                       children: [
                         Text(entry.key, style: labelStyle),
                         const SizedBox(height: SoliplexSpacing.s1),
-                        formatDynamicValue(
+                        dynamicValueView(
                           context,
                           entry.value,
                           style: valueStyle,
+                          selectable: true,
                         ),
                       ],
                     ),
