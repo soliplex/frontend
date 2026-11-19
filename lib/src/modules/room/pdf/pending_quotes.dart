@@ -13,8 +13,11 @@ import 'pdf_quote.dart';
 class RoomQuotes {
   final _byThread = signal<Map<String?, List<PdfQuote>>>(const {});
 
-  /// The quotes waiting in [threadId], oldest first. Reading it subscribes
-  /// the caller to changes.
+  /// Every thread's waiting quotes, for a widget to watch.
+  ReadonlySignal<Map<String?, List<PdfQuote>>> get all => _byThread;
+
+  /// The quotes waiting in [threadId], oldest first. Reading it inside an
+  /// effect or a `Watch` subscribes the reader to changes.
   List<PdfQuote> watch(String? threadId) =>
       _byThread.value[threadId] ?? const [];
 
