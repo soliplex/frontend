@@ -220,11 +220,11 @@ class _RunEntryCard extends StatelessWidget {
           colorScheme.onSurfaceVariant,
           message ?? '',
         ),
-      StateEntry(:final type, :final data) => (
+      StateEntry(:final type) => (
           type,
           colorScheme.surfaceContainerLow,
           colorScheme.onSurfaceVariant,
-          data?.toString() ?? '',
+          '',
         ),
     };
 
@@ -251,6 +251,14 @@ class _RunEntryCard extends StatelessWidget {
                 initialView: ContentView.source,
                 fill: false,
                 formatSource: true,
+              ),
+            ],
+            if (entry case StateEntry(:final data) when data != null) ...[
+              const SizedBox(height: SoliplexSpacing.s2),
+              JsonViewer.decoded(
+                data,
+                initialView: ContentView.rendered,
+                fill: false,
               ),
             ],
           ],
