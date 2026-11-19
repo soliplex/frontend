@@ -13,9 +13,8 @@ const _tabWidth = 8;
 /// The `String.length` (UTF-16 code units; 100 KiB for ASCII text) above which
 /// text shows as plain text instead of highlighted, and JSON gets no tree.
 /// Highlighting and building a tree cost time in proportion to length, and
-/// every view lays out all of its text at once; a 100 KB JSON measured 0.5 s
-/// highlighted and 2.1 s as a tree in a widget test. Callers measure the text
-/// they show, and for JSON its formatted text too.
+/// every view lays out all of its text at once. Callers measure the text they
+/// show, and for JSON its formatted text too.
 const maxHighlightedLength = 100 * 1024;
 
 /// What a viewer says above text shown plain for being longer than

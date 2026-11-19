@@ -17,8 +17,7 @@ import 'svg_body.dart';
 ///
 /// Code longer than [maxHighlightedLength] shows as plain text under a notice,
 /// streaming or not. Code whose language is `plaintext` is never highlighted, so
-/// it gets no notice. JSON has its own limits in [JsonViewer]: size and nesting
-/// depth. SVG has no limit.
+/// it gets no notice. JSON's limits are [JsonViewer]'s. SVG has no limit.
 class ContentViewer extends StatelessWidget {
   const ContentViewer({
     super.key,

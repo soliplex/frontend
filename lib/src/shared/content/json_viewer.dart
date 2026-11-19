@@ -14,35 +14,22 @@ const _depthNotice = 'Too deeply nested for a tree; showing the source.';
 
 /// The deepest nesting [JsonViewer] builds a tree for: building the tree and
 /// its widgets and, on the web, decoding text each recurse once per level, so
-/// much deeper nesting overflows the stack.
-/// That is why text is measured before it is decoded. A scalar is depth 0, `[]`
-/// and `{}` are 1, `[[1]]` is 2.
+/// much deeper nesting overflows the stack. That is why text is measured
+/// before it is decoded. A scalar is depth 0, `[]` and `{}` are 1, `[[1]]` is
+/// 2.
 const maxJsonDepth = 100;
 
 /// JSON under the shared header, with a Tree / Source switch.
 ///
 /// The Source view is the text as written, or laid out with a 2-space indent,
 /// every string and number as written, when [formatSource] is set. The copy
-/// button copies whatever the Source view shows. The Tree shows decoded
-/// values, so `1e999` reads `Infinity` there, integers beyond 2^53 round on the
-/// web, and on native platforms integers beyond the 64-bit range become
-/// doubles.
+/// button copies what the Source view shows. The Tree shows decoded values, so
+/// `1e999` reads `Infinity` there, integers beyond 2^53 round on the web, and
+/// on native platforms integers beyond the 64-bit range become doubles.
 ///
-/// Text that does not parse shows as it is, highlighted, with no switch and a
-/// neutral notice above it, unless [showFailureNotice] is false or
-/// [isStreaming], when the text may still be incomplete. Empty or
-/// whitespace-only text gets a neutral notice that it is empty instead, shown
-/// once streaming ends, not subject to [showFailureNotice], and not logged.
-/// The failure is logged once per process for each label and content pair,
-/// and never while streaming.
-///
-/// Content beyond the viewer's budget gets no switch and a neutral notice
-/// instead, checked in this order: text longer than [maxHighlightedLength]
-/// shows as plain text, unparsed; nesting deeper than [maxJsonDepth] shows the
-/// text highlighted, measured before parsing, so text that is also invalid
-/// gets this notice rather than the failure notice; and valid text whose
-/// laid-out form is longer than [maxHighlightedLength] shows as plain text,
-/// whether or not [formatSource] shows the laid-out form.
+/// Oversized, too deeply nested ([maxJsonDepth]), invalid and empty content
+/// shows its text under a notice, with no Tree. While [isStreaming], the
+/// invalid and empty notices wait, since the text may be incomplete.
 class JsonViewer extends StatefulWidget {
   /// JSON text, parsed once per change of [source]. [formatSource] is
   /// required: each site decides whether its text is shown as written.
@@ -87,7 +74,7 @@ class JsonViewer extends StatefulWidget {
   final bool isStreaming;
 
   /// Whether text that does not parse gets the notice. A site that already
-  /// explains the failure passes false.
+  /// explains the failure passes false. Empty text always gets its notice.
   final bool showFailureNotice;
 
   @override
