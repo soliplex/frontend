@@ -101,6 +101,15 @@ for item in "$BUILD_DIR"/*; do
     esac
 done
 
+# The PDF viewer loads PDFium's WebAssembly module through Flutter's asset
+# base (lib/src/shared/pdf/pdf_runtime_web.dart), so it must have moved with
+# the other assets. Fail here rather than ship a viewer that cannot start.
+PDFIUM_WASM="$HASH_DIR/assets/packages/pdfrx/assets/pdfium.wasm"
+if [ ! -f "$PDFIUM_WASM" ]; then
+    echo "Error: $PDFIUM_WASM not found; the PDF viewer would not load on web"
+    exit 1
+fi
+
 echo "Updating flutter_bootstrap.js..."
 
 # Pass the loader a config naming where everything now lives:
