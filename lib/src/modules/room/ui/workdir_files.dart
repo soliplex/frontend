@@ -9,6 +9,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../shared/adaptive_surface.dart';
 import '../../../shared/zoomable_image.dart';
 import '../file_downloads.dart';
 import '../workdir_files_status.dart' show workdirFileUnavailable;
@@ -418,32 +419,15 @@ class WorkdirPreviewPage extends StatefulWidget {
     assert(
         files.isNotEmpty, 'WorkdirPreviewPage.show requires non-empty files');
     final clampedIndex = initialIndex.clamp(0, files.length - 1);
-    final useDialog =
-        MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
-    final child = WorkdirPreviewPage(
-      files: files,
-      initialIndex: clampedIndex,
-      fetchBytes: fetchBytes,
-      downloads: downloads,
-    );
-    if (useDialog) {
-      // Zero-duration transition — showDialog's default fade adds a
-      // visible flash when the user is expecting an immediate jump to
-      // the preview.
-      return showGeneralDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        barrierLabel:
-            MaterialLocalizations.of(context).modalBarrierDismissLabel,
-        transitionDuration: Duration.zero,
-        pageBuilder: (_, __, ___) => child,
-      );
-    }
-    return Navigator.of(context).push<void>(
-      PageRouteBuilder<void>(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (_, __, ___) => child,
+    // The page reads the width again in build, so it frames itself either
+    // way; the flag is not needed.
+    return presentAdaptively<void>(
+      context,
+      build: (_) => WorkdirPreviewPage(
+        files: files,
+        initialIndex: clampedIndex,
+        fetchBytes: fetchBytes,
+        downloads: downloads,
       ),
     );
   }
