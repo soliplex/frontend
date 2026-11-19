@@ -62,7 +62,7 @@ void main() {
     expect(find.byType(JsonViewer), findsNothing);
   });
 
-  testWidgets('a STATE_SNAPSHOT shows its state as Tree / Source',
+  testWidgets('a STATE_SNAPSHOT shows its state on Source, with Tree / Source',
       (tester) async {
     final body = _sseBody([
       {
@@ -77,10 +77,14 @@ void main() {
     expect(find.byType(JsonViewer), findsOneWidget);
     expect(find.text('Tree'), findsOneWidget);
     expect(find.text('Source'), findsOneWidget);
-    expect(find.textContaining('cart: 3', findRichText: true), findsOneWidget);
+    expect(
+      tester.widget<CodeView>(find.byType(CodeView)).code,
+      '{\n  "cart": 3\n}',
+    );
   });
 
-  testWidgets('a STATE_DELTA shows its JSON Patch as Tree / Source',
+  testWidgets(
+      'a STATE_DELTA shows its JSON Patch on Source, with Tree / Source',
       (tester) async {
     final body = _sseBody([
       {
@@ -98,8 +102,14 @@ void main() {
     expect(find.text('Tree'), findsOneWidget);
     expect(find.text('Source'), findsOneWidget);
     expect(
-      find.textContaining('replace', findRichText: true),
-      findsOneWidget,
+      tester.widget<CodeView>(find.byType(CodeView)).code,
+      '[\n'
+      '  {\n'
+      '    "op": "replace",\n'
+      '    "path": "/cart",\n'
+      '    "value": 4\n'
+      '  }\n'
+      ']',
     );
   });
 

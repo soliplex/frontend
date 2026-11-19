@@ -257,7 +257,7 @@ class _RunEntryCard extends StatelessWidget {
               const SizedBox(height: SoliplexSpacing.s2),
               JsonViewer.decoded(
                 data,
-                initialView: ContentView.rendered,
+                initialView: ContentView.source,
                 fill: false,
               ),
             ],
