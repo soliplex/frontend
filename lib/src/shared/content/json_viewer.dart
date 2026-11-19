@@ -22,9 +22,11 @@ const maxJsonDepth = 100;
 
 /// JSON under the shared header, with a Tree / Source switch.
 ///
-/// The Source view is the text as written, or laid out with a 2-space indent,
-/// every string and number as written, when [formatSource] is set; a
-/// [JsonViewer.decoded] value is encoded and always laid out. The copy
+/// The Source view of [JsonViewer.source] text is the text as written, or laid
+/// out with a 2-space indent, every string and number as written, when
+/// [formatSource] is set. A [JsonViewer.decoded] value's Source view is its
+/// encoding, always laid out, so its numbers read as Dart encodes them: a
+/// decoded `1e2` reads `100.0` (`100` on the web). The copy
 /// button copies what the Source view shows. The Tree shows decoded values, so
 /// `1e999` reads `Infinity` there, integers beyond 2^53 round on the web, and
 /// on native platforms integers beyond the 64-bit range become doubles.
