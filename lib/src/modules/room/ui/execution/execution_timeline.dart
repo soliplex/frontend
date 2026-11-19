@@ -69,12 +69,14 @@ const int _rightBrace = 0x7D;
 /// call, and an activity row carrying a source, expand to a monospace preview
 /// with a copy button.
 class ExecutionTimeline extends ConsumerStatefulWidget {
-  const ExecutionTimeline({
-    super.key,
+  /// Keyed by [tracker]: a band moves between the tiles that show it (loading,
+  /// reply, no-response), and the state its viewers hold, such as a JSON
+  /// viewer's Tree, must move with it rather than be rebuilt.
+  ExecutionTimeline({
     required this.roomId,
     required this.messageId,
     required this.tracker,
-  });
+  }) : super(key: GlobalObjectKey<_ExecutionTimelineState>(tracker));
 
   final String roomId;
   final String messageId;

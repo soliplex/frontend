@@ -197,35 +197,9 @@ void main() {
           const ServerToolCallStarted(toolName: 'search', toolCallId: 't1'));
     addTearDown(band.dispose);
     final expansions = MessageExpansions();
-    const ask = TextMessage(
-      id: 'u1',
-      user: ChatUser.user,
-      createdAt: null,
-      text: 'ask',
-      runId: 'run-1',
-    );
-
-    Widget timeline({
-      required StreamingState streaming,
-      required String bandKey,
-    }) =>
-        ProviderScope(
-          overrides: [messageExpansionsProvider.overrideWithValue(expansions)],
-          child: MaterialApp(
-            home: Scaffold(
-              body: MessageTimeline(
-                roomId: 'r',
-                messages: const [ask],
-                messageStates: const {},
-                streamingState: streaming,
-                activeRunId: 'run-1',
-                executionTrackers: {bandKey: band},
-              ),
-            ),
-          ),
-        );
-
-    await tester.pumpWidget(timeline(
+    await tester.pumpWidget(_runOneTimeline(
+      band: band,
+      expansions: expansions,
       streaming: const AwaitingText(),
       bandKey: noResponseMessageId('run-1'),
     ));
@@ -235,7 +209,9 @@ void main() {
     expect(find.text('pondering'), findsOneWidget);
     expect(find.text('search'), findsOneWidget);
 
-    await tester.pumpWidget(timeline(
+    await tester.pumpWidget(_runOneTimeline(
+      band: band,
+      expansions: expansions,
       streaming: const TextStreaming(
         messageId: 'a1',
         user: ChatUser.assistant,
@@ -247,6 +223,56 @@ void main() {
     expect(find.text('Here is'), findsOneWidget);
     expect(find.text('pondering'), findsOneWidget);
     expect(find.text('search'), findsOneWidget);
+  });
+
+  testWidgets(
+      "a step's arguments keep the Tree and its collapsed nodes once the "
+      'reply speaks', (tester) async {
+    // The viewer's view and its tree's open nodes are its own state, not the
+    // expansion store's, so only the band's subtree moving with it keeps them.
+    final band = ExecutionTracker(
+      activities: Signal<List<ActivityRecord>>(const []),
+      logger: testLogger(),
+    )
+      ..observe(const ServerToolCallStarted(
+        toolName: 'execute_skill',
+        toolCallId: 't1',
+      ))
+      ..observe(const ServerToolCallArgs(
+        toolCallId: 't1',
+        delta: '{"nested":{"a":1},"skill_name":"rag"}',
+      ));
+    addTearDown(band.dispose);
+    final expansions = MessageExpansions();
+    await tester.pumpWidget(_runOneTimeline(
+      band: band,
+      expansions: expansions,
+      streaming: const AwaitingText(),
+      bandKey: noResponseMessageId('run-1'),
+    ));
+    await tester.tap(find.text('1 event'));
+    await tester.pump();
+    await tester.tap(find.text('execute_skill'));
+    await tester.pump();
+    await tester.tap(find.text('Tree'));
+    await tester.pump();
+    await tester.tap(find.text('nested: {'));
+    await tester.pump();
+    expect(find.text('nested: {…}'), findsOneWidget);
+
+    await tester.pumpWidget(_runOneTimeline(
+      band: band,
+      expansions: expansions,
+      streaming: const TextStreaming(
+        messageId: 'a1',
+        user: ChatUser.assistant,
+        text: 'Here is',
+      ),
+      bandKey: 'a1',
+    ));
+
+    expect(find.text('Here is'), findsOneWidget);
+    expect(find.text('nested: {…}'), findsOneWidget);
   });
 
   testWidgets('a band that stays dropped is reported once, not per update',
@@ -484,3 +510,37 @@ void main() {
     expect(find.text('Assistant'), findsOneWidget);
   });
 }
+
+/// The user message that opened `run-1`, the run [_runOneTimeline] streams.
+const _runOneAsk = TextMessage(
+  id: 'u1',
+  user: ChatUser.user,
+  createdAt: null,
+  text: 'ask',
+  runId: 'run-1',
+);
+
+/// A timeline of [_runOneAsk] while `run-1` streams [streaming], with [band]
+/// keyed [bandKey], so a test can move the band between the loading tile and
+/// the reply's tile by pumping it again.
+Widget _runOneTimeline({
+  required ExecutionTracker band,
+  required MessageExpansions expansions,
+  required StreamingState streaming,
+  required String bandKey,
+}) =>
+    ProviderScope(
+      overrides: [messageExpansionsProvider.overrideWithValue(expansions)],
+      child: MaterialApp(
+        home: Scaffold(
+          body: MessageTimeline(
+            roomId: 'r',
+            messages: const [_runOneAsk],
+            messageStates: const {},
+            streamingState: streaming,
+            activeRunId: 'run-1',
+            executionTrackers: {bandKey: band},
+          ),
+        ),
+      ),
+    );
