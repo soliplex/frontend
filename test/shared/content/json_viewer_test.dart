@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 import 'package:soliplex_frontend/src/shared/content/content_frame.dart';
+import 'package:soliplex_frontend/src/shared/content/json_text.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 import 'package:soliplex_frontend/src/shared/log_once.dart';
@@ -426,6 +426,26 @@ void main() {
       expect(_codeView(tester).code, source);
     });
 
+    testWidgets(
+        'text shown as written whose laid-out form is over the limit gets '
+        'no tree', (tester) async {
+      final source = '[${List.filled(21000, '[]').join(',')}]';
+      expect(source.length, lessThan(maxHighlightedLength));
+      expect(formatJson(source).length, greaterThan(maxHighlightedLength));
+      await tester.pumpWidget(_inline(JsonViewer.source(
+        source,
+        initialView: ContentView.rendered,
+        fill: false,
+        formatSource: false,
+      )));
+
+      expect(find.text(_sizeNotice), findsOneWidget);
+      expect(_viewSwitch(), findsNothing);
+      expect(find.byType(JsonTreeView), findsNothing);
+      expect(_codeView(tester).language, 'plaintext');
+      expect(_codeView(tester).code, source);
+    });
+
     testWidgets('nesting deeper than maxJsonDepth shows the source',
         (tester) async {
       final source = _nestedSource(maxJsonDepth + 1);
@@ -487,24 +507,6 @@ void main() {
       expect(find.text(_depthNotice), findsOneWidget);
       expect(find.text(_notice), findsNothing);
     });
-
-    testWidgets('a decoded value nested too deep shows the depth notice',
-        (tester) async {
-      Object? value = <Object?>[];
-      for (var i = 0; i < maxJsonDepth; i++) {
-        value = [value];
-      }
-      await tester.pumpWidget(_inline(JsonViewer.decoded(
-        value,
-        initialView: ContentView.rendered,
-        fill: false,
-      )));
-
-      expect(tester.takeException(), isNull);
-      expect(find.text(_depthNotice), findsOneWidget);
-      expect(_viewSwitch(), findsNothing);
-      expect(_codeView(tester).code, isEmpty);
-    });
   });
 
   testWidgets('label Body gives Copy Body', (tester) async {
@@ -518,35 +520,5 @@ void main() {
 
     expect(find.text('Body'), findsOneWidget);
     expect(find.byTooltip('Copy Body'), findsOneWidget);
-  });
-
-  testWidgets('copy copies the pretty-print for decoded input', (tester) async {
-    String? copied;
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') {
-        copied = (call.arguments as Map)['text'] as String?;
-      }
-      return null;
-    });
-    addTearDown(
-      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
-    );
-    await tester.pumpWidget(_inline(const JsonViewer.decoded(
-      {
-        'a': [1, true],
-      },
-      initialView: ContentView.rendered,
-      fill: false,
-    )));
-
-    expect(find.byType(JsonTreeView), findsOneWidget);
-    await tester.tap(find.byTooltip('Copy JSON'));
-    await tester.pump();
-    // Lets the copy button's feedback revert so no timer is left pending.
-    await tester.pump(const Duration(seconds: 2));
-
-    expect(copied, '{\n  "a": [\n    1,\n    true\n  ]\n}');
   });
 }

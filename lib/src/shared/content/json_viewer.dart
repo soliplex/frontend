@@ -16,11 +16,9 @@ const _failureNotice = "This isn't valid JSON; showing the source.";
 const _emptyNotice = 'This JSON is empty.';
 const _depthNotice = 'Too deeply nested for a tree; showing the source.';
 
-const _prettyJson = JsonEncoder.withIndent('  ');
-
 /// The deepest nesting [JsonViewer] builds a tree for: building the tree and
-/// its widgets, re-encoding a decoded value, and, on the web, decoding text
-/// each recurse once per level, so much deeper nesting overflows the stack.
+/// its widgets and, on the web, decoding text each recurse once per level, so
+/// much deeper nesting overflows the stack.
 /// That is why text is measured before it is decoded. A scalar is depth 0, `[]`
 /// and `{}` are 1, `[[1]]` is 2.
 const maxJsonDepth = 100;
@@ -28,11 +26,11 @@ const maxJsonDepth = 100;
 /// JSON under the shared header, with a Tree / Source switch.
 ///
 /// The Source view is the text as written, or laid out with a 2-space indent,
-/// every string and number as written, when [formatSource] is set; for a
-/// decoded value it is the 2-space pretty-print. The copy button copies whatever
-/// the Source view shows. The Tree shows decoded values, so `1e999` reads
-/// `Infinity` there, integers beyond 2^53 round on the web, and on native
-/// platforms integers beyond the 64-bit range become doubles.
+/// every string and number as written, when [formatSource] is set. The copy
+/// button copies whatever the Source view shows. The Tree shows decoded
+/// values, so `1e999` reads `Infinity` there, integers beyond 2^53 round on the
+/// web, and on native platforms integers beyond the 64-bit range become
+/// doubles.
 ///
 /// Text that does not parse shows as it is, highlighted, with no switch and a
 /// neutral notice above it, unless [showFailureNotice] is false or
@@ -46,33 +44,14 @@ const maxJsonDepth = 100;
 /// instead, checked in this order: text longer than [maxHighlightedLength]
 /// shows as plain text, unparsed; nesting deeper than [maxJsonDepth] shows the
 /// text highlighted, measured before parsing, so text that is also invalid
-/// gets this notice rather than the failure notice; and a Source view longer
-/// than [maxHighlightedLength] shows as plain text.
+/// gets this notice rather than the failure notice; and valid text whose
+/// laid-out form is longer than [maxHighlightedLength] shows as plain text,
+/// whether or not [formatSource] shows the laid-out form.
 class JsonViewer extends StatefulWidget {
-  /// An already-decoded JSON [value], which must be JSON-encodable: maps with
-  /// string keys, lists, strings, booleans, null and finite numbers.
-  /// `jsonDecode` can return more, such as `Infinity` for `1e999`, which cannot
-  /// be encoded here yet. Keep the same instance across rebuilds; a new
-  /// instance is re-encoded and its tree rebuilt.
-  ///
-  /// There is no text to fall back on, so a [value] nesting deeper than
-  /// [maxJsonDepth] shows only the notice, over an empty Source view.
-  const JsonViewer.decoded(
-    this.value, {
-    super.key,
-    required this.initialView,
-    this.label = 'json',
-    required this.fill,
-    this.selectable = true,
-  })  : source = null,
-        isStreaming = false,
-        showFailureNotice = true,
-        formatSource = true;
-
   /// JSON text, parsed once per change of [source]. [formatSource] is
   /// required: each site decides whether its text is shown as written.
   const JsonViewer.source(
-    String this.source, {
+    this.source, {
     super.key,
     required this.initialView,
     this.label = 'json',
@@ -81,13 +60,10 @@ class JsonViewer extends StatefulWidget {
     this.selectable = true,
     this.isStreaming = false,
     this.showFailureNotice = true,
-  }) : value = null;
+  });
 
-  /// The decoded value; unused when [source] is set.
-  final Object? value;
-
-  /// The JSON text, or null for a decoded [value].
-  final String? source;
+  /// The JSON text.
+  final String source;
 
   /// The view shown first; [ContentView.rendered] is the Tree.
   final ContentView initialView;
@@ -97,9 +73,9 @@ class JsonViewer extends StatefulWidget {
   final String label;
 
   /// Whether the Source view and the copy button show [source] laid out with
-  /// a 2-space indent rather than exactly as written. A decoded value is always
-  /// pretty-printed. When the laid-out text is longer than
-  /// [maxHighlightedLength], [source] shows instead.
+  /// a 2-space indent rather than exactly as written. When the laid-out text
+  /// is longer than [maxHighlightedLength], [source] shows instead, as plain
+  /// text with no Tree, whatever this is.
   final bool formatSource;
 
   /// Whether the viewer takes the bounded height it is given, scrolling its
@@ -130,9 +106,8 @@ sealed class _Shown {
   final String text;
 }
 
-/// Text past [maxHighlightedLength], shown as plain text: the text itself, or,
-/// when the text as written is shown, only its laid-out form (for a decoded
-/// value, the pretty-print).
+/// Text past [maxHighlightedLength], as written or once laid out, shown as
+/// plain text exactly as written.
 final class _TooLarge extends _Shown {
   const _TooLarge(super.text);
 }
@@ -157,26 +132,6 @@ final class _Tree extends _Shown {
   final List<JsonNode> nodes;
 }
 
-/// Whether [value] nests deeper than [maxJsonDepth], measured with an explicit
-/// stack so that the measuring cannot overflow either.
-bool _nestsTooDeep(Object? value) {
-  final pending = <(Object?, int)>[(value, 0)];
-  while (pending.isNotEmpty) {
-    final (node, depth) = pending.removeLast();
-    final children = switch (node) {
-      List() => node,
-      Map() => node.values,
-      _ => null,
-    };
-    if (children == null) continue;
-    if (depth + 1 > maxJsonDepth) return true;
-    for (final child in children) {
-      pending.add((child, depth + 1));
-    }
-  }
-  return false;
-}
-
 class _JsonViewerState extends State<JsonViewer> {
   late ContentView _view = widget.initialView;
 
@@ -192,8 +147,7 @@ class _JsonViewerState extends State<JsonViewer> {
   @override
   void didUpdateWidget(JsonViewer old) {
     super.didUpdateWidget(old);
-    final contentChanged =
-        old.source != widget.source || old.value != widget.value;
+    final contentChanged = old.source != widget.source;
     if (contentChanged) _shown = _decide();
     // Streaming ending with the text unchanged is when its failure is final.
     if (contentChanged || old.isStreaming != widget.isStreaming) _logFailure();
@@ -201,7 +155,6 @@ class _JsonViewerState extends State<JsonViewer> {
 
   _Shown _decide() {
     final source = widget.source;
-    if (source == null) return _decideDecoded(widget.value);
     if (source.length > maxHighlightedLength) return _TooLarge(source);
     if (jsonNestingDepth(source) > maxJsonDepth) return _TooDeep(source);
     final Object? decoded;
@@ -210,28 +163,15 @@ class _JsonViewerState extends State<JsonViewer> {
     } on FormatException catch (e, st) {
       return _Invalid(source, e, st);
     }
-    final text = widget.formatSource ? formatJson(source) : source;
-    return _treeWithin(text, decoded, ifTooLarge: source);
+    // The tree's cost follows its rows, and the laid-out text has about one
+    // line per row, so it is measured whether or not it is shown.
+    final formatted = formatJson(source);
+    if (formatted.length > maxHighlightedLength) return _TooLarge(source);
+    return _Tree(
+      widget.formatSource ? formatted : source,
+      buildJsonTree(decoded),
+    );
   }
-
-  /// Decides for a decoded [value], which has no text of its own.
-  _Shown _decideDecoded(Object? value) {
-    if (_nestsTooDeep(value)) return const _TooDeep('');
-    final text = _prettyJson.convert(value);
-    return _treeWithin(text, value, ifTooLarge: text);
-  }
-
-  /// The tree of [value] with [text] as its Source view, unless [text] is
-  /// longer than [maxHighlightedLength]: then [ifTooLarge] shown plain. Laid
-  /// out, text can be far longer than the source it came from.
-  _Shown _treeWithin(
-    String text,
-    Object? value, {
-    required String ifTooLarge,
-  }) =>
-      text.length > maxHighlightedLength
-          ? _TooLarge(ifTooLarge)
-          : _Tree(text, buildJsonTree(value));
 
   void _logFailure() {
     final shown = _shown;
