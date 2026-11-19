@@ -302,6 +302,51 @@ void main() {
     });
   });
 
+  group('from a link in an answer', () {
+    TextMessage answer(String text) => TextMessage(
+          id: 'a1',
+          user: ChatUser.assistant,
+          createdAt: DateTime(2026, 3, 1),
+          text: text,
+        );
+
+    testWidgets('a public .pdf link opens as itself, with no credentials',
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          answer('[the paper](https://arxiv.org/pdf/2401.1.pdf)'),
+        ],
+      );
+      await pump(tester);
+
+      await tester.tap(find.text('the paper', findRichText: true));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PdfViewerPane), findsOneWidget);
+      expect(views.last.uri, Uri.parse('https://arxiv.org/pdf/2401.1.pdf'));
+      expect(api.fetched, isEmpty);
+    });
+
+    testWidgets("a link to the server's own upload opens as that upload",
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      final upload = entry.serverUrl.resolve(
+        '/api/v1/uploads/room-1/file/brief.pdf',
+      );
+      api.nextThreadHistory = ThreadHistory(
+        messages: [answer('[brief.pdf]($upload)')],
+      );
+      await pump(tester);
+
+      await tester.tap(find.text('brief.pdf', findRichText: true));
+      await tester.pumpAndSettle();
+
+      expect(api.fetched, ['room-1/brief.pdf']);
+      expect(views.last.bytes, isNotNull);
+    });
+  });
+
   group('over the conversation', () {
     testWidgets('on a phone it opens as a page, and Back to chat returns',
         (tester) async {

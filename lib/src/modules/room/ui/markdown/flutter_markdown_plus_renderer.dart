@@ -8,7 +8,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../shared/failed_image.dart';
-import '../../../../shared/markdown/launch_markdown_link.dart';
+import '../../../../shared/markdown/markdown_link_scope.dart';
 import '../../../../shared/markdown/markdown_renderer.dart';
 import '../../../../shared/markdown/markdown_style_sheet.dart';
 import '../../../../shared/markdown/sanitize_markdown.dart';
@@ -85,12 +85,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
         inlineSyntaxes: [LatexInlineSyntax(), CitationMarkerSyntax(numbers)],
         onTapLink: (_, href, title) {
           if (href == null) return;
-          final handleTap = onLinkTap;
-          if (handleTap != null) {
-            handleTap(href, title);
-          } else {
-            launchMarkdownLink(href);
-          }
+          openMarkdownLink(context, href, title, onLinkTap: onLinkTap);
         },
         // A video file in image syntax plays rather than shows. `onImageTap`
         // is for images; the card owns what a tap on a video does.

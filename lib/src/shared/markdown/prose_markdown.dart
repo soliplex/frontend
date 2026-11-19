@@ -3,7 +3,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:soliplex_design/soliplex_design.dart';
 
-import 'launch_markdown_link.dart';
+import 'markdown_link_scope.dart';
 import 'markdown_renderer.dart';
 import 'markdown_style_sheet.dart';
 import 'sanitize_markdown.dart';
@@ -41,12 +41,7 @@ class ProseMarkdown extends MarkdownRenderer {
         extensionSet: md.ExtensionSet.gitHubFlavored,
         onTapLink: (_, href, title) {
           if (href == null) return;
-          final handleTap = onLinkTap;
-          if (handleTap != null) {
-            handleTap(href, title);
-          } else {
-            launchMarkdownLink(href);
-          }
+          openMarkdownLink(context, href, title, onLinkTap: onLinkTap);
         },
       ),
     );
