@@ -66,8 +66,10 @@ const int _rightBrace = 0x7D;
 
 /// Execution timeline — a single collapsible listing a run's steps, nesting
 /// any activity rows under their owning step. A step row carrying a server tool
-/// call, and an activity row carrying a source, expand to a monospace preview
-/// with a copy button.
+/// call expands to its result, and to the string its arguments carry under a
+/// `script`, `code`, `query` or `command` key, as a monospace preview with a
+/// copy button, and to any other arguments in a JSON viewer. An activity row
+/// carrying content expands to that content in a JSON viewer.
 class ExecutionTimeline extends ConsumerStatefulWidget {
   /// Keyed by [tracker]: a band moves between the tiles that show it (loading,
   /// reply, no-response), and the state its viewers hold, such as a JSON
@@ -680,7 +682,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   }
 
   /// The first non-empty string among [decoded]'s [_sourceKeys] members when
-  /// [decoded] is an object; null otherwise, including while the args are
+  /// [decoded] is an object. Null when no such member holds a non-empty
+  /// string, and when [decoded] is not an object, including while the args are
   /// still a partial prefix and so decode to nothing.
   static String? _sourceArg(Object? decoded) {
     if (decoded is! Map<String, dynamic>) return null;

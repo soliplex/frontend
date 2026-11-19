@@ -493,6 +493,26 @@ void main() {
       expect(find.byTooltip('Copy JSON'), findsOneWidget);
     });
 
+    testWidgets('activity content JSON cannot encode still shows its viewer',
+        (tester) async {
+      pushSnapshot(
+        messageId: 'plan:1',
+        activityType: 'plan',
+        content: {'score': double.infinity},
+        timestamp: 100,
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+      await tester.tap(find.text('plan'));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(JsonViewer), findsOneWidget);
+    });
+
     testWidgets('a stored call/result pair still renders one row',
         (tester) async {
       // Stored threads carry one sub-skill invocation as two snapshots
