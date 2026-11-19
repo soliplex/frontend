@@ -17,7 +17,6 @@ import 'file_list_row.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/download_feedback.dart';
-import 'workdir_preview/json_preview.dart';
 import 'workdir_preview/preview_kind.dart';
 import 'workdir_preview/too_large_preview.dart';
 
@@ -867,13 +866,13 @@ class _PreviewBody extends StatelessWidget {
       PreviewKind.code ||
       PreviewKind.text ||
       PreviewKind.html ||
-      PreviewKind.csv =>
+      PreviewKind.csv ||
+      PreviewKind.json =>
         ContentViewer(
           language: languageForFilename(filename),
           content: content,
           fill: true,
         ),
-      PreviewKind.json => JsonPreview(content: content),
       PreviewKind.image || PreviewKind.pdf || PreviewKind.unknown => _fallback(
           icon: Icons.image_not_supported_outlined,
           message: "Can't preview this file",

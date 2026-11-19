@@ -11,7 +11,7 @@ void main() {
       expect((nodes[0] as ValueNode).value, 'Alice');
       expect(nodes[1], isA<ValueNode>());
       expect((nodes[1] as ValueNode).key, 'age');
-      expect((nodes[1] as ValueNode).value, '30');
+      expect((nodes[1] as ValueNode).value, 30);
     });
 
     test('builds ArrayNode from list', () {
@@ -40,11 +40,11 @@ void main() {
       expect(user.children, hasLength(2));
     });
 
-    test('handles null values', () {
+    test('null stays null', () {
       final nodes = buildJsonTree({'key': null});
       expect(nodes, hasLength(1));
       expect(nodes[0], isA<ValueNode>());
-      expect((nodes[0] as ValueNode).value, 'null');
+      expect((nodes[0] as ValueNode).value, isNull);
     });
 
     test('handles empty map', () {
@@ -64,7 +64,7 @@ void main() {
       expect(nodes, hasLength(3));
       expect(nodes[0], isA<ValueNode>());
       expect((nodes[0] as ValueNode).key, '[0]');
-      expect((nodes[0] as ValueNode).value, '1');
+      expect((nodes[0] as ValueNode).value, 1);
     });
 
     test('handles primitive top-level value', () {
@@ -77,9 +77,21 @@ void main() {
     test('handles boolean and numeric values', () {
       final nodes = buildJsonTree({'flag': true, 'count': 42, 'rate': 3.14});
       expect(nodes, hasLength(3));
-      expect((nodes[0] as ValueNode).value, 'true');
-      expect((nodes[1] as ValueNode).value, '42');
-      expect((nodes[2] as ValueNode).value, '3.14');
+      expect((nodes[0] as ValueNode).value, true);
+      expect((nodes[1] as ValueNode).value, 42);
+      expect((nodes[2] as ValueNode).value, 3.14);
+    });
+
+    test('string "42" stays a String', () {
+      final value = (buildJsonTree({'a': '42'}).single as ValueNode).value;
+      expect(value, isA<String>());
+      expect(value, '42');
+    });
+
+    test('number 42 stays a num', () {
+      final value = (buildJsonTree({'a': 42}).single as ValueNode).value;
+      expect(value, isA<num>());
+      expect(value, 42);
     });
   });
 }

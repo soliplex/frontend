@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/content_viewer.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 
 Widget _inline(ContentViewer viewer) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: viewer)),
@@ -44,6 +48,44 @@ void main() {
 
     expect(find.byType(SvgBody), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp(r'^SVG image\n')), findsOneWidget);
+  });
+
+  testWidgets('json routes to JsonViewer, labelled JSON', (tester) async {
+    await tester.pumpWidget(_inline(const ContentViewer(
+      language: 'json',
+      content: '{"a": 1}',
+      fill: false,
+    )));
+
+    expect(find.byType(JsonViewer), findsOneWidget);
+    expect(find.byTooltip('Copy JSON'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^JSON\n')), findsOneWidget);
+  });
+
+  testWidgets('chat JSON shows as written, a workdir file formatted',
+      (tester) async {
+    const compact = '{"a":[1,2]}';
+    Widget viewer({required bool fill}) => _inline(ContentViewer(
+          language: 'json',
+          content: compact,
+          fill: fill,
+        ));
+
+    await tester.pumpWidget(viewer(fill: false));
+    expect(tester.widget<CodeView>(find.byType(CodeView)).code, compact);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          height: 600,
+          child: ContentViewer(language: 'json', content: compact, fill: true),
+        ),
+      ),
+    ));
+    expect(
+      tester.widget<CodeView>(find.byType(CodeView)).code,
+      '{\n  "a": [\n    1,\n    2\n  ]\n}',
+    );
   });
 
   testWidgets('semantics label is Code block in python', (tester) async {
@@ -117,6 +159,188 @@ void main() {
 
       expect(tester.getTopLeft(find.byTooltip('Copy code')).dy, headerTop);
       expect(tester.getTopLeft(find.byType(CodeView)).dy, lessThan(codeTop));
+    });
+  });
+
+  testWidgets('a long JSON file scrolls under a pinned header in both views',
+      (tester) async {
+    final content = jsonEncode(List.generate(200, (i) => {'key_$i': i}));
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          height: 600,
+          child: ContentViewer(language: 'json', content: content, fill: true),
+        ),
+      ),
+    ));
+
+    Future<void> expectBodyScrollsUnderHeader(Finder body) async {
+      final scrollable = tester.state<ScrollableState>(
+          find.ancestor(of: body, matching: find.byType(Scrollable)).first);
+      scrollable.position.jumpTo(0);
+      await tester.pump();
+      final headerTop = tester.getTopLeft(find.byTooltip('Copy JSON')).dy;
+      final bodyTop = tester.getTopLeft(body).dy;
+      scrollable.position.jumpTo(400);
+      await tester.pump();
+
+      expect(tester.getTopLeft(find.byTooltip('Copy JSON')).dy, headerTop);
+      expect(tester.getTopLeft(body).dy, lessThan(bodyTop));
+      expect(tester.takeException(), isNull);
+    }
+
+    await expectBodyScrollsUnderHeader(find.byType(CodeView));
+
+    await tester.tap(find.text('Tree'));
+    await tester.pumpAndSettle();
+    await expectBodyScrollsUnderHeader(find.byType(JsonTreeView));
+  });
+
+  group('over maxHighlightedLength', () {
+    const notice = 'Too large to highlight; showing plain text.';
+    final overJson = '{"a": "${'x' * maxHighlightedLength}"}';
+    // Pretty-printed, `{"a": "<x>"}` gains a newline before and after the
+    // entry and a two-space indent.
+    final prettyAtLimit = '{\n  "a": ""\n}'.length;
+    final jsonPrettyAtLimit =
+        '{"a": "${'x' * (maxHighlightedLength - prettyAtLimit)}"}';
+
+    testWidgets(
+        'json over the limit shows plain text, the notice and no switch',
+        (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'json',
+        content: overJson,
+        fill: false,
+      )));
+
+      expect(find.byType(JsonViewer), findsOneWidget);
+      expect(find.text(notice), findsOneWidget);
+      final body = tester.widget<CodeView>(find.byType(CodeView));
+      expect(body.language, 'plaintext');
+      expect(body.code, overJson);
+      expect(find.text('Tree'), findsNothing);
+      expect(find.text('json'), findsOneWidget);
+      expect(find.byTooltip('Copy JSON'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^JSON\n')), findsOneWidget);
+    });
+
+    testWidgets(
+        'a workdir json whose pretty-print is at the limit offers '
+        'Tree / Source', (tester) async {
+      expect(
+        const JsonEncoder.withIndent('  ')
+            .convert(jsonDecode(jsonPrettyAtLimit))
+            .length,
+        maxHighlightedLength,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 600,
+            child: ContentViewer(
+              language: 'json',
+              content: jsonPrettyAtLimit,
+              fill: true,
+            ),
+          ),
+        ),
+      ));
+
+      expect(find.text(notice), findsNothing);
+      expect(find.text('Tree'), findsOneWidget);
+    });
+
+    testWidgets('json over the limit shows the notice while streaming',
+        (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'json',
+        content: overJson,
+        fill: false,
+        isStreaming: true,
+      )));
+
+      expect(find.text(notice), findsOneWidget);
+    });
+
+    testWidgets(
+        'json crossing the limit and back keeps its State and its Tree view',
+        (tester) async {
+      const under = '{"a": 1}';
+      await tester.pumpWidget(_inline(const ContentViewer(
+        language: 'json',
+        content: under,
+        fill: false,
+      )));
+      final state = tester.state(find.byType(JsonViewer));
+      await tester.tap(find.text('Tree'));
+      await tester.pumpAndSettle();
+      expect(find.byType(JsonTreeView), findsOneWidget);
+
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'json',
+        content: overJson,
+        fill: false,
+      )));
+
+      expect(tester.state(find.byType(JsonViewer)), same(state));
+      expect(find.text(notice), findsOneWidget);
+      expect(find.byType(JsonTreeView), findsNothing);
+      expect(find.text('Tree'), findsNothing);
+
+      await tester.pumpWidget(_inline(const ContentViewer(
+        language: 'json',
+        content: under,
+        fill: false,
+      )));
+
+      expect(tester.state(find.byType(JsonViewer)), same(state));
+      expect(find.text(notice), findsNothing);
+      expect(find.byType(JsonTreeView), findsOneWidget);
+    });
+
+    testWidgets('code at the limit is highlighted', (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'python',
+        content: '#' * maxHighlightedLength,
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsNothing);
+      expect(tester.widget<CodeView>(find.byType(CodeView)).language, 'python');
+    });
+
+    testWidgets(
+        'code over the limit is not highlighted and keeps its label '
+        'and Copy code', (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'python',
+        content: '#' * (maxHighlightedLength + 1),
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsOneWidget);
+      expect(
+          tester.widget<CodeView>(find.byType(CodeView)).language, 'plaintext');
+      expect(find.text('python'), findsOneWidget);
+      expect(find.byTooltip('Copy code'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^Code block in python\n')),
+          findsOneWidget);
+    });
+
+    testWidgets('plaintext over the limit shows no notice and no label',
+        (tester) async {
+      await tester.pumpWidget(_inline(ContentViewer(
+        language: 'plaintext',
+        content: 'a' * (maxHighlightedLength + 1),
+        fill: false,
+      )));
+
+      expect(find.text(notice), findsNothing);
+      expect(
+          tester.widget<CodeView>(find.byType(CodeView)).language, 'plaintext');
+      expect(find.text('plaintext'), findsNothing);
+      expect(find.bySemanticsLabel(RegExp(r'^Code block$')), findsOneWidget);
     });
   });
 }

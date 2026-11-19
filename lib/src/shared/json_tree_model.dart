@@ -4,29 +4,29 @@ sealed class JsonNode {
   final String key;
 }
 
-class ValueNode extends JsonNode {
+final class ValueNode extends JsonNode {
   const ValueNode({required super.key, required this.value});
 
-  final String value;
+  /// The decoded scalar: a String, num, bool or null.
+  final Object? value;
 }
 
-class ObjectNode extends JsonNode {
+final class ObjectNode extends JsonNode {
   const ObjectNode({required super.key, required this.children});
 
   final List<JsonNode> children;
 }
 
-class ArrayNode extends JsonNode {
-  const ArrayNode({
-    required super.key,
-    required this.itemCount,
-    required this.children,
-  });
+final class ArrayNode extends JsonNode {
+  const ArrayNode({required super.key, required this.children});
 
-  final int itemCount;
   final List<JsonNode> children;
+
+  int get itemCount => children.length;
 }
 
+/// The nodes of [json]. It recurses once per nesting level and does not bound
+/// depth.
 List<JsonNode> buildJsonTree(dynamic json, {String rootKey = ''}) {
   if (json is Map) {
     return json.entries.map((e) => _buildNode('${e.key}', e.value)).toList();
@@ -34,7 +34,7 @@ List<JsonNode> buildJsonTree(dynamic json, {String rootKey = ''}) {
   if (json is List) {
     return _buildArrayChildren(json);
   }
-  return [ValueNode(key: rootKey, value: '$json')];
+  return [ValueNode(key: rootKey, value: json)];
 }
 
 JsonNode _buildNode(String key, dynamic value) {
@@ -48,11 +48,10 @@ JsonNode _buildNode(String key, dynamic value) {
   if (value is List) {
     return ArrayNode(
       key: key,
-      itemCount: value.length,
       children: _buildArrayChildren(value),
     );
   }
-  return ValueNode(key: key, value: '$value');
+  return ValueNode(key: key, value: value);
 }
 
 List<JsonNode> _buildArrayChildren(List<dynamic> list) {

@@ -1,10 +1,13 @@
 /// How the content viewer renders a piece of content.
-enum ContentKind { svg, code }
+enum ContentKind { svg, json, code }
 
 /// The kind of viewer for [language], a highlight language id.
-/// Case-insensitive; only `svg` has its own viewer.
-ContentKind contentKindOf(String language) =>
-    language.toLowerCase() == 'svg' ? ContentKind.svg : ContentKind.code;
+/// Case-insensitive; only `svg` and `json` have their own viewers.
+ContentKind contentKindOf(String language) => switch (language.toLowerCase()) {
+      'svg' => ContentKind.svg,
+      'json' => ContentKind.json,
+      _ => ContentKind.code,
+    };
 
 /// The language of a markdown fence given its [infoString]: the first
 /// whitespace-separated word, lower-cased, or `plaintext` when there is none.

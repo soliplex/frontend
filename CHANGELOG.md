@@ -18,11 +18,37 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   with the notice beside it, and its source is behind the Source switch.
   While a reply is still streaming, a broken SVG shows no notice until the
   reply finishes; a partial SVG that happens to parse does render.
+- JSON code blocks in chat and `.json` files in the workdir have a Tree /
+  Source switch and open on Source. Invalid JSON shows its source under a
+  neutral notice, and empty JSON says "This JSON is empty."; while a reply
+  is still streaming, either notice waits until it finishes.
+- JSON trees, including those in diagnostics and dropped events, quote and
+  escape strings and colour keys and values in the highlighted source's
+  colours. In chat and diagnostics, a drag can select across a tree's rows
+  instead of stopping at one; text copied that way runs the rows together,
+  so use Copy or the Source view to copy a whole block.
+- Screen readers announce a JSON block as "JSON" rather than "Code block in
+  json". In the light theme, JSON keys (and HTML/XML attribute names and
+  YAML keys) are coloured, as they already were in the dark theme.
+- Code and JSON over 100 KiB, in chat or in the workdir, show as plain text
+  under a notice, without highlighting or a tree view, as does JSON whose
+  formatted form would be over that size. JSON nested more than 100 levels
+  deep shows its highlighted source under a notice, without a tree view.
+- A workdir `.json` file is shown formatted, with every string, key and
+  number as written: `1e2` stays `1e2`, escapes stay escaped, duplicate keys
+  are kept, and long integers keep every digit.
 
 ### Fixed
 
 - Code blocks in chat and code and text files in the workdir can be selected,
   not only copied; in chat they join the message's drag-selection (#389).
+- A JSON tree no longer shows the string `"42"` as a number or `"null"` as
+  null: values are coloured by their real type.
+- A `.json` file containing a number beyond the range of a double (such as
+  `1e999`) opens instead of failing with an error.
+- A JSON tree in diagnostics or a dropped event no longer fails to draw on
+  iOS, Android and desktop when a string holds an unpaired surrogate
+  (`"\ud800"`).
 
 ## [0.119.0+108] - 2026-11-18
 

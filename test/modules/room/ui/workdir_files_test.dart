@@ -19,6 +19,8 @@ import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.da
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
+import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 import 'package:soliplex_frontend/src/shared/zoomable_view.dart';
 
 import '../../../helpers/file_name_finder.dart';
@@ -507,7 +509,7 @@ void main() {
     );
   });
 
-  testWidgets('json file is pretty-printed inside a CodeView', (tester) async {
+  testWidgets('a workdir .json previews with Tree / Source', (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
       status: WorkdirFilesLoaded([_file('data.json')]),
       onRetry: () {},
@@ -520,11 +522,36 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
+    expect(find.byType(JsonViewer), findsOneWidget);
     final view = tester.widget<CodeView>(find.byType(CodeView));
     expect(view.language, 'json');
-    // 2-space indent is the pretty-print contract — verifying it via the
-    // raw source the highlighter receives.
     expect(view.code, contains('"a": 1'));
+
+    await tester.tap(_inPreview(find.text('Tree')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(JsonTreeView), findsOneWidget);
+  });
+
+  testWidgets(
+      'an invalid workdir .json shows the notice and the title bar still '
+      'offers Download', (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([_file('broken.json')]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('{"a": ')),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text("This isn't valid JSON; showing the source."),
+        findsOneWidget);
+    expect(find.byType(JsonTreeView), findsNothing);
+    expect(tester.widget<CodeView>(find.byType(CodeView)).code, '{"a": ');
+    expect(_inPreview(find.byTooltip('Download')), findsOneWidget);
   });
 
   testWidgets('a .svg previews zoomable inside the bounded page',

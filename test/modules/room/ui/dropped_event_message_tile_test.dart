@@ -152,6 +152,6 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.textContaining('foo'), findsWidgets);
-    expect(find.byType(SelectableText), findsNothing);
+    expect(find.byType(SelectionArea), findsOneWidget);
   });
 }

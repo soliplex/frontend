@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/content/code_view.dart';
 import '../../../../shared/content/content_frame.dart';
+import '../../../../shared/content/json_viewer.dart';
 import 'content_kind.dart';
 import 'svg_body.dart';
 
@@ -13,6 +14,10 @@ import 'svg_body.dart';
 /// bounded. [isStreaming] says the content may still be
 /// incomplete, so a failed rendering shows no notice yet. Pass [selectable]
 /// false inside a `SelectionArea`.
+///
+/// Code longer than [maxHighlightedLength] shows as plain text under a notice,
+/// streaming or not. Code whose language is `plaintext` is never highlighted, so
+/// it gets no notice. JSON's limits are [JsonViewer]'s. SVG has no limit.
 class ContentViewer extends StatelessWidget {
   const ContentViewer({
     super.key,
@@ -41,24 +46,48 @@ class ContentViewer extends StatelessWidget {
             selectable: selectable,
           ),
         ),
+      ContentKind.json => Semantics(
+          label: 'JSON',
+          child: JsonViewer.source(
+            content,
+            initialView: ContentView.source,
+            fill: fill,
+            // A workdir file page (fill) shows a file laid out for reading; a
+            // chat fence (inline) shows what the model wrote.
+            formatSource: fill,
+            selectable: selectable,
+            isStreaming: isStreaming,
+          ),
+        ),
       ContentKind.code => Semantics(
           label: language == 'plaintext'
               ? 'Code block'
               : 'Code block in $language',
-          child: ContentFrame(
-            header: ContentHeader(
-              label: language == 'plaintext' ? null : language,
-              copyText: content,
-              copyTooltip: 'Copy code',
-            ),
-            body: CodeView(
-              code: content,
-              language: language,
-              selectable: selectable,
-            ),
-            fill: fill,
-          ),
+          child: _codeFrame(),
         ),
     };
+  }
+
+  /// The header, a notice when the code is too large to highlight, then the
+  /// code body.
+  Widget _codeFrame() {
+    final isPlainText = language == 'plaintext';
+    final tooLarge = !isPlainText && content.length > maxHighlightedLength;
+    return ContentFrame(
+      header: ContentHeader(
+        label: isPlainText ? null : language,
+        copyText: content,
+        copyTooltip: 'Copy code',
+      ),
+      notice: tooLarge
+          ? const ContentInfoNotice(message: tooLargeToHighlightNotice)
+          : null,
+      body: CodeView(
+        code: content,
+        language: tooLarge ? 'plaintext' : language,
+        selectable: selectable,
+      ),
+      fill: fill,
+    );
   }
 }

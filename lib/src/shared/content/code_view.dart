@@ -10,6 +10,17 @@ const _rootKey = 'root';
 // becomes _tabWidth spaces before highlighting, whatever its column.
 const _tabWidth = 8;
 
+/// The `String.length` (UTF-16 code units; 100 KiB for ASCII text) above which
+/// text shows as plain text instead of highlighted, and JSON gets no tree.
+/// Highlighting and building a tree cost time in proportion to length, and
+/// every view lays out all of its text at once. Callers measure the text they
+/// show, and for JSON its formatted text too.
+const maxHighlightedLength = 100 * 1024;
+
+/// What a viewer says above text shown plain for being longer than
+/// [maxHighlightedLength].
+const tooLargeToHighlightNotice = 'Too large to highlight; showing plain text.';
+
 /// Highlighted [code] as spans coloured by [theme]. A [language] the
 /// highlighter does not know is rendered as plain text.
 List<InlineSpan> highlightSpans(
@@ -37,17 +48,28 @@ List<TextSpan> _convert(List<Node> nodes, Map<String, TextStyle> theme) {
   ];
 }
 
-/// The style [CodeView] renders code in.
+/// The style [CodeView] renders code in, coloured as the theme's plain text.
 TextStyle codeTextStyle(BuildContext context) {
   // design-system exception (approved): 14pt sits between bodySmall (13) and
   // bodyMedium (16); chosen so block code reads at roughly the size of
   // surrounding prose without dominating it.
-  return context.monospaceOn(const TextStyle(fontSize: 14));
+  return context
+      .monospaceOn(const TextStyle(fontSize: 14))
+      .copyWith(color: codeTheme(context)[_rootKey]?.color);
 }
+
+// githubTheme styles `attribute` but not `attr`, the class highlight.js gives
+// JSON keys, XML/HTML attribute names and YAML keys; vs2015Theme styles both
+// alike.
+final _lightTheme = {...githubTheme, 'attr': githubTheme['attribute']!};
 
 /// The syntax colours for the current brightness.
 Map<String, TextStyle> codeTheme(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark ? vs2015Theme : githubTheme;
+    Theme.of(context).brightness == Brightness.dark ? vs2015Theme : _lightTheme;
+
+/// The background [CodeView] paints behind code.
+Color codeSurfaceColor(BuildContext context) =>
+    codeTheme(context)[_rootKey]?.backgroundColor ?? Colors.transparent;
 
 /// Syntax-highlighted source code, selectable on its own or, when
 /// [selectable] is false, as part of an enclosing [SelectionArea].
@@ -70,8 +92,7 @@ class CodeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = codeTheme(context);
-    final root = theme[_rootKey];
-    final style = codeTextStyle(context).copyWith(color: root?.color);
+    final style = codeTextStyle(context);
     final span = TextSpan(
       style: style,
       children: highlightSpans(
@@ -81,7 +102,7 @@ class CodeView extends StatelessWidget {
       ),
     );
     return ColoredBox(
-      color: root?.backgroundColor ?? Colors.transparent,
+      color: codeSurfaceColor(context),
       // Replaces the ambient style so prose line height and letter spacing
       // do not reach the code.
       child: DefaultTextStyle(
