@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../reduced_url.dart';
 import 'video_platform.dart'
     if (dart.library.js_interop) 'video_platform_web.dart';
 import 'video_playback.dart';
@@ -95,15 +96,7 @@ Future<VideoPlayback> createBetterPlayerPlayback(
 /// error keeps its severity, category, code, HTTP status and request URL but
 /// not the response body and headers it carries.
 String withoutCredentials(String text) => _withShakaErrorsReduced(text)
-    .replaceAllMapped(_url, (match) => _reduced(match[0]!));
-
-/// [url] as its scheme, host, port and path, or `<url>` if it does not parse.
-String _reduced(String url) {
-  final uri = Uri.tryParse(url);
-  if (uri == null) return '<url>';
-  final port = uri.hasPort ? ':${uri.port}' : '';
-  return '${uri.scheme}://${uri.host}$port${uri.path}';
-}
+    .replaceAllMapped(_url, (match) => reducedUrl(match[0]!));
 
 /// Runs to the next space, quote, angle bracket or closing parenthesis,
 /// commas included: a query may hold one, and what follows it is reduced
@@ -132,7 +125,7 @@ String _withShakaErrorsReduced(String text) =>
       return 'shaka.util.Error severity ${field('severity')}, '
           'category $category, code $code'
           '${status == null ? '' : ', HTTP $status'}'
-          '${request == null ? '' : ', request ${_reduced(request[1]!)}'}';
+          '${request == null ? '' : ', request ${reducedUrl(request[1]!)}'}';
     });
 
 /// The renditions of [tracks] worth offering, each with the track it plays:
