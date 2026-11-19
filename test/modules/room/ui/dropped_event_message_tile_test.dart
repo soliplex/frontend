@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_frontend/src/modules/room/ui/dropped_event_message_tile.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
+import 'package:soliplex_frontend/src/shared/content/content_frame.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 
 Future<void> _pump(WidgetTester tester, DroppedEventMessage message) {
@@ -129,8 +130,7 @@ void main() {
       'not valid json at all',
     );
     // The tile already says why it is here; the viewer adds no notice.
-    expect(
-        find.text("This isn't valid JSON; showing the source."), findsNothing);
+    expect(find.byType(ContentInfoNotice), findsNothing);
     expect(find.text('Tree'), findsNothing);
     // Belt-and-suspenders: not the unavailable fallback.
     expect(find.text('(payload unavailable)'), findsNothing);
