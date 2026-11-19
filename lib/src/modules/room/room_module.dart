@@ -148,6 +148,7 @@ class RoomAppModule extends AppModule {
             databaseSelections: databaseSelections,
             roomReadMarkers: roomReadMarkers,
             serverReadMarkers: serverReadMarkers,
+            pendingQuotes: _pendingQuotes,
           ),
         );
       },

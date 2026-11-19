@@ -20,6 +20,10 @@ import 'markdown/log_source.dart';
 import 'message_caption.dart';
 import 'notice_bubble.dart';
 import 'paged_zoomable_images.dart';
+import '../pdf/pdf_quote.dart';
+import '../pdf/quote_cards.dart';
+import '../pdf/quoted_context.dart';
+import '../pdf/room_pdf_scope.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 final _logger =
@@ -236,7 +240,7 @@ class _MessageBubble extends StatelessWidget {
         ),
       ),
       child: isUser
-          ? _userContent(theme)
+          ? _userContent(context, theme)
           : message.text.isEmpty
               ? const SoliplexShimmer(lineFractions: [1, 1, 0.55])
               : FlutterMarkdownPlusRenderer(
@@ -248,16 +252,50 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _userContent(ThemeData theme) {
+  Widget _userContent(BuildContext context, ThemeData theme) {
     final style = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onPrimaryContainer,
     );
     final parts = message.parts;
-    if (parts == null) return Text(message.text, style: style);
-    return _UserMessageBody(
-      messageId: message.id,
-      parts: parts,
-      style: style,
+    // Passages quoted from a PDF lead the message as markdown quote blocks
+    // (see formatQuotedContext); they show as cards above what was typed.
+    // A text-only message comes back from history as a bare string, so both
+    // shapes are read.
+    final List<PdfQuote> quotes;
+    final Widget? body;
+    if (parts == null) {
+      final (quotes: quoted, :rest) = parseQuotedContext(message.text);
+      quotes = quoted;
+      body = rest.trim().isEmpty && quoted.isNotEmpty
+          ? null
+          : Text(rest, style: style);
+    } else {
+      final (quotes: quoted, parts: remaining) = splitQuotedParts(parts);
+      quotes = quoted;
+      body = remaining.isEmpty && quoted.isNotEmpty
+          ? null
+          : _UserMessageBody(
+              messageId: message.id,
+              parts: remaining,
+              style: style,
+            );
+    }
+    if (quotes.isEmpty) return body!;
+    final scope = RoomPdfScope.maybeOf(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: SoliplexSpacing.s2,
+      children: [
+        for (final quote in quotes)
+          QuoteCard(
+            quote: quote,
+            maxWidth: double.infinity,
+            excerptLength: 200,
+            onTap: scope == null ? null : () => scope.openQuote(quote),
+          ),
+        if (body != null) body,
+      ],
     );
   }
 }
