@@ -42,6 +42,13 @@ class FakePdfDocument implements PdfDocumentController {
   @override
   Future<void> showPassage(PdfPassage? passage) async => passages.add(passage);
 
+  /// Every call to [showTextBlocks], in order.
+  final textBlocks = <({List<PdfTextBlock>? blocks, PdfTextBlock? selected})>[];
+
+  @override
+  void showTextBlocks(List<PdfTextBlock>? blocks, {PdfTextBlock? selected}) =>
+      textBlocks.add((blocks: blocks, selected: selected));
+
   @override
   Future<PdfSelectionResult?> takeSelection() async {
     calls.add('takeSelection');
