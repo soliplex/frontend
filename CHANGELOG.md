@@ -67,6 +67,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A JSON tree in diagnostics or a dropped event no longer fails to draw on
   iOS, Android and desktop when a string holds an unpaired surrogate
   (`"\ud800"`).
+- SVGs styled by a `<style>` sheet, such as mermaid diagrams, pygal charts and
+  class-styled diagrams, draw in their colours instead of as black shapes.
+  CSS variables are resolved, the `font` shorthand gives its weight, size
+  and family, and shape positions and sizes (such as `x`, `cx`, `r`, `width`)
+  and transforms (translate, rotate, scale) set from CSS are applied.
+  Not applied: rules inside at-rules such as `@media`, or in a sheet for other
+  media (`<style media="print">`); rules selected with
+  the `~` combinator or a pseudo-class other than `:root`, `:first-child`,
+  `:last-child`, `:only-child`, or `:not` of those (such as `:hover` or
+  `:nth-child`); values
+  using `calc()`; the `font-style` and `filter` properties; and SVGs too
+  large to style quickly (over 1 MB, with very many rules and shapes, or
+  with styles that would write out over 1 MB), which draw unstyled.
 
 ## [0.119.0+108] - 2026-11-18
 
