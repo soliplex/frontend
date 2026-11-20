@@ -37,14 +37,11 @@ class ContentViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (contentKindOf(language)) {
-      ContentKind.svg => Semantics(
-          label: 'SVG image',
-          child: SvgBody(
-            content: content,
-            fill: fill,
-            isStreaming: isStreaming,
-            selectable: selectable,
-          ),
+      ContentKind.svg => SvgBody(
+          content: content,
+          fill: fill,
+          isStreaming: isStreaming,
+          selectable: selectable,
         ),
       ContentKind.json => Semantics(
           label: 'JSON',

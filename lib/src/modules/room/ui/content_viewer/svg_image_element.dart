@@ -8,8 +8,8 @@ const bool canDrawSvgInBrowser = false;
 
 /// Stands in for the browser's `<img>`, which is not here: it draws nothing
 /// and never reports [onFailed]. `SvgBody` asks for a browser picture only
-/// where [canDrawSvgInBrowser], and tests that run one here report its
-/// failure themselves.
+/// where [canDrawSvgInBrowser], or where a test sets
+/// `debugSvgInBrowserOverride`; such tests report its failure themselves.
 class SvgImageElement extends StatelessWidget {
   const SvgImageElement(this.url, {super.key, required this.onFailed});
 
