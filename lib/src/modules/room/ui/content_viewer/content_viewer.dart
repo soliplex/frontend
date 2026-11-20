@@ -75,6 +75,7 @@ class ContentViewer extends StatelessWidget {
         label: isPlainText ? null : language,
         copyText: content,
         copyTooltip: 'Copy code',
+        selectable: selectable,
       ),
       notice: tooLarge
           ? const ContentInfoNotice(message: tooLargeToHighlightNotice)

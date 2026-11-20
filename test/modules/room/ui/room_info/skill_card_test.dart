@@ -4,6 +4,8 @@ import 'package:soliplex_client/soliplex_client.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/skill_card.dart';
 
+import '../../../../helpers/selectable_finder.dart';
+
 void main() {
   Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -74,6 +76,12 @@ void main() {
   });
 
   group('SkillDetailDialog', () {
+    testWidgets('the skill name title is selectable', (tester) async {
+      await tester.pumpWidget(wrap(SkillDetailDialog(skill: fullSkill)));
+
+      expect(selectionRegionOf(find.text('my-skill')), findsOneWidget);
+    });
+
     testWidgets('shows extra parameter entries', (tester) async {
       await tester.pumpWidget(wrap(SkillDetailDialog(skill: fullSkill)));
       expect(find.text('Extra Parameters'), findsOneWidget);

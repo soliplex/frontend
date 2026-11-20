@@ -9,6 +9,8 @@ import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 import 'package:soliplex_frontend/src/shared/json_tree_view.dart';
 
+import '../../../../helpers/selectable_finder.dart';
+
 Widget _inline(ContentViewer viewer) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: viewer)),
     );
@@ -26,6 +28,30 @@ void main() {
     expect(
         find.textContaining('just words', findRichText: true), findsOneWidget);
   });
+
+  for (final (language, content) in [
+    ('dart', 'void main() {}'),
+    ('svg', '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>'),
+    ('json', '{"a": 1}'),
+  ]) {
+    for (final selectable in [true, false]) {
+      testWidgets(
+          '$language label is selectable on its own only when the viewer is '
+          '(selectable: $selectable)', (tester) async {
+        await tester.pumpWidget(_inline(ContentViewer(
+          language: language,
+          content: content,
+          fill: false,
+          selectable: selectable,
+        )));
+
+        expect(
+          selectionRegionOf(find.text(language)),
+          selectable ? findsOneWidget : findsNothing,
+        );
+      });
+    }
+  }
 
   testWidgets('python shows its label and Copy code', (tester) async {
     await tester.pumpWidget(_inline(const ContentViewer(

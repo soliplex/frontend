@@ -7,6 +7,8 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/documents_card.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 
+import '../../../../helpers/selectable_finder.dart';
+
 void main() {
   Widget wrap(Widget child) => MaterialApp(
         home: Scaffold(body: SingleChildScrollView(child: child)),
@@ -472,6 +474,16 @@ void main() {
       await tester.pump();
 
       expect(find.text('Show metadata'), findsNothing);
+    });
+
+    testWidgets('the dialog title is selectable', (tester) async {
+      await tester.pumpWidget(wrap(const MetadataDialog(
+        title: 'Meta Doc',
+        uri: '/files/meta.pdf',
+        metadata: {'author': 'Alice'},
+      )));
+
+      expect(selectionRegionOf(find.text('Meta Doc')), findsOneWidget);
     });
 
     testWidgets('dialog displays metadata entries', (tester) async {

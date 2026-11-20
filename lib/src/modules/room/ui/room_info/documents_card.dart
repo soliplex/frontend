@@ -5,6 +5,7 @@ import '../document_label.dart';
 import '../document_metadata_line.dart';
 import '../document_source.dart';
 import '../../../../shared/document_display.dart';
+import '../../../../shared/selectable_content.dart';
 import 'room_info_widgets.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -341,10 +342,12 @@ class MetadataDialog extends StatelessWidget {
     ];
 
     return AlertDialog(
-      title: Text(
-        title,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
+      title: SelectableContent(
+        child: Text(
+          title,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
       ),
       content: SizedBox(
         width: double.maxFinite,

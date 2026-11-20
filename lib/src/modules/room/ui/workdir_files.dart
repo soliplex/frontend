@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../shared/selectable_content.dart';
 import '../../../shared/zoomable_image.dart';
 import '../file_downloads.dart';
 import '../workdir_files_status.dart' show workdirFileUnavailable;
@@ -472,10 +474,13 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   /// rotation persists while paging between files.
   final _rotations = <WorkdirFile, int>{};
 
+  final _titleSelection = _TitleSelection();
+
   @override
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
+    _titleSelection.dispose();
     super.dispose();
   }
 
@@ -667,24 +672,29 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
                 alignment: Alignment.centerLeft,
                 heightFactor: 1,
                 child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _breakableAtSeparators(file.basename),
-                        semanticsLabel: file.basename,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      if (subtitle.isNotEmpty)
-                        Text(
-                          _breakableAtSeparators(subtitle),
-                          semanticsLabel: subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                  child: SelectableContent(
+                    child: SelectionContainer(
+                      delegate: _titleSelection,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _breakableAtSeparators(file.basename),
+                            semanticsLabel: file.basename,
+                            style: theme.textTheme.titleMedium,
                           ),
-                        ),
-                    ],
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              _breakableAtSeparators(subtitle),
+                              semanticsLabel: subtitle,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -977,6 +987,19 @@ class _DownloadButton extends StatelessWidget {
 /// already breaks after `-` and `/`.
 String _breakableAtSeparators(String text) =>
     text.replaceAllMapped(RegExp('[_.]'), (m) => '${m[0]}\u200B');
+
+/// The preview title's selection: a copy leaves out zero-width spaces, which
+/// [_breakableAtSeparators] adds to the shown text.
+class _TitleSelection extends StaticSelectionContainerDelegate {
+  @override
+  SelectedContent? getSelectedContent() {
+    final content = super.getSelectedContent();
+    if (content == null) return null;
+    return SelectedContent(
+      plainText: content.plainText.replaceAll('\u200B', ''),
+    );
+  }
+}
 
 // Together these make the title bar's action buttons
 // [kMinInteractiveDimension] square on every platform, which the title's
