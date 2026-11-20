@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/browser_svg_picture.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/content_viewer/svg_body.dart';
 import 'package:soliplex_frontend/src/shared/zoomable_view.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -40,6 +41,7 @@ void main() {
 
   testWidgets('inline valid SVG opens a zoomable dialog on tap',
       (tester) async {
+    final semantics = tester.ensureSemantics();
     await tester.pumpWidget(_inline(const SvgBody(
       content: _validSvg,
       fill: false,
@@ -72,6 +74,13 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.bySemanticsLabel('SVG image'),
+      ),
+      findsOneWidget,
+    );
     // The dialog's close button sits where a header's copy button would.
     expect(
       find.descendant(
@@ -80,6 +89,7 @@ void main() {
       ),
       findsNothing,
     );
+    semantics.dispose();
   });
 
   testWidgets('fill layout shows the header', (tester) async {
@@ -455,8 +465,8 @@ void main() {
       final sink = MemorySink();
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
-      // The transform attribute throws in flutter_svg in either form. Unlike
-      // the other tests' SVGs, so its failures are not already logged.
+      // The transform attribute throws in flutter_svg in either form. The SVG
+      // differs from every other test's, so its failure is not logged yet.
       const content = '<svg xmlns="http://www.w3.org/2000/svg" width="10" '
           'height="10"><style>.x { fill: blue; }</style>'
           '<rect class="x" transform="bogus(2)" width="10" height="10"/>'
@@ -517,6 +527,234 @@ void main() {
     });
   });
 
+  // On the VM there is no browser to draw the <img>: these tests report its
+  // failure themselves, as a browser does for an SVG it cannot decode or a
+  // CSP blocks, and run the real fallback to flutter_svg.
+  group('in a browser', () {
+    const browserFailure =
+        'svg failed to render in the browser; drawing it with flutter_svg';
+
+    setUp(() {
+      debugSvgInBrowserOverride = true;
+      addTearDown(() => debugSvgInBrowserOverride = null);
+    });
+
+    List<String> warnings(MemorySink sink) => [
+          for (final r in sink.records)
+            if (r.level == LogLevel.warning) r.message,
+        ];
+
+    testWidgets('draws a plain SVG with flutter_svg when the browser cannot',
+        (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      const plain = '<svg xmlns="http://www.w3.org/2000/svg" width="10" '
+          'height="10"><circle cx="5" cy="5" r="3"/></svg>';
+      final body = _fill(const SvgBody(
+        content: plain,
+        fill: true,
+        isStreaming: false,
+        selectable: false,
+      ));
+
+      await tester.pumpWidget(body);
+      expect(find.byType(BrowserSvgPicture), findsOneWidget);
+      expect(find.byType(SvgPicture), findsNothing);
+      await _failBrowserPicture(tester);
+      await _pumpLoaded(tester, body);
+
+      expect(find.byType(BrowserSvgPicture), findsNothing);
+      expect(find.text(_notice), findsNothing);
+      expect(warnings(sink), [browserFailure]);
+      final record =
+          sink.records.singleWhere((r) => r.level == LogLevel.warning);
+      // Logged whole: the browser's failure is fixed text, and a type name
+      // in its place would be minified in a release build.
+      expect(record.error, same(_browserRejection));
+      expect(record.attributes['contentLength'], plain.length);
+    });
+
+    testWidgets('falls back to the SVG with its styles inlined',
+        (tester) async {
+      const styled = '<svg xmlns="http://www.w3.org/2000/svg" width="100" '
+          'height="100"><style>.box { fill: #ff00ff; }</style>'
+          '<rect class="box" width="100" height="100"/></svg>';
+      final key = GlobalKey();
+      final body = RepaintBoundary(
+        key: key,
+        child: _fill(const SvgBody(
+          content: styled,
+          fill: true,
+          isStreaming: false,
+          selectable: false,
+        )),
+      );
+
+      await tester.pumpWidget(body);
+      await _failBrowserPicture(tester);
+      await _pumpLoaded(tester, body);
+
+      expect(await _centrePixel(tester, key), const Color(0xFFFF00FF));
+    });
+
+    testWidgets('zoom keeps its SVG and can fall back after inline disposal',
+        (tester) async {
+      const styled = '<svg xmlns="http://www.w3.org/2000/svg" width="100" '
+          'height="100"><style>.box { fill: #00ffff; }</style>'
+          '<rect class="box" width="100" height="100"/></svg>';
+      final content = ValueNotifier<String?>(styled);
+      addTearDown(content.dispose);
+      final inDialog = find.descendant(
+        of: find.byType(Dialog),
+        matching: find.byType(BrowserSvgPicture),
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder(
+            valueListenable: content,
+            builder: (context, value, _) => value == null
+                ? const SizedBox.shrink()
+                : SvgBody(
+                    content: value,
+                    fill: false,
+                    isStreaming: false,
+                    selectable: false,
+                  ),
+          ),
+        ),
+      ));
+      await tester.tap(find.byType(BrowserSvgPicture), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      content.value = _validSvg;
+      await tester.pump();
+      expect(tester.widget<BrowserSvgPicture>(inDialog).svg, styled);
+
+      content.value = null;
+      await tester.pump();
+      expect(find.byType(BrowserSvgPicture), findsOneWidget);
+      await _failBrowserPicture(tester);
+      await tester.pumpAndSettle();
+      expect(find.byType(SvgPicture), findsOneWidget);
+      expect(find.text(_notice), findsNothing);
+    });
+
+    testWidgets('a late failure cannot advance a replacement with the same SVG',
+        (tester) async {
+      const first = '<svg width="10" height="10"></svg>';
+      const second = '<svg width="20" height="10"></svg>';
+      Widget body(String content) => _inline(SvgBody(
+            content: content,
+            fill: false,
+            isStreaming: false,
+            selectable: false,
+          ));
+      final picture = find.byType(BrowserSvgPicture);
+
+      await tester.pumpWidget(body(first));
+      final old = tester.widget<BrowserSvgPicture>(picture);
+      await tester.pumpWidget(body(second));
+      await tester.pumpWidget(body(first));
+
+      old.onFailed(StateError('late browser rejection'), null);
+      await tester.pump();
+
+      expect(tester.widget<BrowserSvgPicture>(picture).svg, first);
+    });
+
+    testWidgets('a dialog open when every attempt fails shows the notice',
+        (tester) async {
+      const content = '<svg xmlns="http://www.w3.org/2000/svg" width="10" '
+          'height="10"><rect width="10" height="10" fill="red"</svg>';
+
+      await tester.pumpWidget(_inline(const SvgBody(
+        content: content,
+        fill: false,
+        isStreaming: false,
+        selectable: false,
+      )));
+      await tester.tap(find.byType(BrowserSvgPicture), warnIfMissed: false);
+      await tester.pump();
+      await _failBrowserPicture(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text(_notice),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('zoom opens only after streaming ends', (tester) async {
+      Widget body({required bool isStreaming}) => _inline(SvgBody(
+            content: _validSvg,
+            fill: false,
+            isStreaming: isStreaming,
+            selectable: false,
+          ));
+      final picture = find.byType(BrowserSvgPicture);
+
+      await tester.pumpWidget(body(isStreaming: true));
+      await tester.tap(picture, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsNothing);
+
+      await tester.pumpWidget(body(isStreaming: false));
+      await tester.tap(picture, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+    });
+
+    testWidgets('shows the notice when flutter_svg cannot draw it either',
+        (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      const content = 'not valid <svg in a browser either';
+
+      await tester.pumpWidget(_fill(const SvgBody(
+        content: content,
+        fill: true,
+        isStreaming: false,
+        selectable: false,
+      )));
+      await _failBrowserPicture(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text(_notice), findsOneWidget);
+      expect(warnings(sink), [browserFailure, 'svg content failed to render']);
+    });
+
+    testWidgets('draws a partial streaming SVG with flutter_svg only',
+        (tester) async {
+      await tester.pumpWidget(_fill(const SvgBody(
+        content: '<svg xmlns="http://www.w3.org/2000/svg" width="10" '
+            'height="10"><circle',
+        fill: true,
+        isStreaming: true,
+        selectable: false,
+      )));
+
+      expect(find.byType(BrowserSvgPicture), findsNothing);
+      expect(find.byType(SvgPicture), findsOneWidget);
+    });
+
+    testWidgets('gives a whole streaming SVG to the browser', (tester) async {
+      await tester.pumpWidget(_fill(const SvgBody(
+        content: _validSvg,
+        fill: true,
+        isStreaming: true,
+        selectable: false,
+      )));
+
+      expect(find.byType(BrowserSvgPicture), findsOneWidget);
+      expect(find.byType(SvgPicture), findsNothing);
+    });
+  });
+
   testWidgets('inline picture is capped at 400 px tall', (tester) async {
     const tall = '<svg xmlns="http://www.w3.org/2000/svg" width="100" '
         'height="2000"><rect width="100" height="2000"/></svg>';
@@ -534,6 +772,22 @@ void main() {
         tester.getSize(find.byType(SvgPicture)).height, lessThanOrEqualTo(400));
     expect(tester.getSize(find.byType(SvgPicture)).height, greaterThan(0));
   });
+}
+
+/// What the tests' browser reports for an image it would not draw.
+final _browserRejection = StateError('the browser rejected the image');
+
+/// Reports the browser's failure from every browser picture on screen, as
+/// the browser does through each one's `<img>`, then pumps the frame that
+/// draws the next attempt.
+Future<void> _failBrowserPicture(WidgetTester tester) async {
+  final pictures = tester
+      .widgetList<BrowserSvgPicture>(find.byType(BrowserSvgPicture))
+      .toList();
+  for (final picture in pictures) {
+    picture.onFailed(_browserRejection, null);
+  }
+  await tester.pump();
 }
 
 /// Pumps [widget] and checks flutter_svg has loaded its picture: in debug
@@ -564,8 +818,10 @@ Future<void> _pumpLoaded(WidgetTester tester, Widget widget) async {
 }
 
 /// The colour at the centre of the [SvgPicture] under the boundary at [key].
-Future<Color?> _centrePixel(WidgetTester tester, GlobalKey key) {
-  final centre = tester.getCenter(find.byType(SvgPicture));
+Future<Color?> _centrePixel(WidgetTester tester, GlobalKey key) =>
+    _pixelAt(tester, key, tester.getCenter(find.byType(SvgPicture)));
+
+Future<Color?> _pixelAt(WidgetTester tester, GlobalKey key, Offset centre) {
   return tester.runAsync(() async {
     final boundary =
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;

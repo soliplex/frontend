@@ -18,6 +18,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   with the notice beside it, and its source is behind the Source switch.
   While a reply is still streaming, a broken SVG shows no notice until the
   reply finishes; a partial SVG that happens to parse does render.
+- On web, SVGs are drawn by the browser, as an image, so mermaid arrowheads,
+  drop shadows, HTML labels and italic text show, and `<style>` sheets apply
+  in full. Drawn as an image, an SVG runs no script and fetches nothing
+  external. An SVG the browser rejects (it is stricter about XML, such as a
+  missing `xmlns` or an HTML entity like `&nbsp;`) is drawn as on iOS,
+  Android and desktop instead. A deployment with a content security policy
+  needs `img-src` (or `default-src`) to allow `data:`; otherwise every SVG
+  is drawn that way.
 - JSON code blocks in chat and `.json` files in the workdir have a Tree /
   Source switch and open on Source. Invalid JSON shows its source under a
   neutral notice, and empty JSON says "This JSON is empty."; while a reply
