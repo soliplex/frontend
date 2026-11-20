@@ -465,8 +465,8 @@ void main() {
       final sink = MemorySink();
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
-      // The transform attribute throws in flutter_svg in either form. Unlike
-      // the other tests' SVGs, so its failures are not already logged.
+      // The transform attribute throws in flutter_svg in either form. The SVG
+      // differs from every other test's, so its failure is not logged yet.
       const content = '<svg xmlns="http://www.w3.org/2000/svg" width="10" '
           'height="10"><style>.x { fill: blue; }</style>'
           '<rect class="x" transform="bogus(2)" width="10" height="10"/>'
