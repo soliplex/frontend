@@ -10,6 +10,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/chunk_visualization_page.d
 import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 import '../../../helpers/fakes.dart';
+import '../../../helpers/selectable_finder.dart';
 
 // 1x1 red PNG pixel (minimal valid PNG).
 final _pngBytes = base64Decode(
@@ -111,6 +112,20 @@ void main() {
       ..clear()
       ..clearLiveImages();
   });
+
+  for (final useDialogLayout in [true, false]) {
+    testWidgets(
+        'the document title is selectable '
+        '(${useDialogLayout ? 'dialog' : 'page'} layout)', (tester) async {
+      await tester.pumpWidget(_wrap(_citationPage(
+        _apiAnsweringPerMode(),
+        useDialogLayout: useDialogLayout,
+      )));
+      await tester.pumpAndSettle();
+
+      expect(selectionRegionOf(find.text('Cited Doc')), findsOneWidget);
+    });
+  }
 
   testWidgets('a citation opens without sending its refs', (tester) async {
     final api = _apiAnsweringPerMode();

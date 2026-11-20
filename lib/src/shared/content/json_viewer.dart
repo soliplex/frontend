@@ -233,6 +233,7 @@ class _JsonViewerState extends State<JsonViewer> {
         label: label,
         copyText: shown.text,
         copyTooltip: label == _defaultLabel ? 'Copy JSON' : 'Copy $label',
+        selectable: widget.selectable,
         view: shown is _Tree ? _view : null,
         renderedLabel: 'Tree',
         onViewChanged: (view) => setState(() {

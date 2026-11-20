@@ -25,6 +25,7 @@ import 'package:soliplex_frontend/src/shared/zoomable_view.dart';
 
 import '../../../helpers/file_name_finder.dart';
 import '../../../helpers/preview_title_finder.dart';
+import '../../../helpers/selectable_finder.dart';
 import '../../../helpers/test_downloads.dart';
 
 /// Minimal 1x1 transparent PNG so [Image.memory] can decode in tests.
@@ -714,6 +715,41 @@ void main() {
       expect(calls, hasLength(1));
       await tester.pump(const Duration(seconds: 2));
     });
+  });
+
+  testWidgets('the selected title copies as the file name', (tester) async {
+    String? copied;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    const name = 'draft_notes.v2.txt';
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([_file(name)]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
+    )));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    final title = _inPreview(findPreviewTitle(name));
+    tester.state<SelectableRegionState>(selectionRegionOf(title)).selectAll();
+    // Ctrl/Cmd+C invokes this intent; the context menu's Copy runs the same
+    // copy.
+    Actions.invoke(tester.element(title), CopySelectionTextIntent.copy);
+    await tester.pump();
+
+    // The title breaks lines at zero-width spaces; a copy leaves them out.
+    expect(copied, name);
   });
 
   group('multi-file pager', () {

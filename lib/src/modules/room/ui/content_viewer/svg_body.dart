@@ -248,6 +248,7 @@ class _SvgBodyState extends State<SvgBody> {
         label: 'svg',
         copyText: widget.content,
         copyTooltip: 'Copy SVG',
+        selectable: widget.selectable,
         // Filling, a failure's Preview already is the source under the
         // notice, so a switch would offer the same view twice.
         view: showsFailure && widget.fill ? null : _view,

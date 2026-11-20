@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../copy_button.dart';
+import '../selectable_content.dart';
 
 /// Which presentation of a piece of content a viewer shows.
 enum ContentView { rendered, source }
@@ -14,6 +15,7 @@ class ContentHeader extends StatelessWidget {
     this.label,
     required this.copyText,
     required this.copyTooltip,
+    required this.selectable,
     this.view,
     this.renderedLabel,
     this.onViewChanged,
@@ -29,30 +31,39 @@ class ContentHeader extends StatelessWidget {
   final String? renderedLabel;
   final ValueChanged<ContentView>? onViewChanged;
 
+  /// Whether [label] is selectable on its own. False inside a host's
+  /// selection area, which already selects it with the body.
+  final bool selectable;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = this.label;
     final view = this.view;
+    final labelText = label == null
+        ? null
+        : Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          );
     return LayoutBuilder(
       builder: (context, constraints) => Row(
         children: [
           Expanded(
-            child: label == null
+            child: labelText == null
                 ? const SizedBox.shrink()
                 : Padding(
                     padding: const EdgeInsets.only(
                       left: SoliplexSpacing.s3,
                       top: SoliplexSpacing.s1,
                     ),
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    child: selectable
+                        ? SelectableContent(child: labelText)
+                        : labelText,
                   ),
           ),
           // Laid out before the label, so the switch and copy button get the

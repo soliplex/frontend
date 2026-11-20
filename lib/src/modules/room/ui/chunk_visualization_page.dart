@@ -8,6 +8,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/failed_image.dart';
+import '../../../shared/selectable_content.dart';
 import '../../../shared/zoomable_image.dart';
 import 'paged_zoomable_images.dart';
 
@@ -328,7 +329,9 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.documentTitle ?? widget.chunkId),
+        title: SelectableContent(
+          child: Text(widget.documentTitle ?? widget.chunkId),
+        ),
         titleTextStyle: Theme.of(context).textTheme.titleMedium,
       ),
       // Without SafeArea, the system gesture inset (iOS home indicator,
@@ -398,11 +401,13 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              widget.documentTitle ?? widget.chunkId,
-              style: theme.textTheme.titleMedium,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: SelectableContent(
+              child: Text(
+                widget.documentTitle ?? widget.chunkId,
+                style: theme.textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           IconButton(

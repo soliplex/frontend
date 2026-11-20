@@ -12,6 +12,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Plain-text workdir files (`.txt`, `.log`, `.ini`, `.cfg`, `.conf`) show as
   monospace text, line for line, instead of being rendered as markdown.
+- Viewer titles can be selected and copied: the code, SVG and JSON label,
+  the workdir preview's file name and position, the cited page viewer's
+  document title, and the document metadata and tool or skill parameters
+  dialog titles. A copied workdir file name is the name as written.
 - SVGs, in chat and in the workdir, have a Preview / Source switch and a copy
   button. In the workdir, a broken SVG shows a notice with its source below
   instead of a "looks corrupt" page. In chat it shows the broken-image icon

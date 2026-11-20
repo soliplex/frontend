@@ -3,6 +3,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../../shared/content/content_frame.dart';
 import '../../../../shared/content/json_viewer.dart';
+import '../../../../shared/selectable_content.dart';
 
 class SectionCard extends StatelessWidget {
   const SectionCard({super.key, required this.title, required this.children});
@@ -218,7 +219,9 @@ class RawParametersDialog extends StatelessWidget {
     }
 
     return AlertDialog(
-      title: Text(title, overflow: TextOverflow.ellipsis, maxLines: 1),
+      title: SelectableContent(
+        child: Text(title, overflow: TextOverflow.ellipsis, maxLines: 1),
+      ),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(

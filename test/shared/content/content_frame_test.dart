@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/shared/content/content_frame.dart';
 
+import '../../helpers/selectable_finder.dart';
+
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
@@ -11,16 +13,43 @@ void main() {
         label: 'dart',
         copyText: 'x',
         copyTooltip: 'Copy code',
+        selectable: false,
       )));
 
       expect(find.byType(SegmentedButton<ContentView>), findsNothing);
       expect(find.text('dart'), findsOneWidget);
     });
 
+    testWidgets('a selectable label can be selected', (tester) async {
+      await tester.pumpWidget(_host(const ContentHeader(
+        label: 'dart',
+        copyText: 'x',
+        copyTooltip: 'Copy code',
+        selectable: true,
+      )));
+
+      expect(selectionRegionOf(find.text('dart')), findsOneWidget);
+    });
+
+    // Inside a host's selection area, a region of its own would split the
+    // label from the body a drag selects across.
+    testWidgets('a label left to its host has no region of its own',
+        (tester) async {
+      await tester.pumpWidget(_host(const ContentHeader(
+        label: 'dart',
+        copyText: 'x',
+        copyTooltip: 'Copy code',
+        selectable: false,
+      )));
+
+      expect(selectionRegionOf(find.text('dart')), findsNothing);
+    });
+
     testWidgets('without a label shows no label', (tester) async {
       await tester.pumpWidget(_host(const ContentHeader(
         copyText: 'x',
         copyTooltip: 'Copy code',
+        selectable: false,
       )));
 
       expect(find.byType(Text), findsNothing);
@@ -31,6 +60,7 @@ void main() {
       await tester.pumpWidget(_host(ContentHeader(
         copyText: 'x',
         copyTooltip: 'Copy SVG',
+        selectable: false,
         view: ContentView.rendered,
         renderedLabel: 'Preview',
         onViewChanged: (view) => reported = view,
@@ -46,6 +76,7 @@ void main() {
       await tester.pumpWidget(_host(const ContentHeader(
         copyText: 'x',
         copyTooltip: 'Copy SVG',
+        selectable: false,
       )));
 
       expect(find.byTooltip('Copy SVG'), findsOneWidget);
@@ -65,6 +96,7 @@ void main() {
                 label: 'svg',
                 copyText: 'x',
                 copyTooltip: 'Copy SVG',
+                selectable: false,
                 view: ContentView.rendered,
                 renderedLabel: 'Preview',
                 onViewChanged: (_) {},
@@ -88,6 +120,7 @@ void main() {
             label: 'svg',
             copyText: 'x',
             copyTooltip: 'Copy SVG',
+            selectable: false,
             view: ContentView.rendered,
             renderedLabel: 'Preview',
             onViewChanged: (_) {},
