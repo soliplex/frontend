@@ -1,4 +1,5 @@
-import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_client/soliplex_client.dart'
+    show SoliplexApi, SourceReference;
 
 import '../../../shared/pdf/pdf_source.dart';
 import 'pdf_quote.dart';
@@ -30,6 +31,19 @@ PdfViewerSource pdfViewerSourceFor(PdfOpenTarget target, SoliplexApi api) =>
           sizeBytes: file.sizeBytes,
           load: PdfLoadBytes(
             () => api.getThreadWorkdirFile(roomId, threadId, file.filename),
+          ),
+        ),
+      CitationPdfTarget(:final roomId, :final documentId, :final database) =>
+        PdfViewerSource(
+          title: target.title,
+          origin: 'Cited document',
+          cacheKey: target.key,
+          load: PdfLoadBytes(
+            () => api.getRagDocumentFile(
+              roomId,
+              documentId,
+              database: database,
+            ),
           ),
         ),
       LinkPdf(:final uri) => PdfViewerSource(
@@ -103,4 +117,27 @@ PdfOpenTarget? resolveQuoteTarget(
     }
   }
   return null;
+}
+
+/// [cited]'s document, opened at it, with every other citation of the same
+/// document in [threadCitations] to step through: in order, each chunk once.
+CitationPdfTarget citationTargetFor(
+  SourceReference cited,
+  Iterable<SourceReference> threadCitations, {
+  required String roomId,
+}) {
+  final citations = <SourceReference>[];
+  final seen = <String>{};
+  for (final ref in [...threadCitations, cited]) {
+    if (ref.documentId == cited.documentId &&
+        ref.database == cited.database &&
+        seen.add(ref.chunkId)) {
+      citations.add(ref);
+    }
+  }
+  return CitationPdfTarget(
+    roomId: roomId,
+    citations: citations,
+    active: citations.indexWhere((ref) => ref.chunkId == cited.chunkId),
+  );
 }

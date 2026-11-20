@@ -12,6 +12,7 @@ import 'package:soliplex_frontend/src/modules/room/pdf/pending_quotes.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/quote_cards.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/quoted_context.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/chunk_visualization_page.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
@@ -39,7 +40,87 @@ class _PdfApi extends FakeSoliplexApi {
     fetched.add('$roomId/$filename');
     return _pdf;
   }
+
+  /// Whether the server has the cited documents' files.
+  var hasDocumentFiles = true;
+
+  @override
+  Future<Uint8List> getRagDocumentFile(
+    String roomId,
+    String documentId, {
+    String? database,
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) async {
+    fetched.add('$roomId/$database/$documentId');
+    if (!hasDocumentFiles) {
+      throw const NotFoundException(message: 'document not a local file');
+    }
+    return _pdf;
+  }
+
+  /// The boxes requests made, as their chunk ids; [boxes] answers them.
+  final boxesAsked = <(List<String>, List<String>)>[];
+  DocumentBoxes? Function(List<String> chunkIds) boxes = _boxesFor;
+
+  @override
+  Future<DocumentBoxes> getDocumentBoxes(
+    String roomId,
+    String documentId, {
+    required List<String> chunkIds,
+    List<String> contextRefs = const [],
+    String? database,
+    CancelToken? cancelToken,
+  }) async {
+    boxesAsked.add((chunkIds, contextRefs));
+    return boxes(chunkIds) ??
+        (throw const ApiException(statusCode: 500, message: 'boom'));
+  }
+
+  @override
+  Future<ChunkVisualization> getChunkVisualization(
+    String roomId,
+    String chunkId, {
+    List<String>? refs,
+    bool expand = false,
+    String? database,
+    CancelToken? cancelToken,
+  }) async =>
+      ChunkVisualization(
+        chunkId: chunkId,
+        documentUri: 'notes.pdf',
+        imagesBase64: const [],
+      );
 }
+
+/// One anchor box per chunk, on the page named by the chunk id's digit.
+DocumentBoxes _boxesFor(List<String> chunkIds) => DocumentBoxes(
+      documentId: 'doc-1',
+      anchor: [
+        for (final id in chunkIds)
+          PassageBox(
+            page: int.parse(id.substring(1)),
+            left: 10,
+            top: 700,
+            right: 300,
+            bottom: 650,
+          ),
+      ],
+      context: const [],
+    );
+
+PdfPassage _passageOf(List<String> chunkIds) => PdfPassage(
+      anchor: [
+        for (final box in _boxesFor(chunkIds).anchor)
+          PdfPassageBox(
+            page: box.page,
+            left: box.left,
+            top: box.top,
+            right: box.right,
+            bottom: box.bottom,
+          ),
+      ],
+    );
 
 const _brief = RoomUploadPdf(roomId: 'room-1', filename: 'brief.pdf');
 const _waiting = PdfQuote(
@@ -509,6 +590,129 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(PdfViewerPane), findsOneWidget);
       expect(views.last.initialPage, 7);
+    });
+  });
+
+  group('from a citation', () {
+    SourceReference cited(String chunkId, {List<String>? chunkIds}) =>
+        SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'file:///srv/notes.pdf',
+          content: 'Passage $chunkId',
+          chunkId: chunkId,
+          chunkIds: chunkIds ?? [chunkId],
+          documentTitle: 'notes.pdf',
+          docItemRefs: ['#/texts/$chunkId'],
+          chunkPageNumbers: [int.parse(chunkId.substring(1))],
+          database: 'notes',
+        );
+
+    void seedCitations() {
+      api.nextThreadHistory = ThreadHistory(
+        messages: [
+          TextMessage(
+            id: 'u1',
+            user: ChatUser.user,
+            createdAt: DateTime(2026, 3, 1),
+            text: 'What do the notes say?',
+          ),
+          TextMessage(
+            id: 'a1',
+            user: ChatUser.assistant,
+            createdAt: DateTime(2026, 3, 1),
+            text: 'They say two things.',
+          ),
+        ],
+        messageStates: {
+          'u1': MessageState(
+            userMessageId: 'u1',
+            sourceReferences: [
+              cited('c2'),
+              cited('c4', chunkIds: ['c4', 'c5']),
+            ],
+          ),
+        },
+      );
+    }
+
+    Future<void> openFirst(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('View source PDF').first);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('opens the document beside the chat, marking the passage',
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      seedCitations();
+      await pump(tester);
+
+      await openFirst(tester);
+
+      expect(find.byType(PdfViewerPane), findsOneWidget);
+      expect(api.fetched, ['room-1/notes/doc-1']);
+      expect(api.boxesAsked, hasLength(1));
+      expect(api.boxesAsked.single.$1, ['c2']);
+      expect(api.boxesAsked.single.$2, ['#/texts/c2']);
+      expect(views.last.initialPage, 2);
+      expect(find.text('1 / 2'), findsOneWidget);
+
+      views.ready();
+      await tester.pump();
+      expect(views.document.passages, [
+        _passageOf(['c2'])
+      ]);
+    });
+
+    testWidgets('steps to the next citation, with every chunk it merged',
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      seedCitations();
+      await pump(tester);
+      await openFirst(tester);
+      views.ready();
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Next citation'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 / 2'), findsOneWidget);
+      expect(api.boxesAsked.last.$1, ['c4', 'c5']);
+      expect(views.document.passages.last, _passageOf(['c4', 'c5']));
+      expect(api.fetched, hasLength(1), reason: 'the same file');
+
+      await tester.tap(find.byTooltip('Previous citation'));
+      await tester.pumpAndSettle();
+      expect(views.document.passages.last, _passageOf(['c2']));
+      expect(api.boxesAsked, hasLength(2), reason: 'kept from before');
+    });
+
+    testWidgets("says which page a passage it couldn't mark is on",
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      seedCitations();
+      api.boxes = (_) => null;
+      await pump(tester);
+
+      await openFirst(tester);
+
+      expect(
+        find.text("Couldn't mark the passage — it's on page 2."),
+        findsOneWidget,
+      );
+      expect(views.last.initialPage, 2);
+    });
+
+    testWidgets("shows the rendered pages of a document with no file",
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      seedCitations();
+      api.hasDocumentFiles = false;
+      await pump(tester);
+
+      await openFirst(tester);
+
+      expect(find.byType(PdfViewerPane), findsNothing);
+      expect(find.byType(ChunkVisualizationPage), findsOneWidget);
     });
   });
 }

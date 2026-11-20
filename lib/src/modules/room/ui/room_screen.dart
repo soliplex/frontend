@@ -15,6 +15,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         CancelToken,
         FeedbackType,
         MalformedResponseException,
+        MessageState,
         PermissionDeniedException,
         RagDatabaseScope,
         RagDocument,
@@ -23,6 +24,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnected,
         Reconnecting,
         Room,
+        SourceReference,
         TextPart,
         ThreadHistory,
         WorkdirFile;
@@ -86,9 +88,11 @@ import '../upload_tracker.dart';
 import '../file_downloads_registry.dart';
 import '../../../shared/markdown/markdown_link_scope.dart';
 import '../../../shared/pdf/pdf_document_view.dart';
+import '../../../shared/pdf/pdf_source.dart';
 import '../../../shared/pdf/pdf_viewer_pane.dart';
 import '../../../shared/pdf/present_pdf_viewer.dart';
 import '../../../shared/pdf/pdfrx_document_view.dart';
+import '../pdf/citation_pdf_viewer.dart';
 import '../pdf/pdf_quote.dart';
 import 'workdir_preview/preview_kind.dart';
 import '../pdf/pdf_targets.dart';
@@ -2184,6 +2188,41 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  /// Opens a cited PDF at the citation's passage, with the thread's other
+  /// citations of the document to step through.
+  void _openCitation(
+    SourceReference cited,
+    Map<String, MessageState> messageStates,
+  ) =>
+      _openPdf(
+        citationTargetFor(
+          cited,
+          messageStates.values.expand((state) => state.sourceReferences),
+          roomId: widget.roomId,
+        ),
+      );
+
+  /// The server has no file for a cited document: closes the viewer with
+  /// [close] and shows the citation's pages as the server renders them.
+  void _showCitationPages(SourceReference citation, VoidCallback close) {
+    _logger.info(
+      'Cited PDF unavailable; showing its rendered pages',
+      attributes: {'document': citation.documentId},
+    );
+    close();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ChunkVisualizationPage.showCitation(
+          context: context,
+          api: widget.serverEntry.connection.api,
+          roomId: widget.roomId,
+          source: citation,
+        ),
+      );
+    });
+  }
+
   void _closePdf() {
     if (_pdfTarget == null) return;
     setState(() => _pdfTarget = null);
@@ -2254,10 +2293,49 @@ class _RoomScreenState extends State<RoomScreen> {
     required int page,
     required VoidCallback onClose,
     VoidCallback? onQuoteAdded,
+  }) {
+    final api = widget.serverEntry.connection.api;
+    if (target is CitationPdfTarget) {
+      return CitationPdfViewer(
+        key: ValueKey(target.key),
+        target: target,
+        api: api,
+        onUnavailable: (citation) => _showCitationPages(citation, onClose),
+        pane: (source, {required page, required passage, required banner}) =>
+            _pdfViewerPane(
+          target,
+          source,
+          page: page,
+          passage: passage,
+          banner: banner,
+          onClose: onClose,
+          onQuoteAdded: onQuoteAdded,
+        ),
+      );
+    }
+    return _pdfViewerPane(
+      target,
+      pdfViewerSourceFor(target, api),
+      page: page,
+      onClose: onClose,
+      onQuoteAdded: onQuoteAdded,
+    );
+  }
+
+  Widget _pdfViewerPane(
+    PdfOpenTarget target,
+    PdfViewerSource source, {
+    required int page,
+    required VoidCallback onClose,
+    VoidCallback? onQuoteAdded,
+    PdfPassage? passage,
+    Widget? banner,
   }) =>
       PdfViewerPane(
-        source: pdfViewerSourceFor(target, widget.serverEntry.connection.api),
+        source: source,
         initialPage: page,
+        passage: passage,
+        banner: banner,
         documentViewFactory: widget.pdfDocumentViewFactory,
         onClose: onClose,
         onAskAbout: (selection) {
@@ -3028,12 +3106,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                 AppRoutes.diagnosticsForRun(runId),
                               ),
                               onShowChunkVisualization: (ref) =>
-                                  ChunkVisualizationPage.showCitation(
-                                context: context,
-                                api: widget.serverEntry.connection.api,
-                                roomId: widget.roomId,
-                                source: ref,
-                              ),
+                                  _openCitation(ref, messageStates),
                             ),
                   },
                   // Painted over the timeline rather than above it: the
