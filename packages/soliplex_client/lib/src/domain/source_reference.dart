@@ -48,6 +48,7 @@ class SourceReference {
     required this.documentUri,
     required this.content,
     required this.chunkId,
+    this.chunkIds = const [],
     this.documentTitle,
     this.sourceUrl,
     this.headings = const [],
@@ -71,6 +72,13 @@ class SourceReference {
 
   /// Unique identifier for this chunk within the document.
   final String chunkId;
+
+  /// Every chunk this citation stands for: several when it merged more than
+  /// one search hit, [chunkId] among them. Their own items are the passage to
+  /// highlight; [chunkDocItemRefs] holds [chunkId]'s alone. A citation that
+  /// reports none stands for [chunkId] alone; empty only on a reference built
+  /// without them.
+  final List<String> chunkIds;
 
   /// Human-readable document title, if available.
   final String? documentTitle;
@@ -211,6 +219,7 @@ class SourceReference {
         documentUri == other.documentUri &&
         content == other.content &&
         chunkId == other.chunkId &&
+        listEquals.equals(chunkIds, other.chunkIds) &&
         documentTitle == other.documentTitle &&
         sourceUrl == other.sourceUrl &&
         listEquals.equals(headings, other.headings) &&
@@ -229,6 +238,7 @@ class SourceReference {
         documentUri,
         content,
         chunkId,
+        const ListEquality<String>().hash(chunkIds),
         documentTitle,
         sourceUrl,
         const ListEquality<String>().hash(headings),
