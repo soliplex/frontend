@@ -113,6 +113,26 @@ void main() {
             chunkPageNumbers: chunkPageNumbers,
           );
 
+      test('different chunkIds makes references unequal', () {
+        SourceReference withIds(List<String> ids) => SourceReference(
+              documentId: 'doc-1',
+              documentUri: 'https://example.com/doc.pdf',
+              content: 'Test content',
+              chunkId: 'chunk-1',
+              chunkIds: ids,
+            );
+
+        expect(
+          withIds(['chunk-1', 'chunk-2']),
+          isNot(equals(withIds(['chunk-1']))),
+        );
+        expect(withIds(['chunk-1']), equals(withIds(['chunk-1'])));
+        expect(
+          withIds(['chunk-1']).hashCode,
+          equals(withIds(['chunk-1']).hashCode),
+        );
+      });
+
       test('different chunkDocItemRefs makes references unequal', () {
         expect(
           chunkRef(chunkDocItemRefs: ['#/texts/1']),

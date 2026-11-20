@@ -6,6 +6,7 @@ import 'package:soliplex_client/src/application/run_fold_observer.dart';
 import 'package:soliplex_client/src/application/thread_history_replay.dart';
 import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chunk_visualization.dart';
+import 'package:soliplex_client/src/domain/document_boxes.dart';
 import 'package:soliplex_client/src/domain/feedback_type.dart';
 import 'package:soliplex_client/src/domain/file_upload.dart';
 import 'package:soliplex_client/src/domain/quiz.dart';
@@ -1384,6 +1385,102 @@ class SoliplexApi {
       ),
       cancelToken: cancelToken,
       fromJson: ChunkVisualization.fromJson,
+    );
+  }
+
+  /// Downloads the original PDF of a document in the room's RAG database.
+  ///
+  /// The server reads it from the file the document was ingested from, so a
+  /// document ingested any other way has none.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room's ID (must not be empty)
+  /// - [documentId]: The document's ID (must not be empty)
+  /// - [database]: The RAG database the document came from, as its citation
+  ///   reports it; without it the server asks every database the room covers
+  /// - [timeout]: Overrides the transport's default for this request
+  ///
+  /// Returns the raw PDF bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] or [documentId] is empty
+  /// - [NotFoundException] if the document is unknown, was not ingested from
+  ///   a file on the server, or its file is gone or is not a PDF (404); and
+  ///   from a server too old to have the route
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getRagDocumentFile(
+    String roomId,
+    String documentId, {
+    String? database,
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(documentId, 'documentId');
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'documents', documentId, 'file'],
+        queryParameters: {
+          if (database != null && database.isNotEmpty) 'database': database,
+        },
+      ),
+      timeout: timeout,
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// Gets where a citation's passage sits in its document's pages.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room's ID (must not be empty)
+  /// - [documentId]: The cited document's ID (must not be empty)
+  /// - [chunkIds]: Every chunk the citation stands for (at least one); their
+  ///   own items are the [DocumentBoxes.anchor]
+  /// - [contextRefs]: The citation's doc-item refs, the context the model
+  ///   read; those not in the anchor are the [DocumentBoxes.context]
+  /// - [database]: The RAG database the citation came from
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] or [documentId] is empty, or [chunkIds]
+  ///   is
+  /// - [NotFoundException] if a chunk is unknown or not in the document, the
+  ///   document has no layout data (404), or the server is too old to have
+  ///   the route
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<DocumentBoxes> getDocumentBoxes(
+    String roomId,
+    String documentId, {
+    required List<String> chunkIds,
+    List<String> contextRefs = const [],
+    String? database,
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(documentId, 'documentId');
+    if (chunkIds.isEmpty) {
+      throw ArgumentError.value(chunkIds, 'chunkIds', 'must not be empty');
+    }
+
+    return _transport.request<DocumentBoxes>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'documents', documentId, 'boxes'],
+        queryParameters: {
+          'chunk_ids': chunkIds,
+          if (contextRefs.isNotEmpty) 'context_refs': jsonEncode(contextRefs),
+          if (database != null && database.isNotEmpty) 'database': database,
+        },
+      ),
+      cancelToken: cancelToken,
+      fromJson: DocumentBoxes.fromJson,
     );
   }
 

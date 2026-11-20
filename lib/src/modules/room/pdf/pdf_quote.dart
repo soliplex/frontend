@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
+import 'package:soliplex_client/soliplex_client.dart'
+    show SourceReference, WorkdirFile;
 
 /// A PDF the room can open, by where it lives.
 ///
@@ -105,6 +106,46 @@ final class LinkPdf extends PdfOpenTarget {
 
   @override
   bool get isThreadScoped => false;
+}
+
+/// A document in the room's RAG database, opened from one of its citations.
+///
+/// Carries the thread's [citations] of the document, so the viewer can step
+/// between them, and which one was opened. Every citation of a document is
+/// the same file: equal targets share it, whichever citation opened them.
+final class CitationPdfTarget extends PdfOpenTarget {
+  CitationPdfTarget({
+    required this.roomId,
+    required List<SourceReference> citations,
+    this.active = 0,
+  })  : assert(citations.isNotEmpty, 'a cited document has a citation'),
+        assert(active >= 0 && active < citations.length, 'active is listed'),
+        citations = List.unmodifiable(citations);
+
+  final String roomId;
+
+  /// The thread's citations of the document, in the order they were made.
+  final List<SourceReference> citations;
+
+  /// The index in [citations] of the one the document was opened from.
+  final int active;
+
+  SourceReference get _first => citations.first;
+
+  String get documentId => _first.documentId;
+
+  /// The RAG database the document is in, as its citations report it.
+  String? get database => _first.database;
+
+  @override
+  String get title => _first.displayTitle;
+
+  @override
+  String get key => 'rag-document:$roomId/${database ?? ''}/$documentId';
+
+  /// Its citations come from one conversation.
+  @override
+  bool get isThreadScoped => true;
 }
 
 /// A passage the user selected in a PDF and asked about.

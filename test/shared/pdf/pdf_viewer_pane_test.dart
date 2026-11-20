@@ -57,6 +57,8 @@ void main() {
     WidgetTester tester,
     PdfViewerSource source, {
     int initialPage = 1,
+    PdfPassage? passage,
+    Widget? banner,
     bool canAsk = true,
     bool canSave = true,
   }) =>
@@ -67,6 +69,8 @@ void main() {
             body: PdfViewerPane(
               source: source,
               initialPage: initialPage,
+              passage: passage,
+              banner: banner,
               documentViewFactory: views.call,
               onClose: () {},
               onAskAbout: canAsk ? asked.add : null,
@@ -471,6 +475,75 @@ void main() {
       await tester.pump();
       expect(fetches, 2);
       expect(views.last.sourceName, 'room-upload:r/other.pdf');
+    });
+  });
+
+  group('passages', () {
+    const first = PdfPassage(
+      anchor: [
+        PdfPassageBox(page: 2, left: 10, top: 700, right: 300, bottom: 650),
+      ],
+    );
+    const second = PdfPassage(
+      anchor: [
+        PdfPassageBox(page: 3, left: 10, top: 500, right: 300, bottom: 450),
+      ],
+      context: [
+        PdfPassageBox(page: 3, left: 10, top: 600, right: 300, bottom: 510),
+      ],
+    );
+
+    testWidgets('marks the passage once the document is open', (tester) async {
+      await pump(tester, bytesSource(), passage: first);
+      await tester.pump();
+      expect(views.document.passages, isEmpty, reason: 'not open yet');
+
+      views.ready();
+      await tester.pump();
+      expect(views.document.passages, [first]);
+    });
+
+    testWidgets('another passage in the same document moves to it',
+        (tester) async {
+      await pump(tester, bytesSource(), passage: first);
+      await tester.pump();
+      views.ready();
+      await tester.pump();
+
+      await pump(tester, bytesSource(), passage: second);
+      await pump(tester, bytesSource(), passage: second);
+      await pump(tester, bytesSource());
+
+      expect(views.document.passages, [first, second, null]);
+      expect(fetches, 1, reason: 'not fetched again');
+    });
+
+    testWidgets('shows the banner under the header', (tester) async {
+      await pump(
+        tester,
+        bytesSource(),
+        banner: const Text('Citation 1 of 2'),
+      );
+      expect(find.text('Citation 1 of 2'), findsOneWidget);
+    });
+
+    test('a passage starts on its anchor, else its context', () {
+      expect(first.firstPage, 2);
+      expect(
+        const PdfPassage(anchor: [], context: [
+          PdfPassageBox(page: 5, left: 0, top: 1, right: 1, bottom: 0),
+        ]).firstPage,
+        5,
+      );
+      expect(const PdfPassage(anchor: []).firstPage, isNull);
+      expect(second, isNot(first));
+      expect(
+        second.hashCode,
+        PdfPassage(
+          anchor: [...second.anchor],
+          context: [...second.context],
+        ).hashCode,
+      );
     });
   });
 }

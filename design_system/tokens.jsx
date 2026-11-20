@@ -42,6 +42,7 @@ const SP_DARK = {
 const SP_PAPER = {
   selection:'rgba(11,87,208,0.30)',
   match:'#FDE68A', activeMatch:'#FCD34D', activeMatchOutline:'#B45309',
+  context:'#FEF3C7',
 };
 
 const SP_FONT = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
