@@ -30,7 +30,8 @@ const _passwordAttempts = 3;
 ///
 /// Fills whatever it is given: a pane beside the conversation, a dialog, or
 /// a page of its own. Opening another [source] replaces the document; a new
-/// [initialPage] on the same one moves to it.
+/// [initialPage] on the same one moves to it, and a new [passage] marks it
+/// and moves to it.
 class PdfViewerPane extends StatefulWidget {
   const PdfViewerPane({
     super.key,
@@ -38,6 +39,8 @@ class PdfViewerPane extends StatefulWidget {
     required this.documentViewFactory,
     required this.onClose,
     this.initialPage = 1,
+    this.passage,
+    this.banner,
     this.onAskAbout,
     this.onSave,
   });
@@ -49,6 +52,14 @@ class PdfViewerPane extends StatefulWidget {
   final PdfDocumentViewFactory documentViewFactory;
   final VoidCallback onClose;
   final int initialPage;
+
+  /// A passage to mark — a citation's — once the document is open. Null
+  /// marks none.
+  final PdfPassage? passage;
+
+  /// Shown under the header, across the pane: what the passage is, and a
+  /// way to step between passages.
+  final Widget? banner;
 
   /// Receives the selected text when the user asks about it. Null hides
   /// *Ask about this* — where there is no conversation to ask in.
@@ -132,8 +143,13 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     if (oldWidget.source.cacheKey != widget.source.cacheKey) {
       _closeSearch();
       unawaited(_load());
-    } else if (oldWidget.initialPage != widget.initialPage) {
-      unawaited(_document?.goToPage(widget.initialPage));
+    } else {
+      if (oldWidget.initialPage != widget.initialPage) {
+        unawaited(_document?.goToPage(widget.initialPage));
+      }
+      if (oldWidget.passage != widget.passage) {
+        unawaited(_document?.showPassage(widget.passage));
+      }
     }
   }
 
@@ -357,6 +373,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
               focusNode: _searchFocus,
               document: document,
             ),
+          if (widget.banner case final banner?) ...[
+            const Divider(height: 1),
+            banner,
+          ],
           const Divider(height: 1),
           Expanded(child: _buildBody(context)),
         ],
@@ -451,6 +471,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         onReady: (document) {
           if (mounted && generation == _generation) {
             setState(() => _document = document);
+            final passage = widget.passage;
+            if (passage != null) unawaited(document.showPassage(passage));
           }
         },
         onLoadFailed: (error, stackTrace) =>

@@ -34,6 +34,7 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
   late final PdfTextSearcher _searcher;
   late final VoidCallback _stopListening;
   final _status = signal(const PdfViewStatus());
+  PdfPassage? _passage;
   var _reportedReady = false;
   var _reportedFailure = false;
 
@@ -125,6 +126,47 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
     return PdfSelectedText(text: text, pageNumber: ranges.first.pageNumber);
   }
 
+  @override
+  Future<void> showPassage(PdfPassage? passage) async {
+    _passage = passage;
+    _viewer.invalidate();
+    final page = passage?.firstPage;
+    if (passage == null || page == null) return;
+    final onPage = [
+      ...passage.anchor.where((box) => box.page == page),
+      if (!passage.anchor.any((box) => box.page == page))
+        ...passage.context.where((box) => box.page == page),
+    ].map(_pdfRect);
+    await _viewer.goToRectInsidePage(
+      pageNumber: page,
+      rect: onPage.reduce((a, b) => a.merge(b)),
+      anchor: PdfPageAnchor.center,
+    );
+  }
+
+  /// A box as pdfrx's rect, its edges ordered whichever way they came.
+  static PdfRect _pdfRect(PdfPassageBox box) => PdfRect(
+        box.left < box.right ? box.left : box.right,
+        box.top > box.bottom ? box.top : box.bottom,
+        box.left < box.right ? box.right : box.left,
+        box.top > box.bottom ? box.bottom : box.top,
+      );
+
+  void _paintPassage(Canvas canvas, Rect pageRect, PdfPage page) {
+    final passage = _passage;
+    if (passage == null) return;
+    Iterable<Rect> onPage(List<PdfPassageBox> boxes) =>
+        boxes.where((box) => box.page == page.pageNumber).map(
+              (box) => _pdfRect(box)
+                  .toRectInDocument(page: page, pageRect: pageRect),
+            );
+    paintPaperPassage(
+      canvas,
+      context: onPage(passage.context),
+      anchor: onPage(passage.anchor),
+    );
+  }
+
   void _paintMatches(Canvas canvas, Rect pageRect, PdfPage page) {
     final range = _searcher.getMatchesRangeForPage(page.pageNumber);
     if (range == null) return;
@@ -182,7 +224,8 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
       backgroundColor: theme.colorScheme.surfaceContainerLow,
       onViewerReady: _onViewerReady,
       onPageChanged: (page) => _update((s) => s.copyWith(pageNumber: page)),
-      pagePaintCallbacks: [_paintMatches],
+      // The passage first, so a search match shows on top of it.
+      pagePaintCallbacks: [_paintPassage, _paintMatches],
       textSelectionParams: PdfTextSelectionParams(
         onTextSelectionChange: (selection) => _update(
           (s) => s.copyWith(hasSelection: selection.hasSelectedText),

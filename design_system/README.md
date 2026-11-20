@@ -173,11 +173,13 @@ listed.
 | `selection`          | `#0B57D0` at 30 %  | normal blend, over ink      | ink ≥ 4.5:1; handles (70 % and opaque) ≥ 3:1       |
 | `match`              | `#FDE68A`          | multiply                    | ink ≥ 4.5:1                                        |
 | `activeMatch`        | `#FCD34D`          | multiply, plus the outline  | ink ≥ 4.5:1                                        |
-| `activeMatchOutline` | `#B45309`          | 2 px stroke, normal blend   | ≥ 3:1 against paper and against `match`            |
+| `activeMatchOutline` | `#B45309`          | 2 px stroke, normal blend   | ≥ 3:1 against paper, `match` and `context`         |
+| `context`            | `#FEF3C7`          | multiply                    | ink ≥ 4.5:1; paler than `match`                    |
 
 The fills are deliberately pale: under multiply the ink stays dark. That also
 means they are too faint to find by shape alone, which is what the active
-match's outline is for.
+match's outline is for. A cited passage is drawn as the active match, over a
+`context` wash marking the rest of what the model read.
 
 ### Breakpoints
 | Name    | Min width | Layout                                 |
