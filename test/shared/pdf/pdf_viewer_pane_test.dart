@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show ApiException, NotFoundException;
@@ -62,6 +62,7 @@ void main() {
     Widget? banner,
     bool canAsk = true,
     bool canSave = true,
+    Future<List<PdfTextBlock>> Function()? loadOcrText,
   }) =>
       tester.pumpWidget(
         MaterialApp(
@@ -78,6 +79,7 @@ void main() {
               onSave: canSave
                   ? (bytes, name) async => saved.add((bytes, name))
                   : null,
+              loadOcrText: loadOcrText,
             ),
           ),
         ),
@@ -545,6 +547,259 @@ void main() {
           anchor: [...second.anchor],
           context: [...second.context],
         ).hashCode,
+      );
+    });
+  });
+
+  group('OCR text', () {
+    const heading = PdfTextBlock(
+      box: PdfPassageBox(page: 1, left: 10, top: 760, right: 200, bottom: 740),
+      text: 'Chunking',
+    );
+    const paragraph = PdfTextBlock(
+      box: PdfPassageBox(page: 1, left: 10, top: 700, right: 300, bottom: 650),
+      text: 'Keep chunks large\nenough to carry their definitions.',
+    );
+    const scanned = PdfViewStatus(pageNumber: 1, textlessPages: {1});
+
+    late int ocrLoads;
+
+    setUp(() => ocrLoads = 0);
+
+    Future<List<PdfTextBlock>> loadOcr() async {
+      ocrLoads++;
+      return const [heading, paragraph];
+    }
+
+    Future<void> open(
+      WidgetTester tester, {
+      Future<List<PdfTextBlock>> Function()? load,
+      PdfViewStatus status = scanned,
+      bool canAsk = true,
+    }) async {
+      await pump(
+        tester,
+        bytesSource(),
+        loadOcrText: load ?? loadOcr,
+        canAsk: canAsk,
+      );
+      await tester.pump();
+      views.ready();
+      views.document.report(status);
+      await tester.pump();
+    }
+
+    testWidgets('is offered once a page has no text of its own',
+        (tester) async {
+      await pump(tester, bytesSource(), loadOcrText: loadOcr);
+      await tester.pump();
+      views.ready();
+      await tester.pump();
+      expect(find.byTooltip('Show OCR text'), findsNothing);
+
+      views.document.report(scanned);
+      await tester.pump();
+      expect(find.byTooltip('Show OCR text'), findsOneWidget);
+    });
+
+    testWidgets('is not offered without OCR text', (tester) async {
+      await pump(tester, bytesSource());
+      await tester.pump();
+      views.ready();
+      views.document.report(scanned);
+      await tester.pump();
+
+      expect(find.byTooltip('Show OCR text'), findsNothing);
+    });
+
+    testWidgets('shows the blocks, fetched once, and hides them',
+        (tester) async {
+      await open(tester);
+
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pump();
+      expect(views.document.textBlocks.last.blocks, [heading, paragraph]);
+
+      await tester.tap(find.byTooltip('Hide OCR text'));
+      await tester.pump();
+      expect(views.document.textBlocks.last.blocks, isNull);
+
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pump();
+      expect(views.document.textBlocks.last.blocks, [heading, paragraph]);
+      expect(ocrLoads, 1, reason: 'kept once fetched');
+    });
+
+    testWidgets('spins while fetching', (tester) async {
+      final pending = Completer<List<PdfTextBlock>>();
+      await open(tester, load: () => pending.future);
+
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      pending.complete(const [heading]);
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(views.document.textBlocks.single.blocks, [heading]);
+    });
+
+    testWidgets('says so when the text cannot be fetched', (tester) async {
+      await open(
+        tester,
+        load: () async => throw const ApiException(
+          message: 'boom',
+          statusCode: 500,
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pump();
+
+      expect(find.text("Couldn't load the OCR text."), findsOneWidget);
+      expect(views.document.textBlocks, isEmpty);
+      expect(find.byTooltip('Show OCR text'), findsOneWidget);
+    });
+
+    testWidgets('shows the blocks again in a reopened document',
+        (tester) async {
+      await open(tester);
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pump();
+
+      views.last.onReady(views.document);
+      await tester.pump();
+
+      expect(views.document.textBlocks, hasLength(2));
+      expect(views.document.textBlocks.last.blocks, [heading, paragraph]);
+    });
+
+    testWidgets('another document starts with them hidden', (tester) async {
+      await open(tester);
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pump();
+
+      await pump(
+        tester,
+        bytesSource(key: 'thread-upload:r/t/other.pdf'),
+        loadOcrText: loadOcr,
+      );
+      await tester.pump();
+      views.ready();
+      await tester.pump();
+
+      expect(find.byTooltip('Show OCR text'), findsOneWidget);
+      expect(views.document.textBlocks, hasLength(1));
+    });
+
+    Future<void> tapBlock(WidgetTester tester, PdfTextBlock block) async {
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pump();
+      views.last.onTextBlockTap!(block);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a tapped block opens its text, marked as chosen',
+        (tester) async {
+      await open(tester);
+      await tapBlock(tester, paragraph);
+
+      expect(find.text('OCR text, p. 1'), findsOneWidget);
+      expect(find.text(paragraph.text), findsOneWidget);
+      expect(views.document.textBlocks.last.selected, paragraph);
+
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.text('OCR text, p. 1'), findsNothing);
+      expect(views.document.textBlocks.last.selected, isNull);
+    });
+
+    testWidgets('copies the block', (tester) async {
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await open(tester);
+      await tapBlock(tester, paragraph);
+
+      await tester.tap(find.text('Copy'));
+      await tester.pumpAndSettle();
+
+      expect(copied, ['Keep chunks large enough to carry their definitions.']);
+    });
+
+    testWidgets('asks about the block', (tester) async {
+      await open(tester);
+      await tapBlock(tester, heading);
+
+      await tester.tap(find.text('Ask about this'));
+      await tester.pumpAndSettle();
+
+      expect(asked.single.text, 'Chunking');
+      expect(asked.single.pageNumber, 1);
+      expect(find.text('OCR text, p. 1'), findsNothing);
+    });
+
+    testWidgets('asks about the part selected', (tester) async {
+      await open(tester);
+      await tapBlock(tester, paragraph);
+
+      final editable = tester.state<EditableTextState>(
+        find.byType(EditableText),
+      );
+      editable.userUpdateTextEditingValue(
+        editable.textEditingValue.copyWith(
+          selection: const TextSelection(baseOffset: 5, extentOffset: 17),
+        ),
+        SelectionChangedCause.drag,
+      );
+      await tester.pump();
+      expect(find.text('Copy selection'), findsOneWidget);
+
+      await tester.tap(find.text('Ask about this'));
+      await tester.pumpAndSettle();
+
+      expect(asked.single.text, 'chunks large');
+    });
+
+    testWidgets('offers no asking where there is nothing to ask',
+        (tester) async {
+      await open(tester, canAsk: false);
+      await tapBlock(tester, heading);
+
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Ask about this'), findsNothing);
+    });
+
+    test('blocks and statuses compare by value', () {
+      expect(
+        heading,
+        PdfTextBlock(box: heading.box, text: heading.text),
+      );
+      expect(
+        heading.hashCode,
+        PdfTextBlock(box: heading.box, text: heading.text).hashCode,
+      );
+      expect(heading, isNot(paragraph));
+      expect(scanned, const PdfViewStatus(pageNumber: 1, textlessPages: {1}));
+      expect(
+        scanned.hashCode,
+        const PdfViewStatus(pageNumber: 1, textlessPages: {1}).hashCode,
+      );
+      expect(scanned, isNot(const PdfViewStatus(pageNumber: 1)));
+      expect(
+        const PdfViewStatus().copyWith(textlessPages: {2}).textlessPages,
+        {2},
       );
     });
   });
