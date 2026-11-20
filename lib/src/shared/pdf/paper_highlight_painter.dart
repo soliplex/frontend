@@ -20,14 +20,33 @@ void paintPaperMatches(
   _fill(canvas, others, PaperHighlights.match);
   final activePath = _fill(canvas, active, PaperHighlights.activeMatch);
   if (activePath == null) return;
-  canvas.drawPath(
-    activePath,
-    Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = _outlineWidth
-      ..color = PaperHighlights.activeMatchOutline,
-  );
+  _outline(canvas, activePath);
 }
+
+/// Paints a cited passage on a page: its [context] in
+/// [PaperHighlights.context], then its [anchor] as the current match is
+/// painted, in [PaperHighlights.activeMatch] with an outline.
+///
+/// Fills multiply, as in [paintPaperMatches]. Rectangles are in the canvas's
+/// coordinates, already placed on the page.
+void paintPaperPassage(
+  Canvas canvas, {
+  required Iterable<Rect> context,
+  required Iterable<Rect> anchor,
+}) {
+  _fill(canvas, context, PaperHighlights.context);
+  final anchorPath = _fill(canvas, anchor, PaperHighlights.activeMatch);
+  if (anchorPath == null) return;
+  _outline(canvas, anchorPath);
+}
+
+void _outline(Canvas canvas, Path path) => canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _outlineWidth
+        ..color = PaperHighlights.activeMatchOutline,
+    );
 
 /// The outline's width in logical pixels, as `PaperHighlights` specifies.
 const _outlineWidth = 2.0;

@@ -47,6 +47,7 @@ void main() {
       for (final (name, fill) in [
         ('match', PaperHighlights.match),
         ('activeMatch', PaperHighlights.activeMatch),
+        ('context', PaperHighlights.context),
       ]) {
         test('$name is opaque, which multiply assumes', () {
           expect(fill.a, 1);
@@ -63,6 +64,23 @@ void main() {
       test('the active outline is findable against paper', () {
         expect(
           contrastRatio(PaperHighlights.activeMatchOutline, _paper),
+          greaterThanOrEqualTo(3),
+        );
+      });
+
+      test('context is paler than match, so a search hit shows inside it', () {
+        expect(
+          PaperHighlights.context.computeLuminance(),
+          greaterThan(PaperHighlights.match.computeLuminance()),
+        );
+      });
+
+      test('the active outline sets the passage apart from its context', () {
+        expect(
+          contrastRatio(
+            PaperHighlights.activeMatchOutline,
+            PaperHighlights.context,
+          ),
           greaterThanOrEqualTo(3),
         );
       });

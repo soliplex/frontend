@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
@@ -86,6 +87,62 @@ final class PdfSelectionCopyForbidden extends PdfSelectionResult {
   const PdfSelectionCopyForbidden();
 }
 
+/// One box on a page of the document, in PDF points with the origin at the
+/// page's bottom left, as the PDF's own coordinates are.
+@immutable
+class PdfPassageBox {
+  const PdfPassageBox({
+    required this.page,
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  /// The 1-based page the box is on.
+  final int page;
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PdfPassageBox &&
+      other.page == page &&
+      other.left == left &&
+      other.top == top &&
+      other.right == right &&
+      other.bottom == bottom;
+
+  @override
+  int get hashCode => Object.hash(page, left, top, right, bottom);
+}
+
+/// A passage to mark in the document: the [anchor] it is about, drawn as the
+/// current match is, over a fainter wash on its [context].
+@immutable
+class PdfPassage {
+  const PdfPassage({required this.anchor, this.context = const []});
+
+  final List<PdfPassageBox> anchor;
+  final List<PdfPassageBox> context;
+
+  /// The page to show the passage on: its anchor's first, else its
+  /// context's; null when it has no boxes at all.
+  int? get firstPage => anchor.firstOrNull?.page ?? context.firstOrNull?.page;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PdfPassage &&
+      listEquals(other.anchor, anchor) &&
+      listEquals(other.context, context);
+
+  @override
+  int get hashCode =>
+      Object.hash(Object.hashAll(anchor), Object.hashAll(context));
+}
+
 /// Drives an open document. The pane holds one per document it shows; the
 /// real one wraps pdfrx, and tests supply a fake so no widget test loads
 /// PDFium.
@@ -105,6 +162,10 @@ abstract interface class PdfDocumentController {
   /// Takes the selected text for a quote and clears the selection; null when
   /// nothing is selected.
   Future<PdfSelectionResult?> takeSelection();
+
+  /// Marks [passage] in the document, replacing any passage marked before,
+  /// and brings its first page's anchor into view; null clears the marks.
+  Future<void> showPassage(PdfPassage? passage);
 }
 
 /// Everything a document view needs to open one document.

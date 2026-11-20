@@ -12,6 +12,9 @@ class FakePdfDocument implements PdfDocumentController {
   /// What [takeSelection] gives next.
   PdfSelectionResult? selection;
 
+  /// Every passage [showPassage] was asked to mark, in order.
+  final passages = <PdfPassage?>[];
+
   @override
   ReadonlySignal<PdfViewStatus> get status => statusSignal;
 
@@ -35,6 +38,9 @@ class FakePdfDocument implements PdfDocumentController {
 
   @override
   Future<void> previousMatch() async => calls.add('previousMatch');
+
+  @override
+  Future<void> showPassage(PdfPassage? passage) async => passages.add(passage);
 
   @override
   Future<PdfSelectionResult?> takeSelection() async {

@@ -34,6 +34,12 @@ abstract final class PaperHighlights {
   /// [match], and outlined with [activeMatchOutline].
   static const activeMatch = Color(0xFFFCD34D);
 
+  /// The context around a cited passage: the rest of what the model read,
+  /// drawn fainter than the passage itself ([activeMatch] and its outline).
+  /// Opaque; painted with [BlendMode.multiply]. Paler than [match], so a
+  /// search hit still stands out inside it.
+  static const context = Color(0xFFFEF3C7);
+
   /// The outline that sets the current match apart from paper and from the
   /// other matches, stroked 2 logical pixels wide with normal blending. The
   /// fills alone are too pale to find by shape against white.

@@ -186,12 +186,13 @@
   --sp-fs-label-sm:    12px;  --sp-fw-label-sm:    500;  --sp-lh-label-sm:    1.5;
 
   /* Paper highlights: marks on a document page, fixed across themes.
-     selection: normal blend over ink and paper; match / active-match:
+     selection: normal blend over ink and paper; match / active-match / context:
      mix-blend-mode multiply; outline: 2px stroke. */
   --sp-paper-selection:            rgba(11, 87, 208, 0.30);
   --sp-paper-match:                #FDE68A;
   --sp-paper-active-match:         #FCD34D;
   --sp-paper-active-match-outline: #B45309;
+  --sp-paper-context:              #FEF3C7;
 
   /* Breakpoints (read in JS via getComputedStyle if needed) */
   --sp-bp-mobile:  320px;
