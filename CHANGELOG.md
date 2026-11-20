@@ -20,6 +20,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   menu. The selection becomes a chip above the composer and is sent ahead of
   your message as a quote, which shows as a card in the sent message. Tapping
   a chip or a card reopens the PDF at its page.
+- **View source PDF** on a citation opens the cited document itself in the
+  PDF viewer, at the cited passage: the cited chunks' paragraphs are
+  highlighted and outlined, over a fainter wash on the rest of the context the
+  answer drew on. A strip names the citation and steps between the thread's
+  other citations of the same document. The passage is marked a paragraph or
+  block at a time, never finer. This needs a server with the document file
+  and boxes routes; a document the server has no file for (one not ingested
+  from a file on the server) shows its rendered pages, as before.
 - Highlight colours for marks on a document page (`PaperHighlights` in
   `soliplex_design`), kept legible on the always-white page in both themes.
 - **Library consumers:** the viewer renders with PDFium, which on the web is
