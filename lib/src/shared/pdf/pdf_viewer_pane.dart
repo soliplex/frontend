@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show CancelledException, NotFoundException;
@@ -43,6 +43,7 @@ class PdfViewerPane extends StatefulWidget {
     this.banner,
     this.onAskAbout,
     this.onSave,
+    this.loadOcrText,
   });
 
   /// Narrower than this, the header's controls stop fitting.
@@ -67,6 +68,11 @@ class PdfViewerPane extends StatefulWidget {
 
   /// Saves a fetched document to the device. Null hides Download.
   final Future<void> Function(Uint8List bytes, String filename)? onSave;
+
+  /// Fetches the text recovered for the document by OCR, for the pages that
+  /// have none of their own. Null — no such text exists — hides the *OCR
+  /// text* toggle, as does a document whose every page has text.
+  final Future<List<PdfTextBlock>> Function()? loadOcrText;
 
   @override
   State<PdfViewerPane> createState() => _PdfViewerPaneState();
@@ -118,6 +124,12 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   final _query = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'PDF search');
 
+  /// Whether the OCR text is shown; kept across a reload of the same
+  /// document, as are the blocks once fetched.
+  var _showingOcr = false;
+  var _loadingOcr = false;
+  List<PdfTextBlock>? _ocrBlocks;
+
   /// False while [initState] runs, where the first load's opening phase is
   /// assigned rather than set: there is no build yet to schedule.
   var _initialized = false;
@@ -142,6 +154,9 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.source.cacheKey != widget.source.cacheKey) {
       _closeSearch();
+      _showingOcr = false;
+      _loadingOcr = false;
+      _ocrBlocks = null;
       unawaited(_load());
     } else {
       if (oldWidget.initialPage != widget.initialPage) {
@@ -285,6 +300,71 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     }
   }
 
+  Future<void> _toggleOcr() async {
+    final document = _document;
+    final load = widget.loadOcrText;
+    if (document == null || load == null || _loadingOcr) return;
+    if (_showingOcr) {
+      setState(() => _showingOcr = false);
+      document.showTextBlocks(null);
+      return;
+    }
+    var blocks = _ocrBlocks;
+    if (blocks == null) {
+      final cacheKey = widget.source.cacheKey;
+      setState(() => _loadingOcr = true);
+      try {
+        blocks = await load();
+      } on CancelledException {
+        if (mounted) setState(() => _loadingOcr = false);
+        return;
+      } on Exception catch (error, stackTrace) {
+        // As in _load: the API client's errors carry no credential.
+        _logger.warning(
+          'Fetching the OCR text failed',
+          error: error,
+          stackTrace: stackTrace,
+          attributes: {'source': cacheKey},
+        );
+        if (!mounted || widget.source.cacheKey != cacheKey) return;
+        setState(() => _loadingOcr = false);
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text("Couldn't load the OCR text.")),
+        );
+        return;
+      }
+      if (!mounted || widget.source.cacheKey != cacheKey) return;
+      _ocrBlocks = blocks;
+    }
+    setState(() {
+      _loadingOcr = false;
+      _showingOcr = true;
+    });
+    _document?.showTextBlocks(blocks);
+  }
+
+  Future<void> _openTextBlock(PdfTextBlock block) async {
+    final document = _document;
+    final blocks = _ocrBlocks;
+    if (document == null || blocks == null) return;
+    document.showTextBlocks(blocks, selected: block);
+    final onAskAbout = widget.onAskAbout;
+    final asked = await showModalBottomSheet<PdfSelectedText>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => _OcrTextSheet(
+        block: block,
+        canAsk: onAskAbout != null,
+      ),
+    );
+    if (!mounted) return;
+    if (_showingOcr && identical(_document, document)) {
+      document.showTextBlocks(blocks);
+    }
+    if (asked != null) onAskAbout?.call(asked);
+  }
+
   /// The bytes in hand, or fetched again — a file too large to view was
   /// never fetched.
   Future<void> _download() async {
@@ -361,6 +441,13 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             searching: _searching,
             canSearch: document != null,
             onSearch: _toggleSearch,
+            ocr: document != null && widget.loadOcrText != null
+                ? (
+                    showing: _showingOcr,
+                    loading: _loadingOcr,
+                    onToggle: () => unawaited(_toggleOcr()),
+                  )
+                : null,
             onZoomIn: document == null ? null : () => document.zoomIn(),
             onZoomOut: document == null ? null : () => document.zoomOut(),
             onDownload: _canDownload ? _download : null,
@@ -473,11 +560,14 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             setState(() => _document = document);
             final passage = widget.passage;
             if (passage != null) unawaited(document.showPassage(passage));
+            final blocks = _ocrBlocks;
+            if (_showingOcr && blocks != null) document.showTextBlocks(blocks);
           }
         },
         onLoadFailed: (error, stackTrace) =>
             _onLoadFailed(generation, error, stackTrace),
         onAskAbout: widget.onAskAbout == null ? null : _askAbout,
+        onTextBlockTap: (block) => unawaited(_openTextBlock(block)),
       ),
     );
     final document = _document;
@@ -516,6 +606,7 @@ class _Header extends StatelessWidget {
     required this.searching,
     required this.canSearch,
     required this.onSearch,
+    required this.ocr,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onDownload,
@@ -528,6 +619,10 @@ class _Header extends StatelessWidget {
   final bool searching;
   final bool canSearch;
   final VoidCallback onSearch;
+
+  /// The *OCR text* toggle's state; null when there is no OCR text to show.
+  /// It shows only once the document has a page without text of its own.
+  final ({bool showing, bool loading, VoidCallback onToggle})? ocr;
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
   final VoidCallback? onDownload;
@@ -600,6 +695,27 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if ((ocr, status) case (final ocr?, final status?))
+            Watch(
+              (context) => status.value.textlessPages.isEmpty
+                  ? const SizedBox.shrink()
+                  : IconButton(
+                      tooltip: ocr.showing ? 'Hide OCR text' : 'Show OCR text',
+                      isSelected: ocr.showing,
+                      icon: ocr.loading
+                          ? const SizedBox.square(
+                              dimension: SoliplexSpacing.s6,
+                              child: Padding(
+                                padding: EdgeInsets.all(SoliplexSpacing.s1),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.document_scanner_outlined),
+                      onPressed: ocr.loading ? null : ocr.onToggle,
+                    ),
+            ),
           IconButton(
             tooltip: searching ? 'Close search' : 'Search in document',
             isSelected: searching,
@@ -775,4 +891,98 @@ class _DownloadButton extends StatelessWidget {
         icon: const Icon(Icons.download_outlined),
         child: const Text('Download'),
       );
+}
+
+/// A block of OCR text, to read, select part of, copy, or ask about. Pops
+/// with the text to ask about, when asked.
+class _OcrTextSheet extends StatefulWidget {
+  const _OcrTextSheet({required this.block, required this.canAsk});
+
+  final PdfTextBlock block;
+  final bool canAsk;
+
+  @override
+  State<_OcrTextSheet> createState() => _OcrTextSheetState();
+}
+
+class _OcrTextSheetState extends State<_OcrTextSheet> {
+  var _selection = '';
+
+  /// The selection, or the whole block when nothing is selected, whitespace
+  /// collapsed as a selection on the page is.
+  String get _text =>
+      (_selection.trim().isEmpty ? widget.block.text : _selection)
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+
+  Future<void> _copy() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    await Clipboard.setData(ClipboardData(text: _text));
+    messenger?.showSnackBar(const SnackBar(content: Text('Copied.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final page = widget.block.box.page;
+    final text = widget.block.text;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SoliplexSpacing.s4,
+          0,
+          SoliplexSpacing.s4,
+          SoliplexSpacing.s4,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('OCR text, p. $page', style: theme.textTheme.titleSmall),
+            Text(
+              'Read from the scan; it may contain recognition errors.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SoliplexSpacing.s3),
+            Flexible(
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  text,
+                  style: theme.textTheme.bodyMedium,
+                  onSelectionChanged: (selection, _) => setState(
+                    () => _selection =
+                        selection.isCollapsed ? '' : selection.textInside(text),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: SoliplexSpacing.s4),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: SoliplexSpacing.s2,
+              runSpacing: SoliplexSpacing.s2,
+              children: [
+                SoliplexButton.outlined(
+                  onPressed: () => unawaited(_copy()),
+                  icon: const Icon(Icons.copy_outlined),
+                  child: Text(
+                      _selection.trim().isEmpty ? 'Copy' : 'Copy selection'),
+                ),
+                if (widget.canAsk)
+                  SoliplexButton.filled(
+                    onPressed: () => Navigator.of(context).pop(
+                      PdfSelectedText(text: _text, pageNumber: page),
+                    ),
+                    icon: const Icon(Icons.format_quote),
+                    child: const Text('Ask about this'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

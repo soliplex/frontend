@@ -35,6 +35,8 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
   late final VoidCallback _stopListening;
   final _status = signal(const PdfViewStatus());
   PdfPassage? _passage;
+  List<PdfTextBlock>? _textBlocks;
+  PdfTextBlock? _selectedBlock;
   var _reportedReady = false;
   var _reportedFailure = false;
 
@@ -167,6 +169,71 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
     );
   }
 
+  @override
+  void showTextBlocks(List<PdfTextBlock>? blocks, {PdfTextBlock? selected}) {
+    if (!mounted) return;
+    setState(() {
+      _textBlocks = blocks;
+      _selectedBlock = blocks == null ? null : selected;
+    });
+    _viewer.invalidate();
+  }
+
+  /// The blocks to show on [page]: only where the page has no text of its
+  /// own, since anywhere else the text can be selected as it is.
+  Iterable<PdfTextBlock> _blocksOn(PdfPage page) {
+    final blocks = _textBlocks;
+    if (blocks == null ||
+        !_status.value.textlessPages.contains(page.pageNumber)) {
+      return const [];
+    }
+    return blocks.where((block) => block.box.page == page.pageNumber);
+  }
+
+  void _paintTextBlocks(Canvas canvas, Rect pageRect, PdfPage page) {
+    Rect place(PdfTextBlock block) =>
+        _pdfRect(block.box).toRectInDocument(page: page, pageRect: pageRect);
+    final blocks = _blocksOn(page).toList();
+    if (blocks.isEmpty) return;
+    final selected = _selectedBlock;
+    paintPaperTextBlocks(
+      canvas,
+      blocks: blocks.map(place),
+      selected: selected != null && blocks.contains(selected)
+          ? place(selected)
+          : null,
+    );
+  }
+
+  /// A tap target over each block, in the page's own coordinates; the
+  /// viewer still pans and zooms over them.
+  List<Widget> _textBlockTargets(
+    BuildContext context,
+    Rect pageRect,
+    PdfPage page,
+  ) {
+    final onTap = widget.request.onTextBlockTap;
+    if (onTap == null) return const [];
+    return [
+      for (final block in _blocksOn(page))
+        Positioned.fromRect(
+          rect: _pdfRect(block.box)
+              .toRect(page: page, scaledPageSize: pageRect.size),
+          child: Semantics(
+            button: true,
+            label: block.text,
+            child: PdfOverlayInteractionRegion(
+              onTap: (_) {
+                onTap(block);
+                return true;
+              },
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+    ];
+  }
+
   void _paintMatches(Canvas canvas, Rect pageRect, PdfPage page) {
     final range = _searcher.getMatchesRangeForPage(page.pageNumber);
     if (range == null) return;
@@ -192,6 +259,35 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
     if (_reportedReady) return;
     _reportedReady = true;
     widget.request.onReady(this);
+    unawaited(_findTextlessPages(document));
+  }
+
+  /// Fewer characters than this on a page, whitespace aside, and the page
+  /// counts as carrying no text: a scan, perhaps with a stray OCR'd page
+  /// number or a watermark.
+  static const _textlessBelow = 16;
+
+  /// Checks each page for text of its own, one at a time after the
+  /// document opens, reporting the textless ones as they are found.
+  Future<void> _findTextlessPages(PdfDocument document) async {
+    final found = <int>{};
+    for (final page in document.pages) {
+      final PdfPageRawText? text;
+      try {
+        text = await page.loadText();
+      } on Exception {
+        // A page whose text can't be read is left as it is: it still has
+        // whatever selection pdfrx can give it.
+        continue;
+      }
+      if (!mounted) return;
+      if (text == null) continue;
+      final characters = text.fullText.replaceAll(RegExp(r'\s'), '').length;
+      if (characters < _textlessBelow) {
+        found.add(page.pageNumber);
+        _update((s) => s.copyWith(textlessPages: {...found}));
+      }
+    }
   }
 
   /// pdfrx builds its error banner from inside the viewer's build; the
@@ -225,7 +321,8 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
       onViewerReady: _onViewerReady,
       onPageChanged: (page) => _update((s) => s.copyWith(pageNumber: page)),
       // The passage first, so a search match shows on top of it.
-      pagePaintCallbacks: [_paintPassage, _paintMatches],
+      pagePaintCallbacks: [_paintPassage, _paintTextBlocks, _paintMatches],
+      pageOverlaysBuilder: _textBlockTargets,
       textSelectionParams: PdfTextSelectionParams(
         onTextSelectionChange: (selection) => _update(
           (s) => s.copyWith(hasSelection: selection.hasSelectedText),

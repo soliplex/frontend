@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
@@ -15,6 +15,7 @@ class PdfViewStatus {
     this.searching = false,
     this.matchCount = 0,
     this.currentMatch,
+    this.textlessPages = const {},
   });
 
   /// The page in view, 1-based; null until the document has laid out.
@@ -31,6 +32,11 @@ class PdfViewStatus {
   /// The current match, 0-based; null with no matches.
   final int? currentMatch;
 
+  /// Pages found to carry no text of their own — scans, typically — so
+  /// nothing on them can be selected or searched. Pages are checked after
+  /// the document opens, so this grows as they are.
+  final Set<int> textlessPages;
+
   PdfViewStatus copyWith({
     int? pageNumber,
     int? pageCount,
@@ -38,6 +44,7 @@ class PdfViewStatus {
     bool? searching,
     int? matchCount,
     int? Function()? currentMatch,
+    Set<int>? textlessPages,
   }) =>
       PdfViewStatus(
         pageNumber: pageNumber ?? this.pageNumber,
@@ -46,6 +53,7 @@ class PdfViewStatus {
         searching: searching ?? this.searching,
         matchCount: matchCount ?? this.matchCount,
         currentMatch: currentMatch == null ? this.currentMatch : currentMatch(),
+        textlessPages: textlessPages ?? this.textlessPages,
       );
 
   @override
@@ -56,7 +64,8 @@ class PdfViewStatus {
       other.hasSelection == hasSelection &&
       other.searching == searching &&
       other.matchCount == matchCount &&
-      other.currentMatch == currentMatch;
+      other.currentMatch == currentMatch &&
+      setEquals(other.textlessPages, textlessPages);
 
   @override
   int get hashCode => Object.hash(
@@ -66,6 +75,7 @@ class PdfViewStatus {
         searching,
         matchCount,
         currentMatch,
+        Object.hashAllUnordered(textlessPages),
       );
 }
 
@@ -143,6 +153,23 @@ class PdfPassage {
       Object.hash(Object.hashAll(anchor), Object.hashAll(context));
 }
 
+/// A block of text recovered for a page that has none of its own — by OCR,
+/// when the document was ingested — and the [box] it was read from.
+@immutable
+class PdfTextBlock {
+  const PdfTextBlock({required this.box, required this.text});
+
+  final PdfPassageBox box;
+  final String text;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PdfTextBlock && other.box == box && other.text == text;
+
+  @override
+  int get hashCode => Object.hash(box, text);
+}
+
 /// Drives an open document. The pane holds one per document it shows; the
 /// real one wraps pdfrx, and tests supply a fake so no widget test loads
 /// PDFium.
@@ -166,6 +193,11 @@ abstract interface class PdfDocumentController {
   /// Marks [passage] in the document, replacing any passage marked before,
   /// and brings its first page's anchor into view; null clears the marks.
   Future<void> showPassage(PdfPassage? passage);
+
+  /// Shows [blocks] over the pages without text of their own, each one a
+  /// target that reports a tap to [PdfDocumentViewRequest.onTextBlockTap];
+  /// [selected], if given, is drawn as chosen. Null hides them.
+  void showTextBlocks(List<PdfTextBlock>? blocks, {PdfTextBlock? selected});
 }
 
 /// Everything a document view needs to open one document.
@@ -180,6 +212,7 @@ class PdfDocumentViewRequest {
     this.uri,
     this.initialPage = 1,
     this.onAskAbout,
+    this.onTextBlockTap,
   }) : assert(
           (bytes == null) != (uri == null),
           'a document opens from bytes or from a URI',
@@ -208,6 +241,10 @@ class PdfDocumentViewRequest {
   /// Called from the document's context menu with text selected. Null hides
   /// the *Ask about this* entry.
   final VoidCallback? onAskAbout;
+
+  /// Called when one of the blocks [PdfDocumentController.showTextBlocks]
+  /// shows is tapped.
+  final void Function(PdfTextBlock block)? onTextBlockTap;
 }
 
 /// Builds the widget that shows one document. Injected so tests can stand

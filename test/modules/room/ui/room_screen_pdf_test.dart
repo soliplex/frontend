@@ -77,6 +77,29 @@ class _PdfApi extends FakeSoliplexApi {
         (throw const ApiException(statusCode: 500, message: 'boom'));
   }
 
+  /// The text requests made, as room/database/document.
+  final textAsked = <String>[];
+
+  @override
+  Future<DocumentText> getDocumentText(
+    String roomId,
+    String documentId, {
+    String? database,
+    CancelToken? cancelToken,
+  }) async {
+    textAsked.add('$roomId/$database/$documentId');
+    return DocumentText(
+      documentId: documentId,
+      blocks: const [
+        DocumentTextBlock(
+          box: PassageBox(page: 2, left: 10, top: 700, right: 300, bottom: 650),
+          text: 'Recovered by OCR',
+          label: 'text',
+        ),
+      ],
+    );
+  }
+
   @override
   Future<ChunkVisualization> getChunkVisualization(
     String roomId,
@@ -700,6 +723,47 @@ void main() {
         findsOneWidget,
       );
       expect(views.last.initialPage, 2);
+    });
+
+    testWidgets('offers the OCR text of its scanned pages', (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      seedCitations();
+      await pump(tester);
+      await openFirst(tester);
+      views.ready();
+      views.document.report(
+        const PdfViewStatus(pageNumber: 2, textlessPages: {2}),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Show OCR text'));
+      await tester.pumpAndSettle();
+
+      expect(api.textAsked, ['room-1/notes/doc-1']);
+      expect(views.document.textBlocks.last.blocks, const [
+        PdfTextBlock(
+          box: PdfPassageBox(
+            page: 2,
+            left: 10,
+            top: 700,
+            right: 300,
+            bottom: 650,
+          ),
+          text: 'Recovered by OCR',
+        ),
+      ]);
+    });
+
+    testWidgets('an upload offers no OCR text', (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      roomQuotes().add('thread-1', _waiting);
+      await pump(tester);
+      await openFromChip(tester);
+      views.ready();
+      views.document.report(const PdfViewStatus(textlessPages: {1}));
+      await tester.pump();
+
+      expect(find.byTooltip('Show OCR text'), findsNothing);
     });
 
     testWidgets("shows the rendered pages of a document with no file",

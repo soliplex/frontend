@@ -218,6 +218,186 @@ void main() {
     });
   });
 
+  group('getDocumentText', () {
+    final text = DocumentText(
+      documentId: 'doc-1',
+      blocks: const [
+        DocumentTextBlock(
+          box: PassageBox(page: 1, left: 10, top: 700, right: 300, bottom: 650),
+          text: 'Chunking',
+          label: 'section_header',
+        ),
+      ],
+    );
+
+    void stubText() {
+      when(
+        () => mockTransport.request<DocumentText>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => text);
+    }
+
+    ({Uri uri, CancelToken? cancelToken, Object? fromJson}) captured() {
+      final call = verify(
+        () => mockTransport.request<DocumentText>(
+          'GET',
+          captureAny(),
+          cancelToken: captureAny(named: 'cancelToken'),
+          fromJson: captureAny(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).captured;
+      return (
+        uri: call[0] as Uri,
+        cancelToken: call[1] as CancelToken?,
+        fromJson: call[2],
+      );
+    }
+
+    test('uses /rooms/{roomId}/documents/{documentId}/text', () async {
+      stubText();
+      final token = CancelToken();
+
+      final result = await api.getDocumentText(
+        'room-1',
+        'doc-1',
+        database: 'notes',
+        cancelToken: token,
+      );
+
+      expect(result, text);
+      final call = captured();
+      expect(call.uri.path, '/api/v1/rooms/room-1/documents/doc-1/text');
+      expect(call.uri.queryParameters, {'database': 'notes'});
+      expect(call.cancelToken, same(token));
+      expect(call.fromJson, isNotNull);
+    });
+
+    test('leaves an empty database out', () async {
+      stubText();
+
+      await api.getDocumentText('room-1', 'doc-1', database: '');
+
+      expect(captured().uri.hasQuery, isFalse);
+    });
+
+    test('rejects empty ids', () {
+      expect(
+        () => api.getDocumentText('', 'doc-1'),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => api.getDocumentText('room-1', ''),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+  });
+
+  group('DocumentText.fromJson', () {
+    Map<String, dynamic> json({
+      Object? origin = 'BOTTOMLEFT',
+      Object? blocks,
+    }) =>
+        {
+          'source': {'source_type': 'skill', 'name': 'rag'},
+          'database': 'notes',
+          'document_id': 'doc-1',
+          'coord_origin': origin,
+          'blocks': blocks ??
+              [
+                {
+                  'page': 2,
+                  'left': 56.8,
+                  'top': 700,
+                  'right': 561.6,
+                  'bottom': 586.4,
+                  'text': 'Most published guidance',
+                  'label': 'text',
+                },
+              ],
+        };
+
+    test('parses the blocks', () {
+      final text = DocumentText.fromJson(json());
+
+      expect(
+        text,
+        DocumentText(
+          documentId: 'doc-1',
+          blocks: const [
+            DocumentTextBlock(
+              box: PassageBox(
+                page: 2,
+                left: 56.8,
+                top: 700,
+                right: 561.6,
+                bottom: 586.4,
+              ),
+              text: 'Most published guidance',
+              label: 'text',
+            ),
+          ],
+        ),
+      );
+      expect(text.hashCode, DocumentText.fromJson(json()).hashCode);
+      expect(text.toString(), 'DocumentText(doc-1, 1 blocks)');
+      expect(
+        text.blocks.single.toString(),
+        'DocumentTextBlock(PassageBox(p.2, 56.8, 700.0, 561.6, 586.4), '
+        'text, 23 chars)',
+      );
+      expect(text.blocks.single.hashCode, isA<int>());
+      expect(text, isNot(DocumentText.fromJson(json(blocks: const []))));
+    });
+
+    final malformed = <String, Map<String, dynamic>>{
+      'a top-left origin': json(origin: 'TOPLEFT'),
+      'blocks not a list': json(blocks: 'x'),
+      'a block not an object': json(blocks: ['x']),
+      'a block without text': json(
+        blocks: [
+          {
+            'page': 1,
+            'left': 1,
+            'top': 2,
+            'right': 3,
+            'bottom': 0,
+            'label': 'text',
+          },
+        ],
+      ),
+      'a block without a page': json(
+        blocks: [
+          {'left': 1, 'top': 2, 'right': 3, 'bottom': 0, 'text': 'x'},
+        ],
+      ),
+    };
+
+    for (final MapEntry(key: name, value: body) in malformed.entries) {
+      test('throws on $name', () {
+        expect(
+          () => DocumentText.fromJson(body),
+          throwsA(
+            isA<MalformedResponseException>().having(
+              (e) => e.message,
+              'message',
+              startsWith('DocumentText:'),
+            ),
+          ),
+        );
+      });
+    }
+  });
+
   group('DocumentBoxes.fromJson', () {
     Map<String, dynamic> json({
       Object? documentId = 'doc-1',

@@ -40,13 +40,41 @@ void paintPaperPassage(
   _outline(canvas, anchorPath);
 }
 
-void _outline(Canvas canvas, Path path) => canvas.drawPath(
+/// Paints the blocks of recovered text on a page as targets: each of
+/// [blocks] framed by a hairline in [PaperHighlights.activeMatchOutline],
+/// and the [selected] one, if any, filled with [PaperHighlights.context] and
+/// framed as the current match is.
+///
+/// The frame keeps the outline token's 3:1 against the page, so each target
+/// can be told from the paper. Rectangles are in the canvas's coordinates,
+/// already placed on the page.
+void paintPaperTextBlocks(
+  Canvas canvas, {
+  required Iterable<Rect> blocks,
+  Rect? selected,
+}) {
+  if (selected != null) {
+    _outline(canvas, _fill(canvas, [selected], PaperHighlights.context)!);
+  }
+  if (blocks.isEmpty) return;
+  final path = Path();
+  for (final rect in blocks) {
+    if (rect != selected) path.addRect(rect.inflate(_bleed));
+  }
+  _outline(canvas, path, width: _hairlineWidth);
+}
+
+void _outline(Canvas canvas, Path path, {double width = _outlineWidth}) =>
+    canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = _outlineWidth
+        ..strokeWidth = width
         ..color = PaperHighlights.activeMatchOutline,
     );
+
+/// A target's frame: present, but quieter than a match's outline.
+const _hairlineWidth = 1.0;
 
 /// The outline's width in logical pixels, as `PaperHighlights` specifies.
 const _outlineWidth = 2.0;
