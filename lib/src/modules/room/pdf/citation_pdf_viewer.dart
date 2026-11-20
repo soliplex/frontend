@@ -22,12 +22,14 @@ import 'pdf_targets.dart';
 final _logger = LogManager.instance.getLogger('soliplex_frontend.pdf_viewer');
 
 /// Builds the viewer for a cited document: [source] opened at [page], with
-/// [passage] marked once it is known and [banner] under its header.
+/// [passage] marked once it is known, [banner] under its header, and
+/// [loadOcrText] for whatever pages of it have no text of their own.
 typedef CitationPaneBuilder = Widget Function(
   PdfViewerSource source, {
   required int page,
   required PdfPassage? passage,
   required Widget banner,
+  required Future<List<PdfTextBlock>> Function() loadOcrText,
 });
 
 /// A cited document in the viewer, at the passage of the citation it was
@@ -153,6 +155,30 @@ class _CitationPdfViewerState extends State<CitationPdfViewer> {
     );
   }
 
+  /// The document's text as the server read it at ingestion — by OCR, for
+  /// a scan — for the viewer to offer where the PDF has none.
+  Future<List<PdfTextBlock>> _loadOcrText() async {
+    final target = widget.target;
+    final text = await widget.api.getDocumentText(
+      target.roomId,
+      target.documentId,
+      database: target.database,
+    );
+    return [
+      for (final block in text.blocks)
+        PdfTextBlock(
+          box: PdfPassageBox(
+            page: block.box.page,
+            left: block.box.left,
+            top: block.box.top,
+            right: block.box.right,
+            bottom: block.box.bottom,
+          ),
+          text: block.text,
+        ),
+    ];
+  }
+
   /// The source, its fetch watched for a server without the file.
   PdfViewerSource _source() {
     final source = pdfViewerSourceFor(widget.target, widget.api);
@@ -185,6 +211,7 @@ class _CitationPdfViewerState extends State<CitationPdfViewer> {
       _source(),
       page: passage?.firstPage ?? page,
       passage: passage,
+      loadOcrText: _loadOcrText,
       banner: _CitationStrip(
         citation: citation,
         position: _index,

@@ -28,6 +28,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   block at a time, never finer. This needs a server with the document file
   and boxes routes; a document the server has no file for (one not ingested
   from a file on the server) shows its rendered pages, as before.
+- **OCR text** for scanned pages of a cited PDF. Where a page has no text of
+  its own, a toggle in the viewer's header frames the paragraphs the server
+  read from the scan when it ingested it; tapping one shows its text to
+  select, copy, or ask about. Text is recovered a paragraph at a time, so it
+  is not selected by dragging across the page. This needs a server with the
+  document text route.
 - Highlight colours for marks on a document page (`PaperHighlights` in
   `soliplex_design`), kept legible on the always-white page in both themes.
 - **Library consumers:** the viewer renders with PDFium, which on the web is
