@@ -155,6 +155,21 @@ void main() {
         expect(refs[1].chunkPageNumbers, isEmpty);
       });
 
+      test('carries every chunk a citation merged, or its own alone', () {
+        final state = createState(
+          citationIndex: {
+            'c1': createCitation(chunkId: 'c1', chunkIds: ['c1', 'c7']),
+            'c2': createCitation(chunkId: 'c2'),
+          },
+          citations: ['c1', 'c2'],
+        );
+
+        final refs = extract(state);
+
+        expect(refs[0].chunkIds, ['c1', 'c7']);
+        expect(refs[1].chunkIds, ['c2']);
+      });
+
       // haiku.rag gives a merged citation the union of its chunks' heading
       // paths; joined as a breadcrumb, sibling sections read as nested.
       test("a merged citation's headings are its cited chunk's path", () {
