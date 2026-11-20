@@ -1484,6 +1484,45 @@ class SoliplexApi {
     );
   }
 
+  /// Gets a RAG document's text as the backend read it, block by block, with
+  /// where each block sits on its page.
+  ///
+  /// For a scanned PDF this is the text OCR recovered at ingestion. [database]
+  /// is the haiku.rag database the document came from, as a citation reports
+  /// it.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] or [documentId] is empty
+  /// - [NotFoundException] if the room or document is unknown, or the backend
+  ///   kept no layout for the document
+  /// - [MalformedResponseException] if the response is not the expected
+  ///   shape
+  /// - [AuthException] if not authenticated (401) or forbidden (403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<DocumentText> getDocumentText(
+    String roomId,
+    String documentId, {
+    String? database,
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(documentId, 'documentId');
+
+    return _transport.request<DocumentText>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'documents', documentId, 'text'],
+        queryParameters: {
+          if (database != null && database.isNotEmpty) 'database': database,
+        },
+      ),
+      cancelToken: cancelToken,
+      fromJson: DocumentText.fromJson,
+    );
+  }
+
   // ============================================================
   // Installation Info
   // ============================================================
