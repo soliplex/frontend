@@ -1604,7 +1604,8 @@ class SoliplexApi {
   /// Throws:
   /// - [ArgumentError] if [roomId] is empty
   /// - [NotFoundException] if room not found (404)
-  /// - [AuthException] if not authenticated (401/403)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if access is denied (403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
@@ -1640,7 +1641,8 @@ class SoliplexApi {
   /// Throws:
   /// - [ArgumentError] if [roomId] or [threadId] is empty
   /// - [NotFoundException] if room or thread not found (404)
-  /// - [AuthException] if not authenticated (401/403)
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if access is denied (403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
@@ -1755,18 +1757,94 @@ class SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
-    _requireNonEmpty(filename, 'filename');
-    if (filename.contains('/') || filename == '.' || filename == '..') {
-      throw ArgumentError.value(
-        filename,
-        'filename',
-        'must be one path segment',
-      );
-    }
+    _requireOneSegment(filename);
 
     await _transport.request<void>(
       'DELETE',
       _urlBuilder.build(pathSegments: ['uploads', roomId, filename]),
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// Downloads one file from a room's shared upload directory.
+  ///
+  /// Buffers the entire response in memory, so a large file costs its whole
+  /// size in memory before the caller sees a byte.
+  ///
+  /// [filename] is sent as one encoded path segment; a name that is not one
+  /// segment is refused, as [deleteRoomUpload] refuses it.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [filename]: The uploaded file's name (must not be empty)
+  ///
+  /// Returns the raw file bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] or [filename] is empty, or [filename] is
+  ///   not one path segment
+  /// - [NotFoundException] (404) if the room has no upload by that name, or
+  ///   the installation keeps no room uploads
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the user is not in the room (403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getRoomUpload(
+    String roomId,
+    String filename, {
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireOneSegment(filename);
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(pathSegments: ['uploads', roomId, 'file', filename]),
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// Downloads one file from a thread's upload directory.
+  ///
+  /// Buffers the entire response in memory, so a large file costs its whole
+  /// size in memory before the caller sees a byte.
+  ///
+  /// [filename] is sent as one encoded path segment; a name that is not one
+  /// segment is refused.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [threadId]: The thread ID (must not be empty)
+  /// - [filename]: The uploaded file's name (must not be empty)
+  ///
+  /// Returns the raw file bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any parameter is empty, or [filename] is not one
+  ///   path segment
+  /// - [NotFoundException] (404) if the thread has no upload by that name, or
+  ///   the installation keeps no thread uploads
+  /// - [AuthException] if not authenticated (401)
+  /// - [PermissionDeniedException] if the user does not own the thread (403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getThreadUpload(
+    String roomId,
+    String threadId,
+    String filename, {
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+    _requireOneSegment(filename);
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['uploads', roomId, 'thread', threadId, 'file', filename],
+      ),
       cancelToken: cancelToken,
     );
   }
@@ -1954,6 +2032,20 @@ class SoliplexApi {
   void _requireNonEmpty(String value, String name) {
     if (value.isEmpty) {
       throw ArgumentError.value(value, name, 'must not be empty');
+    }
+  }
+
+  /// Validates that [filename] is a non-empty, single path segment. A name
+  /// holding `/`, or `.` or `..`, would address another path: the URL builder
+  /// splits on `/`, and a dot segment collapses.
+  void _requireOneSegment(String filename) {
+    _requireNonEmpty(filename, 'filename');
+    if (filename.contains('/') || filename == '.' || filename == '..') {
+      throw ArgumentError.value(
+        filename,
+        'filename',
+        'must be one path segment',
+      );
     }
   }
 

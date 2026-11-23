@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -374,6 +375,111 @@ void main() {
         () => api.getThreadUploads('room-1', ''),
         throwsA(isA<ArgumentError>()),
       );
+    });
+  });
+
+  void stubBytes(Future<Uint8List> Function() answer) {
+    when(
+      () => mockTransport.requestBytes(
+        'GET',
+        any(),
+        cancelToken: any(named: 'cancelToken'),
+        headers: any(named: 'headers'),
+        timeout: any(named: 'timeout'),
+      ),
+    ).thenAnswer((_) => answer());
+  }
+
+  Uri capturedBytesUri() => verify(
+        () => mockTransport.requestBytes(
+          'GET',
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).captured.single as Uri;
+
+  group('getRoomUpload', () {
+    test('fetches /uploads/{roomId}/file/{filename} with one encoded segment',
+        () async {
+      stubBytes(() async => Uint8List(0));
+
+      // A '#' left unencoded would cut the path at a fragment, and a space
+      // would make an invalid URL.
+      await api.getRoomUpload('room-1', 'q3 report#1.pdf');
+
+      expect(
+        capturedBytesUri().path,
+        '/api/v1/uploads/room-1/file/q3%20report%231.pdf',
+      );
+    });
+
+    test('rejects an empty roomId or filename', () {
+      expect(
+        () => api.getRoomUpload('', 'report.pdf'),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => api.getRoomUpload('room-1', ''),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('rejects a filename that is not one path segment', () {
+      for (final filename in ['a/b.pdf', '.', '..']) {
+        expect(
+          () => api.getRoomUpload('room-1', filename),
+          throwsA(
+            isA<ArgumentError>()
+                .having((e) => e.invalidValue, 'invalidValue', filename),
+          ),
+          reason: filename,
+        );
+      }
+    });
+  });
+
+  group('getThreadUpload', () {
+    test(
+        'fetches /uploads/{roomId}/thread/{threadId}/file/{filename} with one '
+        'encoded segment', () async {
+      stubBytes(() async => Uint8List(0));
+
+      await api.getThreadUpload('room-1', 'thread-1', 'q3 report#1.pdf');
+
+      expect(
+        capturedBytesUri().path,
+        '/api/v1/uploads/room-1/thread/thread-1/file/q3%20report%231.pdf',
+      );
+    });
+
+    test('rejects an empty roomId, threadId or filename', () {
+      expect(
+        () => api.getThreadUpload('', 'thread-1', 'a.pdf'),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => api.getThreadUpload('room-1', '', 'a.pdf'),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => api.getThreadUpload('room-1', 'thread-1', ''),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('rejects a filename that is not one path segment', () {
+      for (final filename in ['a/b.pdf', '.', '..']) {
+        expect(
+          () => api.getThreadUpload('room-1', 'thread-1', filename),
+          throwsA(
+            isA<ArgumentError>()
+                .having((e) => e.invalidValue, 'invalidValue', filename),
+          ),
+          reason: filename,
+        );
+      }
     });
   });
 }
