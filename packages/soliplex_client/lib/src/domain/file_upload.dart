@@ -5,7 +5,7 @@ import 'package:soliplex_client/src/domain/served_file.dart';
 /// thread.
 ///
 /// Returned by `GET /uploads/{room_id}` and
-/// `GET /uploads/{room_id}/{thread_id}`.
+/// `GET /uploads/{room_id}/thread/{thread_id}`.
 @immutable
 class FileUpload implements ServedFile {
   /// Creates a file upload entry.

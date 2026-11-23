@@ -447,10 +447,10 @@ void main() {
           isDeleting: isDeleting,
         );
     final api = FakeSoliplexApi();
-    for (final name in ['z.md', 'a.md']) {
+    for (final name in ['y.md', 'z.md', 'a.md']) {
       api.roomUploadBytes[name] = Uint8List.fromList(utf8.encode(name));
     }
-    final opened = stored('a.md');
+    final opened = stored('z.md');
     late BuildContext context;
     await tester.pumpWidget(MaterialApp(
       home: Builder(builder: (c) {
@@ -468,9 +468,10 @@ void main() {
           sentBytes: 0,
           totalBytes: 10,
         ),
-        stored('z.md'),
         stored('c.md', isDeleting: true),
+        stored('y.md'),
         opened,
+        stored('a.md'),
       ],
       opened: opened,
       api: api,
@@ -479,8 +480,10 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Two files, the pending and the deleting left out, and a.md second.
-    expect(findPreviewTitle('a.md'), findsOneWidget);
-    expect(findPreviewTitle('2 / 2'), findsOneWidget);
+    // Three files, the pending and the deleting left out, opened at z.md:
+    // in the middle, behind rows left out, so an index counted in the rows,
+    // or no index, opens another file.
+    expect(findPreviewTitle('z.md'), findsOneWidget);
+    expect(findPreviewTitle('2 / 3'), findsOneWidget);
   });
 }

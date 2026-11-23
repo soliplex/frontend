@@ -91,9 +91,8 @@ class NameAndDirectory extends StatelessWidget {
 
 /// A file name on one line that, when cut, shortens its middle.
 ///
-/// The end of a name is the most informative part of a cut one: names an
-/// agent writes often differ only just before the extension, as dates and
-/// versions do. So the end [splitForCut] keeps stays whole while it fits
+/// The end of a name is the most informative part of a cut one: names often
+/// differ only just before the extension, as dates and versions do. So the end [splitForCut] keeps stays whole while it fits
 /// beside the room the cut head keeps (see [_TwoPartLine]):
 /// `quarterly_report_final.xlsx` reads `quarterly_r…_final.xlsx`. Flutter
 /// lays out and ellipsizes both parts, and that room is measured as a

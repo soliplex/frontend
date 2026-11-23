@@ -250,7 +250,8 @@ class _RoomScreenState extends State<RoomScreen> {
   final _panel = samplePanelState();
 
   // MOCKUP: the static backend serves no file bytes, so an upload row's
-  // download and its preview both report that.
+  // download fails with that reason; its preview is stubbed in
+  // [_stubPreview].
   final _uploadDownloads = FileDownloads(
     (_, __) async => const DownloadFailed('Not available in the mockup'),
   );

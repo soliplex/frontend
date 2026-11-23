@@ -8,7 +8,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../helpers/test_downloads.dart';
 
-/// The platforms that ask before a large download.
+/// The native platforms that ask before a large download.
 final _mobile =
     TargetPlatformVariant({TargetPlatform.android, TargetPlatform.iOS});
 

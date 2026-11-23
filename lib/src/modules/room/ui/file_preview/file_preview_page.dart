@@ -30,7 +30,8 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.file_preview');
 /// the preview pager causes jank and OOMs.
 const previewSizeCapBytes = 5 * 1024 * 1024;
 
-/// Full-screen preview of workspace files and uploads. Fetches the bytes
+/// Preview of workspace files and uploads: a dialog on wide layouts, a
+/// full-screen page on narrow ones. Fetches the bytes
 /// lazily via [fetchBytes] so the bytes are not pulled until the user
 /// actually opens the preview, then dispatches to a kind-specific body
 /// widget.
@@ -102,9 +103,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   late int _currentIndex = widget.initialIndex;
   final _focusNode = FocusNode();
 
-  /// Per-file Future cache. Keyed by the file ([WorkdirFile] and
-  /// [FileUpload] both implement `==` / `hashCode`) so swiping or
-  /// re-ordering never aliases bytes across files. Lives only for this
+  /// Per-file Future cache. Keyed by the file, which [ServedFile] requires to
+  /// have value equality, so swiping or re-ordering never aliases bytes
+  /// across files. Lives only for this
   /// widget's lifetime, so closing the preview frees every fetched buffer; no
   /// LRU needed.
   final _bytesCache = <ServedFile, Future<Uint8List>>{};
@@ -462,7 +463,8 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 }
 
 /// Routes [bytes] to the kind-specific renderer. The image branch
-/// hands the raw `Uint8List` to [_ImageOrFallback]; every other
+/// hands the raw `Uint8List` to [ZoomableImage.controlledRotation], with a
+/// fallback for bytes that do not decode; every other
 /// renderable kind is text-shaped, so we decode UTF-8 strictly here and
 /// hand a `String` to the leaf widget. A strict decode failure on a
 /// text-shaped extension almost always means the file is binary under
