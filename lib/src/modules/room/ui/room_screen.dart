@@ -2306,7 +2306,8 @@ class _RoomScreenState extends State<RoomScreen> {
           required page,
           required passage,
           required banner,
-          required loadOcrText,
+          required loadIndexedText,
+          required citedPages,
         }) =>
             _pdfViewerPane(
           target,
@@ -2314,7 +2315,8 @@ class _RoomScreenState extends State<RoomScreen> {
           page: page,
           passage: passage,
           banner: banner,
-          loadOcrText: loadOcrText,
+          loadIndexedText: loadIndexedText,
+          citedPages: citedPages,
           onClose: onClose,
           onQuoteAdded: onQuoteAdded,
         ),
@@ -2337,14 +2339,16 @@ class _RoomScreenState extends State<RoomScreen> {
     VoidCallback? onQuoteAdded,
     PdfPassage? passage,
     Widget? banner,
-    Future<List<PdfTextBlock>> Function()? loadOcrText,
+    Future<List<PdfTextBlock>> Function()? loadIndexedText,
+    Set<int>? citedPages,
   }) =>
       PdfViewerPane(
         source: source,
         initialPage: page,
         passage: passage,
         banner: banner,
-        loadOcrText: loadOcrText,
+        loadIndexedText: loadIndexedText,
+        citedPages: citedPages,
         documentViewFactory: widget.pdfDocumentViewFactory,
         onClose: onClose,
         onAskAbout: (selection) {

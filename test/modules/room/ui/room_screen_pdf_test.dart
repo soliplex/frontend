@@ -725,7 +725,21 @@ void main() {
       expect(views.last.initialPage, 2);
     });
 
-    testWidgets('offers the OCR text of its scanned pages', (tester) async {
+    testWidgets('shows only the pages its citations come from', (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      seedCitations();
+      await pump(tester);
+      await openFirst(tester);
+      views.ready();
+      await tester.pump();
+
+      // Citations c2 and c4: their pages, with no request for them.
+      expect(views.document.onlyPages.last, containsAll(<int>{2, 4}));
+      expect(find.byTooltip('View'), findsOneWidget);
+    });
+
+    testWidgets('makes the OCR text of its scanned pages tappable',
+        (tester) async {
       setWindow(tester, const Size(1600, 900));
       seedCitations();
       await pump(tester);
@@ -734,9 +748,6 @@ void main() {
       views.document.report(
         const PdfViewStatus(pageNumber: 2, textlessPages: {2}),
       );
-      await tester.pump();
-
-      await tester.tap(find.byTooltip('Show OCR text'));
       await tester.pumpAndSettle();
 
       expect(api.textAsked, ['room-1/notes/doc-1']);
@@ -754,7 +765,8 @@ void main() {
       ]);
     });
 
-    testWidgets('an upload offers no OCR text', (tester) async {
+    testWidgets('an upload offers no view options and no OCR text',
+        (tester) async {
       setWindow(tester, const Size(1600, 900));
       roomQuotes().add('thread-1', _waiting);
       await pump(tester);
@@ -763,7 +775,9 @@ void main() {
       views.document.report(const PdfViewStatus(textlessPages: {1}));
       await tester.pump();
 
-      expect(find.byTooltip('Show OCR text'), findsNothing);
+      expect(find.byTooltip('View'), findsNothing);
+      expect(views.document.onlyPages, [null]);
+      expect(api.textAsked, isEmpty);
     });
 
     testWidgets("shows the rendered pages of a document with no file",
