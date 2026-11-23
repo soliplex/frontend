@@ -616,13 +616,18 @@ void main() {
         (tester) async {
       await open(tester);
 
+      const hint = 'Tap or click a box to read, copy or ask about its text';
+      expect(find.text(hint), findsNothing);
+
       await tester.tap(find.byTooltip('Show OCR text'));
       await tester.pump();
       expect(views.document.textBlocks.last.blocks, [heading, paragraph]);
+      expect(find.text(hint), findsOneWidget);
 
       await tester.tap(find.byTooltip('Hide OCR text'));
       await tester.pump();
       expect(views.document.textBlocks.last.blocks, isNull);
+      expect(find.text(hint), findsNothing);
 
       await tester.tap(find.byTooltip('Show OCR text'));
       await tester.pump();

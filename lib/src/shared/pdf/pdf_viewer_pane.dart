@@ -455,6 +455,7 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             onOpenExternally: _canOpenExternally ? _openExternally : null,
             onClose: widget.onClose,
           ),
+          if (_showingOcr && document != null) const _OcrHint(),
           if (_searching && document != null)
             _SearchBar(
               query: _query,
@@ -596,6 +597,42 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// While the OCR frames show, says what they do: a frame looks like a mark,
+/// not like something to tap. Right-aligned, under the toggle that showed
+/// them.
+class _OcrHint extends StatelessWidget {
+  const _OcrHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SoliplexSpacing.s3,
+        0,
+        SoliplexSpacing.s3,
+        SoliplexSpacing.s2,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(Icons.touch_app_outlined,
+              size: SoliplexSpacing.s4, color: color),
+          const SizedBox(width: SoliplexSpacing.s1),
+          Flexible(
+            child: Text(
+              'Tap or click a box to read, copy or ask about its text',
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

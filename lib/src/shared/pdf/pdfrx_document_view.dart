@@ -222,12 +222,21 @@ class _PdfrxDocumentViewState extends State<PdfrxDocumentView>
           child: Semantics(
             button: true,
             label: block.text,
-            child: PdfOverlayInteractionRegion(
-              onTap: (_) {
-                onTap(block);
-                return true;
-              },
-              child: const SizedBox.expand(),
+            // The hand says the frame opens something, as a link would. It
+            // wraps the region, as pdfrx's own link overlay does: the region
+            // puts its child behind an IgnorePointer, where no hover reaches.
+            // Translucent and not opaque, so pans and selection still pass.
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              hitTestBehavior: HitTestBehavior.translucent,
+              opaque: false,
+              child: PdfOverlayInteractionRegion(
+                onTap: (_) {
+                  onTap(block);
+                  return true;
+                },
+                child: const SizedBox.expand(),
+              ),
             ),
           ),
         ),
