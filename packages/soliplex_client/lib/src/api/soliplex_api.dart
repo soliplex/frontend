@@ -1783,10 +1783,11 @@ class SoliplexApi {
   /// Throws:
   /// - [ArgumentError] if [roomId] or [filename] is empty, or [filename] is
   ///   not one path segment
-  /// - [NotFoundException] (404) if the room has no upload by that name, or
-  ///   the installation keeps no room uploads
+  /// - [NotFoundException] (404) if the room does not exist or the user is
+  ///   not in it, the room has no upload by that name, or the installation
+  ///   keeps no room uploads
   /// - [AuthException] if not authenticated (401)
-  /// - [PermissionDeniedException] if the user is not in the room (403)
+  /// - [PermissionDeniedException] if access is denied (403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
@@ -1823,10 +1824,11 @@ class SoliplexApi {
   /// Throws:
   /// - [ArgumentError] if any parameter is empty, or [filename] is not one
   ///   path segment
-  /// - [NotFoundException] (404) if the thread has no upload by that name, or
-  ///   the installation keeps no thread uploads
+  /// - [NotFoundException] (404) if the room or thread does not exist, the
+  ///   user is not in the room or does not own the thread, the thread has no
+  ///   upload by that name, or the installation keeps no thread uploads
   /// - [AuthException] if not authenticated (401)
-  /// - [PermissionDeniedException] if the user does not own the thread (403)
+  /// - [PermissionDeniedException] if access is denied (403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
