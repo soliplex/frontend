@@ -1,6 +1,8 @@
 import 'package:soliplex_client/soliplex_client.dart'
-    show SoliplexApi, SourceReference;
+    show RagDocument, SoliplexApi, SourceReference;
 
+import '../../../shared/document_display.dart';
+import '../../../shared/pdf/pdf_document_view.dart';
 import '../../../shared/pdf/pdf_source.dart';
 import 'pdf_quote.dart';
 
@@ -33,11 +35,26 @@ PdfViewerSource pdfViewerSourceFor(PdfOpenTarget target, SoliplexApi api) =>
             () => api.getThreadWorkdirFile(roomId, threadId, file.filename),
           ),
         ),
+      RagDocumentPdf(:final roomId, :final documentId, :final database) =>
+        PdfViewerSource(
+          title: target.title,
+          origin: 'Room document',
+          cacheKey: target.key,
+          whenGone: _noStoredPdf,
+          load: PdfLoadBytes(
+            () => api.getRagDocumentFile(
+              roomId,
+              documentId,
+              database: database,
+            ),
+          ),
+        ),
       CitationPdfTarget(:final roomId, :final documentId, :final database) =>
         PdfViewerSource(
           title: target.title,
           origin: 'Cited document',
           cacheKey: target.key,
+          whenGone: _noStoredPdf,
           load: PdfLoadBytes(
             () => api.getRagDocumentFile(
               roomId,
@@ -53,6 +70,66 @@ PdfViewerSource pdfViewerSourceFor(PdfOpenTarget target, SoliplexApi api) =>
           load: PdfLoadUri(uri),
         ),
     };
+
+/// The server lists a document but keeps no PDF of it: its original was
+/// not stored when it was indexed, or is not a PDF.
+const _noStoredPdf = (
+  heading: 'No PDF of this document is available',
+  detail: "The server didn't keep the file it was indexed from.",
+);
+
+/// Whether [document] was indexed from a PDF, as far as the listing says:
+/// the content type the server recorded when it indexed the document, or,
+/// where it recorded none, a `.pdf` at the end of its URI's path.
+bool isPdfDocument(RagDocument document) {
+  final type = document.metadata['content_type'];
+  if (type is String && type.isNotEmpty) {
+    return type.split(';').first.trim().toLowerCase() == 'application/pdf';
+  }
+  final path = Uri.tryParse(document.uri)?.path ?? document.uri;
+  return path.toLowerCase().endsWith('.pdf');
+}
+
+/// [document] as the viewer opens it, or null when it was not indexed from
+/// a PDF ([isPdfDocument]).
+RagDocumentPdf? ragDocumentPdf(RagDocument document,
+        {required String roomId}) =>
+    isPdfDocument(document)
+        ? RagDocumentPdf(
+            roomId: roomId,
+            documentId: document.id,
+            title: DocumentDisplay(document).name,
+          )
+        : null;
+
+/// A RAG document's text as the server indexed it — by OCR, for a scan —
+/// for the viewer to offer where the PDF has none, and to show what the
+/// LLM can find.
+Future<List<PdfTextBlock>> loadIndexedText(
+  SoliplexApi api, {
+  required String roomId,
+  required String documentId,
+  String? database,
+}) async {
+  final text = await api.getDocumentText(
+    roomId,
+    documentId,
+    database: database,
+  );
+  return [
+    for (final block in text.blocks)
+      PdfTextBlock(
+        box: PdfPassageBox(
+          page: block.box.page,
+          left: block.box.left,
+          top: block.box.top,
+          right: block.box.right,
+          bottom: block.box.bottom,
+        ),
+        text: block.text,
+      ),
+  ];
+}
 
 /// The PDF a link in a message names, or null for a link the viewer should
 /// leave to the browser.

@@ -627,10 +627,13 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   Widget _buildFailure(_FailureKind kind) {
     final title = widget.source.title;
     final (heading, detail) = switch (kind) {
-      _FailureKind.gone => (
-          'This file is no longer available',
-          '$title was removed or renamed.',
-        ),
+      _FailureKind.gone => switch (widget.source.whenGone) {
+          (:final heading, :final detail) => (heading, detail),
+          null => (
+              'This file is no longer available',
+              '$title was removed or renamed.',
+            ),
+        },
       _FailureKind.retryable => (
           "Couldn't load $title",
           'Check the connection and try again.',

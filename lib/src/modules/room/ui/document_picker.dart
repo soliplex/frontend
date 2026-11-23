@@ -3,8 +3,10 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/document_display.dart';
+import '../pdf/pdf_targets.dart';
 import 'document_label.dart';
 import 'document_source.dart';
+import 'file_list_row.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 final Logger _logger =
@@ -17,12 +19,17 @@ class DocumentPicker extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     this.onSearchChanged,
+    this.onOpen,
   });
 
   final List<RagDocument> documents;
   final Set<RagDocument> selected;
   final ValueChanged<Set<RagDocument>> onChanged;
   final ValueChanged<int>? onSearchChanged;
+
+  /// Opens a document in the PDF viewer; offered on those indexed from a
+  /// PDF ([isPdfDocument]). Its tap leaves the selection alone.
+  final ValueChanged<RagDocument>? onOpen;
 
   @override
   State<DocumentPicker> createState() => _DocumentPickerState();
@@ -145,6 +152,16 @@ class _DocumentPickerState extends State<DocumentPicker> {
                               ],
                             ),
                           ),
+                          if (widget.onOpen case final onOpen?
+                              when isPdfDocument(doc))
+                            SizedBox(
+                              height: FileRowAction.extent,
+                              child: FileRowAction(
+                                icon: Icons.visibility_outlined,
+                                tooltip: 'Open',
+                                onTap: () => onOpen(doc),
+                              ),
+                            ),
                         ],
                       ),
                       value: selected,
@@ -163,11 +180,14 @@ class _DocumentPickerState extends State<DocumentPicker> {
 /// Accepts a [fetchDocuments] factory so the dialog can show a loading state
 /// and retry on failure.
 ///
+/// [onOpen] opens a document in the PDF viewer, over the dialog.
+///
 /// Returns `null` if the dialog is dismissed without confirming.
 Future<Set<RagDocument>?> showDocumentPicker({
   required BuildContext context,
   required Future<List<RagDocument>> Function() fetchDocuments,
   required Set<RagDocument> selected,
+  ValueChanged<RagDocument>? onOpen,
 }) {
   var current = Set<RagDocument>.of(selected);
   int? filteredCount;
@@ -243,6 +263,7 @@ Future<Set<RagDocument>?> showDocumentPicker({
               onChanged: (s) => setDialogState(() => current = s),
               onSearchChanged: (count) =>
                   setDialogState(() => filteredCount = count),
+              onOpen: onOpen,
             );
           }
 

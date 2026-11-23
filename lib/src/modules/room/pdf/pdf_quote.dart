@@ -108,6 +108,36 @@ final class LinkPdf extends PdfOpenTarget {
   bool get isThreadScoped => false;
 }
 
+/// A document in the room's RAG database, opened from a list of them rather
+/// than a citation: the whole document, with nothing to mark.
+///
+/// Equal to a [CitationPdfTarget] of the same document that names the same
+/// [database].
+final class RagDocumentPdf extends PdfOpenTarget {
+  const RagDocumentPdf({
+    required this.roomId,
+    required this.documentId,
+    required this.title,
+    this.database,
+  });
+
+  final String roomId;
+  final String documentId;
+
+  /// The RAG database the document is in; null lets the server look in
+  /// each of the room's.
+  final String? database;
+
+  @override
+  final String title;
+
+  @override
+  String get key => 'rag-document:$roomId/${database ?? ''}/$documentId';
+
+  @override
+  bool get isThreadScoped => false;
+}
+
 /// A document in the room's RAG database, opened from one of its citations.
 ///
 /// Carries the thread's [citations] of the document, so the viewer can step

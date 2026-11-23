@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
+import '../../pdf/pdf_targets.dart';
 import '../document_label.dart';
 import '../document_metadata_line.dart';
 import '../document_source.dart';
+import '../file_list_row.dart';
 import '../../../../shared/document_display.dart';
 import '../../../../shared/selectable_content.dart';
 import 'room_info_widgets.dart';
@@ -14,10 +16,15 @@ class DocumentsCard extends StatefulWidget {
     super.key,
     required this.documentsFuture,
     required this.onRetry,
+    this.onOpen,
   });
 
   final Future<List<RagDocument>> documentsFuture;
   final VoidCallback onRetry;
+
+  /// Opens a document in the PDF viewer; offered on those indexed from a
+  /// PDF ([isPdfDocument]).
+  final ValueChanged<RagDocument>? onOpen;
 
   @override
   State<DocumentsCard> createState() => _DocumentsCardState();
@@ -184,6 +191,15 @@ class _DocumentsCardState extends State<DocumentsCard> {
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
+                if (widget.onOpen case final onOpen? when isPdfDocument(doc))
+                  SizedBox(
+                    height: FileRowAction.extent,
+                    child: FileRowAction(
+                      icon: Icons.visibility_outlined,
+                      tooltip: 'Open',
+                      onTap: () => onOpen(doc),
+                    ),
+                  ),
                 Icon(
                   expanded ? Icons.expand_less : Icons.expand_more,
                   size: 20,
