@@ -1198,7 +1198,7 @@ void main() {
       for (final button in [titleBarDownload, centredDownload]) {
         await tester.tap(button);
         await tester.pumpAndSettle();
-        expect(find.text('Download large file?'), findsOneWidget);
+        expect(find.text('Download big.bin?'), findsOneWidget);
         await tester.tap(find.text('Cancel'));
         await tester.pumpAndSettle();
       }

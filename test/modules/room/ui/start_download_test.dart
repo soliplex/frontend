@@ -96,7 +96,13 @@ void main() {
 
       await tester.tap(find.byTooltip('Download'));
       await tester.pumpAndSettle();
-      expect(find.text('Download large file?'), findsOneWidget);
+      expect(find.text('Download dataset.csv?'), findsOneWidget);
+      expect(
+        find.text("If this device doesn't have enough memory for this "
+            'download (100 MB), the app could close before the file is '
+            'saved.'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
@@ -132,7 +138,7 @@ void main() {
       await tester.tap(find.byTooltip('Download'));
       await tester.pump();
 
-      expect(find.text('Download large file?'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
       expect(saved, ['dataset.csv']);
       await tester.pump(const Duration(seconds: 2));
     }, variant: _mobile);
@@ -143,7 +149,7 @@ void main() {
       await tester.tap(find.byTooltip('Download'));
       await tester.pump();
 
-      expect(find.text('Download large file?'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
       expect(saved, ['dataset.csv']);
       await tester.pump(const Duration(seconds: 2));
     });
@@ -166,7 +172,7 @@ void main() {
     await tester.tap(find.byTooltip('Download'));
     await tester.pump();
 
-    expect(find.text('Download large file?'), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
     expect(saved, ['dataset.csv']);
     await tester.pump(const Duration(seconds: 2));
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));

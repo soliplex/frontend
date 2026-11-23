@@ -35,8 +35,9 @@ bool warnsBeforeDownload(
 }
 
 /// Starts [file]'s download in [downloads], once the user confirms when
-/// [warnsBeforeDownload] says a file this large may fail here. A file with no
-/// listed size starts without asking: nothing says it is large.
+/// [warnsBeforeDownload] says one this size could exhaust this device's
+/// memory. A file with no listed size starts without asking: nothing says it
+/// is large.
 Future<void> startDownload(
   BuildContext context,
   FileDownloads downloads,
@@ -50,9 +51,10 @@ Future<void> startDownload(
       )) {
     final confirmed = await showConfirmDialog(
       context,
-      title: 'Download large file?',
-      message: '${file.basename} is ${formatFileSize(size)}. A file this '
-          'large may fail to download on this device.',
+      title: 'Download ${file.basename}?',
+      message: "If this device doesn't have enough memory for this download "
+          '(${formatFileSize(size)}), the app could close before the file is '
+          'saved.',
       confirmLabel: 'Download',
     );
     if (!confirmed) {

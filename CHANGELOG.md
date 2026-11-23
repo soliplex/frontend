@@ -20,8 +20,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Changed
 
 - On mobile and the web, downloading a file listed over 100 MB asks first: a
-  download holds the whole file in memory before saving it, and a file that
-  large may fail there.
+  download holds the whole file in memory before saving it, and a device
+  without enough memory for it can close the app.
 - A file listed over 5 MB is no longer fetched to preview: the preview shows
   the too-large page straight away.
 - A preview that fails to load says why, in the words a failed download uses,

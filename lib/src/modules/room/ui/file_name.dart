@@ -31,6 +31,8 @@ class NameAndDirectory extends StatelessWidget {
   /// [style].
   final Widget name;
 
+  /// The folders to show after [name], muted and given a trailing `/`
+  /// (`out/charts` shows as `out/charts/`), or null to show none.
   final String? directory;
 
   /// The name's style, which the directory takes muted.
