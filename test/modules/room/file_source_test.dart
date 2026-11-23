@@ -46,6 +46,15 @@ void main() {
         RoomUploadSource(roomId: id('r')),
         isNot(RoomUploadSource(roomId: id('r2'))),
       );
+      // Equal across threads, one thread would fetch another's file.
+      for (final source in <FileSource Function(String, String)>[
+        (r, t) => ThreadUploadSource(roomId: r, threadId: t),
+        (r, t) => WorkspaceFileSource(roomId: r, threadId: t),
+      ]) {
+        final base = source(id('r'), id('t'));
+        expect(base, isNot(source(id('r'), id('t2'))));
+        expect(base, isNot(source(id('r2'), id('t'))));
+      }
     });
   });
 

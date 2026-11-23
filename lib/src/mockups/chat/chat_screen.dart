@@ -250,7 +250,7 @@ class _RoomScreenState extends State<RoomScreen> {
   final _panel = samplePanelState();
 
   // MOCKUP: the static backend serves no file bytes, so an upload row's
-  // download reports that, and its preview opens nothing.
+  // download and its preview both report that.
   final _uploadDownloads = FileDownloads(
     (_, __) async => const DownloadFailed('Not available in the mockup'),
   );
@@ -2289,7 +2289,7 @@ class _RoomScreenState extends State<RoomScreen> {
                 onCancel: _state.uploadTracker.cancelUpload,
                 onDismiss: _state.uploadTracker.dismissFailed,
                 downloads: _uploadDownloads,
-                onOpenPreview: (_) {},
+                onOpenPreview: (_) => _stubPreview(),
               ),
           ],
         ),
@@ -2534,6 +2534,12 @@ class _RoomScreenState extends State<RoomScreen> {
       // composer has no thread to measure, so it shows none.
       contextUsage: threadView == null ? null : _panel.contextUsage,
       onOpenThreadPanel: openThreadPanel,
+    );
+  }
+
+  void _stubPreview() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Preview is not available in the mockup')),
     );
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_name.dart';
 
 void main() {
   group('splitExtension', () {

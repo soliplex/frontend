@@ -27,8 +27,8 @@ class _ThreadFiles {
   }
 }
 
-/// Owns each thread's workspace listing and open folders, and fetches its
-/// files' bytes for the preview, for one visit to a room.
+/// Owns each thread's workspace listing and open folders, for one visit to a
+/// room.
 class WorkdirController {
   WorkdirController({
     required SoliplexApi api,
@@ -166,7 +166,7 @@ class WorkdirController {
       entry.fetchToken = null;
       // A bodiless GET with the token in a header, so a failure can carry only
       // the URL path (room and thread ids), a status code, a host, or the
-      // answering server's JSON message field: a fixed string on the workdir
+      // answering server's JSON reason: a fixed string on the workdir
       // routes, a status phrase from a proxy answering in their place. The
       // transport wraps body-decode failures, so no payload window reaches
       // here.

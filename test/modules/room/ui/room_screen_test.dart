@@ -45,7 +45,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_state_warning_banner.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/file_preview_page.dart'
     show FilePreviewPage;
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';

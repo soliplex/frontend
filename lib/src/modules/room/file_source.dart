@@ -3,8 +3,6 @@ import 'dart:typed_data';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'workdir_files_status.dart' show workdirFileUnavailable;
-
 final _logger = LogManager.instance.getLogger('room_files');
 
 /// Where a [ServedFile] is fetched from: a thread's workspace, a room's
@@ -17,8 +15,12 @@ sealed class FileSource {
   /// Fetches the bytes of the file this source lists as [filename].
   Future<Uint8List> fetch(SoliplexApi api, String filename);
 
+  /// Names [file], fetched from this source, in a log record's attributes.
+  Map<String, Object> logAttributesOf(ServedFile file) =>
+      {..._sourceAttributes, 'filename': file.filename};
+
   /// Names this source in a log record's attributes.
-  Map<String, Object> get logAttributes;
+  Map<String, Object> get _sourceAttributes;
 }
 
 final class WorkspaceFileSource extends FileSource {
@@ -31,7 +33,7 @@ final class WorkspaceFileSource extends FileSource {
       api.getThreadWorkdirFile(roomId, threadId, filename);
 
   @override
-  Map<String, Object> get logAttributes =>
+  Map<String, Object> get _sourceAttributes =>
       {'source': 'workspace', 'roomId': roomId, 'threadId': threadId};
 
   @override
@@ -52,7 +54,7 @@ final class RoomUploadSource extends FileSource {
       api.getRoomUpload(roomId, filename);
 
   @override
-  Map<String, Object> get logAttributes =>
+  Map<String, Object> get _sourceAttributes =>
       {'source': 'roomUploads', 'roomId': roomId};
 
   @override
@@ -73,7 +75,7 @@ final class ThreadUploadSource extends FileSource {
       api.getThreadUpload(roomId, threadId, filename);
 
   @override
-  Map<String, Object> get logAttributes =>
+  Map<String, Object> get _sourceAttributes =>
       {'source': 'threadUploads', 'roomId': roomId, 'threadId': threadId};
 
   @override
@@ -98,7 +100,7 @@ Future<Uint8List> fetchFileBytes(
   FileSource source,
   ServedFile file,
 ) async {
-  final attributes = {...source.logAttributes, 'filename': file.filename};
+  final attributes = source.logAttributesOf(file);
   _logger.debug('file preview fetch start', attributes: attributes);
   try {
     final bytes = await source.fetch(api, file.filename);
@@ -135,7 +137,7 @@ void warnFileFetchFailed(
 }) {
   // A bodiless GET with the token in a header, so a failure can carry only
   // the URL path (room and thread ids, the file's name or path), a status
-  // code, a host, or the answering server's JSON message field: a fixed
+  // code, a host, or the answering server's JSON reason: a fixed
   // string or one naming the room, thread or file on the workdir and upload
   // routes, a status phrase from a proxy answering in their place. The
   // client's own ArgumentError for an empty or malformed argument names only
@@ -144,14 +146,18 @@ void warnFileFetchFailed(
     'file $purpose fetch failed',
     error: error,
     stackTrace: stackTrace,
-    attributes: {...source.logAttributes, 'filename': file.filename},
+    attributes: source.logAttributesOf(file),
   );
 }
 
 /// Why fetching a file to download or preview failed, as fixed text for the
 /// user: the error's own message can carry backend text.
 String fileFetchFailureReason(Object error) => switch (error) {
-      NotFoundException() => workdirFileUnavailable,
+      // The server answers a 404 when the file is gone, and also when the
+      // workspace is not served, the installation keeps no uploads, or the
+      // user may not see the room or thread. The client cannot tell these
+      // apart, so the text says only that the file is no longer available.
+      NotFoundException() => "File isn't available anymore",
       NetworkException() => "Couldn't reach the server",
       AuthException() => 'Sign in again',
       PermissionDeniedException() => "You don't have access to this file",

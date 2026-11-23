@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ServedFile;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../shared/file_size.dart';
 import '../file_downloads.dart';
+
+final _logger = LogManager.instance.getLogger('soliplex_frontend.downloads');
 
 /// Above this listed size, a download on mobile or the web asks first. A
 /// download holds the whole file in memory before it is saved, and those
@@ -52,7 +55,13 @@ Future<void> startDownload(
           'large may fail to download on this device.',
       confirmLabel: 'Download',
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      _logger.debug(
+        'large download declined',
+        attributes: {'filename': file.filename, 'sizeBytes': size},
+      );
+      return;
+    }
   }
   await downloads.start(file);
 }

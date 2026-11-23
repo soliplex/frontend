@@ -384,11 +384,18 @@ void main() {
         url: Uri.parse('https://example.test/a.txt'),
       );
 
-      unawaited(uploads.start(upload));
+      final started = uploads.start(upload);
 
       expect(uploads.stateOf(upload), const DownloadRunning());
       expect(downloads().stateOf(_file('a.txt')), const DownloadIdle());
+
       fetch.complete(Uint8List(1));
+      await started;
+
+      // Saved, so the fetch went to the thread's uploads.
+      expect(uploads.stateOf(upload), const DownloadSaved());
+      expect(saved, ['a.txt']);
+      expect(downloads().stateOf(_file('a.txt')), const DownloadIdle());
     });
 
     test("a thread's download saves the file from that thread", () async {

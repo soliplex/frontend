@@ -2414,7 +2414,8 @@ class _RoomScreenState extends State<RoomScreen> {
                   tracker.deleteRoomUpload(roomId: roomId, filename: filename))
               : null,
         ),
-      // The thread scope lists files only with a thread selected.
+      // The thread scope lists nothing without a thread, so this check hides
+      // nothing; it gives ThreadUploadSource a non-null thread id.
       if (threadId != null && _scopeRendersContent(threadStatus))
         _buildScopeSection(
           'Thread',

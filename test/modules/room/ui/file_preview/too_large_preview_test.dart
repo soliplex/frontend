@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/too_large_preview.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/too_large_preview.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 

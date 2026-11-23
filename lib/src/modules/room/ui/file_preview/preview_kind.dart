@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// What kind of in-app preview a workdir file should render.
+/// What kind of in-app preview a served file should render.
 ///
 /// Detection is extension-based — bytes-sniffing isn't worth the latency
-/// for an in-app preview, and the workdir filenames come from agent
-/// tools that already carry a meaningful suffix.
+/// for an in-app preview. A file with no known suffix is not rendered, and
+/// its preview offers the download instead.
 enum PreviewKind {
   image,
   svg,

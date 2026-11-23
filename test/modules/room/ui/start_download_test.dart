@@ -4,8 +4,13 @@ import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_row_download_action.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/start_download.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../helpers/test_downloads.dart';
+
+/// The platforms that ask before a large download.
+final _mobile =
+    TargetPlatformVariant({TargetPlatform.android, TargetPlatform.iOS});
 
 WorkdirFile _sized(int? bytes) => WorkdirFile(
       filename: 'dataset.csv',
@@ -79,6 +84,14 @@ void main() {
 
     testWidgets('asks first, and downloads nothing when cancelled',
         (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      final level = LogManager.instance.minimumLevel;
+      LogManager.instance.minimumLevel = LogLevel.debug;
+      addTearDown(() {
+        LogManager.instance.minimumLevel = level;
+        LogManager.instance.removeSink(sink);
+      });
       await pumpAction(tester, _sized(largeDownloadWarningBytes + 1));
 
       await tester.tap(find.byTooltip('Download'));
@@ -88,7 +101,14 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(saved, isEmpty);
-    });
+      // Recorded, so a download that never ran shows in the diagnostics log.
+      final record = sink.records.singleWhere(
+        (r) => r.message == 'large download declined',
+      );
+      expect(record.level, LogLevel.debug);
+      expect(record.attributes['filename'], 'dataset.csv');
+      expect(record.attributes['sizeBytes'], largeDownloadWarningBytes + 1);
+    }, variant: _mobile);
 
     testWidgets('downloads once the user confirms', (tester) async {
       await pumpAction(tester, _sized(largeDownloadWarningBytes + 1));
@@ -103,7 +123,19 @@ void main() {
 
       expect(saved, ['dataset.csv']);
       await tester.pump(const Duration(seconds: 2));
-    });
+    }, variant: _mobile);
+
+    testWidgets('a file with no listed size downloads without asking',
+        (tester) async {
+      await pumpAction(tester, _sized(null));
+
+      await tester.tap(find.byTooltip('Download'));
+      await tester.pump();
+
+      expect(find.text('Download large file?'), findsNothing);
+      expect(saved, ['dataset.csv']);
+      await tester.pump(const Duration(seconds: 2));
+    }, variant: _mobile);
 
     testWidgets('a small file downloads without asking', (tester) async {
       await pumpAction(tester, _sized(1024));

@@ -11,7 +11,7 @@ import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
+import 'package:soliplex_frontend/src/modules/room/ui/file_name.dart'
     show FileName;
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 
@@ -58,10 +58,14 @@ void main() {
         ),
       );
 
-  PersistedUpload stored({bool isDeleting = false}) => PersistedUpload(
+  PersistedUpload stored({
+    String filename = 'report.pdf',
+    bool isDeleting = false,
+  }) =>
+      PersistedUpload(
         FileUpload(
-          filename: 'report.pdf',
-          url: Uri.parse('https://example.com/report.pdf'),
+          filename: filename,
+          url: Uri.parse('https://example.com/$filename'),
         ),
         isDeleting: isDeleting,
       );
@@ -251,10 +255,16 @@ void main() {
 
   testWidgets('a deleting upload offers neither preview nor download',
       (tester) async {
-    await pumpRow(tester, stored(isDeleting: true), canDelete: true);
+    // Previewable, so a missing Preview is the deleting state's doing.
+    await pumpRow(
+      tester,
+      stored(filename: 'notes.md', isDeleting: true),
+      canDelete: true,
+    );
 
     await tester.tap(find.byType(FileName), warnIfMissed: false);
 
+    expect(find.byTooltip('Preview'), findsNothing);
     expect(find.byTooltip('Download'), findsNothing);
     expect(previewed, isEmpty);
   });

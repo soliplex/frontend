@@ -24,6 +24,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   large may fail there.
 - A file listed over 5 MB is no longer fetched to preview: the preview shows
   the too-large page straight away.
+- A preview that fails to load says why, in the words a failed download uses,
+  and a 403, like a 404, offers no Retry.
 
 ## [0.119.1+109] - 2026-11-20
 

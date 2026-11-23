@@ -125,7 +125,7 @@ Future<DownloadOutcome> downloadFile({
   required bool isWeb,
   required bool Function() isUnwanted,
 }) async {
-  final attributes = {...source.logAttributes, 'filename': file.filename};
+  final attributes = source.logAttributesOf(file);
   _logger.debug('file download start', attributes: attributes);
   final Uint8List bytes;
   try {

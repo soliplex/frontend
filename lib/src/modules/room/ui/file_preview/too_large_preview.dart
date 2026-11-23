@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-/// Rendered when the fetched bytes exceed the preview size cap: says so, and
-/// offers [downloadButton].
+/// Rendered when a file's listed size, or its fetched bytes, exceed the
+/// preview size cap: says so, and offers [downloadButton].
 class TooLargePreview extends StatelessWidget {
   const TooLargePreview({
     super.key,

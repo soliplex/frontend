@@ -7,9 +7,11 @@ import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_row_download_action.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
-    show FileName, FilePreviewPage;
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/preview_kind.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_name.dart'
+    show FileName;
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/file_preview_page.dart'
+    show FilePreviewPage;
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/preview_kind.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_frontend/src/shared/file_size.dart';
 

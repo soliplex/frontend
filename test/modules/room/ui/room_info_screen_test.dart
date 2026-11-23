@@ -17,7 +17,7 @@ import 'package:soliplex_frontend/src/shared/selectable_content.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/file_preview_page.dart'
     show FilePreviewPage;
 import 'package:soliplex_frontend/src/modules/room/ui/room_info_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';

@@ -17,6 +17,7 @@ import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/start_download.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/file_preview_page.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
@@ -1202,7 +1203,9 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(saved, isEmpty);
-    });
+    },
+        variant: TargetPlatformVariant(
+            {TargetPlatform.android, TargetPlatform.iOS}));
 
     testWidgets('saves the shown file from a page that shows it',
         (tester) async {

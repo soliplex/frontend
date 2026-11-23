@@ -13,6 +13,8 @@ import '../file_sort.dart';
 import '../workdir_files_status.dart';
 import '../workspace_groups.dart';
 import 'file_list_row.dart';
+import 'file_name.dart';
+import 'file_preview/file_preview_page.dart';
 import 'workdir_files.dart';
 
 /// A section heading in the room's files panel.
