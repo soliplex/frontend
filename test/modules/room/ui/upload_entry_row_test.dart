@@ -1,20 +1,37 @@
+import 'dart:async' show unawaited;
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_client/soliplex_client.dart' show FileUpload;
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
+import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
+    show FileName;
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
+
+import '../../../helpers/fakes.dart' show FakeSoliplexApi;
+import '../../../helpers/preview_title_finder.dart';
+import '../../../helpers/test_downloads.dart';
 
 void main() {
   final cancelled = <String>[];
   final dismissed = <String>[];
   final deleted = <String>[];
+  final previewed = <String>[];
+  final downloaded = <String>[];
 
   setUp(() {
     cancelled.clear();
     dismissed.clear();
     deleted.clear();
+    previewed.clear();
+    downloaded.clear();
   });
 
   Future<void> pumpRow(
@@ -31,14 +48,21 @@ void main() {
               onCancel: cancelled.add,
               onDismiss: dismissed.add,
               onDelete: canDelete ? deleted.add : null,
+              downloads: testDownloads((file) async {
+                downloaded.add(file.filename);
+                return const DownloadSaved();
+              }),
+              onOpenPreview: (upload) => previewed.add(upload.filename),
             ),
           ),
         ),
       );
 
   PersistedUpload stored({bool isDeleting = false}) => PersistedUpload(
-        filename: 'report.pdf',
-        url: Uri.parse('https://example.com/report.pdf'),
+        FileUpload(
+          filename: 'report.pdf',
+          url: Uri.parse('https://example.com/report.pdf'),
+        ),
         isDeleting: isDeleting,
       );
 
@@ -46,11 +70,13 @@ void main() {
     await pumpRow(
       tester,
       PersistedUpload(
-        filename: 'report.pdf',
-        url: Uri.parse('https://example.com/report.pdf'),
-        modifiedAt:
-            DateTime.now().subtract(const Duration(hours: 3, minutes: 1)),
-        sizeBytes: 2458,
+        FileUpload(
+          filename: 'report.pdf',
+          url: Uri.parse('https://example.com/report.pdf'),
+          modifiedAt:
+              DateTime.now().subtract(const Duration(hours: 3, minutes: 1)),
+          sizeBytes: 2458,
+        ),
       ),
     );
 
@@ -165,11 +191,15 @@ void main() {
               width: 300,
               child: UploadEntryRow(
                 entry: PersistedUpload(
-                  filename: 'quarterly_revenue_report_final.xlsx',
-                  url: Uri.parse('https://example.com/q.xlsx'),
+                  FileUpload(
+                    filename: 'quarterly_revenue_report_final.xlsx',
+                    url: Uri.parse('https://example.com/q.xlsx'),
+                  ),
                 ),
                 onCancel: cancelled.add,
                 onDismiss: dismissed.add,
+                downloads: testDownloads(),
+                onOpenPreview: (_) {},
               ),
             ),
           ),
@@ -183,16 +213,71 @@ void main() {
     expect(isCut('_final.xlsx'), isFalse);
   });
 
-  testWidgets('a persisted upload offers no action', (tester) async {
+  testWidgets('a stored upload offers Preview and Download', (tester) async {
     await pumpRow(
       tester,
       PersistedUpload(
-        filename: 'report.pdf',
-        url: Uri.parse('https://example.com/report.pdf'),
+        FileUpload(
+          filename: 'notes.md',
+          url: Uri.parse('https://example.com/notes.md'),
+        ),
       ),
     );
 
-    expect(find.byType(FileRowAction), findsNothing);
+    await tester.tap(find.byTooltip('Preview'));
+    await tester.tap(find.byTooltip('Download'));
+    await tester.pump();
+
+    expect(previewed, ['notes.md']);
+    expect(downloaded, ['notes.md']);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('a stored upload the app cannot show offers only Download',
+      (tester) async {
+    await pumpRow(tester, stored());
+
+    expect(find.byTooltip('Preview'), findsNothing);
+    expect(find.byTooltip('Download'), findsOneWidget);
+  });
+
+  testWidgets('tapping a stored upload opens its preview', (tester) async {
+    await pumpRow(tester, stored());
+
+    await tester.tap(find.byType(FileName));
+
+    expect(previewed, ['report.pdf']);
+  });
+
+  testWidgets('a deleting upload offers neither preview nor download',
+      (tester) async {
+    await pumpRow(tester, stored(isDeleting: true), canDelete: true);
+
+    await tester.tap(find.byType(FileName), warnIfMissed: false);
+
+    expect(find.byTooltip('Download'), findsNothing);
+    expect(previewed, isEmpty);
+  });
+
+  testWidgets('pending and failed uploads offer neither preview nor download',
+      (tester) async {
+    for (final entry in const <DisplayUpload>[
+      PendingUpload(
+        id: 'p1',
+        filename: 'notes.md',
+        sentBytes: 0,
+        totalBytes: 10,
+      ),
+      FailedUpload(id: 'f1', filename: 'notes.md', message: 'No.'),
+    ]) {
+      await pumpRow(tester, entry);
+
+      await tester.tap(find.byType(FileName), warnIfMissed: false);
+
+      expect(find.byTooltip('Preview'), findsNothing, reason: '$entry');
+      expect(find.byTooltip('Download'), findsNothing, reason: '$entry');
+      expect(previewed, isEmpty, reason: '$entry');
+    }
   });
 
   testWidgets('a stored file is deleted once the user confirms',
@@ -326,8 +411,10 @@ void main() {
     await pumpRow(
       tester,
       PersistedUpload(
-        filename: 'figures.csv',
-        url: Uri.parse('https://example.com/figures.csv'),
+        FileUpload(
+          filename: 'figures.csv',
+          url: Uri.parse('https://example.com/figures.csv'),
+        ),
       ),
     );
 
@@ -336,5 +423,54 @@ void main() {
         Theme.of(tester.element(find.byType(UploadEntryRow))).colorScheme;
     expect(icon.color, scheme.onSurfaceVariant,
         reason: 'a stored file is not a success to report');
+  });
+
+  testWidgets(
+      'the upload preview pages through the stored files in the order given, '
+      'opened at the tapped one', (tester) async {
+    PersistedUpload stored(String name, {bool isDeleting = false}) =>
+        PersistedUpload(
+          FileUpload(
+            filename: name,
+            url: Uri.parse('https://example.com/$name'),
+          ),
+          isDeleting: isDeleting,
+        );
+    final api = FakeSoliplexApi();
+    for (final name in ['z.md', 'a.md']) {
+      api.roomUploadBytes[name] = Uint8List.fromList(utf8.encode(name));
+    }
+    final opened = stored('a.md');
+    late BuildContext context;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(builder: (c) {
+        context = c;
+        return const Scaffold(body: SizedBox.shrink());
+      }),
+    ));
+
+    unawaited(showUploadPreview(
+      context: context,
+      rows: [
+        const PendingUpload(
+          id: 'p1',
+          filename: 'p.md',
+          sentBytes: 0,
+          totalBytes: 10,
+        ),
+        stored('z.md'),
+        stored('c.md', isDeleting: true),
+        opened,
+      ],
+      opened: opened,
+      api: api,
+      source: const RoomUploadSource(roomId: 'room-1'),
+      downloads: testDownloads(),
+    ));
+    await tester.pumpAndSettle();
+
+    // Two files, the pending and the deleting left out, and a.md second.
+    expect(findPreviewTitle('a.md'), findsOneWidget);
+    expect(findPreviewTitle('2 / 2'), findsOneWidget);
   });
 }

@@ -7,6 +7,8 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_client/soliplex_client.dart' hide Room, State;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../file_downloads_registry.dart';
+import '../file_source.dart';
 import '../file_sort.dart';
 import '../file_sort_preference.dart';
 import '../pick_file.dart';
@@ -41,6 +43,7 @@ class RoomInfoScreen extends StatefulWidget {
     required this.roomId,
     required this.toolRegistryResolver,
     required this.uploadRegistry,
+    required this.downloadRegistry,
     required this.fileSort,
     required this.appName,
     this.logo,
@@ -50,6 +53,9 @@ class RoomInfoScreen extends StatefulWidget {
   final String roomId;
   final Future<ToolRegistry> Function(String roomId) toolRegistryResolver;
   final UploadTrackerRegistry uploadRegistry;
+
+  /// Where the uploads card's rows download, shared with the files panel.
+  final FileDownloadsRegistry downloadRegistry;
 
   /// The order of the uploads card's list, shared with the files panel.
   final FileSortPreference fileSort;
@@ -143,6 +149,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
                     clientToolsFuture: _clientToolsFuture,
                     onRetryDocuments: _retryDocuments,
                     uploadRegistry: widget.uploadRegistry,
+                    downloadRegistry: widget.downloadRegistry,
                     fileSort: widget.fileSort,
                   );
                 },
@@ -167,6 +174,7 @@ class _RoomInfoBody extends StatelessWidget {
     required this.clientToolsFuture,
     required this.onRetryDocuments,
     required this.uploadRegistry,
+    required this.downloadRegistry,
     required this.fileSort,
   });
 
@@ -180,6 +188,7 @@ class _RoomInfoBody extends StatelessWidget {
   final Future<List<Tool>> clientToolsFuture;
   final VoidCallback onRetryDocuments;
   final UploadTrackerRegistry uploadRegistry;
+  final FileDownloadsRegistry downloadRegistry;
   final FileSortPreference fileSort;
 
   @override
@@ -268,6 +277,7 @@ class _RoomInfoBody extends StatelessWidget {
             if (room.acceptsRoomUploads)
               _UploadedFilesCard(
                 uploadRegistry: uploadRegistry,
+                downloadRegistry: downloadRegistry,
                 fileSort: fileSort,
                 serverEntry: serverEntry,
                 roomId: roomId,
@@ -439,6 +449,7 @@ class _AgentCard extends StatelessWidget {
 class _UploadedFilesCard extends StatefulWidget {
   const _UploadedFilesCard({
     required this.uploadRegistry,
+    required this.downloadRegistry,
     required this.fileSort,
     required this.serverEntry,
     required this.roomId,
@@ -446,6 +457,7 @@ class _UploadedFilesCard extends StatefulWidget {
   });
 
   final UploadTrackerRegistry uploadRegistry;
+  final FileDownloadsRegistry downloadRegistry;
   final FileSortPreference fileSort;
   final ServerEntry serverEntry;
   final String roomId;
@@ -495,6 +507,11 @@ enum _UploadPermission {
 
 class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   late final UploadTracker _tracker;
+  late final _source = RoomUploadSource(roomId: widget.roomId);
+  late final _downloads = widget.downloadRegistry.downloadsFor(
+    entry: widget.serverEntry,
+    source: _source,
+  );
 
   /// What is known about the caller's permission to upload here.
   ///
@@ -833,8 +850,8 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
 
   Widget _buildList(List<DisplayUpload> list, FileSort stored) {
     final persisted = list.whereType<PersistedUpload>();
-    final hasTimes = persisted.any((u) => u.modifiedAt != null);
-    final hasSizes = persisted.any((u) => u.sizeBytes != null);
+    final hasTimes = persisted.any((u) => u.file.modifiedAt != null);
+    final hasSizes = persisted.any((u) => u.file.sizeBytes != null);
     final sort = effectiveSort(stored, hasTimes: hasTimes, hasSizes: hasSizes);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,6 +872,15 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
             entry: entry,
             onCancel: _tracker.cancelUpload,
             onDismiss: _tracker.dismissFailed,
+            downloads: _downloads,
+            onOpenPreview: (opened) => unawaited(showUploadPreview(
+              context: context,
+              rows: orderUploads(list, sort),
+              opened: opened,
+              api: widget.serverEntry.connection.api,
+              source: _source,
+              downloads: _downloads,
+            )),
             // The upload controls' answer: deleting a room upload needs
             // the same permission as adding one.
             onDelete: _permission == _UploadPermission.permitted

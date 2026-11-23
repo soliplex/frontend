@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
+import 'package:soliplex_client/soliplex_client.dart'
+    show ServedFile, WorkdirFile;
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/local_time_format.dart';
@@ -56,7 +57,7 @@ class WorkspaceFilesSection extends StatelessWidget {
 
   /// Each file's download, which its row and its preview show and start.
   final FileDownloads downloads;
-  final Future<Uint8List> Function(WorkdirFile file) onFetchBytes;
+  final Future<Uint8List> Function(ServedFile file) onFetchBytes;
   final VoidCallback onRetry;
 
   /// The folders the reader has opened or closed, by path from the
@@ -183,7 +184,7 @@ class WorkspaceFilesSection extends StatelessWidget {
             file: files[i],
             directory: directoryOf(files[i]),
             downloads: downloads,
-            onOpenPreview: () => WorkdirPreviewPage.show(
+            onOpenPreview: () => FilePreviewPage.show(
               context: context,
               files: files,
               initialIndex: i,

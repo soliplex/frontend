@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' show FilePickerPlatform;
 import 'package:flutter/material.dart';
@@ -13,7 +15,10 @@ import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
 import 'package:soliplex_frontend/src/shared/selectable_content.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
+import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
+    show FilePreviewPage;
 import 'package:soliplex_frontend/src/modules/room/ui/room_info_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 
@@ -76,6 +81,7 @@ Widget _buildScreen({
       toolRegistryResolver:
           toolRegistryResolver ?? (_) async => const ToolRegistry(),
       uploadRegistry: uploadRegistry,
+      downloadRegistry: _downloadRegistry(entry),
       fileSort: fileSort ?? FileSortPreference(),
       appName: 'Soliplex',
     ),
@@ -109,6 +115,7 @@ Widget _buildScreen({
         toolRegistryResolver:
             toolRegistryResolver ?? (_) async => const ToolRegistry(),
         uploadRegistry: registry,
+        downloadRegistry: _downloadRegistry(entry),
         fileSort: FileSortPreference(),
         appName: 'Soliplex',
       ),
@@ -117,6 +124,23 @@ Widget _buildScreen({
     uploadRegistry: registry,
   );
 }
+
+/// A download registry for [entry], disposed when the test ends.
+FileDownloadsRegistry _downloadRegistry(ServerEntry entry) {
+  final registry = FileDownloadsRegistry(
+    servers: Signal<Map<String, ServerEntry>>({entry.serverId: entry}),
+    saveFile: _saveToTmp,
+    isWeb: false,
+  );
+  addTearDown(registry.dispose);
+  return registry;
+}
+
+Future<String?> _saveToTmp({
+  required String fileName,
+  required Uint8List bytes,
+}) async =>
+    '/tmp/$fileName';
 
 void main() {
   group('RoomInfoScreen', () {
@@ -193,6 +217,35 @@ void main() {
               matching: find.byType(SoliplexButton),
             ),
           );
+
+      testWidgets('a room upload opens its preview and downloads',
+          (tester) async {
+        final api = FakeSoliplexApi()
+          ..nextRoomUploads = [
+            FileUpload(
+              filename: 'notes.md',
+              url: Uri.parse('https://example.com/notes.md'),
+            ),
+          ]
+          ..roomUploadBytes['notes.md'] =
+              Uint8List.fromList(utf8.encode('Shared meeting notes'));
+        await pumpAs(tester, api);
+
+        await tester.tap(find.byTooltip('Download'));
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Saved'), findsOneWidget);
+        await tester.pump(const Duration(seconds: 2));
+
+        await tester.tap(find.byTooltip('Preview'));
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: find.byType(FilePreviewPage),
+            matching: find.textContaining('Shared meeting notes'),
+          ),
+          findsOneWidget,
+        );
+      });
 
       testWidgets('a reported write permission offers the controls',
           (tester) async {

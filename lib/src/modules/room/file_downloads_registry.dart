@@ -10,10 +10,9 @@ import '../auth/auth_tokens.dart' show NoSession;
 import '../auth/server_entry.dart';
 import 'file_downloads.dart';
 import 'per_server_cache.dart';
-import 'workdir_controller.dart' show warnWorkdirFetchFailed;
-import 'workdir_files_status.dart' show workdirFileUnavailable;
+import 'file_source.dart';
 
-final _logger = LogManager.instance.getLogger('workdir_files');
+final _logger = LogManager.instance.getLogger('room_files');
 
 /// Save the [bytes] under [fileName], typically by opening the platform
 /// save dialog. Returns the chosen location on success, as a URI string —
@@ -38,7 +37,7 @@ Future<String?> defaultSaveFile({
   return saved?.toString();
 }
 
-/// Each thread's file downloads, per server entry and room.
+/// The file downloads of each [FileSource], per server entry.
 ///
 /// The room module keeps it, not the room screen, so a download outlives the
 /// visit to its room that started it: coming back shows it under way or its
@@ -63,18 +62,17 @@ class FileDownloadsRegistry {
 
   final SaveFile _saveFile;
   final bool _isWeb;
-  final PerServerCache<(String, String), FileDownloads> _downloads;
+  final PerServerCache<FileSource, FileDownloads> _downloads;
 
-  /// The downloads of [threadId] in [roomId] for [entry]. Throws
-  /// [StateError] once the registry is disposed.
+  /// The downloads of [source]'s files for [entry]. Throws [StateError] once
+  /// the registry is disposed.
   FileDownloads downloadsFor({
     required ServerEntry entry,
-    required String roomId,
-    required String threadId,
+    required FileSource source,
   }) =>
       _downloads.putIfAbsent(
         entry,
-        (roomId, threadId),
+        source,
         () => FileDownloads((file, isCleared) async {
           // Signing out while the file is fetched keeps it from saving, even
           // if the user signs back in before the fetch ends. A server not
@@ -89,10 +87,9 @@ class FileDownloadsRegistry {
             }
           });
           try {
-            return await downloadWorkdirFile(
+            return await downloadFile(
               api: entry.connection.api,
-              roomId: roomId,
-              threadId: threadId,
+              source: source,
               file: file,
               saveFile: _saveFile,
               isWeb: _isWeb,
@@ -111,8 +108,8 @@ class FileDownloadsRegistry {
   void dispose() => _downloads.dispose();
 }
 
-/// Downloads [file]'s bytes through the authenticated client and hands
-/// them to the platform save dialog. Distinguishes user-cancel from
+/// Downloads [file]'s bytes from [source] through the authenticated client and
+/// hands them to the platform save dialog. Distinguishes user-cancel from
 /// real failure so the caller can render the right inline feedback.
 ///
 /// Once [isUnwanted] says nobody is left to want the file, it opens no save
@@ -120,65 +117,46 @@ class FileDownloadsRegistry {
 /// downloads were cleared (see [FileDownloadsRegistry]), or its user signed
 /// out while it was fetched. A dialog already open saves whatever its user
 /// chooses.
-Future<DownloadOutcome> downloadWorkdirFile({
+Future<DownloadOutcome> downloadFile({
   required SoliplexApi api,
-  required String roomId,
-  required String threadId,
-  required WorkdirFile file,
+  required FileSource source,
+  required ServedFile file,
   required SaveFile saveFile,
   required bool isWeb,
   required bool Function() isUnwanted,
 }) async {
-  _logger.debug(
-    'workdir download start roomId=$roomId threadId=$threadId '
-    'name=${file.filename}',
-  );
+  final attributes = {...source.logAttributes, 'filename': file.filename};
+  _logger.debug('file download start', attributes: attributes);
   final Uint8List bytes;
   try {
-    bytes = await api.getThreadWorkdirFile(
-      roomId,
-      threadId,
-      file.filename,
-    );
+    bytes = await source.fetch(api, file.filename);
   } catch (e, st) {
     // A fetch failing once nobody wants the file is no failure to report.
-    if (isUnwanted()) return _dropped(roomId, threadId, file);
-    warnWorkdirFetchFailed(
+    if (isUnwanted()) return _dropped(attributes);
+    warnFileFetchFailed(
       _logger,
       purpose: 'download',
-      roomId: roomId,
-      threadId: threadId,
+      source: source,
       file: file,
       error: e,
       stackTrace: st,
     );
-    return DownloadFailed(downloadFailureReason(e));
+    return DownloadFailed(fileFetchFailureReason(e));
   }
-  if (isUnwanted()) return _dropped(roomId, threadId, file);
+  if (isUnwanted()) return _dropped(attributes);
   try {
     final path = await saveFile(fileName: file.basename, bytes: bytes);
     if (!isWeb && path == null) {
-      _logger.debug(
-        'workdir file download cancelled roomId=$roomId threadId=$threadId '
-        'name=${file.filename}',
-      );
+      _logger.debug('file download cancelled', attributes: attributes);
       return const DownloadCancelled();
     }
-    if (isWeb) {
-      // The browser triggers the download immediately and saveFile
-      // returns null even on success; whether the file actually reached
-      // the user's downloads folder is unverifiable from here.
-      _logger.debug(
-        'workdir file download web-triggered roomId=$roomId '
-        'threadId=$threadId '
-        'name=${file.filename} bytes=${bytes.length}',
-      );
-    } else {
-      _logger.debug(
-        'workdir file download saved roomId=$roomId threadId=$threadId '
-        'name=${file.filename} bytes=${bytes.length}',
-      );
-    }
+    // On the web the browser triggers the download immediately and saveFile
+    // returns null even on success; whether the file actually reached the
+    // user's downloads folder is unverifiable from here.
+    _logger.debug(
+      isWeb ? 'file download web-triggered' : 'file download saved',
+      attributes: {...attributes, 'byteLength': bytes.length},
+    );
     return const DownloadSaved();
   } catch (e, st) {
     // Attached whole: a save failure is the platform's, the save dialog's
@@ -186,32 +164,19 @@ Future<DownloadOutcome> downloadWorkdirFile({
     // with no extension or, when writing the file failed, one naming the
     // local path it could not write. None holds a credential.
     _logger.warning(
-      'workdir download save failed roomId=$roomId threadId=$threadId',
+      'file download save failed',
       error: e,
       stackTrace: st,
-      attributes: {'filename': file.filename},
+      attributes: attributes,
     );
     return const DownloadFailed("Couldn't save the file");
   }
 }
 
-/// Why fetching a file to download failed, as fixed text for the user: the
-/// error's own message can carry backend text.
-String downloadFailureReason(Object error) => switch (error) {
-      NotFoundException() => workdirFileUnavailable,
-      NetworkException() => "Couldn't reach the server",
-      AuthException() => 'Sign in again',
-      PermissionDeniedException() => "You don't have access to this file",
-      ApiException(:final statusCode) when statusCode >= 500 =>
-        'Server is temporarily unavailable',
-      ApiException() => "The server couldn't send the file",
-      _ => 'Something went wrong',
-    };
-
-DownloadOutcome _dropped(String roomId, String threadId, WorkdirFile file) {
+DownloadOutcome _dropped(Map<String, Object> attributes) {
   _logger.debug(
-    'workdir download dropped, nobody left to want it '
-    'roomId=$roomId threadId=$threadId name=${file.filename}',
+    'file download dropped, nobody left to want it',
+    attributes: attributes,
   );
   return const DownloadCancelled();
 }

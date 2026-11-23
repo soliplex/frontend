@@ -42,7 +42,7 @@ WorkspaceFilesSection _sorted(
 
 Widget _section(
   WorkdirFilesStatus status, {
-  Future<DownloadOutcome> Function(WorkdirFile file)? onDownload,
+  Future<DownloadOutcome> Function(ServedFile file)? onDownload,
 }) =>
     MaterialApp(
       theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
@@ -97,7 +97,7 @@ Widget _groupedFiles(
 void main() {
   testWidgets('tapping a row download icon downloads that file',
       (tester) async {
-    final downloaded = <WorkdirFile>[];
+    final downloaded = <ServedFile>[];
     await tester.pumpWidget(_section(
       WorkdirFilesLoaded([_file('a.csv'), _file('b.png')]),
       onDownload: (file) async {

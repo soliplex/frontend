@@ -15,6 +15,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/start_download.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart';
 import 'package:soliplex_frontend/src/modules/room/workdir_files_status.dart';
@@ -114,7 +115,7 @@ Finder _inButton(Finder f) => find.descendant(
 // find.text('b.md') can hit two widgets. Scope finders to the preview page
 // where it matters.
 Finder _inPreview(Finder f) => find.descendant(
-      of: find.byType(WorkdirPreviewPage),
+      of: find.byType(FilePreviewPage),
       matching: f,
     );
 
@@ -127,8 +128,8 @@ Finder _inPreview(Finder f) => find.descendant(
 WorkspaceFilesSection _workspace({
   required WorkdirFilesStatus status,
   required VoidCallback onRetry,
-  required Future<Uint8List> Function(WorkdirFile file) onFetchBytes,
-  Future<DownloadOutcome> Function(WorkdirFile file)? onDownload,
+  required Future<Uint8List> Function(ServedFile file) onFetchBytes,
+  Future<DownloadOutcome> Function(ServedFile file)? onDownload,
   FileDownloads? downloads,
   FileSort sort = FileSort.foldersAToZ,
 }) =>
@@ -343,6 +344,42 @@ void main() {
     expect(find.text('Retry'), findsNothing);
   });
 
+  testWidgets('preview says access is denied, without Retry, on 403',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([_file('plot.png')]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      onFetchBytes: (_) async =>
+          throw const PermissionDeniedException(message: 'denied'),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text("You don't have access to this file"), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets('preview says why a fetch failed, and offers Retry',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([_file('plot.png')]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      onFetchBytes: (_) async => throw const NetworkException(message: 'down'),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Couldn't load preview"), findsOneWidget);
+    expect(find.text("Couldn't reach the server"), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+  });
+
   testWidgets(
       "a row that can preview shows its kind's icon and an eye; one that "
       "can't, the file icon and no eye", (tester) async {
@@ -406,7 +443,7 @@ void main() {
     await tester.pump();
 
     expect(downloads, 1);
-    expect(find.byType(WorkdirPreviewPage), findsNothing);
+    expect(find.byType(FilePreviewPage), findsNothing);
     await tester.pump(const Duration(seconds: 2));
   });
 
@@ -614,6 +651,53 @@ void main() {
     expect(find.text('File is too large to preview'), findsOneWidget);
   });
 
+  testWidgets('preview does not fetch a file listed over the preview cap',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([
+        WorkdirFile(
+          filename: 'huge.log',
+          url: Uri.parse('https://example.test/huge.log'),
+          sizeBytes: 5 * 1024 * 1024 + 1,
+        ),
+      ]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      // Never answers: a fetch would leave the preview spinning.
+      onFetchBytes: (_) => Completer<Uint8List>().future,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('File is too large to preview'), findsOneWidget);
+  });
+
+  testWidgets('preview fetches and shows a file listed at exactly the cap',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_workspace(
+      status: WorkdirFilesLoaded([
+        WorkdirFile(
+          filename: 'notes.log',
+          url: Uri.parse('https://example.test/notes.log'),
+          sizeBytes: previewSizeCapBytes,
+        ),
+      ]),
+      onRetry: () {},
+      onDownload: (_) async => const DownloadSaved(),
+      onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('log body')),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('File is too large to preview'), findsNothing);
+    expect(_inPreview(find.textContaining('log body')), findsOneWidget);
+  });
+
   testWidgets("a too-large file's Download saves it and shows the outcome",
       (tester) async {
     final saved = <String>[];
@@ -687,7 +771,7 @@ void main() {
       await tester.tap(find.byType(FileRowActionProgress));
       await tester.pump();
 
-      expect(find.byType(WorkdirPreviewPage), findsNothing);
+      expect(find.byType(FilePreviewPage), findsNothing);
       expect(calls, hasLength(1));
       download.complete(const DownloadSaved());
       await tester.pump();
@@ -711,7 +795,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.check));
       await tester.pump();
 
-      expect(find.byType(WorkdirPreviewPage), findsNothing);
+      expect(find.byType(FilePreviewPage), findsNothing);
       expect(calls, hasLength(1));
       await tester.pump(const Duration(seconds: 2));
     });
@@ -756,7 +840,7 @@ void main() {
     IconButton iconButtonWith(WidgetTester tester, IconData icon) {
       return tester.widget<IconButton>(
         find.descendant(
-          of: find.byType(WorkdirPreviewPage),
+          of: find.byType(FilePreviewPage),
           matching: find.widgetWithIcon(IconButton, icon),
         ),
       );
@@ -779,7 +863,7 @@ void main() {
       expect(iconButtonWith(tester, Icons.chevron_left).onPressed, isNull);
 
       await tester.tap(find.descendant(
-        of: find.byType(WorkdirPreviewPage),
+        of: find.byType(FilePreviewPage),
         matching: find.widgetWithIcon(IconButton, Icons.chevron_right),
       ));
       await tester.pumpAndSettle();
@@ -809,7 +893,7 @@ void main() {
       // Tap the third dot — InkResponses inside the preview's dots row
       // each carry the filename tooltip. The third one is at index 2.
       await tester.tap(find.descendant(
-        of: find.byType(WorkdirPreviewPage),
+        of: find.byType(FilePreviewPage),
         matching: find.byTooltip('c.md'),
       ));
       await tester.pumpAndSettle();
@@ -835,7 +919,7 @@ void main() {
       // No CircleAvatar dots are rendered inside the preview.
       expect(
         find.descendant(
-          of: find.byType(WorkdirPreviewPage),
+          of: find.byType(FilePreviewPage),
           matching: find.byType(CircleAvatar),
         ),
         findsNothing,
@@ -1051,7 +1135,7 @@ void main() {
     Future<void> openPreview(
       WidgetTester tester,
       List<String> names, {
-      required Future<DownloadOutcome> Function(WorkdirFile file) onDownload,
+      required Future<DownloadOutcome> Function(ServedFile file) onDownload,
       int index = 0,
     }) async {
       late BuildContext capturedContext;
@@ -1061,7 +1145,7 @@ void main() {
           return const Scaffold(body: SizedBox.shrink());
         }),
       ));
-      WorkdirPreviewPage.show(
+      FilePreviewPage.show(
         context: capturedContext,
         files: [for (final n in names) _file(n)],
         initialIndex: index,
@@ -1081,6 +1165,44 @@ void main() {
 
     final titleBarDownload = find.byTooltip('Download');
     final centredDownload = find.widgetWithText(SoliplexButton, 'Download');
+
+    testWidgets('both download buttons ask first for a large file on mobile',
+        (tester) async {
+      final saved = <String>[];
+      late BuildContext capturedContext;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: (context) {
+          capturedContext = context;
+          return const Scaffold(body: SizedBox.shrink());
+        }),
+      ));
+      FilePreviewPage.show(
+        context: capturedContext,
+        files: [
+          WorkdirFile(
+            filename: 'big.bin',
+            url: Uri.parse('https://example.test/big.bin'),
+            sizeBytes: largeDownloadWarningBytes + 1,
+          ),
+        ],
+        initialIndex: 0,
+        fetchBytes: (_) async => Uint8List(0),
+        downloads: testDownloads((file) async {
+          saved.add(file.filename);
+          return const DownloadSaved();
+        }),
+      );
+      await tester.pumpAndSettle();
+
+      for (final button in [titleBarDownload, centredDownload]) {
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(find.text('Download large file?'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+      }
+      expect(saved, isEmpty);
+    });
 
     testWidgets('saves the shown file from a page that shows it',
         (tester) async {
@@ -1195,7 +1317,7 @@ void main() {
       pending.complete(const DownloadSaved());
       await tester.pump();
 
-      expect(find.byType(WorkdirPreviewPage), findsNothing);
+      expect(find.byType(FilePreviewPage), findsNothing);
       expect(find.byTooltip('Saved'), findsOneWidget, reason: 'on its row');
       await tester.pump(const Duration(seconds: 2));
     });
@@ -1212,7 +1334,7 @@ void main() {
       await tester.tap(titleBarDownload);
       await tester.pump();
 
-      final error = Theme.of(tester.element(find.byType(WorkdirPreviewPage)))
+      final error = Theme.of(tester.element(find.byType(FilePreviewPage)))
           .colorScheme
           .error;
       final icon = tester.widget<Icon>(find.byIcon(Icons.error_outline));
@@ -1426,7 +1548,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.byType(WorkdirPreviewPage), findsOneWidget);
+    expect(find.byType(FilePreviewPage), findsOneWidget);
     expect(find.byType(Dialog), findsNothing);
   });
 
@@ -1458,7 +1580,7 @@ void main() {
   });
 
   testWidgets(
-      'WorkdirPreviewPage.show clamps an out-of-range initialIndex to the last file',
+      'FilePreviewPage.show clamps an out-of-range initialIndex to the last file',
       (tester) async {
     // show() must not assert/crash on a caller-supplied out-of-range
     // index; it clamps to a valid slide.
@@ -1471,7 +1593,7 @@ void main() {
       }),
     ));
 
-    WorkdirPreviewPage.show(
+    FilePreviewPage.show(
       context: capturedContext,
       files: files,
       initialIndex: 99,
@@ -1694,7 +1816,7 @@ void main() {
             return const Scaffold(body: SizedBox.shrink());
           }),
         ));
-        WorkdirPreviewPage.show(
+        FilePreviewPage.show(
           context: capturedContext,
           files: files,
           initialIndex: index,

@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- Uploaded files, room and thread, can be previewed and downloaded from the
+  files panel, and room uploads from the room info screen, as workspace files
+  can: tap a file to preview it, or use its Preview and Download actions.
+- `soliplex_client`: `SoliplexApi.getRoomUpload` and `getThreadUpload` fetch
+  an uploaded file's bytes, and `ServedFile` is the interface `FileUpload` and
+  `WorkdirFile` share (name, directory, size).
+
+### Changed
+
+- On mobile and the web, downloading a file listed over 100 MB asks first: a
+  download holds the whole file in memory before saving it, and a file that
+  large may fail there.
+- A file listed over 5 MB is no longer fetched to preview: the preview shows
+  the too-large page straight away.
+
 ## [0.119.1+109] - 2026-11-20
 
 ### Changed

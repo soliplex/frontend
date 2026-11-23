@@ -45,6 +45,8 @@ import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_state_warning_banner.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files.dart'
+    show FilePreviewPage;
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -2156,6 +2158,121 @@ void main() {
     expect(find.text('THREAD'), findsNothing,
         reason: 'empty thread scope should not render a Thread label');
     expect(find.text('shared.pdf'), findsOneWidget);
+  });
+
+  testWidgets('a room upload opens its preview and downloads', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    api.nextRoom = const Room(
+      id: 'room-1',
+      name: 'Attachable',
+      acceptsRoomUploads: true,
+    );
+    api.nextThreads = const [];
+    api.nextRoomUploads = [
+      FileUpload(
+        filename: 'notes.md',
+        url: Uri.parse('https://example.com/notes.md'),
+      ),
+    ];
+    api.roomUploadBytes['notes.md'] =
+        Uint8List.fromList(utf8.encode('Shared meeting notes'));
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        downloadRegistry: downloadRegistry,
+        fileSort: fileSort,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.folder));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Download'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Saved'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.byTooltip('Preview'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(FilePreviewPage),
+        matching: find.textContaining('Shared meeting notes'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      "a thread upload previews and downloads from the thread's uploads",
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    api.nextRoom = const Room(
+      id: 'room-1',
+      name: 'Attachable',
+      acceptsThreadUploads: true,
+    );
+    api.nextThreads = const [];
+    api.nextThreadUploads = [
+      FileUpload(
+        filename: 'notes.md',
+        url: Uri.parse('https://example.com/notes.md'),
+      ),
+    ];
+    api.threadUploadBytes[('thread-1', 'notes.md')] =
+        Uint8List.fromList(utf8.encode('Thread notes'));
+    // A room upload of the same name, which the thread's row must not fetch.
+    api.roomUploadBytes['notes.md'] =
+        Uint8List.fromList(utf8.encode('Room notes'));
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        downloadRegistry: downloadRegistry,
+        fileSort: fileSort,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.folder));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Download'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Saved'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.byTooltip('Preview'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(FilePreviewPage),
+        matching: find.textContaining('Thread notes'),
+      ),
+      findsOneWidget,
+    );
   });
 
   Future<void> openFilePanel(

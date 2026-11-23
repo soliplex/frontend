@@ -51,6 +51,7 @@ import '../rag_state_overlay.dart';
 import '../../../stores/document_selections.dart';
 import '../file_sort.dart';
 import '../file_sort_preference.dart';
+import '../file_source.dart';
 import '../pick_file.dart';
 import '../agent_runtime_manager.dart';
 import '../room_state.dart';
@@ -2387,9 +2388,9 @@ class _RoomScreenState extends State<RoomScreen> {
     final workspace = workspaceStatus is WorkdirFilesLoaded
         ? workspaceStatus.files
         : const <WorkdirFile>[];
-    final hasTimes = persisted.any((u) => u.modifiedAt != null) ||
+    final hasTimes = persisted.any((u) => u.file.modifiedAt != null) ||
         workspace.any((f) => f.modifiedAt != null);
-    final hasSizes = persisted.any((u) => u.sizeBytes != null) ||
+    final hasSizes = persisted.any((u) => u.file.sizeBytes != null) ||
         workspace.any((f) => f.sizeBytes != null);
     final sort = effectiveSort(
       widget.fileSort.sort.watch(context),
@@ -2406,34 +2407,42 @@ class _RoomScreenState extends State<RoomScreen> {
           roomStatus,
           theme,
           sort,
+          source: RoomUploadSource(roomId: roomId),
           onDelete: (room?.acceptsRoomUploads ?? false) &&
                   _state.mayWriteRoom.watch(context)
               ? (filename) => unawaited(
                   tracker.deleteRoomUpload(roomId: roomId, filename: filename))
               : null,
         ),
-      // SoliplexApi has no delete for a thread's uploads.
-      if (_scopeRendersContent(threadStatus))
+      // The thread scope lists files only with a thread selected.
+      if (threadId != null && _scopeRendersContent(threadStatus))
         _buildScopeSection(
           'Thread',
           threadStatus,
           theme,
           sort,
+          source: ThreadUploadSource(roomId: roomId, threadId: threadId),
+          // SoliplexApi has no delete for a thread's uploads.
           onDelete: null,
         ),
       if (threadId != null && _workspaceRendersContent(workspaceStatus))
         // The section and the collapse button read the toggles in scopes of
         // their own, so a folder tap rebuilds them rather than the whole room.
-        Watch(
-          (context) => WorkspaceFilesSection(
+        Watch((context) {
+          final source =
+              WorkspaceFileSource(roomId: widget.roomId, threadId: threadId);
+          return WorkspaceFilesSection(
             status: workspaceStatus,
             sort: sort,
             downloads: widget.downloadRegistry.downloadsFor(
               entry: widget.serverEntry,
-              roomId: widget.roomId,
-              threadId: threadId,
+              source: source,
             ),
-            onFetchBytes: (file) => _workdirs.fetchFileBytes(threadId, file),
+            onFetchBytes: (file) => fetchFileBytes(
+              widget.serverEntry.connection.api,
+              source,
+              file,
+            ),
             onRetry: () {
               _logger.debug('workspace refresh: retry threadId=$threadId');
               unawaited(_workdirs.refresh(threadId));
@@ -2441,8 +2450,8 @@ class _RoomScreenState extends State<RoomScreen> {
             folderToggles: _workdirs.folderToggles(threadId).value,
             onFolderToggled: (folder, {required expanded}) => _workdirs
                 .setFolderExpanded(threadId, folder, expanded: expanded),
-          ),
-        ),
+          );
+        }),
     ];
 
     return Padding(
@@ -2545,8 +2554,13 @@ class _RoomScreenState extends State<RoomScreen> {
     UploadsStatus status,
     ThemeData theme,
     FileSort sort, {
+    required FileSource source,
     required void Function(String filename)? onDelete,
   }) {
+    final downloads = widget.downloadRegistry.downloadsFor(
+      entry: widget.serverEntry,
+      source: source,
+    );
     return switch (status) {
       UploadsLoading() => Row(
           children: [
@@ -2571,6 +2585,15 @@ class _RoomScreenState extends State<RoomScreen> {
                 onCancel: _state.uploadTracker.cancelUpload,
                 onDismiss: _state.uploadTracker.dismissFailed,
                 onDelete: onDelete,
+                downloads: downloads,
+                onOpenPreview: (opened) => unawaited(showUploadPreview(
+                  context: context,
+                  rows: orderUploads(list, sort),
+                  opened: opened,
+                  api: widget.serverEntry.connection.api,
+                  source: source,
+                  downloads: downloads,
+                )),
               ),
           ],
         ),

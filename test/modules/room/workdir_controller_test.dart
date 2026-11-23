@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -332,43 +331,6 @@ void main() {
       controller.setFolderExpanded('t-1', 'reports', expanded: false);
 
       expect(controller.folderToggles('t-2').value, isEmpty);
-    });
-  });
-
-  group('fetchFileBytes', () {
-    test("returns the bytes of the thread's file", () async {
-      final bytes = Uint8List.fromList([9, 9, 9]);
-      when(() => api.getThreadWorkdirFile('room-1', 't-1', 'dir/preview.png'))
-          .thenAnswer((_) async => bytes);
-      final controller = build();
-
-      final out =
-          await controller.fetchFileBytes('t-1', _file('dir/preview.png'));
-
-      expect(out, bytes);
-    });
-
-    test('rethrows NotFoundException', () async {
-      when(() => api.getThreadWorkdirFile(any(), any(), any())).thenThrow(
-        const NotFoundException(message: 'gone', resource: '/x'),
-      );
-      final controller = build();
-
-      await expectLater(
-        controller.fetchFileBytes('t', _file('missing.png')),
-        throwsA(isA<NotFoundException>()),
-      );
-    });
-
-    test('rethrows other errors', () async {
-      when(() => api.getThreadWorkdirFile(any(), any(), any()))
-          .thenThrow(const NetworkException(message: 'down'));
-      final controller = build();
-
-      await expectLater(
-        controller.fetchFileBytes('t', _file('a.png')),
-        throwsA(isA<NetworkException>()),
-      );
     });
   });
 }

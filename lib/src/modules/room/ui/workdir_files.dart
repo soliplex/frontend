@@ -13,11 +13,13 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../shared/selectable_content.dart';
 import '../../../shared/zoomable_image.dart';
 import '../file_downloads.dart';
-import '../workdir_files_status.dart' show workdirFileUnavailable;
+import '../file_source.dart' show fileFetchFailureReason;
 import 'content_viewer/content_viewer.dart';
 import 'file_list_row.dart';
+import 'file_row_download_action.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'pager_dots.dart';
+import 'start_download.dart';
 import 'workdir_preview/download_feedback.dart';
 import 'workdir_preview/preview_kind.dart';
 import 'workdir_preview/too_large_preview.dart';
@@ -25,7 +27,7 @@ import 'workdir_preview/too_large_preview.dart';
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.workdir_files');
 
-/// Bytes fetched above this size route to the too-large fallback
+/// A file listed, or fetched, above this size shows the too-large fallback
 /// instead of an in-pager renderer — decoding very large payloads in
 /// the preview pager causes jank and OOMs.
 const previewSizeCapBytes = 5 * 1024 * 1024;
@@ -91,21 +93,7 @@ class WorkdirFileRow extends StatelessWidget {
               tooltip: 'Preview',
               onTap: onOpenPreview,
             ),
-          Watch((context) {
-            final state = downloads.stateOf(file);
-            final (icon, tooltip) = state.affordance;
-            if (state is DownloadRunning) {
-              return FileRowActionProgress(label: tooltip);
-            }
-            return FileRowAction(
-              icon: icon,
-              tooltip: tooltip,
-              onTap:
-                  downloads.canStart(file) ? () => downloads.start(file) : null,
-              color: state.outcomeColor(theme.colorScheme) ??
-                  theme.colorScheme.primary,
-            );
-          }),
+          FileRowDownloadAction(file: file, downloads: downloads),
         ],
       ),
     );
@@ -387,24 +375,24 @@ const _keptEndCharacters = 6;
   return (name.substring(0, dot), name.substring(dot));
 }
 
-/// Full-screen preview for workdir artifacts. Fetches the bytes lazily
-/// via [fetchBytes] so the bytes are not pulled until the user actually
-/// opens the preview, then dispatches to a kind-specific body widget.
-class WorkdirPreviewPage extends StatefulWidget {
-  WorkdirPreviewPage({
+/// Full-screen preview of workspace files and uploads. Fetches the bytes
+/// lazily via [fetchBytes] so the bytes are not pulled until the user
+/// actually opens the preview, then dispatches to a kind-specific body
+/// widget.
+class FilePreviewPage extends StatefulWidget {
+  FilePreviewPage({
     super.key,
     required this.files,
     required this.initialIndex,
     required this.fetchBytes,
     required this.downloads,
-  })  : assert(
-            files.isNotEmpty, 'WorkdirPreviewPage requires at least one file'),
+  })  : assert(files.isNotEmpty, 'FilePreviewPage requires at least one file'),
         assert(initialIndex >= 0 && initialIndex < files.length,
             'initialIndex out of range');
 
-  final List<WorkdirFile> files;
+  final List<ServedFile> files;
   final int initialIndex;
-  final Future<Uint8List> Function(WorkdirFile file) fetchBytes;
+  final Future<Uint8List> Function(ServedFile file) fetchBytes;
 
   /// Where the page's download affordances read each file's download and
   /// start it, shared with the file rows.
@@ -412,17 +400,16 @@ class WorkdirPreviewPage extends StatefulWidget {
 
   static Future<void> show({
     required BuildContext context,
-    required List<WorkdirFile> files,
+    required List<ServedFile> files,
     required int initialIndex,
-    required Future<Uint8List> Function(WorkdirFile file) fetchBytes,
+    required Future<Uint8List> Function(ServedFile file) fetchBytes,
     required FileDownloads downloads,
   }) {
-    assert(
-        files.isNotEmpty, 'WorkdirPreviewPage.show requires non-empty files');
+    assert(files.isNotEmpty, 'FilePreviewPage.show requires non-empty files');
     final clampedIndex = initialIndex.clamp(0, files.length - 1);
     final useDialog =
         MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
-    final child = WorkdirPreviewPage(
+    final child = FilePreviewPage(
       files: files,
       initialIndex: clampedIndex,
       fetchBytes: fetchBytes,
@@ -451,28 +438,29 @@ class WorkdirPreviewPage extends StatefulWidget {
   }
 
   @override
-  State<WorkdirPreviewPage> createState() => _WorkdirPreviewPageState();
+  State<FilePreviewPage> createState() => _FilePreviewPageState();
 }
 
-class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
+class _FilePreviewPageState extends State<FilePreviewPage> {
   late final PageController _controller =
       PageController(initialPage: widget.initialIndex);
   late int _currentIndex = widget.initialIndex;
   final _focusNode = FocusNode();
 
-  /// Per-file Future cache. Keyed by [WorkdirFile] (which implements
-  /// `==` / `hashCode`) so swiping or re-ordering never aliases bytes
-  /// across files. Lives only for this widget's lifetime, so closing
-  /// the preview frees every fetched buffer; no LRU needed.
-  final _bytesCache = <WorkdirFile, Future<Uint8List>>{};
+  /// Per-file Future cache. Keyed by the file ([WorkdirFile] and
+  /// [FileUpload] both implement `==` / `hashCode`) so swiping or
+  /// re-ordering never aliases bytes across files. Lives only for this
+  /// widget's lifetime, so closing the preview frees every fetched buffer; no
+  /// LRU needed.
+  final _bytesCache = <ServedFile, Future<Uint8List>>{};
 
   /// Per-file retry generations so [_retry] can replace the cached
   /// future when the user hits Retry on a failed slide.
-  final _retryTokens = <WorkdirFile, int>{};
+  final _retryTokens = <ServedFile, int>{};
 
-  /// Per-file image rotation in quarter turns. Keyed by [WorkdirFile] so
+  /// Per-file image rotation in quarter turns. Keyed by [ServedFile] so
   /// rotation persists while paging between files.
-  final _rotations = <WorkdirFile, int>{};
+  final _rotations = <ServedFile, int>{};
 
   final _titleSelection = _TitleSelection();
 
@@ -484,18 +472,18 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     super.dispose();
   }
 
-  Future<Uint8List> _bytesFor(WorkdirFile file) {
+  Future<Uint8List> _bytesFor(ServedFile file) {
     return _bytesCache.putIfAbsent(file, () => widget.fetchBytes(file));
   }
 
-  void _retry(WorkdirFile file) {
+  void _retry(ServedFile file) {
     setState(() {
       _bytesCache.remove(file);
       _retryTokens[file] = (_retryTokens[file] ?? 0) + 1;
     });
   }
 
-  void _rotate(WorkdirFile file) {
+  void _rotate(ServedFile file) {
     setState(() {
       _rotations[file] = ((_rotations[file] ?? 0) + 1) % 4;
     });
@@ -532,6 +520,16 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     final download = _DownloadButton(file: file, downloads: widget.downloads);
     final cannot = _CannotPreview(downloadButton: download);
     if (!kind.canRender) return cannot;
+    // A file listed over the cap is not fetched: the whole file would be
+    // held in memory only to be refused. Any file fetched is checked against
+    // the cap below, whatever its listed size.
+    if (file.sizeBytes case final size? when size > previewSizeCapBytes) {
+      return TooLargePreview(
+        byteSize: size,
+        capBytes: previewSizeCapBytes,
+        downloadButton: download,
+      );
+    }
     return FutureBuilder<Uint8List>(
       // Bumping the retry token re-keys the FutureBuilder so it sees a
       // brand-new future after [_retry] drops the cache entry.
@@ -586,14 +584,14 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   Widget _buildError(
     BuildContext context,
     Object error,
-    WorkdirFile file,
+    ServedFile file,
   ) {
     final theme = Theme.of(context);
-    // 404 is permanent for this session — the file is gone between list
-    // and preview. Retrying just refetches the same 404, so we show a
-    // dedicated "gone" state without a Retry button. The dialog's
-    // titlebar X is the way out.
-    if (error is NotFoundException) {
+    final reason = fileFetchFailureReason(error);
+    // A 404 (the file is gone between list and preview) or a 403 is
+    // permanent for this session: retrying refetches the same answer, so it
+    // shows without a Retry button. The dialog's titlebar X is the way out.
+    if (error is NotFoundException || error is PermissionDeniedException) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -604,10 +602,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: SoliplexSpacing.s3),
-            Text(
-              workdirFileUnavailable,
-              style: theme.textTheme.bodyMedium,
-            ),
+            Text(reason, style: theme.textTheme.bodyMedium),
           ],
         ),
       );
@@ -621,6 +616,13 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
           Text(
             "Couldn't load preview",
             style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: SoliplexSpacing.s1),
+          Text(
+            reason,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: SoliplexSpacing.s4),
           SoliplexButton.filled(
@@ -939,7 +941,7 @@ class _CannotPreview extends StatelessWidget {
 class _DownloadButton extends StatelessWidget {
   const _DownloadButton({required this.file, required this.downloads});
 
-  final WorkdirFile file;
+  final ServedFile file;
   final FileDownloads downloads;
 
   @override
@@ -957,8 +959,9 @@ class _DownloadButton extends StatelessWidget {
             // download leaves the reason under it in view.
             preferBelow: false,
             child: SoliplexButton.filled(
-              onPressed:
-                  downloads.canStart(file) ? () => downloads.start(file) : null,
+              onPressed: downloads.canStart(file)
+                  ? () => unawaited(startDownload(context, downloads, file))
+                  : null,
               isLoading: state is DownloadRunning,
               icon: Icon(icon),
               child: Text(label),
@@ -1012,7 +1015,7 @@ const _titleBarActionTapTarget = MaterialTapTargetSize.padded;
 class _TitleBarDownload extends StatelessWidget {
   const _TitleBarDownload({required this.file, required this.downloads});
 
-  final WorkdirFile file;
+  final ServedFile file;
   final FileDownloads downloads;
 
   @override
@@ -1034,8 +1037,9 @@ class _TitleBarDownload extends StatelessWidget {
         tooltip: label,
         visualDensity: _titleBarActionDensity,
         style: IconButton.styleFrom(tapTargetSize: _titleBarActionTapTarget),
-        onPressed:
-            downloads.canStart(file) ? () => downloads.start(file) : null,
+        onPressed: downloads.canStart(file)
+            ? () => unawaited(startDownload(context, downloads, file))
+            : null,
       );
     });
   }

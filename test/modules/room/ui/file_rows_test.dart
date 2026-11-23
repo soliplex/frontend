@@ -29,10 +29,12 @@ PersistedUpload _stored(
   bool hasDetails = true,
 }) =>
     PersistedUpload(
-      filename: name,
-      url: Uri.parse('https://example.test/$name'),
-      modifiedAt: hasDetails ? DateTime.utc(2026, 11, 5, 12) : null,
-      sizeBytes: hasDetails ? 2458 : null,
+      FileUpload(
+        filename: name,
+        url: Uri.parse('https://example.test/$name'),
+        modifiedAt: hasDetails ? DateTime.utc(2026, 11, 5, 12) : null,
+        sizeBytes: hasDetails ? 2458 : null,
+      ),
       isDeleting: isDeleting,
     );
 
@@ -40,6 +42,8 @@ Widget _upload(DisplayUpload entry, {bool canDelete = false}) => UploadEntryRow(
       entry: entry,
       onCancel: (_) {},
       onDismiss: (_) {},
+      downloads: testDownloads(),
+      onOpenPreview: (_) {},
       onDelete: canDelete ? (_) {} : null,
     );
 
@@ -231,17 +235,27 @@ void main() {
     ]);
 
     final delete = tester.getRect(find.byIcon(Icons.delete_outline));
-    final download = tester.getRect(find.byIcon(Icons.download_outlined));
+    // The stored upload's and the workspace file's.
+    final downloads = find.byIcon(Icons.download_outlined);
+    expect(downloads, findsNWidgets(2));
+    final storedDownload = tester.getRect(downloads.at(0));
+    final workspaceDownload = tester.getRect(downloads.at(1));
     final closes = find.byIcon(Icons.close);
     final cancel = tester.getRect(closes.at(0));
     final dismiss = tester.getRect(closes.at(1));
     expect(
-      {delete.right, download.right, cancel.right, dismiss.right},
+      {delete.right, workspaceDownload.right, cancel.right, dismiss.right},
       hasLength(1),
       reason: 'the trailing actions share a column',
     );
     expect(
-      {delete.size, download.size, cancel.size, dismiss.size},
+      {
+        delete.size,
+        storedDownload.size,
+        workspaceDownload.size,
+        cancel.size,
+        dismiss.size,
+      },
       hasLength(1),
       reason: 'the actions are drawn at one size',
     );

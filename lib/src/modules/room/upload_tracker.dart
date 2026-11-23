@@ -40,22 +40,11 @@ sealed class DisplayUpload {
 }
 
 class PersistedUpload extends DisplayUpload {
-  const PersistedUpload({
-    required super.filename,
-    required this.url,
-    this.modifiedAt,
-    this.sizeBytes,
-    this.isDeleting = false,
-  });
-  final Uri url;
+  PersistedUpload(this.file, {this.isDeleting = false})
+      : super(filename: file.filename);
 
-  /// When the file was last modified, in UTC, copied from the listing: `null`
-  /// when the backend did not report a usable value.
-  final DateTime? modifiedAt;
-
-  /// The file's size in bytes, copied from the listing: `null` when the
-  /// backend did not report a usable value.
-  final int? sizeBytes;
+  /// The stored file as the listing reports it.
+  final FileUpload file;
 
   /// Whether a delete of this file is waiting on the server.
   final bool isDeleting;
@@ -1023,10 +1012,7 @@ class UploadTracker {
       if (persisted != null)
         for (final f in persisted)
           PersistedUpload(
-            filename: f.filename,
-            url: f.url,
-            modifiedAt: f.modifiedAt,
-            sizeBytes: f.sizeBytes,
+            f,
             isDeleting: scope.deleting.containsKey(f.filename),
           ),
       for (final p in scope.pending)

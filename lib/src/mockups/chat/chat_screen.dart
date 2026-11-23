@@ -73,6 +73,7 @@ import '../../modules/room/ui/room_welcome.dart';
 import '../../modules/room/ui/send_error_banner.dart';
 import '../../modules/room/ui/thread_sidebar.dart';
 import '../../modules/room/ui/upload_entry_row.dart';
+import '../../modules/room/file_downloads.dart';
 import '../../modules/room/ui/upload_event_banner.dart';
 import '../../modules/room/upload_tracker.dart';
 import '../../modules/room/upload_tracker_registry.dart';
@@ -247,6 +248,12 @@ class _RoomScreenState extends State<RoomScreen> {
   // MOCKUP: the floating thread panel's stubbed state — databases, skills,
   // context usage, workspace draft. One per screen; nothing here is wired.
   final _panel = samplePanelState();
+
+  // MOCKUP: the static backend serves no file bytes, so an upload row's
+  // download reports that, and its preview opens nothing.
+  final _uploadDownloads = FileDownloads(
+    (_, __) async => const DownloadFailed('Not available in the mockup'),
+  );
 
   void _onPanelChanged() {
     if (mounted) setState(() {});
@@ -1212,6 +1219,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _panel.removeListener(_onPanelChanged);
     widget.datasets?.listenable.removeListener(_onDatasetsChanged);
     _panel.dispose();
+    _uploadDownloads.dispose();
     _chatFocusNode.dispose();
     super.dispose();
   }
@@ -2280,6 +2288,8 @@ class _RoomScreenState extends State<RoomScreen> {
                 entry: entry,
                 onCancel: _state.uploadTracker.cancelUpload,
                 onDismiss: _state.uploadTracker.dismissFailed,
+                downloads: _uploadDownloads,
+                onOpenPreview: (_) {},
               ),
           ],
         ),

@@ -109,8 +109,8 @@ List<DisplayUpload> orderUploads(List<DisplayUpload> uploads, FileSort sort) =>
         uploads.whereType<PersistedUpload>(),
         sort,
         path: (u) => u.filename,
-        modifiedAt: (u) => u.modifiedAt,
-        sizeBytes: (u) => u.sizeBytes,
+        modifiedAt: (u) => u.file.modifiedAt,
+        sizeBytes: (u) => u.file.sizeBytes,
       ),
     ];
 
