@@ -1390,8 +1390,9 @@ class SoliplexApi {
 
   /// Downloads the original PDF of a document in the room's RAG database.
   ///
-  /// The server reads it from the file the document was ingested from, so a
-  /// document ingested any other way has none.
+  /// It is the original haiku.rag stored when it ingested the document. A
+  /// document ingested before haiku.rag 0.113, whose database was not rebuilt
+  /// with `--originals`, has none; nor does one ingested from an image.
   ///
   /// Parameters:
   /// - [roomId]: The room's ID (must not be empty)
@@ -1404,9 +1405,9 @@ class SoliplexApi {
   ///
   /// Throws:
   /// - [ArgumentError] if [roomId] or [documentId] is empty
-  /// - [NotFoundException] if the document is unknown, was not ingested from
-  ///   a file on the server, or its file is gone or is not a PDF (404); and
-  ///   from a server too old to have the route
+  /// - [NotFoundException] if the document is unknown, has no stored
+  ///   original, or its original is not a PDF (404); and from a server too
+  ///   old to have the route
   /// - [AuthException] if not authenticated (401/403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors

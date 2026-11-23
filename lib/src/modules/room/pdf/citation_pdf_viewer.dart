@@ -50,9 +50,9 @@ class CitationPdfViewer extends StatefulWidget {
   final SoliplexApi api;
   final CitationPaneBuilder pane;
 
-  /// The server has no file for the document — it was not ingested from one
-  /// it can read, or the server predates the route — called with the
-  /// citation showing, so its pages can be shown another way.
+  /// The server has no PDF for the document — no original is stored for it,
+  /// the original is not a PDF, or the server predates the route — called
+  /// with the citation showing, so its pages can be shown another way.
   final void Function(SourceReference citation) onUnavailable;
 
   @override
