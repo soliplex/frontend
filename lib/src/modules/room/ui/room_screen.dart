@@ -2278,8 +2278,8 @@ class _RoomScreenState extends State<RoomScreen> {
         download: _pdfDownloadFor(target),
       );
 
-  /// [target]'s download, the one its row in the files panel shows. Null for
-  /// a link, and for an upload the room's lists do not hold (yet).
+  /// [target]'s download, the one its row in the files panel shows when a
+  /// list here holds the file. Null for a link.
   PdfDownload? _pdfDownloadFor(PdfOpenTarget target) {
     final source = fileSourceOf(target);
     final file = _listedFile(target);
@@ -2290,13 +2290,14 @@ class _RoomScreenState extends State<RoomScreen> {
     );
     return PdfDownload(
       state: () => downloads.stateOf(file),
-      start: () => unawaited(startDownload(context, downloads, file)),
+      start: (context) => unawaited(startDownload(context, downloads, file)),
     );
   }
 
   /// [target]'s file as its list reports it, which a download needs for its
   /// name and size. An upload target carries only its name, so it is looked
-  /// up.
+  /// up; one no list here holds (another room's or thread's, or a list not
+  /// loaded yet) is downloaded by its name, with no size to warn by.
   ServedFile? _listedFile(PdfOpenTarget target) {
     FileUpload? listed(UploadsStatus status, String filename) =>
         switch (status) {
@@ -2307,13 +2308,27 @@ class _RoomScreenState extends State<RoomScreen> {
             ].firstOrNull,
           _ => null,
         };
+    // Only this room's and this thread's lists are kept here; asking the
+    // tracker for another's would start one that nothing loads.
     final tracker = _state.uploadTracker;
+    final roomId = widget.roomId;
+    final threadId = widget.threadId;
     return switch (target) {
       WorkdirPdf(:final file) => file,
-      RoomUploadPdf(:final roomId, :final filename) =>
-        listed(tracker.roomUploads(roomId).peek(), filename),
-      ThreadUploadPdf(:final roomId, :final threadId, :final filename) =>
-        listed(tracker.threadUploads(roomId, threadId).peek(), filename),
+      RoomUploadPdf(roomId: final room, :final filename) when room == roomId =>
+        listed(tracker.roomUploads(roomId).peek(), filename) ??
+            _UnlistedUpload(filename),
+      ThreadUploadPdf(
+        roomId: final room,
+        threadId: final thread,
+        :final filename,
+      )
+          when room == roomId && thread == threadId =>
+        listed(tracker.threadUploads(roomId, thread).peek(), filename) ??
+            _UnlistedUpload(filename),
+      RoomUploadPdf(:final filename) ||
+      ThreadUploadPdf(:final filename) =>
+        _UnlistedUpload(filename),
       LinkPdf() => null,
     };
   }
@@ -3515,4 +3530,22 @@ class _PdfPaneDivider extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// An upload known only by its name: one segment, so its own basename, in
+/// no directory, of no reported size.
+final class _UnlistedUpload implements ServedFile {
+  const _UnlistedUpload(this.filename);
+
+  @override
+  final String filename;
+
+  @override
+  String get basename => filename;
+
+  @override
+  String? get directory => null;
+
+  @override
+  int? get sizeBytes => null;
 }

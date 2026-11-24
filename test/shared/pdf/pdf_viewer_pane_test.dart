@@ -24,6 +24,9 @@ void main() {
   late int fetches;
   late Signal<DownloadFeedbackState> downloadState;
   late int starts;
+
+  /// Where the last start was asked from.
+  BuildContext? startedFrom;
   late List<PdfSelectedText> asked;
 
   setUp(() {
@@ -31,6 +34,7 @@ void main() {
     fetches = 0;
     downloadState = Signal<DownloadFeedbackState>(const DownloadIdle());
     starts = 0;
+    startedFrom = null;
     asked = [];
   });
 
@@ -81,7 +85,10 @@ void main() {
               download: canDownload
                   ? PdfDownload(
                       state: () => downloadState.value,
-                      start: () => starts++,
+                      start: (context) {
+                        starts++;
+                        startedFrom = context;
+                      },
                     )
                   : null,
             ),
@@ -210,6 +217,22 @@ void main() {
       expect(starts, 1);
     });
 
+    testWidgets('asks to start from within the viewer, which is on screen',
+        (tester) async {
+      await pump(tester, bytesSource(sizeBytes: pdfViewerSizeCapBytes + 1));
+
+      await tester.tap(find.byTooltip('Download'));
+      await tester.pump();
+
+      final context = startedFrom!;
+      expect(context.mounted, isTrue);
+      expect(
+        context.findAncestorWidgetOfExactType<PdfViewerPane>(),
+        isNotNull,
+        reason: 'a confirm shown from here needs no screen behind the viewer',
+      );
+    });
+
     testWidgets('shows a running download on its controls, which wait',
         (tester) async {
       await pumpTooLarge(tester);
@@ -232,6 +255,17 @@ void main() {
       await tester.tap(find.byTooltip('Saved'));
       await tester.pump();
       expect(starts, 0, reason: 'a save that shows starts no second one');
+    });
+
+    testWidgets("the page's button starts nothing while a save shows",
+        (tester) async {
+      await pumpTooLarge(tester);
+      downloadState.value = const DownloadSaved();
+      await tester.pump();
+
+      await tester.tap(find.text('Saved'));
+      await tester.pump();
+      expect(starts, 0);
     });
 
     testWidgets('shows why a download failed, and retries it', (tester) async {
@@ -290,7 +324,7 @@ void main() {
       await tester.pumpWidget(
         viewer(
           bytesSource(sizeBytes: pdfViewerSizeCapBytes + 1),
-          PdfDownload(state: () => downloadState.value, start: () {}),
+          PdfDownload(state: () => downloadState.value, start: (_) {}),
         ),
       );
       await tester.pumpWidget(
@@ -299,7 +333,7 @@ void main() {
             key: 'workdir:r/t/other.pdf',
             sizeBytes: pdfViewerSizeCapBytes + 1,
           ),
-          PdfDownload(state: () => other.value, start: () {}),
+          PdfDownload(state: () => other.value, start: (_) {}),
         ),
       );
 
@@ -360,35 +394,73 @@ void main() {
         expect(find.byType(NoticePill), findsNothing);
       });
 
-      testWidgets('a retry from the viewer shows a failure that repeats',
+      testWidgets("follows another open file's download", (tester) async {
+        final other = Signal<DownloadFeedbackState>(const DownloadIdle());
+        Widget viewer(PdfViewerSource source, PdfDownload download) =>
+            MaterialApp(
+              theme: soliplexLightTheme(),
+              home: Scaffold(
+                body: PdfViewerPane(
+                  source: source,
+                  documentViewFactory: views.call,
+                  onClose: () {},
+                  download: download,
+                ),
+              ),
+            );
+        await tester.pumpWidget(
+          viewer(
+            bytesSource(),
+            PdfDownload(state: () => downloadState.value, start: (_) {}),
+          ),
+        );
+        await tester.pump();
+        views.ready();
+        await tester.pump();
+        await tester.pumpWidget(
+          viewer(
+            bytesSource(key: 'workdir:r/t/other.pdf'),
+            PdfDownload(state: () => other.value, start: (_) {}),
+          ),
+        );
+        await tester.pump();
+        views.ready();
+        await tester.pump();
+
+        other.value = DownloadFailed(reason);
+        await tester.pump();
+
+        expect(notice, findsOneWidget);
+      });
+
+      testWidgets('is not said twice on the "not a PDF" page', (tester) async {
+        await pump(tester, bytesSource());
+        await tester.pump();
+        views.last.onLoadFailed(Exception('not a PDF'), null);
+        await tester.pump();
+        downloadState.value = DownloadFailed(reason);
+        await tester.pump();
+
+        expect(find.text(reason), findsOneWidget);
+        expect(find.byType(NoticePill), findsNothing);
+      });
+
+      testWidgets('is not said twice on the password-protected page',
           (tester) async {
-        const failure = DownloadFailed("Couldn't save the file");
-        await pumpOpen(tester);
-        downloadState.value = failure;
+        await pump(tester, bytesSource());
         await tester.pump();
-        await tester.tap(
-          find.descendant(
-            of: find.byType(NoticePill),
-            matching: find.byTooltip('Dismiss'),
-          ),
-        );
+        unawaited(Future.value(views.last.passwordProvider()));
         await tester.pumpAndSettle();
-
-        await tester.tap(
-          find.byTooltip("Download failed: Couldn't save the file. "
-              'Tap to retry.'),
-        );
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        views.last.onLoadFailed(Exception('password'), null);
         await tester.pump();
-        downloadState.value = failure;
-        await tester.pumpAndSettle();
+        downloadState.value = DownloadFailed(reason);
+        await tester.pump();
 
-        expect(
-          find.widgetWithText(
-            NoticePill,
-            "Download failed: Couldn't save the file",
-          ),
-          findsOneWidget,
-        );
+        expect(find.text('report.pdf is password-protected'), findsOneWidget);
+        expect(find.text(reason), findsOneWidget);
+        expect(find.byType(NoticePill), findsNothing);
       });
 
       testWidgets('once dismissed, shows again for the next failure',

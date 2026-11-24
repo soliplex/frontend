@@ -75,6 +75,27 @@ void main() {
     });
   });
 
+  test('each failed attempt is a failure of its own', () {
+    fakeAsync((async) {
+      final downloads = FileDownloads(
+        (_, __) async => const DownloadFailed("Couldn't save the file"),
+      );
+      addTearDown(downloads.dispose);
+
+      downloads.start(a);
+      async.flushMicrotasks();
+      final first = downloads.stateOf(a);
+      downloads.start(a);
+      async.flushMicrotasks();
+      final second = downloads.stateOf(a);
+
+      expect(second, isA<DownloadFailed>());
+      expect(identical(first, second), isFalse,
+          reason: 'a failure dismissed once must not hide the next');
+      expect((second as DownloadFailed).reason, "Couldn't save the file");
+    });
+  });
+
   test('a cancelled save goes straight back to idle', () {
     fakeAsync((async) {
       final downloads =
