@@ -20,7 +20,9 @@ class AnimatedNoticePill extends StatelessWidget {
   }
 }
 
-/// A one-line notice with a close button and an optional action.
+/// A short notice with a close button and an optional action. Its message
+/// wraps to a second line rather than lose its end, and is cut only past
+/// that.
 class NoticePill extends StatelessWidget {
   const NoticePill({
     required this.icon,
@@ -67,7 +69,7 @@ class NoticePill extends StatelessWidget {
             child: Text(
               message,
               style: theme.textTheme.bodySmall?.copyWith(color: foreground),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),

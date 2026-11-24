@@ -22,6 +22,31 @@ void main() {
     expect(find.byType(SoliplexButton), findsNothing);
   });
 
+  testWidgets('wraps a message too long for one line rather than cut it',
+      (tester) async {
+    // Two lines at the viewer's narrowest, in the test font's square glyphs.
+    const message = 'Download failed now';
+    await tester.pumpWidget(_wrap(Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: 360,
+        child: NoticePill(
+          icon: Icons.error_outline,
+          background: Colors.white,
+          foreground: Colors.black,
+          message: message,
+          actionLabel: 'Retry',
+          onAction: () {},
+          onDismiss: () {},
+        ),
+      ),
+    )));
+
+    final text = tester.renderObject<RenderParagraph>(find.text(message));
+    expect(text.size.height, greaterThan(text.preferredLineHeight));
+    expect(text.didExceedMaxLines, isFalse);
+  });
+
   testWidgets('names its dismiss to a screen reader', (tester) async {
     await tester.pumpWidget(_wrap(NoticePill(
       icon: Icons.check_circle_outline,
