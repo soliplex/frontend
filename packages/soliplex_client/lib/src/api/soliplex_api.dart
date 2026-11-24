@@ -1511,7 +1511,7 @@ class SoliplexApi {
   Future<RoomPolicy?> getRoomPolicy(
     String roomId, {
     CancelToken? cancelToken,
-  }) {
+  }) async {
     _requireNonEmpty(roomId, 'roomId');
     return _transport.request<RoomPolicy?>(
       'GET',
@@ -1800,7 +1800,7 @@ class SoliplexApi {
     String filename, {
     Duration? timeout,
     CancelToken? cancelToken,
-  }) {
+  }) async {
     _requireNonEmpty(roomId, 'roomId');
     _requireUploadName(filename);
 
@@ -1845,7 +1845,7 @@ class SoliplexApi {
     String filename, {
     Duration? timeout,
     CancelToken? cancelToken,
-  }) {
+  }) async {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(threadId, 'threadId');
     _requireUploadName(filename);
@@ -2010,7 +2010,7 @@ class SoliplexApi {
     String threadId,
     String filename, {
     CancelToken? cancelToken,
-  }) {
+  }) async {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(threadId, 'threadId');
     if (!isWorkspaceFilePath(filename)) {

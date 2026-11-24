@@ -230,7 +230,7 @@ void main() {
     });
 
     test('getRoomPolicy refuses an empty room ID', () {
-      expect(() => api.getRoomPolicy(''), throwsArgumentError);
+      expect(api.getRoomPolicy(''), throwsArgumentError);
     });
 
     test('setRoomPolicy posts the whole policy', () async {

@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show ApiException, NotFoundException;
+    show ApiException, CancelledException, NotFoundException;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_source.dart';
@@ -176,6 +176,28 @@ void main() {
       expect(fetches, 1);
       expect(saved.single.$1, same(big));
     });
+
+    for (final (name, error) in [
+      ('refused', ArgumentError.value('a/b.pdf', 'filename')),
+      ('cancelled', const CancelledException(reason: 'HTTP client closed')),
+    ]) {
+      testWidgets('says so when the fetch for a download is $name',
+          (tester) async {
+        await pump(
+          tester,
+          bytesSource(
+            sizeBytes: pdfViewerSizeCapBytes + 1,
+            fetch: () async => throw error,
+          ),
+        );
+
+        await tester.tap(find.text('Download'));
+        await tester.pump();
+
+        expect(find.text("Couldn't save report.pdf."), findsOneWidget);
+        expect(saved, isEmpty);
+      });
+    }
   });
 
   group('failures', () {
@@ -213,6 +235,67 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(attempts, 2);
+      expect(views.last.bytes, _pdf);
+    });
+
+    testWidgets('a fetch refused for its address says the link is broken',
+        (tester) async {
+      await pump(
+        tester,
+        bytesSource(
+          fetch: () async => throw ArgumentError.value(
+            'a/b.pdf',
+            'filename',
+            'must be one path segment',
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text("Couldn't open report.pdf"), findsOneWidget);
+      expect(find.text('The link to it is broken.'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Download'), findsNothing);
+    });
+
+    testWidgets('a cancelled fetch offers a retry', (tester) async {
+      await pump(
+        tester,
+        bytesSource(
+          fetch: () async =>
+              throw const CancelledException(reason: 'HTTP client closed'),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text("Couldn't load report.pdf"), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
+    testWidgets('a fetch that finishes after the file changed is dropped',
+        (tester) async {
+      final stale = Completer<Uint8List>();
+      await pump(tester, bytesSource(fetch: () => stale.future));
+      await pump(tester, bytesSource(key: 'thread-upload:r/t/other.pdf'));
+      await tester.pump();
+
+      stale.complete(Uint8List.fromList([1, 2, 3]));
+      await tester.pump();
+
+      expect(views.last.bytes, _pdf);
+    });
+
+    testWidgets('a fetch that fails after the file changed is ignored',
+        (tester) async {
+      final stale = Completer<Uint8List>();
+      await pump(tester, bytesSource(fetch: () => stale.future));
+      await pump(tester, bytesSource(key: 'thread-upload:r/t/other.pdf'));
+      await tester.pump();
+
+      stale.completeError(const ApiException(message: 'late', statusCode: 500));
+      await tester.pump();
+
+      expect(find.textContaining("Couldn't"), findsNothing);
       expect(views.last.bytes, _pdf);
     });
 

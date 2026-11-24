@@ -3,8 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_client/soliplex_client.dart'
-    show CancelledException, NotFoundException;
+import 'package:soliplex_client/soliplex_client.dart' show NotFoundException;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -84,7 +83,7 @@ final class _TooLarge extends _Phase {
   final Uint8List? bytes;
 }
 
-enum _FailureKind { gone, retryable, external, notPdf, protected }
+enum _FailureKind { gone, brokenLink, retryable, external, notPdf, protected }
 
 final class _Failed extends _Phase {
   const _Failed(this.kind, {this.bytes});
@@ -163,24 +162,18 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         final Uint8List bytes;
         try {
           bytes = await fetch();
-        } on CancelledException {
-          return;
-        } on Exception catch (error, stackTrace) {
+        } on Object catch (error, stackTrace) {
           if (!mounted || generation != _generation) return;
-          // The API client's exceptions carry status codes, hosts, paths
-          // and the server's own reason, never a credential: the token
-          // travels in a header the transport does not quote.
-          _logger.warning(
-            'Fetching a PDF failed',
-            error: error,
-            stackTrace: stackTrace,
-            attributes: {'source': source.cacheKey},
-          );
+          _logFailure('Fetching a PDF failed', error, stackTrace);
           _setPhase(
             _Failed(
-              error is NotFoundException
-                  ? _FailureKind.gone
-                  : _FailureKind.retryable,
+              switch (error) {
+                NotFoundException() => _FailureKind.gone,
+                // The client refuses a name it cannot ask the server for,
+                // as a link can carry; asking again cannot help.
+                ArgumentError() => _FailureKind.brokenLink,
+                _ => _FailureKind.retryable,
+              },
             ),
           );
           return;
@@ -285,19 +278,35 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     };
     try {
       await onSave(held ?? await load.fetch(), widget.source.title);
-    } on CancelledException {
-      return;
-    } on Exception catch (error, stackTrace) {
-      // As in _load: the API client's errors carry no credential.
-      _logger.warning(
-        'Saving a PDF failed',
-        error: error,
-        stackTrace: stackTrace,
-        attributes: {'source': widget.source.cacheKey},
-      );
+    } on Object catch (error, stackTrace) {
+      _logFailure('Saving a PDF failed', error, stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text("Couldn't save ${widget.source.title}.")),
+      );
+    }
+  }
+
+  void _logFailure(String message, Object error, StackTrace stackTrace) {
+    final attributes = {'source': widget.source.cacheKey};
+    if (error is Exception) {
+      // Exceptions here come from the API client — status codes, hosts,
+      // paths and the server's own reason — or from saving a file, which
+      // name paths. Neither carries a credential: the token travels in a
+      // header the transport does not quote.
+      _logger.warning(
+        message,
+        error: error,
+        stackTrace: stackTrace,
+        attributes: attributes,
+      );
+    } else {
+      // An Error can carry the value it rejected, such as a name taken from
+      // a link; only its shape is kept.
+      _logger.warning(
+        message,
+        stackTrace: stackTrace,
+        attributes: {...attributes, 'failure': describeFailure(error)},
       );
     }
   }
@@ -392,6 +401,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
       _FailureKind.gone => (
           'This file is no longer available',
           '$title was removed or renamed.',
+        ),
+      _FailureKind.brokenLink => (
+          "Couldn't open $title",
+          'The link to it is broken.',
         ),
       _FailureKind.retryable => (
           "Couldn't load $title",

@@ -313,21 +313,21 @@ void main() {
 
     test('throws ArgumentError for empty roomId', () {
       expect(
-        () => api.getThreadWorkdirFile('', 'thread-1', 'a.txt'),
+        api.getThreadWorkdirFile('', 'thread-1', 'a.txt'),
         throwsA(isA<ArgumentError>()),
       );
     });
 
     test('throws ArgumentError for empty threadId', () {
       expect(
-        () => api.getThreadWorkdirFile('room-1', '', 'a.txt'),
+        api.getThreadWorkdirFile('room-1', '', 'a.txt'),
         throwsA(isA<ArgumentError>()),
       );
     });
 
     test('throws ArgumentError for empty filename', () {
       expect(
-        () => api.getThreadWorkdirFile('room-1', 'thread-1', ''),
+        api.getThreadWorkdirFile('room-1', 'thread-1', ''),
         throwsA(isA<ArgumentError>()),
       );
     });
@@ -337,7 +337,7 @@ void main() {
     for (final filename in ['dir/../file.txt', 'dir//file.txt']) {
       test('throws ArgumentError for "$filename"', () {
         expect(
-          () => api.getThreadWorkdirFile('room-1', 'thread-1', filename),
+          api.getThreadWorkdirFile('room-1', 'thread-1', filename),
           throwsA(
             isA<ArgumentError>().having((e) => e.name, 'name', 'filename'),
           ),

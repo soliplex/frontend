@@ -102,7 +102,7 @@ void main() {
 
     test('rejects an empty room id', () {
       expect(
-        () => api.getRoomUploadFile('', 'a.pdf'),
+        api.getRoomUploadFile('', 'a.pdf'),
         throwsA(isA<ArgumentError>()),
       );
     });
@@ -150,11 +150,11 @@ void main() {
 
     test('rejects an empty room or thread id', () {
       expect(
-        () => api.getThreadUploadFile('', 'thread-1', 'a.pdf'),
+        api.getThreadUploadFile('', 'thread-1', 'a.pdf'),
         throwsA(isA<ArgumentError>()),
       );
       expect(
-        () => api.getThreadUploadFile('room-1', '', 'a.pdf'),
+        api.getThreadUploadFile('room-1', '', 'a.pdf'),
         throwsA(isA<ArgumentError>()),
       );
     });
@@ -183,7 +183,7 @@ void main() {
 
       for (final name in ['', '.', '..', 'dir/a.pdf', '../a.pdf']) {
         test('rejects "$name"', () {
-          expect(() => fetch(name), throwsA(isA<ArgumentError>()));
+          expect(fetch(name), throwsA(isA<ArgumentError>()));
           verifyNever(
             () => mockTransport.requestBytes(
               any(),
