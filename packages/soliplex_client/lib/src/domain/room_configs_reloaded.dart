@@ -8,9 +8,9 @@ import 'package:meta/meta.dart';
 class RoomConfigsReloaded {
   /// Creates a reload result.
   const RoomConfigsReloaded({
-    this.added = const [],
-    this.removed = const [],
-    this.changed = const [],
+    required this.added,
+    required this.removed,
+    required this.changed,
   });
 
   /// Rooms the reload made available.

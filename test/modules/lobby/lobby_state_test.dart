@@ -12,6 +12,7 @@ import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/core/activity_read.dart';
 import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
+import 'package:soliplex_frontend/src/modules/lobby/room_reloads.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/stores/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/stores/thread_read_markers.dart';
@@ -982,10 +983,13 @@ void main() {
       });
     });
 
-    group('reloadRooms', () {
+    group('room reloads', () {
       late ServerManager manager;
       late FakeSoliplexApi fakeApi;
+      late RoomReloads reloads;
       late LobbyState state;
+
+      const newRoom = Room(id: 'new-room', name: 'New');
 
       setUp(() async {
         manager = _createManager();
@@ -994,74 +998,129 @@ void main() {
           serverUrl: Uri.parse('http://localhost:8000'),
           requiresAuth: false,
         );
-        fakeApi = FakeSoliplexApi()..nextRooms = const <Room>[];
-        state = LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+        fakeApi = FakeSoliplexApi()
+          ..nextRooms = const <Room>[]
+          ..nextRoomReload = const RoomConfigsReloaded(
+            added: ['new-room'],
+            removed: [],
+            changed: [],
+          );
+        reloads = RoomReloads(
+          entryResolver: (id) => manager.servers.value[id],
+          apiResolver: (_) => fakeApi,
+        );
+        state = LobbyState(
+          serverManager: manager,
+          apiResolver: (_) => fakeApi,
+          roomReloads: reloads,
+        );
         await pumpEventQueue();
       });
 
       tearDown(() => state.dispose());
 
-      test('answers the delta and re-fetches the rooms', () async {
-        const delta = RoomConfigsReloaded(added: ['new-room']);
-        const newRoom = Room(id: 'new-room', name: 'New');
-        fakeApi
-          ..nextRoomReload = delta
-          ..nextRooms = const [newRoom];
-        final fetchesBefore = fakeApi.getRoomsCallCount;
+      test('re-fetches the rooms a reload changed', () async {
+        fakeApi.nextRooms = const [newRoom];
 
-        final outcome = await state.reloadRooms('local');
+        await reloads.reload('local');
         await pumpEventQueue();
 
-        expect(outcome, isA<RoomsReloaded>());
-        expect((outcome as RoomsReloaded).delta, same(delta));
-        expect(fakeApi.getRoomsCallCount, fetchesBefore + 1);
         final rooms = state.roomsByServer.value['local'];
         expect((rooms! as RoomsLoaded).rooms, [newRoom]);
       });
 
-      test('reports busy while in flight and sends only one reload', () async {
-        final gate = Completer<void>();
-        fakeApi.roomReloadGate = gate;
-
-        final first = state.reloadRooms('local');
-        expect(state.reloadingRooms.value, {'local'});
-        final second = await state.reloadRooms('local');
-
-        expect(second, isA<RoomReloadFailed>());
-        expect(fakeApi.reloadRoomConfigsCallCount, 1);
-
-        gate.complete();
-        expect(await first, isA<RoomsReloaded>());
-        expect(state.reloadingRooms.value, isEmpty);
-      });
-
-      test('a 409 says the server must be restarted', () async {
-        fakeApi.nextRoomReloadThrow =
-            const ApiException(message: 'Conflict', statusCode: 409);
-
-        expect(await state.reloadRooms('local'), isA<RoomReloadNeedsRestart>());
-        expect(state.reloadingRooms.value, isEmpty);
-      });
-
-      test('a 403 is a refusal', () async {
-        fakeApi.nextRoomReloadThrow =
-            const PermissionDeniedException(message: 'no', statusCode: 403);
-
-        expect(await state.reloadRooms('local'), isA<RoomReloadRefused>());
-      });
-
-      test('any other failure is reported as failed, rooms left alone',
+      test('leaves the rooms alone when the server refused to reload',
           () async {
-        fakeApi.nextRoomReloadThrow =
-            const ApiException(message: 'boom', statusCode: 500);
+        fakeApi
+          ..nextRooms = const [newRoom]
+          ..nextRoomReloadThrow =
+              const ApiException(message: 'Conflict', statusCode: 409);
+
+        await reloads.reload('local');
+        await pumpEventQueue();
+
+        final rooms = state.roomsByServer.value['local'];
+        expect((rooms! as RoomsLoaded).rooms, isEmpty);
+      });
+
+      test('a disposed lobby no longer re-fetches after a reload', () async {
+        state.dispose();
         final fetchesBefore = fakeApi.getRoomsCallCount;
 
-        expect(await state.reloadRooms('local'), isA<RoomReloadFailed>());
+        await reloads.reload('local');
+        await pumpEventQueue();
+
         expect(fakeApi.getRoomsCallCount, fetchesBefore);
+        state = LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
       });
 
-      test('throws StateError when server not found', () {
-        expect(() => state.reloadRooms('nonexistent'), throwsStateError);
+      test('refreshes a lobby built while the reload was in flight', () async {
+        final gate = Completer<void>();
+        fakeApi.roomReloadGate = gate;
+        final reload = reloads.reload('local');
+        state.dispose();
+        state = LobbyState(
+          serverManager: manager,
+          apiResolver: (_) => fakeApi,
+          roomReloads: reloads,
+        );
+        await pumpEventQueue();
+        fakeApi.nextRooms = const [newRoom];
+
+        gate.complete();
+        await reload;
+        await pumpEventQueue();
+
+        final rooms = state.roomsByServer.value['local'];
+        expect((rooms! as RoomsLoaded).rooms, [newRoom]);
+      });
+
+      test('a server removed while the reload was in flight stays gone',
+          () async {
+        final gate = Completer<void>();
+        fakeApi.roomReloadGate = gate;
+        final reload = reloads.reload('local');
+        manager.removeServer('local');
+
+        gate.complete();
+        await reload;
+        await pumpEventQueue();
+
+        expect(state.roomsByServer.value, isNot(contains('local')));
+      });
+
+      test(
+          'a server signed out while the reload was in flight stays signed out',
+          () async {
+        final entry = manager.addServer(
+          serverId: 'auth-server',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+        await pumpEventQueue();
+        final gate = Completer<void>();
+        fakeApi.roomReloadGate = gate;
+        final reload = reloads.reload('auth-server');
+        entry.auth.logout();
+
+        gate.complete();
+        await reload;
+        await pumpEventQueue();
+
+        expect(
+          state.roomsByServer.value['auth-server'],
+          isA<RoomsSignedOut>(),
+        );
       });
     });
 

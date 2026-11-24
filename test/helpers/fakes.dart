@@ -293,7 +293,8 @@ class FakeSoliplexApi extends SoliplexApi {
 
   /// The answer [reloadRoomConfigs] returns. Defaults to a reload that
   /// changed nothing.
-  RoomConfigsReloaded nextRoomReload = const RoomConfigsReloaded();
+  RoomConfigsReloaded nextRoomReload =
+      const RoomConfigsReloaded(added: [], removed: [], changed: []);
 
   /// Thrown by [reloadRoomConfigs] when set.
   Object? nextRoomReloadThrow;

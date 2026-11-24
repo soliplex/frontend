@@ -24,6 +24,7 @@ import '../lobby_tab.dart';
 import '../lobby_view_mode.dart';
 import '../room_activity_format.dart';
 import '../room_grouping.dart';
+import '../room_reloads.dart';
 import 'global_threads_view.dart';
 import 'labels_view.dart';
 import 'room_card.dart';
@@ -49,6 +50,7 @@ class LobbyScreen extends StatefulWidget {
     this.apiResolver,
     this.initialServerId,
     this.threadsState,
+    this.roomReloads,
   });
 
   final ServerManager serverManager;
@@ -83,6 +85,11 @@ class LobbyScreen extends StatefulWidget {
   /// tests, where the screen makes and disposes its own.
   final GlobalThreadsState? threadsState;
 
+  /// Room config reloads. The lobby module owns them so a reload started
+  /// before opening a room still reports how it went and keeps the control
+  /// busy on return. Null in tests, where the screen makes its own.
+  final RoomReloads? roomReloads;
+
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
 }
@@ -91,6 +98,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   late final LobbyState _state;
   late final GlobalThreadsState _threadsState;
   late final LabelsState _labelsState;
+  late final RoomReloads _roomReloads;
 
   late final void Function() _unfollowThreads;
   late final void Function() _unfollowLabels;
@@ -103,6 +111,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   void initState() {
     super.initState();
+    _roomReloads = widget.roomReloads ??
+        RoomReloads(
+          entryResolver: (id) => widget.serverManager.servers.value[id],
+          apiResolver: widget.apiResolver,
+        );
     _state = LobbyState(
       serverManager: widget.serverManager,
       apiResolver: widget.apiResolver,
@@ -110,6 +123,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       roomReadMarkers: widget.roomReadMarkers,
       serverReadMarkers: widget.serverReadMarkers,
       initialServerId: widget.initialServerId,
+      roomReloads: _roomReloads,
     );
     _threadsState = widget.threadsState ??
         GlobalThreadsState(
@@ -272,12 +286,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   Future<void> _onReloadRooms(String serverId) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final outcome = await _state.reloadRooms(serverId);
-    if (!mounted || messenger == null) return;
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(roomReloadMessage(outcome))));
+    // The app's messenger outlives this screen, so a reload that ends after
+    // the user has opened a room still reports how it went.
+    final messenger = ScaffoldMessenger.of(context);
+    // Named in the message because it may end after the admin has switched
+    // to another server.
+    final server =
+        widget.serverManager.servers.value[serverId]?.listLabel ?? serverId;
+    final outcome = await _roomReloads.reload(serverId);
+    // Queued rather than replacing the current one, which may be another
+    // screen's message.
+    messenger.showSnackBar(
+      SnackBar(content: Text(roomReloadMessage(server, outcome))),
+    );
   }
 
   @override
@@ -294,7 +315,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final activityLoading = _state.activityLoading.watch(context);
     final activeTab = _state.activeTab.watch(context);
     final labelAdmins = _state.labelAdmins.watch(context);
-    final reloadingRooms = _state.reloadingRooms.watch(context);
+    final reloadingRooms = _roomReloads.reloading.watch(context);
 
     // Non-administrators get no labels tab at all rather than a
     // read-only one: every control on it is an administrator action, and
@@ -913,6 +934,8 @@ class _LobbyControls extends StatefulWidget {
   final LobbySortMode sortMode;
   final void Function(LobbySortMode) onSortModeChanged;
   final bool sortLoading;
+
+  /// The administrator's room-reload control, or null for anyone else.
   final Widget? reloadRoomsButton;
 
   @override
@@ -982,6 +1005,7 @@ class _LobbyControlsState extends State<_LobbyControls> {
             ),
           )
         : const SizedBox.shrink();
+    final reloadRoomsButton = widget.reloadRoomsButton;
 
     // The roomier labelled sort and the list/grid toggle appear together at
     // tablet width and up (isWide). Below it the sort collapses to an icon
@@ -999,9 +1023,9 @@ class _LobbyControlsState extends State<_LobbyControls> {
             viewMode: widget.viewMode,
             onChanged: widget.onViewModeChanged,
           ),
-          if (widget.reloadRoomsButton != null) ...[
+          if (reloadRoomsButton != null) ...[
             const SizedBox(width: SoliplexSpacing.s2),
-            widget.reloadRoomsButton!,
+            reloadRoomsButton,
           ],
         ],
       );
@@ -1015,7 +1039,7 @@ class _LobbyControlsState extends State<_LobbyControls> {
           onSortModeChanged: widget.onSortModeChanged,
         ),
         busy,
-        if (widget.reloadRoomsButton != null) widget.reloadRoomsButton!,
+        if (reloadRoomsButton != null) reloadRoomsButton,
       ],
     );
   }
@@ -1046,20 +1070,27 @@ class _ReloadRoomsButton extends StatelessWidget {
 
 /// What the lobby tells an administrator once a room reload has ended.
 @visibleForTesting
-String roomReloadMessage(RoomReloadOutcome outcome) => switch (outcome) {
-      RoomsReloaded(:final delta) when delta.isEmpty =>
-        'Room configs are already up to date',
-      RoomsReloaded(:final delta) => 'Rooms reloaded: ${[
-          if (delta.added.isNotEmpty) '${delta.added.length} added',
-          if (delta.removed.isNotEmpty) '${delta.removed.length} removed',
-          if (delta.changed.isNotEmpty) '${delta.changed.length} changed',
-        ].join(', ')}',
-      RoomReloadNeedsRestart() => 'This server runs several workers and '
-          'cannot reload rooms in place. Restart it to pick up room changes.',
-      RoomReloadRefused() => 'Only administrators can reload rooms',
-      RoomReloadSignedOut() => 'Sign in again to reload rooms',
-      RoomReloadFailed() => 'Could not reload rooms. Try again.',
-    };
+String roomReloadMessage(String server, RoomReloadOutcome outcome) {
+  final message = switch (outcome) {
+    RoomsReloaded(:final delta) when delta.isEmpty =>
+      'Room configs are already up to date',
+    RoomsReloaded(:final delta) => 'Rooms reloaded: ${[
+        if (delta.added.isNotEmpty) '${delta.added.length} added',
+        if (delta.removed.isNotEmpty) '${delta.removed.length} removed',
+        if (delta.changed.isNotEmpty) '${delta.changed.length} changed',
+      ].join(', ')}',
+    RoomReloadNeedsRestart() => 'This server runs several workers and '
+        'cannot reload rooms in place. Restart it to pick up room changes.',
+    RoomReloadRefused() => 'The server refused to reload rooms',
+    RoomReloadSignedOut() => 'Sign in again to reload rooms',
+    RoomReloadUnsupported() => 'This server cannot reload rooms. '
+        'Restart it to pick up room changes.',
+    RoomReloadUnreadable() => "The server's reply could not be read; "
+        'the rooms may have been reloaded.',
+    RoomReloadFailed() => 'Could not confirm the rooms were reloaded',
+  };
+  return '$server: $message';
+}
 
 class _ViewModeToggle extends StatelessWidget {
   const _ViewModeToggle({required this.viewMode, required this.onChanged});

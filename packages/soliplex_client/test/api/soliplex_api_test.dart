@@ -9053,14 +9053,20 @@ void main() {
         expect((await api.reloadRoomConfigs()).isEmpty, isTrue);
       });
 
+      const valid = {
+        'added': <String>[],
+        'removed': <String>[],
+        'changed': <String>[],
+      };
       for (final body in <Map<String, dynamic>>[
-        {'removed': <String>[], 'changed': <String>[]},
-        {'added': 'room', 'removed': <String>[], 'changed': <String>[]},
-        {
-          'added': [1],
-          'removed': <String>[],
-          'changed': <String>[],
-        },
+        for (final field in valid.keys) ...[
+          {...valid}..remove(field),
+          {...valid, field: 'room'},
+          {
+            ...valid,
+            field: [1],
+          },
+        ],
       ]) {
         test('rejects a malformed delta ($body)', () async {
           stubReload(body);

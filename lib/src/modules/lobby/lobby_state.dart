@@ -4,11 +4,9 @@ import 'package:clock/clock.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
     show
-        ApiException,
         AuthException,
         NotFoundException,
         PermissionDeniedException,
-        RoomConfigsReloaded,
         SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -27,43 +25,11 @@ import '../../stores/lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_tab.dart';
 import 'lobby_view_mode.dart';
+import 'room_reloads.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.lobby_state');
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
-
-/// How an administrator's request to reload a server's room configs ended.
-sealed class RoomReloadOutcome {
-  const RoomReloadOutcome();
-}
-
-/// The server reloaded its room configs; [delta] names the rooms it touched.
-final class RoomsReloaded extends RoomReloadOutcome {
-  const RoomsReloaded(this.delta);
-  final RoomConfigsReloaded delta;
-}
-
-/// The server runs several workers and cannot reload in place (409); it has
-/// to be restarted to pick up room changes.
-final class RoomReloadNeedsRestart extends RoomReloadOutcome {
-  const RoomReloadNeedsRestart();
-}
-
-/// The server refused the reload (403): the user is not its administrator.
-final class RoomReloadRefused extends RoomReloadOutcome {
-  const RoomReloadRefused();
-}
-
-/// The session expired; the server row now offers to sign in again.
-final class RoomReloadSignedOut extends RoomReloadOutcome {
-  const RoomReloadSignedOut();
-}
-
-/// The reload failed for any other reason (network, server error, a response
-/// this client cannot read). The failure is logged.
-final class RoomReloadFailed extends RoomReloadOutcome {
-  const RoomReloadFailed();
-}
 
 sealed class ServerRooms {
   const ServerRooms();
@@ -106,6 +72,7 @@ class LobbyState {
     RoomReadMarkers? roomReadMarkers,
     ServerReadMarkers? serverReadMarkers,
     String? initialServerId,
+    RoomReloads? roomReloads,
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver,
         _registry = registry,
@@ -139,6 +106,7 @@ class LobbyState {
     unawaited(_loadActiveTab());
     if (!_selectionInitialized) unawaited(_loadSelectedServer());
     _watchRunCompletions();
+    _roomReloadUnlisten = roomReloads?.listen(_onRoomsReloaded);
   }
 
   final ServerManager _serverManager;
@@ -164,6 +132,10 @@ class LobbyState {
 
   /// Disposer for the run-completion subscription that refreshes room activity.
   void Function()? _runCompletionUnsub;
+
+  /// Disposer for the subscription that re-fetches a server's rooms after a
+  /// reload may have changed them. Null without [RoomReloads] (tests omit it).
+  void Function()? _roomReloadUnlisten;
 
   /// Coalesces a burst of run completions into a single activity refresh.
   final Debouncer _activityRefresh =
@@ -850,83 +822,18 @@ class LobbyState {
     _fetchRooms(serverId, entry);
   }
 
-  final Signal<Set<String>> _reloadingRooms = Signal<Set<String>>({});
-
-  /// Servers whose room configs are being reloaded, so the control can show
-  /// it is busy and a second press does not send a second reload.
-  ReadonlySignal<Set<String>> get reloadingRooms => _reloadingRooms;
-
-  /// Asks [serverId] to reload its room configs from disk, then re-fetches its
-  /// rooms so the lobby shows what the reload added, removed or changed.
-  ///
-  /// Administrators only; the server enforces that, and the lobby offers the
-  /// control only where [labelAdmins] says the user is one. A reload already
-  /// in flight for [serverId] is not repeated: the call answers
-  /// [RoomReloadFailed] without asking.
-  Future<RoomReloadOutcome> reloadRooms(String serverId) async {
+  void _onRoomsReloaded(String serverId) {
+    // The server may have been removed or signed out while the reload was in
+    // flight; there is then no rooms list of its to refresh.
     final entry = _serverManager.servers.value[serverId];
-    if (entry == null) {
-      throw StateError('No server entry for "$serverId"');
-    }
-    if (_reloadingRooms.value.contains(serverId)) {
-      return const RoomReloadFailed();
-    }
-    _reloadingRooms.value = {..._reloadingRooms.value, serverId};
-    try {
-      final delta = await _apiResolver(entry).reloadRoomConfigs();
-      _logger.info(
-        'Reloaded room configs',
-        attributes: {
-          'serverId': serverId,
-          'added': delta.added,
-          'removed': delta.removed,
-          'changed': delta.changed,
-        },
-      );
-      // The server may have been removed or signed out while this was in
-      // flight; there is then no rooms list of its to refresh.
-      if (_authSubscriptions.containsKey(serverId) && entry.isConnected) {
-        _fetchRooms(serverId, entry);
-      }
-      return RoomsReloaded(delta);
-    } on AuthException {
-      // Same funnel as a rooms fetch: _onAuthChanged turns the expiry into
-      // the row's inline "sign in again".
-      entry.auth.markSessionExpired();
-      return const RoomReloadSignedOut();
-    } on PermissionDeniedException catch (e) {
-      _logger.warning(
-        'The room reload was refused',
-        attributes: {'serverId': serverId, 'statusCode': e.statusCode},
-      );
-      return const RoomReloadRefused();
-    } catch (e, st) {
-      if (e is ApiException && e.statusCode == 409) {
-        _logger.warning(
-          'The server cannot reload rooms in place; it runs several workers',
-          attributes: {'serverId': serverId, 'statusCode': e.statusCode},
-        );
-        return const RoomReloadNeedsRestart();
-      }
-      // The request carries no body and no user input, and the response is a
-      // list of room ids, so nothing a failure here can carry is a credential:
-      // a NetworkException's host, an ApiException's status and the server's
-      // own reason, or a MalformedResponseException's fixed text.
-      _logger.error(
-        'Failed to reload room configs',
-        error: e,
-        stackTrace: st,
-        attributes: {'serverId': serverId},
-      );
-      return const RoomReloadFailed();
-    } finally {
-      _reloadingRooms.value = {..._reloadingRooms.value}..remove(serverId);
-    }
+    if (entry == null || !entry.isConnected) return;
+    _fetchRooms(serverId, entry);
   }
 
   void dispose() {
     _unsubscribe();
     _runCompletionUnsub?.call();
+    _roomReloadUnlisten?.call();
     _activityRefresh.cancel();
     _cancelActivityFetch();
     for (final unsub in _authSubscriptions.values) {

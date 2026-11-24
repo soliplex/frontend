@@ -1469,14 +1469,13 @@ class SoliplexApi {
   ///   (403)
   /// - [ApiException] with `statusCode` 409 if the server runs more than one
   ///   worker: a reload would only reach the worker that took the request, so
-  ///   the installation refuses it and must be restarted instead. There is no
-  ///   dedicated conflict type; callers check the status themselves.
+  ///   the installation refuses it and must be restarted instead.
   /// - [AuthException] if not authenticated (401)
   /// - [NotFoundException] if the server has no such endpoint (404)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
-  /// - [MalformedResponseException] if `added`, `removed` or `changed` is
-  ///   missing or not a list of strings
+  /// - [MalformedResponseException] if the body is not a JSON object, or
+  ///   `added`, `removed` or `changed` is missing or not a list of strings
   /// - [CancelledException] if cancelled via [cancelToken]
   Future<RoomConfigsReloaded> reloadRoomConfigs({
     CancelToken? cancelToken,
