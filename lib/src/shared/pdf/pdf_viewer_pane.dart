@@ -28,13 +28,16 @@ const pdfViewerSizeCapBytes = 50 * 1024 * 1024;
 /// How many wrong passwords the viewer asks past before it gives up.
 const _passwordAttempts = 3;
 
-/// A file's download as the viewer shows and starts it. Its state lives with
-/// whoever opened the viewer, so a download outlives the viewer.
+/// A file's download as the viewer shows and starts it. Its state must be
+/// owned by whoever opened the viewer, so that a download outlives the
+/// viewer.
 class PdfDownload {
   const PdfDownload({required this.state, required this.start});
 
-  /// Where the download stands; read inside a `Watch`, so the viewer's
-  /// controls follow it.
+  /// Where the download stands. It must read a signal, so the viewer's
+  /// controls follow it inside a `Watch`, and report each failed attempt as
+  /// a new [DownloadFailed]: the viewer hides a dismissed failure by
+  /// identity.
   final DownloadFeedbackState Function() state;
 
   /// Starts a download, asked from [context] inside the viewer: anything it
@@ -44,7 +47,8 @@ class PdfDownload {
 }
 
 /// A PDF viewer: a header with the file's name, page, search, zoom and
-/// download controls, the document, and — while text is selected — *Ask about this*.
+/// download controls, the document, and — while text is selected —
+/// *Ask about this*.
 ///
 /// Fills whatever it is given: a pane beside the conversation, a dialog, or
 /// a page of its own. Opening another [source] replaces the document; a new
@@ -120,9 +124,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   var _passwordTries = 0;
   var _searching = false;
 
-  /// The download failure the user dismissed from the notice, so that one
-  /// stays hidden. Each failed attempt is a failure of its own, so the next
-  /// shows.
+  /// The failure last dismissed from the notice, hidden by identity while
+  /// this viewer lives. Each failed attempt is a new instance, so the next
+  /// failure shows; dismissing another file's failure, or reopening the
+  /// viewer, shows this one again.
   DownloadFailed? _dismissedFailure;
   final _query = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'PDF search');
@@ -806,8 +811,7 @@ class _HeaderDownload extends StatelessWidget {
       final state = download.state();
       final (icon, label) = state.affordance;
       return IconButton(
-        // A spinner in the icon's place keeps the button's size, so the
-        // actions after it do not move; the tooltip already names it to a
+        // A spinner in the icon's place; the tooltip already names it to a
         // screen reader.
         icon: state is DownloadRunning
             ? ExcludeSemantics(child: ProgressRing(label: label))
@@ -822,8 +826,9 @@ class _HeaderDownload extends StatelessWidget {
 /// Above the document, under the header (and the search bar while it is
 /// open), why the download failed, with a retry: the header's icon shows a
 /// failure but says why only in its tooltip. Shown until the download starts
-/// again or it is dismissed; announced to a screen reader. Keyed by the open
-/// file, for the reason [_HeaderDownload] gives.
+/// again, is cleared or is dismissed, and not where the page's own Download
+/// already says why; announced to a screen reader. Keyed by the open file,
+/// for the reason [_HeaderDownload] gives.
 class _DownloadFailureNotice extends StatelessWidget {
   const _DownloadFailureNotice({
     super.key,

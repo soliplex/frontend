@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
-/// A progress ring in a 16 px icon slot, drawn the size of an icon's shape
-/// rather than its box, so it weighs as much as the icons beside it, and
-/// named by [label] to a screen reader. Indeterminate when [value] is null.
+/// A progress ring sized for a 16 px icon slot, drawn the size of an icon's
+/// shape rather than its box, so it weighs as much as 16 px icons beside it
+/// (beside larger ones it reads smaller), and named by [label] to a screen
+/// reader. Indeterminate when [value] is null.
 class ProgressRing extends StatelessWidget {
   const ProgressRing({super.key, required this.label, this.value});
 

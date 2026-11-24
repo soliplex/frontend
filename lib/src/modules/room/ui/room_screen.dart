@@ -2308,8 +2308,8 @@ class _RoomScreenState extends State<RoomScreen> {
             ].firstOrNull,
           _ => null,
         };
-    // Only this room's and this thread's lists are kept here; asking the
-    // tracker for another's would start one that nothing loads.
+    // Only this room's and this thread's lists are loaded here; asking the
+    // tracker for another's would create an entry for it that nothing loads.
     final tracker = _state.uploadTracker;
     final roomId = widget.roomId;
     final threadId = widget.threadId;
@@ -3532,8 +3532,11 @@ class _PdfPaneDivider extends StatelessWidget {
       );
 }
 
-/// An upload known only by its name: one segment, so its own basename, in
-/// no directory, of no reported size.
+/// An upload known only by its name, taken as one path segment like any
+/// upload's (unchecked: a link can decode to a name with `/`, which the
+/// client then refuses to fetch): its own basename, in no directory, of no
+/// reported size. Not a `FileUpload`, which needs a URL this target does not
+/// carry.
 final class _UnlistedUpload implements ServedFile {
   const _UnlistedUpload(this.filename);
 

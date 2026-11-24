@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 sealed class DownloadOutcome {}
 
 /// Where a file's download stands. An outcome that shows, [DownloadSaved] or
-/// [DownloadFailed], is a state as it is.
+/// [DownloadFailed], is a state too.
 sealed class DownloadFeedbackState {}
 
 /// No download runs, and no outcome shows.

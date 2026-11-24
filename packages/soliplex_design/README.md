@@ -163,15 +163,17 @@ custom fonts actually display by visual inspection.
 ## Where feedback goes
 
 Feedback about something the user did appears where they did it, so there
-is one place to look. New code follows these rules; code from before them
-still has error snackbars and notices that are not live regions, which come
-in line as they are touched.
+is one place to look. Some screens of the Soliplex app don't follow these
+rules yet: errors shown in snackbars, notices that are not live regions, and
+the room's file-row downloads, whose failures say why only in a tooltip.
+Bring a screen in line when you change it.
 
 1. **A control still on screen shows its own outcome.** A long action shows
-   progress in the control (`isLoading` on a button, a `ProgressRing` in an
-   icon's place), then its result there: done, or failed with a way to retry.
-   A labelled control says why under it; an icon action says why in its
-   tooltip. File downloads work this way (`DownloadFeedbackState`).
+   progress in the control (`isLoading` on a button, a spinner in an icon's
+   place), then its result there: done, or failed with a way to retry. A
+   labelled control says why under it; an icon action says why in its
+   tooltip. The app's file downloads work this way (`DownloadFeedbackState`
+   and `ProgressRing`, in its `lib/src/shared/`).
 2. **Prevent rather than report.** An action that cannot succeed shows
    disabled, with the reason, before it is tried.
 3. **An outcome no control on screen can explain** (it finished in the
