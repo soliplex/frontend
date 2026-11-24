@@ -8,6 +8,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/shared/download_feedback.dart';
+import 'package:soliplex_frontend/src/shared/notice_pill.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_source.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_viewer_pane.dart';
@@ -312,6 +313,107 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Retry download'), findsOneWidget);
+    });
+
+    group('failed with the document open', () {
+      Future<void> pumpOpen(WidgetTester tester) async {
+        await pump(tester, bytesSource());
+        await tester.pump();
+        views.ready();
+        await tester.pump();
+      }
+
+      const reason = 'Server is temporarily unavailable';
+      final notice =
+          find.widgetWithText(NoticePill, 'Download failed: $reason');
+
+      testWidgets('says why under the header, and retries', (tester) async {
+        await pumpOpen(tester);
+        downloadState.value = DownloadFailed(reason);
+        await tester.pump();
+
+        expect(notice, findsOneWidget);
+        expect(
+          find.ancestor(
+            of: notice,
+            matching: find.byWidgetPredicate(
+              (w) => w is Semantics && (w.properties.liveRegion ?? false),
+            ),
+          ),
+          findsOneWidget,
+          reason: 'a screen reader hears it',
+        );
+        await tester.tap(
+          find.descendant(of: notice, matching: find.text('Retry')),
+        );
+        await tester.pump();
+        expect(starts, 1);
+      });
+
+      testWidgets('is not said twice where the page already says why',
+          (tester) async {
+        await pump(tester, bytesSource(sizeBytes: pdfViewerSizeCapBytes + 1));
+        downloadState.value = DownloadFailed(reason);
+        await tester.pump();
+
+        expect(find.text(reason), findsOneWidget);
+        expect(find.byType(NoticePill), findsNothing);
+      });
+
+      testWidgets('a retry from the viewer shows a failure that repeats',
+          (tester) async {
+        const failure = DownloadFailed("Couldn't save the file");
+        await pumpOpen(tester);
+        downloadState.value = failure;
+        await tester.pump();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NoticePill),
+            matching: find.byTooltip('Dismiss'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.byTooltip("Download failed: Couldn't save the file. "
+              'Tap to retry.'),
+        );
+        await tester.pump();
+        downloadState.value = failure;
+        await tester.pumpAndSettle();
+
+        expect(
+          find.widgetWithText(
+            NoticePill,
+            "Download failed: Couldn't save the file",
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('once dismissed, shows again for the next failure',
+          (tester) async {
+        await pumpOpen(tester);
+        downloadState.value = DownloadFailed(reason);
+        await tester.pump();
+
+        await tester.tap(
+          find.descendant(of: notice, matching: find.byTooltip('Dismiss')),
+        );
+        await tester.pumpAndSettle();
+        expect(notice, findsNothing);
+        expect(
+          find.byTooltip('Download failed: $reason. Tap to retry.'),
+          findsOneWidget,
+          reason: 'the header still shows the failure',
+        );
+
+        downloadState.value = const DownloadRunning();
+        await tester.pump();
+        downloadState.value = DownloadFailed(reason);
+        await tester.pumpAndSettle();
+        expect(notice, findsOneWidget);
+      });
     });
 
     testWidgets('is not offered without a download to start', (tester) async {
