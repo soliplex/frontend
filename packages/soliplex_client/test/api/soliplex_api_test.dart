@@ -9010,6 +9010,69 @@ void main() {
     // Installation Info
     // ============================================================
 
+    group('reloadRoomConfigs', () {
+      final reloadUrl =
+          Uri.parse('https://api.example.com/api/v1/installation/reload/rooms');
+
+      void stubReload(Map<String, dynamic> body) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'POST',
+            reloadUrl,
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => body);
+      }
+
+      test('posts to the reload endpoint and reads the delta', () async {
+        stubReload({
+          'added': ['new'],
+          'removed': <String>[],
+          'changed': ['edited', 'other'],
+        });
+
+        final delta = await api.reloadRoomConfigs();
+
+        expect(delta.added, ['new']);
+        expect(delta.removed, isEmpty);
+        expect(delta.changed, ['edited', 'other']);
+        expect(delta.isEmpty, isFalse);
+      });
+
+      test('an empty delta reads as nothing changed', () async {
+        stubReload({
+          'added': <String>[],
+          'removed': <String>[],
+          'changed': <String>[],
+        });
+
+        expect((await api.reloadRoomConfigs()).isEmpty, isTrue);
+      });
+
+      for (final body in <Map<String, dynamic>>[
+        {'removed': <String>[], 'changed': <String>[]},
+        {'added': 'room', 'removed': <String>[], 'changed': <String>[]},
+        {
+          'added': [1],
+          'removed': <String>[],
+          'changed': <String>[],
+        },
+      ]) {
+        test('rejects a malformed delta ($body)', () async {
+          stubReload(body);
+
+          expect(
+            () => api.reloadRoomConfigs(),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        });
+      }
+    });
+
     group('getIsAdminUser', () {
       for (final verdict in [true, false]) {
         test('reports the flag the server sent ($verdict)', () async {

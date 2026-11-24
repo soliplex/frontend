@@ -982,6 +982,89 @@ void main() {
       });
     });
 
+    group('reloadRooms', () {
+      late ServerManager manager;
+      late FakeSoliplexApi fakeApi;
+      late LobbyState state;
+
+      setUp(() async {
+        manager = _createManager();
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        fakeApi = FakeSoliplexApi()..nextRooms = const <Room>[];
+        state = LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+        await pumpEventQueue();
+      });
+
+      tearDown(() => state.dispose());
+
+      test('answers the delta and re-fetches the rooms', () async {
+        const delta = RoomConfigsReloaded(added: ['new-room']);
+        const newRoom = Room(id: 'new-room', name: 'New');
+        fakeApi
+          ..nextRoomReload = delta
+          ..nextRooms = const [newRoom];
+        final fetchesBefore = fakeApi.getRoomsCallCount;
+
+        final outcome = await state.reloadRooms('local');
+        await pumpEventQueue();
+
+        expect(outcome, isA<RoomsReloaded>());
+        expect((outcome as RoomsReloaded).delta, same(delta));
+        expect(fakeApi.getRoomsCallCount, fetchesBefore + 1);
+        final rooms = state.roomsByServer.value['local'];
+        expect((rooms! as RoomsLoaded).rooms, [newRoom]);
+      });
+
+      test('reports busy while in flight and sends only one reload', () async {
+        final gate = Completer<void>();
+        fakeApi.roomReloadGate = gate;
+
+        final first = state.reloadRooms('local');
+        expect(state.reloadingRooms.value, {'local'});
+        final second = await state.reloadRooms('local');
+
+        expect(second, isA<RoomReloadFailed>());
+        expect(fakeApi.reloadRoomConfigsCallCount, 1);
+
+        gate.complete();
+        expect(await first, isA<RoomsReloaded>());
+        expect(state.reloadingRooms.value, isEmpty);
+      });
+
+      test('a 409 says the server must be restarted', () async {
+        fakeApi.nextRoomReloadThrow =
+            const ApiException(message: 'Conflict', statusCode: 409);
+
+        expect(await state.reloadRooms('local'), isA<RoomReloadNeedsRestart>());
+        expect(state.reloadingRooms.value, isEmpty);
+      });
+
+      test('a 403 is a refusal', () async {
+        fakeApi.nextRoomReloadThrow =
+            const PermissionDeniedException(message: 'no', statusCode: 403);
+
+        expect(await state.reloadRooms('local'), isA<RoomReloadRefused>());
+      });
+
+      test('any other failure is reported as failed, rooms left alone',
+          () async {
+        fakeApi.nextRoomReloadThrow =
+            const ApiException(message: 'boom', statusCode: 500);
+        final fetchesBefore = fakeApi.getRoomsCallCount;
+
+        expect(await state.reloadRooms('local'), isA<RoomReloadFailed>());
+        expect(fakeApi.getRoomsCallCount, fetchesBefore);
+      });
+
+      test('throws StateError when server not found', () {
+        expect(() => state.reloadRooms('nonexistent'), throwsStateError);
+      });
+    });
+
     group('dispose', () {
       test('cancels in-flight fetches on dispose', () async {
         final manager = _createManager();

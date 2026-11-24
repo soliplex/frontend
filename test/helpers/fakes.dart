@@ -291,6 +291,29 @@ class FakeSoliplexApi extends SoliplexApi {
     return nextIsAdminUser;
   }
 
+  /// The answer [reloadRoomConfigs] returns. Defaults to a reload that
+  /// changed nothing.
+  RoomConfigsReloaded nextRoomReload = const RoomConfigsReloaded();
+
+  /// Thrown by [reloadRoomConfigs] when set.
+  Object? nextRoomReloadThrow;
+
+  /// When set, [reloadRoomConfigs] awaits this before answering, so a test can
+  /// hold a reload in flight.
+  Completer<void>? roomReloadGate;
+
+  int reloadRoomConfigsCallCount = 0;
+
+  @override
+  Future<RoomConfigsReloaded> reloadRoomConfigs({
+    CancelToken? cancelToken,
+  }) async {
+    reloadRoomConfigsCallCount++;
+    await roomReloadGate?.future;
+    if (nextRoomReloadThrow != null) throw nextRoomReloadThrow!;
+    return nextRoomReload;
+  }
+
   List<RagDocument>? nextDocuments;
   Exception? nextDocumentsError;
   String? nextMcpToken;
