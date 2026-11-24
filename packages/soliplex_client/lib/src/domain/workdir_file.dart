@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:soliplex_client/src/domain/served_file.dart';
 
 /// A file anywhere in a thread's sandbox workspace.
 ///
@@ -6,7 +7,7 @@ import 'package:meta/meta.dart';
 /// `.` or `..` segments, no NUL bytes) is enforced at parse time by the
 /// mapper, not in this constructor.
 @immutable
-class WorkdirFile {
+class WorkdirFile implements ServedFile {
   /// Creates a workdir file entry.
   const WorkdirFile({
     required this.filename,
@@ -17,14 +18,17 @@ class WorkdirFile {
 
   /// The file's path relative to the workspace root, as written by the agent
   /// (`notes.txt`, `dir/file.txt`).
+  @override
   final String filename;
 
   /// The last segment of [filename]: `file.txt` for
   /// `dir/file.txt`.
+  @override
   String get basename => filename.substring(filename.lastIndexOf('/') + 1);
 
   /// The directories above the file (`dir/sub` for
   /// `dir/sub/file.txt`), or `null` for a file at the workspace root.
+  @override
   String? get directory {
     final slash = filename.lastIndexOf('/');
     return slash == -1 ? null : filename.substring(0, slash);
@@ -39,6 +43,7 @@ class WorkdirFile {
 
   /// The file's size in bytes, or `null` when the backend did not report a
   /// usable value.
+  @override
   final int? sizeBytes;
 
   @override

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -28,8 +27,8 @@ class _ThreadFiles {
   }
 }
 
-/// Owns each thread's workspace listing and open folders, and fetches its
-/// files' bytes for the preview, for one visit to a room.
+/// Owns each thread's workspace listing and open folders, for one visit to a
+/// room.
 class WorkdirController {
   WorkdirController({
     required SoliplexApi api,
@@ -167,8 +166,9 @@ class WorkdirController {
       entry.fetchToken = null;
       // A bodiless GET with the token in a header, so a failure can carry only
       // the URL path (room and thread ids), a status code, a host, or the
-      // answering server's JSON message field: a fixed string on the workdir
-      // routes, a status phrase from a proxy answering in their place. The
+      // answering server's JSON reason: a fixed string or one naming the
+      // room on the workdir routes, a status phrase from a proxy answering
+      // in their place. The
       // transport wraps body-decode failures, so no payload window reaches
       // here.
       _logger.warning(
@@ -186,46 +186,6 @@ class WorkdirController {
     entry.signal.value = WorkdirFilesLoaded(files);
   }
 
-  /// Fetches the raw bytes for [file] without writing them to disk. Used
-  /// by the in-app preview path; the save dialog is the download path.
-  ///
-  /// [NotFoundException] is logged at debug and rethrown so the preview
-  /// FutureBuilder can render its own error state; "the file is gone" should
-  /// not look like a successful empty preview.
-  Future<Uint8List> fetchFileBytes(String threadId, WorkdirFile file) async {
-    _logger.debug(
-      'workdir preview fetch start threadId=$threadId name=${file.filename}',
-    );
-    try {
-      final bytes = await _api.getThreadWorkdirFile(
-        _roomId,
-        threadId,
-        file.filename,
-      );
-      _logger.debug(
-        'workdir file fetched for preview threadId=$threadId '
-        'name=${file.filename} bytes=${bytes.length}',
-      );
-      return bytes;
-    } on NotFoundException {
-      _logger.debug(
-        'workdir preview fetch 404 threadId=$threadId name=${file.filename}',
-      );
-      rethrow;
-    } catch (e, st) {
-      warnWorkdirFetchFailed(
-        _logger,
-        purpose: 'preview',
-        roomId: _roomId,
-        threadId: threadId,
-        file: file,
-        error: e,
-        stackTrace: st,
-      );
-      rethrow;
-    }
-  }
-
   void dispose() {
     _isDisposed = true;
     for (final entry in _threads.values) {
@@ -233,29 +193,4 @@ class WorkdirController {
     }
     _threads.clear();
   }
-}
-
-/// Logs a failed fetch of [file]'s bytes for [purpose] with the failure
-/// whole, so the record keeps its status code and the server's reason.
-void warnWorkdirFetchFailed(
-  Logger logger, {
-  required String purpose,
-  required String roomId,
-  required String threadId,
-  required WorkdirFile file,
-  required Object error,
-  required StackTrace stackTrace,
-}) {
-  // A bodiless GET with the token in a header, so a failure can carry only
-  // the URL path (room and thread ids, the file's path), a status code, a
-  // host, or the answering server's JSON message field: a fixed string on
-  // the workdir routes, a status phrase from a proxy answering in their
-  // place. The client's own ArgumentError for an empty or malformed argument
-  // names only that argument and its value: an id or the file's path.
-  logger.warning(
-    'workdir $purpose fetch failed roomId=$roomId threadId=$threadId',
-    error: error,
-    stackTrace: stackTrace,
-    attributes: {'filename': file.filename},
-  );
 }

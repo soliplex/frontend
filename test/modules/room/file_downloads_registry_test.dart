@@ -13,6 +13,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
+import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../helpers/fakes.dart' show FakeTokenRefreshService;
@@ -76,35 +77,6 @@ void main() {
     api = _MockApi();
   });
 
-  group('downloadFailureReason', () {
-    for (final (error, reason) in <(Object, String)>[
-      (
-        const NotFoundException(message: 'No workdir file'),
-        "File isn't available anymore",
-      ),
-      (const NetworkException(message: 'down'), "Couldn't reach the server"),
-      (const AuthException(message: 'expired'), 'Sign in again'),
-      (
-        const PermissionDeniedException(message: 'denied'),
-        "You don't have access to this file",
-      ),
-      (
-        const ApiException(message: 'HTTP 500', statusCode: 500),
-        'Server is temporarily unavailable',
-      ),
-      (
-        const ApiException(message: 'HTTP 499', statusCode: 499),
-        "The server couldn't send the file",
-      ),
-      (StateError('broken'), 'Something went wrong'),
-    ]) {
-      final status = error is ApiException ? ' ${error.statusCode}' : '';
-      test('${error.runtimeType}$status reads "$reason"', () {
-        expect(downloadFailureReason(error), reason);
-      });
-    }
-  });
-
   group('defaultSaveFile', () {
     late FilePickerPlatform original;
     setUp(() => original = FilePickerPlatform.instance);
@@ -131,17 +103,16 @@ void main() {
     });
   });
 
-  group('downloadWorkdirFile', () {
+  group('downloadFile', () {
     Future<DownloadOutcome> download(
       WorkdirFile file, {
       SaveFile saveFile = _saveToTmp,
       bool isWeb = false,
       bool isUnwanted = false,
     }) =>
-        downloadWorkdirFile(
+        downloadFile(
           api: api,
-          roomId: 'room-1',
-          threadId: 't',
+          source: const WorkspaceFileSource(roomId: 'room-1', threadId: 't'),
           file: file,
           saveFile: saveFile,
           isWeb: isWeb,
@@ -287,7 +258,8 @@ void main() {
           isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500),
         );
         expect(record.attributes['filename'], 'dir/output.csv');
-        expect(record.message, contains('roomId=room-1'));
+        expect(record.attributes['roomId'], 'room-1');
+        expect(record.attributes['source'], 'workspace');
       });
 
       test("a vanished file as a warning, unlike a preview's debug-level 404",
@@ -341,7 +313,7 @@ void main() {
 
         expect(
           sink.records.map((r) => r.message),
-          contains(startsWith('workdir download dropped')),
+          contains(startsWith('file download dropped')),
         );
       });
     });
@@ -374,13 +346,56 @@ void main() {
 
     FileDownloads downloads(
             {String roomId = 'room-1', String thread = 't-1'}) =>
-        registry.downloadsFor(entry: entry, roomId: roomId, threadId: thread);
+        registry.downloadsFor(
+          entry: entry,
+          source: WorkspaceFileSource(roomId: roomId, threadId: thread),
+        );
 
     test("keeps a thread's downloads, apart from other threads' and rooms'",
         () {
       expect(downloads(), same(downloads()));
       expect(downloads(thread: 't-2'), isNot(same(downloads())));
       expect(downloads(roomId: 'room-2'), isNot(same(downloads())));
+    });
+
+    test('equal sources share one FileDownloads', () {
+      // Not const: a screen builds its source anew on every build.
+      FileDownloads roomUploads() => registry.downloadsFor(
+            entry: entry,
+            source: RoomUploadSource(
+              roomId: String.fromCharCodes('room-1'.codeUnits),
+            ),
+          );
+
+      expect(roomUploads(), same(roomUploads()));
+    });
+
+    test("a thread's uploads and its workspace keep separate downloads",
+        () async {
+      final fetch = Completer<Uint8List>();
+      when(() => api.getThreadUploadFile('room-1', 't-1', 'a.txt'))
+          .thenAnswer((_) => fetch.future);
+      final uploads = registry.downloadsFor(
+        entry: entry,
+        source: const ThreadUploadSource(roomId: 'room-1', threadId: 't-1'),
+      );
+      final upload = FileUpload(
+        filename: 'a.txt',
+        url: Uri.parse('https://example.test/a.txt'),
+      );
+
+      final started = uploads.start(upload);
+
+      expect(uploads.stateOf(upload), const DownloadRunning());
+      expect(downloads().stateOf(_file('a.txt')), const DownloadIdle());
+
+      fetch.complete(Uint8List(1));
+      await started;
+
+      // Saved, so the fetch went to the thread's uploads.
+      expect(uploads.stateOf(upload), const DownloadSaved());
+      expect(saved, ['a.txt']);
+      expect(downloads().stateOf(_file('a.txt')), const DownloadIdle());
     });
 
     test("a thread's download saves the file from that thread", () async {
@@ -424,8 +439,10 @@ void main() {
         isWeb: true,
       );
       addTearDown(web.dispose);
-      final downloads =
-          web.downloadsFor(entry: entry, roomId: 'room-1', threadId: 't-1');
+      final downloads = web.downloadsFor(
+        entry: entry,
+        source: const WorkspaceFileSource(roomId: 'room-1', threadId: 't-1'),
+      );
 
       await downloads.start(_file('output.csv'));
 

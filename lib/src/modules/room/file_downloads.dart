@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
+import 'package:soliplex_client/soliplex_client.dart' show ServedFile;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.downloads');
 
-/// Result of a workdir-file download attempt.
+/// Result of a file download attempt.
 sealed class DownloadOutcome {}
 
 /// Where a file's download stands in [FileDownloads]. An outcome that
@@ -41,7 +41,7 @@ final class DownloadFailed implements DownloadOutcome, DownloadFeedbackState {
   final String reason;
 }
 
-/// Each file's download in one thread's workspace: idle, under way, then its
+/// Each file's download from one `FileSource`: idle, under way, then its
 /// outcome. A save shows for 2 s before the file is idle again; a failure
 /// shows until a retry starts or these downloads are cleared, so its reason
 /// stays to read. A save the user cancels goes straight back to idle.
@@ -56,12 +56,12 @@ class FileDownloads {
   /// rather than throw. Its `isCleared` says whether these downloads were
   /// cleared since, so nobody is left to want the file.
   final Future<DownloadOutcome> Function(
-    WorkdirFile file,
+    ServedFile file,
     bool Function() isCleared,
   ) _download;
 
   /// The files not idle, by path, so a file absent from it is idle. A path,
-  /// not the listed [WorkdirFile], so a refresh that reports the file with a
+  /// not the listed [ServedFile], so a refresh that reports the file with a
   /// new modified time or size leaves its download in place.
   final _states = Signal<Map<String, DownloadFeedbackState>>(const {});
   final _outcomeTimers = <String, Timer>{};
@@ -69,20 +69,20 @@ class FileDownloads {
 
   /// [file]'s state; read inside a `Watch`, it rebuilds when any file's
   /// download changes.
-  DownloadFeedbackState stateOf(WorkdirFile file) =>
+  DownloadFeedbackState stateOf(ServedFile file) =>
       _states.value[file.filename] ?? const DownloadIdle();
 
   /// Whether [start] would download [file]: it is idle, or its download
   /// failed, which a new one retries. Read inside a `Watch`, it rebuilds as
   /// [stateOf] does.
-  bool canStart(WorkdirFile file) => switch (stateOf(file)) {
+  bool canStart(ServedFile file) => switch (stateOf(file)) {
         DownloadIdle() || DownloadFailed() => true,
         DownloadRunning() || DownloadSaved() => false,
       };
 
   /// Downloads [file], unless its download runs or its save shows.
   /// Starts nothing once disposed, when nobody is left to want the file.
-  Future<void> start(WorkdirFile file) async {
+  Future<void> start(ServedFile file) async {
     if (_isDisposed) {
       _logger.debug(
         'download not started, its downloads cleared',
@@ -99,7 +99,7 @@ class FileDownloads {
     } catch (e, st) {
       // A broken contract, so it may carry anything: its text stays out.
       _logger.error(
-        'workdir download threw',
+        'file download threw',
         stackTrace: st,
         attributes: {
           'filename': path,

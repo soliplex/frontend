@@ -8,6 +8,7 @@ import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/stores/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
+import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
@@ -182,8 +183,10 @@ void main() {
       throwsStateError,
     );
     expect(
-      () => screen.downloadRegistry
-          .downloadsFor(entry: entry, roomId: 'room-1', threadId: 't'),
+      () => screen.downloadRegistry.downloadsFor(
+        entry: entry,
+        source: const WorkspaceFileSource(roomId: 'room-1', threadId: 't'),
+      ),
       throwsStateError,
     );
   });

@@ -292,8 +292,6 @@ void main() {
       await tester.tap(find.byIcon(Icons.folder));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('Open'), findsOneWidget,
-          reason: 'only the PDF has somewhere to open');
       await tester.tap(find.text('brief.pdf'));
       await tester.pumpAndSettle();
 

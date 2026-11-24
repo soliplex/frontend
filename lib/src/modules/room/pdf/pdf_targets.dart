@@ -1,7 +1,23 @@
-import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_client/soliplex_client.dart'
+    show ServedFile, SoliplexApi;
 
 import '../../../shared/pdf/pdf_source.dart';
+import '../file_source.dart';
 import 'pdf_quote.dart';
+
+/// The PDF viewer's target for [file], listed by [source].
+PdfOpenTarget pdfTargetFor(FileSource source, ServedFile file) =>
+    switch (source) {
+      RoomUploadSource(:final roomId) =>
+        RoomUploadPdf(roomId: roomId, filename: file.filename),
+      ThreadUploadSource(:final roomId, :final threadId) => ThreadUploadPdf(
+          roomId: roomId,
+          threadId: threadId,
+          filename: file.filename,
+        ),
+      WorkspaceFileSource(:final roomId, :final threadId) =>
+        WorkdirPdf(roomId: roomId, threadId: threadId, file: file),
+    };
 
 /// How the viewer opens [target]: room files through [api], with this
 /// client's credentials; a link as itself, with none.

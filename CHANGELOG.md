@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
-## [0.119.1+109] - 2026-11-20
+## [Unreleased]
 
 ### Added
 
@@ -26,6 +26,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `assets/packages/pdfrx/assets/pdfium.wasm` (about 5 MB, fetched the first
   time a PDF opens). A fork's web server must serve it as `application/wasm`;
   `nginx/nginx.conf` shows the caching and compression we use.
+- Uploaded files, room and thread, can be previewed and downloaded from the
+  files panel, and room uploads from the room info screen, as workspace files
+  can: tap a file to preview it (a PDF opens in the PDF viewer), or use its
+  Preview and Download actions.
+- `soliplex_client`: `SoliplexApi.getRoomUploadFile` and `getThreadUploadFile`
+  fetch an uploaded file's bytes, and `ServedFile` is the interface
+  `FileUpload` and `WorkdirFile` share (name, directory, size).
+
+### Changed
+
+- On mobile and the web, downloading a file listed over 100 MB asks first: a
+  download holds the whole file in memory before saving it, and a device
+  without enough memory for it can close the app.
+- A file listed over 5 MB is no longer fetched to preview: the preview shows
+  the too-large page straight away.
+- A preview that fails to load says why, in the words a failed download uses,
+  and a 403, like a 404, offers no Retry.
+
+## [0.119.1+109] - 2026-11-20
 
 ### Changed
 

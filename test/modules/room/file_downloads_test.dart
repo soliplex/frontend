@@ -134,7 +134,7 @@ void main() {
       final record = sink.records.singleWhere(
         (r) => r.level == LogLevel.error,
       );
-      expect(record.message, 'workdir download threw');
+      expect(record.message, 'file download threw');
       expect(record.attributes['filename'], 'a.csv');
       expect(record.attributes['failure'], isNotNull);
       expect(record.error, isNull, reason: 'its text may carry anything');
@@ -148,7 +148,7 @@ void main() {
   test('a file the listing reports anew keeps its download', () {
     fakeAsync((async) {
       final pending = Completer<DownloadOutcome>();
-      final started = <WorkdirFile>[];
+      final started = <ServedFile>[];
       final downloads = FileDownloads((file, _) {
         started.add(file);
         return pending.future;
@@ -198,7 +198,7 @@ void main() {
       LogManager.instance.minimumLevel = level;
       LogManager.instance.removeSink(sink);
     });
-    final started = <WorkdirFile>[];
+    final started = <ServedFile>[];
     final downloads = FileDownloads((file, _) async {
       started.add(file);
       return const DownloadSaved();

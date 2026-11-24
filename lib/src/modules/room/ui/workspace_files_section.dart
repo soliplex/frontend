@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
+import 'package:soliplex_client/soliplex_client.dart'
+    show ServedFile, WorkdirFile;
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/local_time_format.dart';
@@ -12,8 +13,10 @@ import '../file_sort.dart';
 import '../workdir_files_status.dart';
 import '../workspace_groups.dart';
 import 'file_list_row.dart';
+import 'file_name.dart';
+import 'file_preview/file_preview_page.dart';
+import 'file_preview/preview_kind.dart';
 import 'workdir_files.dart';
-import 'workdir_preview/preview_kind.dart';
 
 /// A section heading in the room's files panel.
 class FilePanelSectionLabel extends StatelessWidget {
@@ -58,7 +61,7 @@ class WorkspaceFilesSection extends StatelessWidget {
 
   /// Each file's download, which its row and its preview show and start.
   final FileDownloads downloads;
-  final Future<Uint8List> Function(WorkdirFile file) onFetchBytes;
+  final Future<Uint8List> Function(ServedFile file) onFetchBytes;
   final VoidCallback onRetry;
 
   /// The folders the reader has opened or closed, by path from the
@@ -71,7 +74,7 @@ class WorkspaceFilesSection extends StatelessWidget {
 
   /// Opens a PDF in the PDF viewer. Null leaves PDFs to the preview pager,
   /// which cannot show them.
-  final void Function(WorkdirFile file)? onOpenPdf;
+  final void Function(ServedFile file)? onOpenPdf;
 
   /// The levels whose contents indent fully. Past them each level indents
   /// by a little, which keeps a depth cue at every level while giving the
@@ -194,7 +197,7 @@ class WorkspaceFilesSection extends StatelessWidget {
               onOpenPdf
             )) {
               (PreviewKind.pdf, final open?) => () => open(files[i]),
-              _ => () => WorkdirPreviewPage.show(
+              _ => () => FilePreviewPage.show(
                     context: context,
                     files: files,
                     initialIndex: i,

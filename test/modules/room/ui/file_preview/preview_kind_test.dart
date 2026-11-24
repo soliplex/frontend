@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/preview_kind.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/preview_kind.dart';
 
 void main() {
   group('PreviewKind.from', () {

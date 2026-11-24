@@ -12,6 +12,7 @@ import 'package:soliplex_frontend/src/stores/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
+import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/pdf_quote.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/pending_quotes.dart';
@@ -22,6 +23,7 @@ import '../../helpers/test_server_entry.dart';
 
 const _key = (serverId: 's1', roomId: 'room', threadId: 'thread');
 const _doc = RagDocument(id: 'd1', title: 'Doc');
+const _source = WorkspaceFileSource(roomId: 'room', threadId: 'thread');
 const _quote =
     PdfQuote(text: 'a passage', documentTitle: 'a.pdf', pageNumber: 1);
 
@@ -122,8 +124,8 @@ void main() {
     return teardown;
   }
 
-  FileDownloads downloadsOf(_Wired w) => w.downloadRegistry
-      .downloadsFor(entry: w.entry, roomId: 'room', threadId: 'thread');
+  FileDownloads downloadsOf(_Wired w) =>
+      w.downloadRegistry.downloadsFor(entry: w.entry, source: _source);
 
   // Fills all six managers with state attributable to the current user.
   ({AgentRuntime runtime, UploadTracker tracker, FileDownloads downloads})
@@ -296,8 +298,8 @@ void main() {
       w.registry.register(otherKey, ManualAgentSession(otherKey));
       final otherTracker =
           w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
-      FileDownloads otherDownloads() => w.downloadRegistry
-          .downloadsFor(entry: other, roomId: 'room', threadId: 'thread');
+      FileDownloads otherDownloads() =>
+          w.downloadRegistry.downloadsFor(entry: other, source: _source);
       final otherDownloadsBefore = otherDownloads();
       w.docs.set(
           serverId: 's2', roomId: 'room', threadId: 'thread', docs: {_doc});
@@ -383,8 +385,8 @@ void main() {
       w.registry.register(otherKey, ManualAgentSession(otherKey));
       final otherTracker =
           w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
-      FileDownloads otherDownloads() => w.downloadRegistry
-          .downloadsFor(entry: other, roomId: 'room', threadId: 'thread');
+      FileDownloads otherDownloads() =>
+          w.downloadRegistry.downloadsFor(entry: other, source: _source);
       final otherDownloadsBefore = otherDownloads();
       w.docs.set(
           serverId: 's2', roomId: 'room', threadId: 'thread', docs: {_doc});

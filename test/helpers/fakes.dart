@@ -771,6 +771,34 @@ class FakeSoliplexApi extends SoliplexApi {
     return nextRoomUploads ?? const [];
   }
 
+  /// What [getRoomUploadFile] answers, by filename; a name not here is a 404.
+  final Map<String, Uint8List> roomUploadBytes = {};
+
+  @override
+  Future<Uint8List> getRoomUploadFile(
+    String roomId,
+    String filename, {
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) async =>
+      roomUploadBytes[filename] ??
+      (throw NotFoundException(message: 'No room upload: $filename'));
+
+  /// What [getThreadUploadFile] answers, by thread and filename; a pair not here
+  /// is a 404.
+  final Map<(String, String), Uint8List> threadUploadBytes = {};
+
+  @override
+  Future<Uint8List> getThreadUploadFile(
+    String roomId,
+    String threadId,
+    String filename, {
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) async =>
+      threadUploadBytes[(threadId, filename)] ??
+      (throw NotFoundException(message: 'No thread upload: $filename'));
+
   /// The room each delete was sent to, in order.
   final List<String> deletedRoomUploadRoomIds = [];
 

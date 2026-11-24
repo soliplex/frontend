@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/pdf_quote.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/pdf_targets.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_source.dart';
@@ -103,6 +104,42 @@ void main() {
         isFalse,
       );
       expect(LinkPdf(Uri.parse('https://e.com/a.pdf')).isThreadScoped, isFalse);
+    });
+  });
+
+  group('pdfTargetFor', () {
+    test('a room upload opens as that room upload', () {
+      final file =
+          FileUpload(filename: 'a.pdf', url: Uri.parse('https://x/a.pdf'));
+      expect(
+        pdfTargetFor(const RoomUploadSource(roomId: 'r'), file),
+        const RoomUploadPdf(roomId: 'r', filename: 'a.pdf'),
+      );
+    });
+
+    test('a thread upload opens as that thread upload', () {
+      final file =
+          FileUpload(filename: 'a.pdf', url: Uri.parse('https://x/a.pdf'));
+      expect(
+        pdfTargetFor(
+            const ThreadUploadSource(roomId: 'r', threadId: 't'), file),
+        const ThreadUploadPdf(roomId: 'r', threadId: 't', filename: 'a.pdf'),
+      );
+    });
+
+    test('a workspace file opens as that workspace file, titled by its name',
+        () {
+      final file = WorkdirFile(
+        filename: 'out/a.pdf',
+        url: Uri.parse('https://x/out/a.pdf'),
+        sizeBytes: 7,
+      );
+      final target = pdfTargetFor(
+        const WorkspaceFileSource(roomId: 'r', threadId: 't'),
+        file,
+      );
+      expect(target, WorkdirPdf(roomId: 'r', threadId: 't', file: file));
+      expect(target.title, 'a.pdf');
     });
   });
 

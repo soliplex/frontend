@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_client/soliplex_client.dart' show FileUpload;
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 
@@ -21,7 +22,7 @@ List<String> _sorted(List<_Entry> entries, FileSort sort) => [
     ];
 
 PersistedUpload _persisted(String name) => PersistedUpload(
-    filename: name, url: Uri.parse('https://example.test/$name'));
+    FileUpload(filename: name, url: Uri.parse('https://example.test/$name')));
 
 void main() {
   group('FileSort.tap', () {

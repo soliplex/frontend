@@ -134,8 +134,8 @@ void main() {
       final uploads =
           (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
       final persisted = uploads.single as PersistedUpload;
-      expect(persisted.modifiedAt, DateTime.utc(2026, 10, 29, 8, 15, 30));
-      expect(persisted.sizeBytes, 1234);
+      expect(persisted.file.modifiedAt, DateTime.utc(2026, 10, 29, 8, 15, 30));
+      expect(persisted.file.sizeBytes, 1234);
     });
 
     test('emits Loaded with empty list when server returns empty', () async {
@@ -464,7 +464,7 @@ void main() {
       expect(after, hasLength(1));
       expect(after.single, isA<PersistedUpload>());
       expect(
-        (after.single as PersistedUpload).url.toString(),
+        (after.single as PersistedUpload).file.url.toString(),
         'https://example.com/new',
       );
     });

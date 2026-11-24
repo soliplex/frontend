@@ -31,11 +31,15 @@ Future<void> _pump(WidgetTester tester) => tester.pumpWidget(MaterialApp(
             children: [
               UploadEntryRow(
                 entry: PersistedUpload(
-                  filename: 'stored.csv',
-                  url: Uri.parse('https://example.test/stored.csv'),
+                  FileUpload(
+                    filename: 'stored.csv',
+                    url: Uri.parse('https://example.test/stored.csv'),
+                  ),
                 ),
                 onCancel: (_) {},
                 onDismiss: (_) {},
+                downloads: testDownloads(),
+                onOpenPreview: (_) {},
               ),
               UploadEntryRow(
                 entry: FailedUpload(
@@ -45,6 +49,8 @@ Future<void> _pump(WidgetTester tester) => tester.pumpWidget(MaterialApp(
                 ),
                 onCancel: (_) {},
                 onDismiss: (_) {},
+                downloads: testDownloads(),
+                onOpenPreview: (_) {},
               ),
               WorkspaceFilesSection(
                 sort: FileSort.foldersAToZ,

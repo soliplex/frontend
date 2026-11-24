@@ -110,6 +110,7 @@ class RoomAppModule extends AppModule {
                   roomId: state.pathParameters['roomId']!,
                   toolRegistryResolver: runtimeManager.toolRegistryResolver,
                   uploadRegistry: _uploadRegistry,
+                  downloadRegistry: _downloadRegistry,
                   fileSort: fileSort,
                   appName: appName,
                   logo: logo,

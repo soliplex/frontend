@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
+import 'package:soliplex_client/soliplex_client.dart' show ServedFile;
 
 /// A PDF the room can open, by where it lives.
 ///
@@ -75,7 +75,7 @@ final class WorkdirPdf extends PdfOpenTarget {
 
   final String roomId;
   final String threadId;
-  final WorkdirFile file;
+  final ServedFile file;
 
   @override
   String get title => file.basename;

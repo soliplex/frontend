@@ -45,6 +45,8 @@ import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_state_warning_banner.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/file_preview_page.dart'
+    show FilePreviewPage;
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -507,6 +509,9 @@ void main() {
   late Signal<Map<String, ServerEntry>> servers;
   late UploadTrackerRegistry uploadRegistry;
   late FileDownloadsRegistry downloadRegistry;
+
+  /// What each download saved, by file name.
+  late Map<String, Uint8List> savedBytes;
   late FileSortPreference fileSort;
 
   setUp(() {
@@ -536,10 +541,13 @@ void main() {
     registry = RunRegistry(servers: emptyServers());
     servers = Signal({entry.serverId: entry});
     uploadRegistry = UploadTrackerRegistry(servers: servers);
+    savedBytes = {};
     downloadRegistry = FileDownloadsRegistry(
       servers: servers,
-      saveFile: ({required String fileName, required Uint8List bytes}) async =>
-          '/tmp/$fileName',
+      saveFile: ({required String fileName, required Uint8List bytes}) async {
+        savedBytes[fileName] = bytes;
+        return '/tmp/$fileName';
+      },
       isWeb: false,
     );
     fileSort = FileSortPreference();
@@ -2156,6 +2164,97 @@ void main() {
     expect(find.text('THREAD'), findsNothing,
         reason: 'empty thread scope should not render a Thread label');
     expect(find.text('shared.pdf'), findsOneWidget);
+  });
+
+  /// Opens the files panel of a room screen on [threadId], downloads its one
+  /// upload, `notes.md`, then previews it, expecting [content] from both.
+  Future<void> downloadThenPreviewNotes(
+    WidgetTester tester, {
+    required String? threadId,
+    required String content,
+  }) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    api.nextThreads = const [];
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        appName: 'Test App',
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: threadId,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        downloadRegistry: downloadRegistry,
+        fileSort: fileSort,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.folder));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Download'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Saved'), findsOneWidget);
+    expect(utf8.decode(savedBytes['notes.md']!), content);
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.byTooltip('Preview'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(FilePreviewPage),
+        matching: find.textContaining(content),
+      ),
+      findsOneWidget,
+    );
+  }
+
+  FileUpload notesUpload() => FileUpload(
+        filename: 'notes.md',
+        url: Uri.parse('https://example.com/notes.md'),
+      );
+
+  testWidgets('a room upload opens its preview and downloads', (tester) async {
+    api.nextRoom = const Room(
+      id: 'room-1',
+      name: 'Attachable',
+      acceptsRoomUploads: true,
+    );
+    api.nextRoomUploads = [notesUpload()];
+    api.roomUploadBytes['notes.md'] =
+        Uint8List.fromList(utf8.encode('Shared meeting notes'));
+
+    await downloadThenPreviewNotes(
+      tester,
+      threadId: null,
+      content: 'Shared meeting notes',
+    );
+  });
+
+  testWidgets(
+      "a thread upload previews and downloads from the thread's uploads",
+      (tester) async {
+    api.nextRoom = const Room(
+      id: 'room-1',
+      name: 'Attachable',
+      acceptsThreadUploads: true,
+    );
+    api.nextThreadUploads = [notesUpload()];
+    api.threadUploadBytes[('thread-1', 'notes.md')] =
+        Uint8List.fromList(utf8.encode('Thread notes'));
+    // A room upload of the same name, which the thread's row must not fetch.
+    api.roomUploadBytes['notes.md'] =
+        Uint8List.fromList(utf8.encode('Room notes'));
+
+    await downloadThenPreviewNotes(
+      tester,
+      threadId: 'thread-1',
+      content: 'Thread notes',
+    );
   });
 
   Future<void> openFilePanel(
