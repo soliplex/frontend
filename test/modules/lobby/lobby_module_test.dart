@@ -62,6 +62,38 @@ void main() {
       );
     });
 
+    testWidgets('hands every lobby screen the module\'s room reloads',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final module = LobbyAppModule(
+        serverManager: _createManager(),
+        identity: testIdentity(),
+        registry: RunRegistry(servers: emptyServers()),
+        roomReadMarkers: RoomReadMarkers(),
+        serverReadMarkers: ServerReadMarkers(),
+      );
+      final router = GoRouter(
+        initialLocation: '/lobby',
+        routes: [
+          ...module.build().routes,
+          GoRoute(path: '/away', builder: (_, __) => const SizedBox()),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(child: MaterialApp.router(routerConfig: router)),
+      );
+      final first = tester.widget<LobbyScreen>(find.byType(LobbyScreen));
+
+      router.go('/away');
+      await tester.pumpAndSettle();
+      router.go('/lobby');
+      await tester.pumpAndSettle();
+      final second = tester.widget<LobbyScreen>(find.byType(LobbyScreen));
+
+      expect(first.roomReloads, same(module.roomReloads));
+      expect(second.roomReloads, same(module.roomReloads));
+    });
+
     test('does not contribute a redirect', () {
       final contribution = LobbyAppModule(
         serverManager: _createManager(),

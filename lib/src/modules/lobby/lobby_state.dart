@@ -25,6 +25,7 @@ import '../../stores/lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_tab.dart';
 import 'lobby_view_mode.dart';
+import 'room_reloads.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex.lobby_state');
 
@@ -71,6 +72,7 @@ class LobbyState {
     RoomReadMarkers? roomReadMarkers,
     ServerReadMarkers? serverReadMarkers,
     String? initialServerId,
+    RoomReloads? roomReloads,
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver,
         _registry = registry,
@@ -104,6 +106,7 @@ class LobbyState {
     unawaited(_loadActiveTab());
     if (!_selectionInitialized) unawaited(_loadSelectedServer());
     _watchRunCompletions();
+    _roomReloadUnlisten = roomReloads?.listen(_onRoomsReloaded);
   }
 
   final ServerManager _serverManager;
@@ -129,6 +132,11 @@ class LobbyState {
 
   /// Disposer for the run-completion subscription that refreshes room activity.
   void Function()? _runCompletionUnsub;
+
+  /// Disposer for the subscription that re-fetches a server's rooms after a
+  /// reload may have changed them. Null when constructed without
+  /// `roomReloads`.
+  void Function()? _roomReloadUnlisten;
 
   /// Coalesces a burst of run completions into a single activity refresh.
   final Debouncer _activityRefresh =
@@ -815,9 +823,18 @@ class LobbyState {
     _fetchRooms(serverId, entry);
   }
 
+  void _onRoomsReloaded(String serverId) {
+    // The server may have been removed or signed out while the reload was in
+    // flight; there is then no rooms list of its to refresh.
+    final entry = _serverManager.servers.value[serverId];
+    if (entry == null || !entry.isConnected) return;
+    _fetchRooms(serverId, entry);
+  }
+
   void dispose() {
     _unsubscribe();
     _runCompletionUnsub?.call();
+    _roomReloadUnlisten?.call();
     _activityRefresh.cancel();
     _cancelActivityFetch();
     for (final unsub in _authSubscriptions.values) {

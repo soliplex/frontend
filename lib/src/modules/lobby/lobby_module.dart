@@ -8,6 +8,7 @@ import '../../stores/run_registry.dart';
 import '../../stores/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
 import 'global_threads_state.dart';
+import 'room_reloads.dart';
 import 'ui/lobby_screen.dart';
 
 class LobbyAppModule extends AppModule {
@@ -17,7 +18,10 @@ class LobbyAppModule extends AppModule {
     required this.registry,
     required this.roomReadMarkers,
     required this.serverReadMarkers,
-  }) : threadsState = GlobalThreadsState(
+  })  : threadsState = GlobalThreadsState(
+          entryResolver: (id) => serverManager.servers.value[id],
+        ),
+        roomReloads = RoomReloads(
           entryResolver: (id) => serverManager.servers.value[id],
         );
 
@@ -44,6 +48,10 @@ class LobbyAppModule extends AppModule {
   /// there.
   final GlobalThreadsState threadsState;
 
+  /// Room config reloads. Held here rather than by the screen so they outlive
+  /// it; see [RoomReloads].
+  final RoomReloads roomReloads;
+
   @override
   String get namespace => 'lobby';
 
@@ -61,6 +69,7 @@ class LobbyAppModule extends AppModule {
                 serverReadMarkers: serverReadMarkers,
                 initialServerId: state.uri.queryParameters['server'],
                 threadsState: threadsState,
+                roomReloads: roomReloads,
               ),
             ),
           ),

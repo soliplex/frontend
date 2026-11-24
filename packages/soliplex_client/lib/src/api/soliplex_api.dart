@@ -11,6 +11,7 @@ import 'package:soliplex_client/src/domain/file_upload.dart';
 import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
+import 'package:soliplex_client/src/domain/room_configs_reloaded.dart';
 import 'package:soliplex_client/src/domain/room_policy.dart';
 import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/run_feedback.dart';
@@ -1456,6 +1457,60 @@ class SoliplexApi {
             ),
         },
     ];
+  }
+
+  /// Reloads the installation's room configs from disk, so added, removed and
+  /// edited room configs take effect without restarting the server.
+  ///
+  /// Administrators only. Each authenticated call writes an audit record
+  /// server-side.
+  ///
+  /// Throws:
+  /// - [PermissionDeniedException] if the caller is not an administrator
+  ///   (403)
+  /// - [ApiException] with `statusCode` 409 if the server runs more than one
+  ///   worker: a reload would only reach the worker that took the request, so
+  ///   the installation refuses it and must be restarted instead.
+  /// - [AuthException] if not authenticated (401)
+  /// - [NotFoundException] if the server has no such endpoint (404)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [MalformedResponseException] if the body is not a JSON object, or
+  ///   `added`, `removed` or `changed` is missing or not a list of strings
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<RoomConfigsReloaded> reloadRoomConfigs({
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _transport.request<Map<String, dynamic>>(
+      'POST',
+      _urlBuilder.build(pathSegments: ['installation', 'reload', 'rooms']),
+      cancelToken: cancelToken,
+    );
+
+    List<String> ids(String field) {
+      final value = response[field];
+      if (value is! List) {
+        throw MalformedResponseException(
+          message: 'room reload response: expected "$field" as a list of '
+              'room ids, got ${value.runtimeType}',
+        );
+      }
+      for (final id in value) {
+        if (id is! String) {
+          throw MalformedResponseException(
+            message: 'room reload response: "$field" holds a '
+                '${id.runtimeType}, not a room id',
+          );
+        }
+      }
+      return List.unmodifiable(value.cast<String>());
+    }
+
+    return RoomConfigsReloaded(
+      added: ids('added'),
+      removed: ids('removed'),
+      changed: ids('changed'),
+    );
   }
 
   /// Whether the signed-in user is an administrator of this installation.
