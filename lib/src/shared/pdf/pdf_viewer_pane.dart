@@ -170,9 +170,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
               switch (error) {
                 NotFoundException() => _FailureKind.gone,
                 // The API client refuses an address it cannot request — an
-                // empty ID, or a name that is not one path segment — before
-                // sending anything; asking again cannot help. A RangeError is
-                // an ArgumentError too, but means a bug, not an address.
+                // empty ID, or a file name or path with a segment it will not
+                // send — before sending anything; asking again cannot help. A
+                // RangeError is an ArgumentError too, but means a bug, not an
+                // address, so it takes the default.
                 RangeError() => _FailureKind.retryable,
                 ArgumentError() => _FailureKind.badAddress,
                 _ => _FailureKind.retryable,
@@ -284,6 +285,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
       await onSave(held ?? await load.fetch(), source.title);
     } on Object catch (error, stackTrace) {
       _logFailure('Saving a PDF failed', source, error, stackTrace);
+      // Once the viewer has closed there is nobody here to tell; the record
+      // keeps the failure.
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text("Couldn't save ${source.title}.")),
@@ -298,11 +301,13 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     StackTrace stackTrace,
   ) {
     final attributes = {'source': source.cacheKey};
-    if (error is Exception) {
-      // Exceptions here come from the API client — status codes, hosts,
-      // paths and the server's own reason — or from saving a file, which
-      // name paths. Neither carries a credential: the token travels in a
-      // header the transport does not quote.
+    if (error is Exception || error is ArgumentError) {
+      // The fetches pdf_targets.dart builds call the API client: its
+      // exceptions carry status codes, hosts, paths and the server's own
+      // reason, as the token travels in a header the transport does not
+      // quote, and its ArgumentError holds the id, name or path it refused,
+      // which `source` names anyway. Saving fails with paths and platform
+      // codes. None is a credential.
       _logger.warning(
         message,
         error: error,
@@ -310,8 +315,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         attributes: attributes,
       );
     } else {
-      // Anything else — an Error above all — can carry the value it
-      // rejected, such as a name taken from a link; only its shape is kept.
+      // Anything else, an Error above all, holds text written by whoever
+      // threw it, which nothing here can vouch for; only its type is kept.
       _logger.warning(
         message,
         stackTrace: stackTrace,

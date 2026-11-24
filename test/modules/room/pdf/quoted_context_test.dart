@@ -84,6 +84,21 @@ void main() {
       expect(rest, text);
     });
 
+    test('reads a page of nine digits', () {
+      final (:quotes, rest: _) =
+          parseQuotedContext('> x\n> — big.pdf, p. 999999999\n');
+      expect(quotes.single.pageNumber, 999999999);
+    });
+
+    for (final page in ['0', '07']) {
+      test('leaves a block whose page is "$page" in the text', () {
+        final text = '> x\n> — a.pdf, p. $page\nhi';
+        final (:quotes, :rest) = parseQuotedContext(text);
+        expect(quotes, isEmpty);
+        expect(rest, text);
+      });
+    }
+
     test('leaves a block whose page runs past nine digits in the text', () {
       final text = '${formatQuotedContext([first])}'
           '> long\n> — big.pdf, p. 1234567890\nhi';
@@ -92,7 +107,7 @@ void main() {
       expect(rest, '> long\n> — big.pdf, p. 1234567890\nhi');
     });
 
-    test('leaves a block whose page does not fit an int in the text', () {
+    test('leaves a block whose page is twenty digits in the text', () {
       final text = '${formatQuotedContext([first])}'
           '> overflow\n> — big.pdf, p. 99999999999999999999\nhi';
       final (:quotes, :rest) = parseQuotedContext(text);

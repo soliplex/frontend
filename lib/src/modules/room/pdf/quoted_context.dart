@@ -9,10 +9,10 @@ String collapseWhitespace(String text) =>
 
 /// The line that closes each quote block: `> — <file>, p. <page>`. The file
 /// is matched greedily, so a title that itself holds ", p. " still parses.
-/// The page is at most nine digits, past any real document, so it parses
-/// exactly everywhere: a long enough run overflows an `int` on native and
-/// loses precision on the web.
-final _attribution = RegExp(r'^> — (.+), p\. (\d{1,9})$');
+/// The page is written as [formatQuotedContext] writes one: no leading zero,
+/// and at most nine digits, past any real document. Unbounded, `int.parse`
+/// throws on native past 2^63 − 1 and rounds on the web past 2^53.
+final _attribution = RegExp(r'^> — (.+), p\. ([1-9]\d{0,8})$');
 
 /// [quotes] as markdown quote blocks, each closed by an attribution line
 /// naming its file and page and followed by a blank line; empty for none.

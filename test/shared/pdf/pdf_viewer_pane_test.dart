@@ -244,28 +244,6 @@ void main() {
         expect(find.text("Couldn't save first.pdf."), findsOneWidget);
       });
     });
-
-    testWidgets('a download that fails after the viewer closed shows nothing',
-        (tester) async {
-      final pending = Completer<Uint8List>();
-      await pump(
-        tester,
-        bytesSource(
-          sizeBytes: pdfViewerSizeCapBytes + 1,
-          fetch: () => pending.future,
-        ),
-      );
-      await tester.tap(find.text('Download'));
-      await tester.pump();
-      await tester.pumpWidget(const SizedBox());
-
-      pending.completeError(
-        const ApiException(message: 'boom', statusCode: 500),
-      );
-      await tester.pump();
-
-      expect(tester.takeException(), isNull);
-    });
   });
 
   group('failures', () {
@@ -431,30 +409,48 @@ void main() {
 
     tearDown(LogManager.instance.reset);
 
-    final refused = ArgumentError.value(
-      'secret-name/x.pdf',
-      'filename',
-      'must be one path segment',
-    );
-
     LogRecord recordOf(String message) =>
         sink.records.where((record) => record.message == message).single;
 
-    testWidgets('keeps only the shape of an Error from a fetch',
+    testWidgets('keeps the whole of an address the client refuses',
         (tester) async {
-      await pump(tester, bytesSource(fetch: () async => throw refused));
+      final refused = ArgumentError.value(
+        'a/b.pdf',
+        'filename',
+        'must be one path segment',
+      );
+      await pump(
+        tester,
+        bytesSource(
+          key: 'room-upload:r/a/b.pdf',
+          fetch: () async => throw refused,
+        ),
+      );
+      await tester.pump();
+
+      final record = recordOf('Fetching a PDF failed');
+      expect(record.error, same(refused));
+      expect(
+          record.attributes, containsPair('source', 'room-upload:r/a/b.pdf'));
+    });
+
+    testWidgets('keeps only the type of any other Error', (tester) async {
+      await pump(
+        tester,
+        bytesSource(
+          fetch: () async => throw StateError('text its thrower wrote'),
+        ),
+      );
       await tester.pump();
 
       final record = recordOf('Fetching a PDF failed');
       expect(record.error, isNull);
       expect(record.stackTrace, isNotNull);
+      expect(record.attributes, containsPair('failure', 'StateError'));
       expect(
-        record.attributes,
-        containsPair('source', 'thread-upload:r/t/report.pdf'),
+        '${record.message} ${record.attributes}',
+        isNot(contains('text its thrower wrote')),
       );
-      expect(record.attributes, contains('failure'));
-      expect('${record.message} ${record.attributes}',
-          isNot(contains('secret-name')));
     });
 
     testWidgets('keeps the whole of an API exception from a fetch',
@@ -471,23 +467,32 @@ void main() {
       );
     });
 
-    testWidgets('keeps only the shape of an Error from a download',
-        (tester) async {
+    testWidgets(
+        'a download that fails after the viewer closed is logged, as the '
+        'file it started on', (tester) async {
+      const error = ApiException(message: 'boom', statusCode: 500);
+      final pending = Completer<Uint8List>();
       await pump(
         tester,
         bytesSource(
+          key: 'room-upload:r/first.pdf',
           sizeBytes: pdfViewerSizeCapBytes + 1,
-          fetch: () async => throw refused,
+          fetch: () => pending.future,
         ),
       );
       await tester.tap(find.text('Download'));
       await tester.pump();
+      await pump(tester, bytesSource());
+      await tester.pumpWidget(const SizedBox());
 
+      pending.completeError(error);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
       final record = recordOf('Saving a PDF failed');
-      expect(record.error, isNull);
-      expect(record.attributes, contains('failure'));
-      expect('${record.message} ${record.attributes}',
-          isNot(contains('secret-name')));
+      expect(record.error, same(error));
+      expect(
+          record.attributes, containsPair('source', 'room-upload:r/first.pdf'));
     });
   });
 
