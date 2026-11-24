@@ -22,18 +22,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   a chip or a card reopens the PDF at its page.
 - **View source PDF** on a citation opens the cited document itself in the
   PDF viewer, at the cited passage: the cited chunks' paragraphs are
-  highlighted and outlined, over a fainter wash on the rest of the context the
-  answer drew on. A strip names the citation and steps between the thread's
-  other citations of the same document. The passage is marked a paragraph or
-  block at a time, never finer. This needs a server with the document file
-  and boxes routes; a document the server has no file for (one not ingested
-  from a file on the server) shows its rendered pages, as before.
+  highlighted and outlined. A strip names the citation and steps between the
+  thread's other citations of the same document. The passage is marked a
+  paragraph or block at a time, never finer. This needs a server with the
+  document file and boxes routes; a document the server has no PDF for (no
+  stored original, or one that is not a PDF) shows its rendered pages, as
+  before.
+- **Only cited pages:** a cited PDF opens showing just the pages its
+  citations in the thread come from; the header says how many. A **View**
+  menu turns that off, and offers **Show context** (a fainter wash on the
+  rest of what the answer drew on) and **Show indexed text** (a frame on
+  every block the server indexed, to spot text the LLM can't find). Search
+  still covers the whole document: going to a match on a hidden page shows
+  every page.
 - **OCR text** for scanned pages of a cited PDF. Where a page has no text of
-  its own, a toggle in the viewer's header frames the paragraphs the server
-  read from the scan when it ingested it; tapping one shows its text to
-  select, copy, or ask about. Text is recovered a paragraph at a time, so it
-  is not selected by dragging across the page. This needs a server with the
-  document text route.
+  its own, tapping a paragraph shows the text the server read from the scan
+  when it ingested it, to select, copy, or ask about; a line under the header
+  says so. Text is recovered a paragraph at a time, so it is not selected by
+  dragging across the page. This needs a server with the document text
+  route.
 - Highlight colours for marks on a document page (`PaperHighlights` in
   `soliplex_design`), kept legible on the always-white page in both themes.
 - **Library consumers:** the viewer renders with PDFium, which on the web is

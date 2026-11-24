@@ -62,7 +62,8 @@ void main() {
     Widget? banner,
     bool canAsk = true,
     bool canSave = true,
-    Future<List<PdfTextBlock>> Function()? loadOcrText,
+    Future<List<PdfTextBlock>> Function()? loadIndexedText,
+    Set<int>? citedPages,
   }) =>
       tester.pumpWidget(
         MaterialApp(
@@ -79,7 +80,8 @@ void main() {
               onSave: canSave
                   ? (bytes, name) async => saved.add((bytes, name))
                   : null,
-              loadOcrText: loadOcrText,
+              loadIndexedText: loadIndexedText,
+              citedPages: citedPages,
             ),
           ),
         ),
@@ -518,7 +520,12 @@ void main() {
       await pump(tester, bytesSource(), passage: second);
       await pump(tester, bytesSource());
 
-      expect(views.document.passages, [first, second, null]);
+      // Context is left out until Show context is on.
+      expect(views.document.passages, [
+        first,
+        PdfPassage(anchor: second.anchor),
+        null,
+      ]);
       expect(fetches, 1, reason: 'not fetched again');
     });
 
@@ -551,7 +558,146 @@ void main() {
     });
   });
 
-  group('OCR text', () {
+  /// The View menu's entry for [label]: the item takes the tap, not its
+  /// text.
+  Finder menuItem(String label) => find.ancestor(
+        of: find.text(label),
+        matching: find.byType(CheckedPopupMenuItem<VoidCallback>),
+      );
+
+  group('view options', () {
+    const passage = PdfPassage(
+      anchor: [
+        PdfPassageBox(page: 3, left: 10, top: 500, right: 300, bottom: 450),
+      ],
+      context: [
+        PdfPassageBox(page: 3, left: 10, top: 600, right: 300, bottom: 510),
+      ],
+    );
+
+    Future<void> open(
+      WidgetTester tester, {
+      Set<int>? citedPages = const {2, 4},
+      PdfPassage? passage = passage,
+      Future<List<PdfTextBlock>> Function()? load,
+    }) async {
+      await pump(
+        tester,
+        bytesSource(),
+        passage: passage,
+        citedPages: citedPages,
+        loadIndexedText: load,
+      );
+      await tester.pump();
+      views.ready();
+      await tester.pump();
+    }
+
+    Future<void> toggle(WidgetTester tester, String label) async {
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(menuItem(label));
+      await tester.pumpAndSettle();
+    }
+
+    bool? checked(WidgetTester tester, String label) => tester
+        .widget<CheckedPopupMenuItem<VoidCallback>>(
+          find.ancestor(
+            of: find.text(label),
+            matching: find.byType(CheckedPopupMenuItem<VoidCallback>),
+          ),
+        )
+        .checked;
+
+    testWidgets('shows only the cited pages, and the passage, by default',
+        (tester) async {
+      await open(tester);
+
+      // The passage's own page joins the citations'.
+      expect(views.document.onlyPages, [
+        {2, 3, 4},
+      ]);
+      expect(find.textContaining('3 cited pages shown'), findsOneWidget);
+      expect(
+        views.document.passages.single,
+        PdfPassage(anchor: passage.anchor),
+      );
+    });
+
+    testWidgets('lists what the document offers, with its defaults',
+        (tester) async {
+      await open(tester, load: () async => const []);
+
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+
+      expect(checked(tester, 'Only cited pages'), isTrue);
+      expect(checked(tester, 'Show context'), isFalse);
+      expect(checked(tester, 'Show indexed text'), isFalse);
+    });
+
+    testWidgets('shows every page once Only cited pages is off',
+        (tester) async {
+      await open(tester);
+
+      await toggle(tester, 'Only cited pages');
+      expect(views.document.onlyPages.last, isNull);
+      expect(find.textContaining('cited pages shown'), findsNothing);
+
+      await toggle(tester, 'Only cited pages');
+      expect(views.document.onlyPages.last, {2, 3, 4});
+    });
+
+    testWidgets('Show context marks it without moving the view',
+        (tester) async {
+      await open(tester);
+
+      await toggle(tester, 'Show context');
+
+      expect(views.document.passages.last, passage);
+      expect(views.document.reveals.last, isFalse);
+    });
+
+    testWidgets('follows the document showing every page for a search',
+        (tester) async {
+      await open(tester);
+
+      // As the document does when going to a match on a hidden page.
+      views.document.report(
+        views.document.status.value.copyWith(onlyPages: () => null),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      expect(checked(tester, 'Only cited pages'), isFalse);
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+
+      // A new passage, stepping to another citation, keeps every page.
+      await pump(
+        tester,
+        bytesSource(),
+        passage: const PdfPassage(
+          anchor: [
+            PdfPassageBox(page: 2, left: 0, top: 1, right: 1, bottom: 0),
+          ],
+        ),
+        citedPages: const {2, 4},
+      );
+      expect(views.document.onlyPages.last, isNull);
+    });
+
+    testWidgets('offers no View menu where there is nothing to choose',
+        (tester) async {
+      await open(tester, citedPages: null, passage: null);
+
+      expect(find.byTooltip('View'), findsNothing);
+      expect(views.document.onlyPages, [null]);
+    });
+  });
+
+  group('indexed text', () {
     const heading = PdfTextBlock(
       box: PdfPassageBox(page: 1, left: 10, top: 760, right: 200, bottom: 740),
       text: 'Chunking',
@@ -561,13 +707,15 @@ void main() {
       text: 'Keep chunks large\nenough to carry their definitions.',
     );
     const scanned = PdfViewStatus(pageNumber: 1, textlessPages: {1});
+    const hint =
+        'Scanned pages: tap a paragraph to read, copy or ask about its text';
 
-    late int ocrLoads;
+    late int loads;
 
-    setUp(() => ocrLoads = 0);
+    setUp(() => loads = 0);
 
-    Future<List<PdfTextBlock>> loadOcr() async {
-      ocrLoads++;
+    Future<List<PdfTextBlock>> loadText() async {
+      loads++;
       return const [heading, paragraph];
     }
 
@@ -580,7 +728,7 @@ void main() {
       await pump(
         tester,
         bytesSource(),
-        loadOcrText: load ?? loadOcr,
+        loadIndexedText: load ?? loadText,
         canAsk: canAsk,
       );
       await tester.pump();
@@ -589,67 +737,79 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('is offered once a page has no text of its own',
-        (tester) async {
-      await pump(tester, bytesSource(), loadOcrText: loadOcr);
-      await tester.pump();
-      views.ready();
-      await tester.pump();
-      expect(find.byTooltip('Show OCR text'), findsNothing);
+    Future<void> toggleIndexed(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(menuItem('Show indexed text'));
+      await tester.pumpAndSettle();
+    }
 
-      views.document.report(scanned);
-      await tester.pump();
-      expect(find.byTooltip('Show OCR text'), findsOneWidget);
-    });
-
-    testWidgets('is not offered without OCR text', (tester) async {
-      await pump(tester, bytesSource());
-      await tester.pump();
-      views.ready();
-      views.document.report(scanned);
-      await tester.pump();
-
-      expect(find.byTooltip('Show OCR text'), findsNothing);
-    });
-
-    testWidgets('shows the blocks, fetched once, and hides them',
+    testWidgets('makes a scanned page tappable, unframed, with the hint',
         (tester) async {
       await open(tester);
 
-      const hint = 'Tap or click a box to read, copy or ask about its text';
-      expect(find.text(hint), findsNothing);
-
-      await tester.tap(find.byTooltip('Show OCR text'));
-      await tester.pump();
+      expect(loads, 1);
       expect(views.document.textBlocks.last.blocks, [heading, paragraph]);
+      expect(views.document.textBlocks.last.framed, isFalse);
       expect(find.text(hint), findsOneWidget);
+    });
 
-      await tester.tap(find.byTooltip('Hide OCR text'));
-      await tester.pump();
-      expect(views.document.textBlocks.last.blocks, isNull);
+    testWidgets('waits for a page without text of its own', (tester) async {
+      await open(tester, status: const PdfViewStatus(pageNumber: 1));
+
+      expect(loads, 0);
       expect(find.text(hint), findsNothing);
 
-      await tester.tap(find.byTooltip('Show OCR text'));
+      views.document.report(scanned);
       await tester.pump();
-      expect(views.document.textBlocks.last.blocks, [heading, paragraph]);
-      expect(ocrLoads, 1, reason: 'kept once fetched');
+      expect(loads, 1);
+      expect(find.text(hint), findsOneWidget);
     });
 
-    testWidgets('spins while fetching', (tester) async {
-      final pending = Completer<List<PdfTextBlock>>();
-      await open(tester, load: () => pending.future);
+    testWidgets('frames every block while Show indexed text is on',
+        (tester) async {
+      await open(tester, status: const PdfViewStatus(pageNumber: 1));
 
-      await tester.tap(find.byTooltip('Show OCR text'));
-      await tester.pump();
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await toggleIndexed(tester);
+      expect(views.document.textBlocks.last.framed, isTrue);
+      expect(find.text(hint), findsNothing, reason: 'no scanned page');
 
-      pending.complete(const [heading]);
-      await tester.pump();
-      expect(find.byType(CircularProgressIndicator), findsNothing);
-      expect(views.document.textBlocks.single.blocks, [heading]);
+      await toggleIndexed(tester);
+      expect(views.document.textBlocks.last.framed, isFalse);
+      expect(loads, 1, reason: 'kept once fetched');
     });
 
-    testWidgets('says so when the text cannot be fetched', (tester) async {
+    testWidgets('says so when Show indexed text cannot be had', (tester) async {
+      await open(
+        tester,
+        status: const PdfViewStatus(pageNumber: 1),
+        load: () async => throw const ApiException(
+          message: 'boom',
+          statusCode: 500,
+        ),
+      );
+
+      await toggleIndexed(tester);
+
+      expect(find.text("Couldn't load the indexed text."), findsOneWidget);
+      expect(views.document.textBlocks, isEmpty);
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<CheckedPopupMenuItem<VoidCallback>>(
+              find.ancestor(
+                of: find.text('Show indexed text'),
+                matching: find.byType(CheckedPopupMenuItem<VoidCallback>),
+              ),
+            )
+            .checked,
+        isFalse,
+      );
+    });
+
+    testWidgets('a scan whose text cannot be had stays as it is',
+        (tester) async {
       await open(
         tester,
         load: () async => throw const ApiException(
@@ -658,19 +818,16 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byTooltip('Show OCR text'));
+      expect(find.text(hint), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+      views.document.report(scanned.copyWith(pageNumber: 2));
       await tester.pump();
-
-      expect(find.text("Couldn't load the OCR text."), findsOneWidget);
-      expect(views.document.textBlocks, isEmpty);
-      expect(find.byTooltip('Show OCR text'), findsOneWidget);
+      expect(views.document.textBlocks, isEmpty, reason: 'not tried again');
     });
 
     testWidgets('shows the blocks again in a reopened document',
         (tester) async {
       await open(tester);
-      await tester.tap(find.byTooltip('Show OCR text'));
-      await tester.pump();
 
       views.last.onReady(views.document);
       await tester.pump();
@@ -679,27 +836,7 @@ void main() {
       expect(views.document.textBlocks.last.blocks, [heading, paragraph]);
     });
 
-    testWidgets('another document starts with them hidden', (tester) async {
-      await open(tester);
-      await tester.tap(find.byTooltip('Show OCR text'));
-      await tester.pump();
-
-      await pump(
-        tester,
-        bytesSource(key: 'thread-upload:r/t/other.pdf'),
-        loadOcrText: loadOcr,
-      );
-      await tester.pump();
-      views.ready();
-      await tester.pump();
-
-      expect(find.byTooltip('Show OCR text'), findsOneWidget);
-      expect(views.document.textBlocks, hasLength(1));
-    });
-
     Future<void> tapBlock(WidgetTester tester, PdfTextBlock block) async {
-      await tester.tap(find.byTooltip('Show OCR text'));
-      await tester.pump();
       views.last.onTextBlockTap!(block);
       await tester.pumpAndSettle();
     }
@@ -806,6 +943,11 @@ void main() {
         const PdfViewStatus().copyWith(textlessPages: {2}).textlessPages,
         {2},
       );
+      final only = const PdfViewStatus().copyWith(onlyPages: () => {1, 3});
+      expect(only, const PdfViewStatus(onlyPages: {3, 1}));
+      expect(only.hashCode, const PdfViewStatus(onlyPages: {3, 1}).hashCode);
+      expect(only, isNot(const PdfViewStatus()));
+      expect(only.copyWith(pageNumber: 2).onlyPages, {1, 3});
     });
   });
 }

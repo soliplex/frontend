@@ -16,6 +16,7 @@ class PdfViewStatus {
     this.matchCount = 0,
     this.currentMatch,
     this.textlessPages = const {},
+    this.onlyPages,
   });
 
   /// The page in view, 1-based; null until the document has laid out.
@@ -37,6 +38,9 @@ class PdfViewStatus {
   /// the document opens, so this grows as they are.
   final Set<int> textlessPages;
 
+  /// The only pages shown, 1-based; null when every page is.
+  final Set<int>? onlyPages;
+
   PdfViewStatus copyWith({
     int? pageNumber,
     int? pageCount,
@@ -45,6 +49,7 @@ class PdfViewStatus {
     int? matchCount,
     int? Function()? currentMatch,
     Set<int>? textlessPages,
+    Set<int>? Function()? onlyPages,
   }) =>
       PdfViewStatus(
         pageNumber: pageNumber ?? this.pageNumber,
@@ -54,6 +59,7 @@ class PdfViewStatus {
         matchCount: matchCount ?? this.matchCount,
         currentMatch: currentMatch == null ? this.currentMatch : currentMatch(),
         textlessPages: textlessPages ?? this.textlessPages,
+        onlyPages: onlyPages == null ? this.onlyPages : onlyPages(),
       );
 
   @override
@@ -65,7 +71,8 @@ class PdfViewStatus {
       other.searching == searching &&
       other.matchCount == matchCount &&
       other.currentMatch == currentMatch &&
-      setEquals(other.textlessPages, textlessPages);
+      setEquals(other.textlessPages, textlessPages) &&
+      setEquals(other.onlyPages, onlyPages);
 
   @override
   int get hashCode => Object.hash(
@@ -76,6 +83,7 @@ class PdfViewStatus {
         matchCount,
         currentMatch,
         Object.hashAllUnordered(textlessPages),
+        onlyPages == null ? null : Object.hashAllUnordered(onlyPages!),
       );
 }
 
@@ -190,14 +198,26 @@ abstract interface class PdfDocumentController {
   /// nothing is selected.
   Future<PdfSelectionResult?> takeSelection();
 
-  /// Marks [passage] in the document, replacing any passage marked before,
-  /// and brings its first page's anchor into view; null clears the marks.
-  Future<void> showPassage(PdfPassage? passage);
+  /// Marks [passage] in the document, replacing any passage marked before;
+  /// null clears the marks. With [reveal], it also brings its first page's
+  /// anchor into view, zoomed to fit; without, the view stays where it is.
+  Future<void> showPassage(PdfPassage? passage, {bool reveal = true});
 
-  /// Shows [blocks] over the pages without text of their own, each one a
-  /// target that reports a tap to [PdfDocumentViewRequest.onTextBlockTap];
-  /// [selected], if given, is drawn as chosen. Null hides them.
-  void showTextBlocks(List<PdfTextBlock>? blocks, {PdfTextBlock? selected});
+  /// Takes [blocks] — the document's text as it was indexed — and makes
+  /// those on pages without text of their own targets that report a tap to
+  /// [PdfDocumentViewRequest.onTextBlockTap]. [framed] outlines every block,
+  /// on every page; [selected], if given, is drawn as chosen. Null drops
+  /// them.
+  void showTextBlocks(
+    List<PdfTextBlock>? blocks, {
+    PdfTextBlock? selected,
+    bool framed = false,
+  });
+
+  /// Shows only [pages], 1-based, hiding the rest without renumbering any;
+  /// null shows every page. A search match on a hidden page shows every
+  /// page again before going to it.
+  void showOnlyPages(Set<int>? pages);
 }
 
 /// Everything a document view needs to open one document.

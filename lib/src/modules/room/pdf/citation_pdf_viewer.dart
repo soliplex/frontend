@@ -22,14 +22,16 @@ import 'pdf_targets.dart';
 final _logger = LogManager.instance.getLogger('soliplex_frontend.pdf_viewer');
 
 /// Builds the viewer for a cited document: [source] opened at [page], with
-/// [passage] marked once it is known, [banner] under its header, and
-/// [loadOcrText] for whatever pages of it have no text of their own.
+/// [passage] marked once it is known, [banner] under its header,
+/// [loadIndexedText] for the document's text as it was indexed, and
+/// [citedPages] — the pages its citations come from — to show alone.
 typedef CitationPaneBuilder = Widget Function(
   PdfViewerSource source, {
   required int page,
   required PdfPassage? passage,
   required Widget banner,
-  required Future<List<PdfTextBlock>> Function() loadOcrText,
+  required Future<List<PdfTextBlock>> Function() loadIndexedText,
+  required Set<int>? citedPages,
 });
 
 /// A cited document in the viewer, at the passage of the citation it was
@@ -155,9 +157,10 @@ class _CitationPdfViewerState extends State<CitationPdfViewer> {
     );
   }
 
-  /// The document's text as the server read it at ingestion — by OCR, for
-  /// a scan — for the viewer to offer where the PDF has none.
-  Future<List<PdfTextBlock>> _loadOcrText() async {
+  /// The document's text as the server indexed it — by OCR, for a scan —
+  /// for the viewer to offer where the PDF has none, and to show what the
+  /// LLM can find.
+  Future<List<PdfTextBlock>> _loadIndexedText() async {
     final target = widget.target;
     final text = await widget.api.getDocumentText(
       target.roomId,
@@ -201,6 +204,20 @@ class _CitationPdfViewerState extends State<CitationPdfViewer> {
     );
   }
 
+  /// The pages every citation of the document comes from — its chunks'
+  /// pages where it names them, else the pages of what it cites — or null
+  /// when none names a page. The citations carry them, so nothing is asked
+  /// of the server.
+  Set<int>? get _citedPages {
+    final pages = {
+      for (final citation in widget.target.citations)
+        ...(citation.chunkPageNumbers.isNotEmpty
+            ? citation.chunkPageNumbers
+            : citation.pageNumbers),
+    };
+    return pages.isEmpty ? null : pages;
+  }
+
   @override
   Widget build(BuildContext context) {
     final citation = _citation;
@@ -211,7 +228,8 @@ class _CitationPdfViewerState extends State<CitationPdfViewer> {
       _source(),
       page: passage?.firstPage ?? page,
       passage: passage,
-      loadOcrText: _loadOcrText,
+      loadIndexedText: _loadIndexedText,
+      citedPages: _citedPages,
       banner: _CitationStrip(
         citation: citation,
         position: _index,

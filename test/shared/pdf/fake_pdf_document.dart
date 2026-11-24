@@ -39,15 +39,39 @@ class FakePdfDocument implements PdfDocumentController {
   @override
   Future<void> previousMatch() async => calls.add('previousMatch');
 
+  /// Whether each of [passages] was to be brought into view.
+  final reveals = <bool>[];
+
   @override
-  Future<void> showPassage(PdfPassage? passage) async => passages.add(passage);
+  Future<void> showPassage(PdfPassage? passage, {bool reveal = true}) async {
+    passages.add(passage);
+    reveals.add(reveal);
+  }
 
   /// Every call to [showTextBlocks], in order.
-  final textBlocks = <({List<PdfTextBlock>? blocks, PdfTextBlock? selected})>[];
+  final textBlocks = <({
+    List<PdfTextBlock>? blocks,
+    PdfTextBlock? selected,
+    bool framed,
+  })>[];
 
   @override
-  void showTextBlocks(List<PdfTextBlock>? blocks, {PdfTextBlock? selected}) =>
-      textBlocks.add((blocks: blocks, selected: selected));
+  void showTextBlocks(
+    List<PdfTextBlock>? blocks, {
+    PdfTextBlock? selected,
+    bool framed = false,
+  }) =>
+      textBlocks.add((blocks: blocks, selected: selected, framed: framed));
+
+  /// Every page set [showOnlyPages] was asked for, in order; each is also
+  /// reported in the status, as the real document does.
+  final onlyPages = <Set<int>?>[];
+
+  @override
+  void showOnlyPages(Set<int>? pages) {
+    onlyPages.add(pages);
+    report(statusSignal.value.copyWith(onlyPages: () => pages));
+  }
 
   @override
   Future<PdfSelectionResult?> takeSelection() async {

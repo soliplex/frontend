@@ -44,7 +44,8 @@ class PdfViewerPane extends StatefulWidget {
     this.banner,
     this.onAskAbout,
     this.onSave,
-    this.loadOcrText,
+    this.loadIndexedText,
+    this.citedPages,
   });
 
   /// Narrower than this, the header's controls stop fitting.
@@ -70,10 +71,16 @@ class PdfViewerPane extends StatefulWidget {
   /// Saves a fetched document to the device. Null hides Download.
   final Future<void> Function(Uint8List bytes, String filename)? onSave;
 
-  /// Fetches the text recovered for the document by OCR, for the pages that
-  /// have none of their own. Null — no such text exists — hides the *OCR
-  /// text* toggle, as does a document whose every page has text.
-  final Future<List<PdfTextBlock>> Function()? loadOcrText;
+  /// Fetches the document's text as it was indexed, block by block: what
+  /// the LLM can find in it, OCR included. Its blocks make a scanned page's
+  /// paragraphs tappable, and *Show indexed text* frames them all. Null — the
+  /// document was never indexed — offers neither.
+  final Future<List<PdfTextBlock>> Function()? loadIndexedText;
+
+  /// The pages the document's citations come from, 1-based: *Only cited
+  /// pages*, on by default, shows just these. Null — not opened from a
+  /// citation — offers no such option.
+  final Set<int>? citedPages;
 
   @override
   State<PdfViewerPane> createState() => _PdfViewerPaneState();
@@ -125,11 +132,25 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   final _query = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'PDF search');
 
-  /// Whether the OCR text is shown; kept across a reload of the same
-  /// document, as are the blocks once fetched.
-  var _showingOcr = false;
-  var _loadingOcr = false;
-  List<PdfTextBlock>? _ocrBlocks;
+  /// The View menu's options. Only cited pages starts on; it goes off when
+  /// the reader turns it off, or when a search match on a hidden page shows
+  /// every page.
+  var _onlyCited = true;
+  var _showContext = false;
+  var _showIndexed = false;
+
+  /// The indexed text, once fetched, and the fetch while it runs; kept
+  /// across a reload of the same document.
+  List<PdfTextBlock>? _blocks;
+  Future<List<PdfTextBlock>?>? _fetchingBlocks;
+
+  /// Set when fetching the blocks on its own failed, so it is not tried
+  /// again on every status change; turning on *Show indexed text* still
+  /// does.
+  var _blocksFailed = false;
+
+  /// Stops watching the open document's status.
+  void Function()? _stopWatching;
 
   /// False while [initState] runs, where the first load's opening phase is
   /// assigned rather than set: there is no build yet to schedule.
@@ -155,22 +176,80 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.source.cacheKey != widget.source.cacheKey) {
       _closeSearch();
-      _showingOcr = false;
-      _loadingOcr = false;
-      _ocrBlocks = null;
+      _onlyCited = true;
+      _blocks = null;
+      _fetchingBlocks = null;
+      _blocksFailed = false;
       unawaited(_load());
     } else {
       if (oldWidget.initialPage != widget.initialPage) {
         unawaited(_document?.goToPage(widget.initialPage));
       }
-      if (oldWidget.passage != widget.passage) {
-        unawaited(_document?.showPassage(widget.passage));
+      final document = _document;
+      if (document != null &&
+          (oldWidget.passage != widget.passage ||
+              !_sameSet(oldWidget.citedPages, widget.citedPages))) {
+        document.showOnlyPages(_pagesToShow);
+        if (oldWidget.passage != widget.passage) {
+          unawaited(document.showPassage(_passageToShow));
+        }
       }
     }
   }
 
+  static bool _sameSet(Set<int>? a, Set<int>? b) => a == null
+      ? b == null
+      : b != null && a.length == b.length && a.containsAll(b);
+
+  /// The pages *Only cited pages* shows: the citations', and the passage's
+  /// own in case its boxes say more than the citation did; null shows all.
+  Set<int>? get _pagesToShow {
+    final cited = widget.citedPages;
+    if (!_onlyCited || cited == null || cited.isEmpty) return null;
+    return {...cited, ...?widget.passage?.anchor.map((box) => box.page)};
+  }
+
+  /// The passage as marked: without its context unless *Show context* is
+  /// on — or unless context is all it has.
+  PdfPassage? get _passageToShow {
+    final passage = widget.passage;
+    if (passage == null || _showContext || passage.anchor.isEmpty) {
+      return passage;
+    }
+    return PdfPassage(anchor: passage.anchor);
+  }
+
+  /// Applies everything the pane decides to a document just opened, and
+  /// follows its status from then on.
+  void _onDocumentReady(PdfDocumentController document) {
+    _stopWatching?.call();
+    Set<int>? shown;
+    _stopWatching = effect(() {
+      final status = document.status.value;
+      untracked(() {
+        // Pages hidden a moment ago all show now, and the pane didn't ask:
+        // a search went to a match on a hidden one.
+        if (shown != null && status.onlyPages == null && _onlyCited) {
+          setState(() => _onlyCited = false);
+        }
+        shown = status.onlyPages;
+        if (status.textlessPages.isNotEmpty &&
+            _blocks == null &&
+            !_blocksFailed) {
+          unawaited(_loadBlocks(quiet: true));
+        }
+      });
+    });
+    document.showOnlyPages(_pagesToShow);
+    final passage = _passageToShow;
+    if (passage != null) unawaited(document.showPassage(passage));
+    final blocks = _blocks;
+    if (blocks != null) document.showTextBlocks(blocks, framed: _showIndexed);
+  }
+
   @override
   void dispose() {
+    _stopWatching?.call();
     _query.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -301,54 +380,104 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     }
   }
 
-  Future<void> _toggleOcr() async {
+  /// The indexed text: fetched once, the fetch shared while it runs. Null
+  /// when it can't be had — said in a SnackBar unless [quiet].
+  Future<List<PdfTextBlock>?> _loadBlocks({required bool quiet}) {
+    final held = _blocks;
+    if (held != null) return Future.value(held);
+    return _fetchingBlocks ??= _fetchBlocks(quiet: quiet);
+  }
+
+  Future<List<PdfTextBlock>?> _fetchBlocks({required bool quiet}) async {
+    final load = widget.loadIndexedText;
+    if (load == null) return null;
+    final cacheKey = widget.source.cacheKey;
+    try {
+      final blocks = await load();
+      if (!mounted || widget.source.cacheKey != cacheKey) return null;
+      setState(() => _blocks = blocks);
+      _document?.showTextBlocks(blocks, framed: _showIndexed);
+      return blocks;
+    } on CancelledException {
+      return null;
+    } on Exception catch (error, stackTrace) {
+      // As in _load: the API client's errors carry no credential.
+      _logger.warning(
+        'Fetching the indexed text failed',
+        error: error,
+        stackTrace: stackTrace,
+        attributes: {'source': cacheKey},
+      );
+      if (!mounted || widget.source.cacheKey != cacheKey) return null;
+      _blocksFailed = true;
+      if (!quiet) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text("Couldn't load the indexed text.")),
+        );
+      }
+      return null;
+    } finally {
+      if (widget.source.cacheKey == cacheKey) _fetchingBlocks = null;
+    }
+  }
+
+  void _toggleOnlyCited() {
+    setState(() => _onlyCited = !_onlyCited);
+    _document?.showOnlyPages(_pagesToShow);
+  }
+
+  void _toggleContext() {
+    setState(() => _showContext = !_showContext);
     final document = _document;
-    final load = widget.loadOcrText;
-    if (document == null || load == null || _loadingOcr) return;
-    if (_showingOcr) {
-      setState(() => _showingOcr = false);
-      document.showTextBlocks(null);
+    if (document != null) {
+      unawaited(document.showPassage(_passageToShow, reveal: false));
+    }
+  }
+
+  Future<void> _toggleIndexed() async {
+    final showing = !_showIndexed;
+    setState(() => _showIndexed = showing);
+    if (!showing) {
+      _document?.showTextBlocks(_blocks, framed: false);
       return;
     }
-    var blocks = _ocrBlocks;
+    final blocks = await _loadBlocks(quiet: false);
+    if (!mounted) return;
     if (blocks == null) {
-      final cacheKey = widget.source.cacheKey;
-      setState(() => _loadingOcr = true);
-      try {
-        blocks = await load();
-      } on CancelledException {
-        if (mounted) setState(() => _loadingOcr = false);
-        return;
-      } on Exception catch (error, stackTrace) {
-        // As in _load: the API client's errors carry no credential.
-        _logger.warning(
-          'Fetching the OCR text failed',
-          error: error,
-          stackTrace: stackTrace,
-          attributes: {'source': cacheKey},
-        );
-        if (!mounted || widget.source.cacheKey != cacheKey) return;
-        setState(() => _loadingOcr = false);
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(content: Text("Couldn't load the OCR text.")),
-        );
-        return;
-      }
-      if (!mounted || widget.source.cacheKey != cacheKey) return;
-      _ocrBlocks = blocks;
+      setState(() => _showIndexed = false);
+      return;
     }
-    setState(() {
-      _loadingOcr = false;
-      _showingOcr = true;
-    });
-    _document?.showTextBlocks(blocks);
+    _document?.showTextBlocks(blocks, framed: _showIndexed);
   }
+
+  /// The View menu's entries for what the document offers; empty when it
+  /// offers none.
+  List<_ViewOption> _viewOptions(PdfDocumentController document) => [
+        if (widget.citedPages?.isNotEmpty ?? false)
+          (
+            label: 'Only cited pages',
+            checked: document.status.value.onlyPages != null,
+            onToggle: _toggleOnlyCited,
+          ),
+        if (widget.passage?.context.isNotEmpty ?? false)
+          (
+            label: 'Show context',
+            checked: _showContext,
+            onToggle: _toggleContext,
+          ),
+        if (widget.loadIndexedText != null)
+          (
+            label: 'Show indexed text',
+            checked: _showIndexed,
+            onToggle: () => unawaited(_toggleIndexed()),
+          ),
+      ];
 
   Future<void> _openTextBlock(PdfTextBlock block) async {
     final document = _document;
-    final blocks = _ocrBlocks;
+    final blocks = _blocks;
     if (document == null || blocks == null) return;
-    document.showTextBlocks(blocks, selected: block);
+    document.showTextBlocks(blocks, selected: block, framed: _showIndexed);
     final onAskAbout = widget.onAskAbout;
     final asked = await showModalBottomSheet<PdfSelectedText>(
       context: context,
@@ -360,8 +489,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
       ),
     );
     if (!mounted) return;
-    if (_showingOcr && identical(_document, document)) {
-      document.showTextBlocks(blocks);
+    if (identical(_document, document)) {
+      document.showTextBlocks(blocks, framed: _showIndexed);
     }
     if (asked != null) onAskAbout?.call(asked);
   }
@@ -442,20 +571,21 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             searching: _searching,
             canSearch: document != null,
             onSearch: _toggleSearch,
-            ocr: document != null && widget.loadOcrText != null
-                ? (
-                    showing: _showingOcr,
-                    loading: _loadingOcr,
-                    onToggle: () => unawaited(_toggleOcr()),
-                  )
-                : null,
+            viewOptions: document == null || _viewOptions(document).isEmpty
+                ? null
+                : () => _viewOptions(document),
             onZoomIn: document == null ? null : () => document.zoomIn(),
             onZoomOut: document == null ? null : () => document.zoomOut(),
             onDownload: _canDownload ? _download : null,
             onOpenExternally: _canOpenExternally ? _openExternally : null,
             onClose: widget.onClose,
           ),
-          if (_showingOcr && document != null) const _OcrHint(),
+          if (document != null && _blocks != null)
+            Watch(
+              (context) => document.status.value.textlessPages.isEmpty
+                  ? const SizedBox.shrink()
+                  : const _OcrHint(),
+            ),
           if (_searching && document != null)
             _SearchBar(
               query: _query,
@@ -560,10 +690,7 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         onReady: (document) {
           if (mounted && generation == _generation) {
             setState(() => _document = document);
-            final passage = widget.passage;
-            if (passage != null) unawaited(document.showPassage(passage));
-            final blocks = _ocrBlocks;
-            if (_showingOcr && blocks != null) document.showTextBlocks(blocks);
+            _onDocumentReady(document);
           }
         },
         onLoadFailed: (error, stackTrace) =>
@@ -601,9 +728,11 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   }
 }
 
-/// While the OCR frames show, says what they do: a frame looks like a mark,
-/// not like something to tap. Right-aligned, under the toggle that showed
-/// them.
+/// One entry of the View menu.
+typedef _ViewOption = ({String label, bool checked, VoidCallback onToggle});
+
+/// Says that the scanned pages' text is OCR, and how to reach it: nothing
+/// on the page shows it, and a drag selects nothing there.
 class _OcrHint extends StatelessWidget {
   const _OcrHint();
 
@@ -621,12 +750,16 @@ class _OcrHint extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Icon(Icons.touch_app_outlined,
-              size: SoliplexSpacing.s4, color: color),
+          Icon(
+            Icons.document_scanner_outlined,
+            size: SoliplexSpacing.s4,
+            color: color,
+          ),
           const SizedBox(width: SoliplexSpacing.s1),
           Flexible(
             child: Text(
-              'Tap or click a box to read, copy or ask about its text',
+              'Scanned pages: tap a paragraph to read, copy or ask about its '
+              'text',
               style: theme.textTheme.bodySmall?.copyWith(color: color),
               textAlign: TextAlign.end,
             ),
@@ -644,7 +777,7 @@ class _Header extends StatelessWidget {
     required this.searching,
     required this.canSearch,
     required this.onSearch,
-    required this.ocr,
+    required this.viewOptions,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onDownload,
@@ -658,9 +791,8 @@ class _Header extends StatelessWidget {
   final bool canSearch;
   final VoidCallback onSearch;
 
-  /// The *OCR text* toggle's state; null when there is no OCR text to show.
-  /// It shows only once the document has a page without text of its own.
-  final ({bool showing, bool loading, VoidCallback onToggle})? ocr;
+  /// The View menu's entries, read as it opens; null hides the menu.
+  final List<_ViewOption> Function()? viewOptions;
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
   final VoidCallback? onDownload;
@@ -722,11 +854,14 @@ class _Header extends StatelessWidget {
                     final s = status.value;
                     final page = s.pageNumber;
                     final count = s.pageCount;
+                    final shown = s.onlyPages?.length;
                     return Text(
                       [
                         source.origin,
                         if (page != null && count != null)
                           'Page $page of $count',
+                        if (shown != null)
+                          '$shown cited ${shown == 1 ? 'page' : 'pages'} shown',
                       ].join(' · '),
                       style: muted,
                       maxLines: 1,
@@ -736,26 +871,19 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          if ((ocr, status) case (final ocr?, final status?))
-            Watch(
-              (context) => status.value.textlessPages.isEmpty
-                  ? const SizedBox.shrink()
-                  : IconButton(
-                      tooltip: ocr.showing ? 'Hide OCR text' : 'Show OCR text',
-                      isSelected: ocr.showing,
-                      icon: ocr.loading
-                          ? const SizedBox.square(
-                              dimension: SoliplexSpacing.s6,
-                              child: Padding(
-                                padding: EdgeInsets.all(SoliplexSpacing.s1),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.document_scanner_outlined),
-                      onPressed: ocr.loading ? null : ocr.onToggle,
-                    ),
+          if (viewOptions case final options?)
+            PopupMenuButton<VoidCallback>(
+              tooltip: 'View',
+              icon: const Icon(Icons.tune),
+              onSelected: (toggle) => toggle(),
+              itemBuilder: (context) => [
+                for (final option in options())
+                  CheckedPopupMenuItem(
+                    value: option.onToggle,
+                    checked: option.checked,
+                    child: Text(option.label),
+                  ),
+              ],
             ),
           IconButton(
             tooltip: searching ? 'Close search' : 'Search in document',
