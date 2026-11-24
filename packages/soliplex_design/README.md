@@ -160,6 +160,29 @@ custom fonts actually display by visual inspection.
 | Spacing grid + breakpoints | ❌ fixed | `static const` shared grammar |
 | Widget composition / layout | ❌ fixed | module override or fork |
 
+## Where feedback goes
+
+Feedback about something the user did appears where they did it. One rule
+everywhere, so there is one place to look:
+
+1. **A control still on screen shows its own outcome.** A long action shows
+   progress in the control (`isLoading`), then its result there: done, or
+   failed with the reason and a way to retry. File downloads in the room work
+   this way (`DownloadFeedbackState`).
+2. **Prevent rather than report.** An action that cannot succeed shows
+   disabled, with the reason, before it is tried.
+3. **An outcome no control on screen owns** (it finished in the background,
+   or its control is gone) goes to that surface's one notice area: in the
+   room, the band above the composer, beside the send-error, upload and
+   workspace notices; in the PDF viewer, under its header; in the lobby, the
+   top of the pane.
+4. **An error stays until it is resolved or dismissed.** A confirmation may
+   dismiss itself.
+5. **A snackbar is only for a brief confirmation, with at most one action,**
+   never for an error, and never where it covers the composer or another
+   primary control. A snackbar is announced to screen readers; a notice
+   that takes its place must be too (`Semantics(liveRegion: true)`).
+
 ## Hard rules
 
 1. No `Color(0x...)`, `Color.fromARGB`, or `Colors.red|green|orange|blue|yellow` outside this package.
