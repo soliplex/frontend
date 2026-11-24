@@ -37,8 +37,8 @@ String formatQuotedContext(List<PdfQuote> quotes) {
 /// Splits a sent message into the quote blocks [formatQuotedContext] put at
 /// its start and the text after them.
 ///
-/// Only a block closed by an attribution line counts, so a quote the user
-/// typed themselves stays in the text.
+/// Only a block closed by an attribution line whose page fits an `int`
+/// counts, so a quote the user typed themselves stays in the text.
 ({List<PdfQuote> quotes, String rest}) parseQuotedContext(String message) {
   final lines = message.split('\n');
   final quotes = <PdfQuote>[];
@@ -56,11 +56,13 @@ String formatQuotedContext(List<PdfQuote> quotes) {
         ? _attribution.firstMatch(lines[cursor])
         : null;
     if (match == null) break;
+    final page = int.tryParse(match.group(2)!);
+    if (page == null) break;
     quotes.add(
       PdfQuote(
         text: body.join(' '),
         documentTitle: match.group(1)!,
-        pageNumber: int.parse(match.group(2)!),
+        pageNumber: page,
       ),
     );
     index = cursor + 1;
