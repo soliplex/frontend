@@ -271,6 +271,49 @@ void main() {
       }
     });
 
+    testWidgets("follows another file's download once it replaces this one",
+        (tester) async {
+      final other = Signal<DownloadFeedbackState>(const DownloadIdle());
+      Widget viewer(PdfViewerSource source, PdfDownload download) =>
+          MaterialApp(
+            theme: soliplexLightTheme(),
+            home: Scaffold(
+              body: PdfViewerPane(
+                source: source,
+                documentViewFactory: views.call,
+                onClose: () {},
+                download: download,
+              ),
+            ),
+          );
+      await tester.pumpWidget(
+        viewer(
+          bytesSource(sizeBytes: pdfViewerSizeCapBytes + 1),
+          PdfDownload(state: () => downloadState.value, start: () {}),
+        ),
+      );
+      await tester.pumpWidget(
+        viewer(
+          bytesSource(
+            key: 'workdir:r/t/other.pdf',
+            sizeBytes: pdfViewerSizeCapBytes + 1,
+          ),
+          PdfDownload(state: () => other.value, start: () {}),
+        ),
+      );
+
+      other.value = const DownloadFailed('Server is temporarily unavailable');
+      await tester.pump();
+
+      expect(
+        find.byTooltip(
+          'Download failed: Server is temporarily unavailable. Tap to retry.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Retry download'), findsOneWidget);
+    });
+
     testWidgets('is not offered without a download to start', (tester) async {
       await pump(tester, linkSource, canDownload: false);
 

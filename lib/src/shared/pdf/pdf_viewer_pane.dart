@@ -382,7 +382,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
               'files up to ${formatFileSize(pdfViewerSizeCapBytes)}.',
           actions: [
             if (_download case final download?)
-              _DownloadButton(download: download),
+              _DownloadButton(
+                key: ValueKey(widget.source.cacheKey),
+                download: download,
+              ),
           ],
         ),
       _Failed(:final kind) => _buildFailure(kind),
@@ -443,7 +446,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
           ),
         if (kind == _FailureKind.notPdf || kind == _FailureKind.protected)
           if (_download case final download?)
-            _DownloadButton(download: download),
+            _DownloadButton(
+              key: ValueKey(widget.source.cacheKey),
+              download: download,
+            ),
       ],
     );
   }
@@ -595,7 +601,10 @@ class _Header extends StatelessWidget {
             onPressed: canSearch ? onSearch : null,
           ),
           if (download case final download?)
-            _HeaderDownload(download: download),
+            _HeaderDownload(
+              key: ValueKey(source.cacheKey),
+              download: download,
+            ),
           if (menu.isNotEmpty)
             PopupMenuButton<VoidCallback>(
               tooltip: 'More',
@@ -756,8 +765,12 @@ class _Message extends StatelessWidget {
 
 /// The header's Download, beside Close: the download's outcome shows in its
 /// icon, as a file row's does.
+///
+/// Keyed by the open file wherever it is built: another file's download can
+/// read another signal, and a `Watch` given a builder that reads a new signal
+/// stays subscribed to the signal its first builder read.
 class _HeaderDownload extends StatelessWidget {
-  const _HeaderDownload({required this.download});
+  const _HeaderDownload({super.key, required this.download});
 
   final PdfDownload download;
 
@@ -781,9 +794,10 @@ class _HeaderDownload extends StatelessWidget {
 }
 
 /// A labelled Download in the viewer's body, loading while the download
-/// runs, and under it why a failed one failed.
+/// runs, and under it why a failed one failed. Keyed by the open file, for
+/// the reason [_HeaderDownload] gives.
 class _DownloadButton extends StatelessWidget {
-  const _DownloadButton({required this.download});
+  const _DownloadButton({super.key, required this.download});
 
   final PdfDownload download;
 
