@@ -100,6 +100,7 @@ void main() {
     );
 
     expect(await reloads.reload('local'), isA<RoomReloadRefused>());
+    expect(notified, isEmpty);
     expect(
       logged(LogLevel.warning).single.attributes['serverMessage'],
       'not an administrator',
@@ -107,11 +108,19 @@ void main() {
   });
 
   test('a 404 says the server cannot reload rooms', () async {
-    fakeApi.nextRoomReloadThrow = const NotFoundException(message: 'Not Found');
+    fakeApi.nextRoomReloadThrow = const NotFoundException(
+      message: 'Not Found',
+      resource: '/api/v1/installation/reload/rooms',
+      serverMessage: 'Not Found',
+    );
 
     expect(await reloads.reload('local'), isA<RoomReloadUnsupported>());
     expect(logged(LogLevel.error), isEmpty);
-    expect(logged(LogLevel.warning).single.attributes['serverId'], 'local');
+    expect(logged(LogLevel.warning).single.attributes, {
+      'serverId': 'local',
+      'resource': '/api/v1/installation/reload/rooms',
+      'serverMessage': 'Not Found',
+    });
     expect(notified, isEmpty);
   });
 
@@ -128,12 +137,15 @@ void main() {
   test(
       'any other failure is logged and, as it may have reloaded, listeners '
       'are told', () async {
-    fakeApi.nextRoomReloadThrow =
-        const ApiException(message: 'boom', statusCode: 502);
+    const error = ApiException(message: 'boom', statusCode: 502);
+    fakeApi.nextRoomReloadThrow = error;
 
     expect(await reloads.reload('local'), isA<RoomReloadFailed>());
     expect(notified, ['local']);
-    expect(logged(LogLevel.error).single.attributes['serverId'], 'local');
+    final record = logged(LogLevel.error).single;
+    expect(record.attributes['serverId'], 'local');
+    expect(record.error, same(error));
+    expect(record.stackTrace, isNotNull);
   });
 
   test('a listener that throws is logged; the reload still reports success',
@@ -207,15 +219,19 @@ void main() {
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
       ),
     );
-    fakeApi.nextRoomReloadThrow =
-        const AuthException(message: 'Unauthorized', statusCode: 401);
+    fakeApi.nextRoomReloadThrow = const AuthException(
+      message: 'Unauthorized',
+      statusCode: 401,
+      serverMessage: 'token expired',
+    );
 
     expect(await reloads.reload('auth-server'), isA<RoomReloadSignedOut>());
     expect(entry.auth.session.value, isA<ExpiredSession>());
-    expect(
-      logged(LogLevel.warning).single.attributes['serverId'],
-      'auth-server',
-    );
+    expect(notified, isEmpty);
+    expect(logged(LogLevel.warning).single.attributes, {
+      'serverId': 'auth-server',
+      'serverMessage': 'token expired',
+    });
   });
 
   test('throws StateError when server not found', () {

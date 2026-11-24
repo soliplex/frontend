@@ -19,7 +19,7 @@ class RoomConfigsReloaded {
   /// Rooms the reload withdrew.
   final List<String> removed;
 
-  /// Rooms whose config the reload replaced.
+  /// Rooms whose config differs from the one the reload replaced.
   final List<String> changed;
 
   /// Whether the reload changed nothing.

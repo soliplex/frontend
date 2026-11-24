@@ -37,14 +37,14 @@ final class RoomReloadRefused extends RoomReloadOutcome {
   const RoomReloadRefused();
 }
 
-/// The server answered 401; the session is marked expired, so a signed-in
-/// server's row offers to sign in again.
+/// The server answered 401; the session is marked expired, so the server's
+/// row offers to sign in again.
 final class RoomReloadSignedOut extends RoomReloadOutcome {
   const RoomReloadSignedOut();
 }
 
-/// The server has no reload endpoint (404): it predates the feature, and only
-/// a restart picks up room changes.
+/// The reload endpoint answered 404, so the server cannot reload in place;
+/// only a restart picks up room changes.
 final class RoomReloadUnsupported extends RoomReloadOutcome {
   const RoomReloadUnsupported();
 }
@@ -55,9 +55,10 @@ final class RoomReloadUnreadable extends RoomReloadOutcome {
   const RoomReloadUnreadable();
 }
 
-/// The reload could not be confirmed (network, server error). The request may
-/// have reached the server, or a proxy may have given up while the server
-/// carried on, so the reload may have happened. The failure is logged.
+/// The reload could not be confirmed (a network failure, an unexpected
+/// status, or a client error). The request may have reached the server, or a
+/// proxy may have given up while the server carried on, so the reload may
+/// have happened. The failure is logged.
 final class RoomReloadFailed extends RoomReloadOutcome {
   const RoomReloadFailed();
 }
@@ -113,12 +114,15 @@ class RoomReloads {
     _reloading.value = {..._reloading.value, serverId};
     try {
       final outcome = await _request(serverId, entry);
-      if (outcome
-          case RoomsReloaded() ||
-              RoomReloadUnreadable() ||
-              RoomReloadFailed()) {
-        _notify(serverId);
-      }
+      final mayHaveChangedRooms = switch (outcome) {
+        RoomsReloaded() || RoomReloadUnreadable() || RoomReloadFailed() => true,
+        RoomReloadNeedsRestart() ||
+        RoomReloadRefused() ||
+        RoomReloadSignedOut() ||
+        RoomReloadUnsupported() =>
+          false,
+      };
+      if (mayHaveChangedRooms) _notify(serverId);
       return outcome;
     } finally {
       _inFlight.remove(serverId);
@@ -133,12 +137,12 @@ class RoomReloads {
       try {
         listener(serverId);
       } catch (e, st) {
-        // The only value a listener receives is a server id.
+        // A listener's failure can carry whatever its closure reaches, so only
+        // its shape is logged.
         _logger.error(
           'A room reload listener failed',
-          error: e,
           stackTrace: st,
-          attributes: {'serverId': serverId},
+          attributes: {'serverId': serverId, 'failure': describeFailure(e)},
         );
       }
     }
@@ -148,10 +152,10 @@ class RoomReloads {
     final RoomConfigsReloaded delta;
     try {
       delta = await _apiResolver(entry).reloadRoomConfigs();
-    } on AuthException {
+    } on AuthException catch (e) {
       _logger.warning(
         'The room reload was not authenticated',
-        attributes: {'serverId': serverId},
+        attributes: {'serverId': serverId, 'serverMessage': e.serverMessage},
       );
       // Same funnel as a rooms fetch: the lobby turns the expiry into the
       // row's inline "sign in again".
@@ -163,10 +167,14 @@ class RoomReloads {
         attributes: {'serverId': serverId, 'serverMessage': e.serverMessage},
       );
       return const RoomReloadRefused();
-    } on NotFoundException {
+    } on NotFoundException catch (e) {
       _logger.warning(
-        'The server has no room reload endpoint',
-        attributes: {'serverId': serverId},
+        'The room reload endpoint answered 404',
+        attributes: {
+          'serverId': serverId,
+          'resource': e.resource,
+          'serverMessage': e.serverMessage,
+        },
       );
       return const RoomReloadUnsupported();
     } catch (e, st) {
@@ -179,9 +187,10 @@ class RoomReloads {
       }
       // The request carries no body and no user input, and the response is
       // three lists of room ids. What reaches here is a NetworkException's
-      // platform error text, an ApiException's status and the server's own
-      // reason, a MalformedResponseException's description of the reply's
-      // shape, or an Error from the client (a closed client's fixed text, a
+      // platform error text, an ApiException's status (any other than 409)
+      // and the server's own reason, a MalformedResponseException's
+      // description of the reply's shape, a CancelledException's fixed reason
+      // (a closed client), or an Error from the client (fixed text, a
       // TypeError's type names); none is a credential.
       _logger.error(
         'Failed to reload room configs',

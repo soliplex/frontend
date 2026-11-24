@@ -134,7 +134,8 @@ class LobbyState {
   void Function()? _runCompletionUnsub;
 
   /// Disposer for the subscription that re-fetches a server's rooms after a
-  /// reload may have changed them. Null without [RoomReloads] (tests omit it).
+  /// reload may have changed them. Null when constructed without
+  /// `roomReloads`.
   void Function()? _roomReloadUnlisten;
 
   /// Coalesces a burst of run completions into a single activity refresh.

@@ -1459,7 +1459,7 @@ class SoliplexApi {
     ];
   }
 
-  /// Reloads the installation's room configs from disk, so new rooms and
+  /// Reloads the installation's room configs from disk, so added, removed and
   /// edited room configs take effect without restarting the server.
   ///
   /// Administrators only. Each call writes an audit record server-side.

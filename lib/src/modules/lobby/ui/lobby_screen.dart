@@ -32,12 +32,15 @@ import 'room_grid_card.dart';
 import 'room_grid_layout.dart';
 import 'server_sidebar.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 const double _sidebarWidth = 240;
 
 /// Fixed width of the sort dropdown on wide layouts, so it doesn't stretch to
 /// the full row and crowd the view-mode toggle beside it.
 const double _sortControlWidth = 184;
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.lobby_screen');
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({
@@ -293,7 +296,22 @@ class _LobbyScreenState extends State<LobbyScreen> {
     // to another server.
     final server =
         widget.serverManager.servers.value[serverId]?.listLabel ?? serverId;
-    final outcome = await _roomReloads.reload(serverId);
+    RoomReloadOutcome outcome;
+    try {
+      outcome = await _roomReloads.reload(serverId);
+    } catch (e, st) {
+      // A reload answers an outcome for every failure of its request, so this
+      // is a fault before or after it (a server gone from the list, an
+      // effect of marking the session expired); whether the reload happened
+      // is unknown. What it carries is not this code's to vouch for, so only its
+      // shape is logged.
+      _logger.error(
+        'A room reload ended without an outcome',
+        stackTrace: st,
+        attributes: {'serverId': serverId, 'failure': describeFailure(e)},
+      );
+      outcome = const RoomReloadFailed();
+    }
     // Queued rather than replacing the current one, which may be another
     // screen's message.
     messenger.showSnackBar(

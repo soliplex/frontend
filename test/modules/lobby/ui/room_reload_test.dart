@@ -13,6 +13,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/room_reloads.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -30,6 +31,7 @@ Future<(FakeSoliplexApi, GoRouter)> _pumpLobby(
   WidgetTester tester, {
   bool isAdmin = true,
   Size size = const Size(1000, 800),
+  bool reloadsFindServer = true,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -52,7 +54,7 @@ Future<(FakeSoliplexApi, GoRouter)> _pumpLobby(
     ..allThreads = const []
     ..labels = const [];
   final roomReloads = RoomReloads(
-    entryResolver: (id) => manager.servers.value[id],
+    entryResolver: (id) => reloadsFindServer ? manager.servers.value[id] : null,
     apiResolver: (_) => fakeApi,
   );
 
@@ -194,6 +196,33 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Saved elsewhere'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('localhost:8000: Room configs are already up to date'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a reload that throws instead of answering is still reported',
+        (tester) async {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      await _pumpLobby(tester, reloadsFindServer: false);
+
+      await tester.tap(_reloadButton);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('localhost:8000: Could not confirm the rooms were reloaded'),
+        findsOneWidget,
+      );
+      final record = sink.records
+          .where((r) => r.loggerName == 'soliplex.lobby_screen')
+          .single;
+      expect(record.level, LogLevel.error);
+      expect(record.attributes['serverId'], 'local');
     });
 
     testWidgets('a lobby revisited mid-reload still shows it busy',
