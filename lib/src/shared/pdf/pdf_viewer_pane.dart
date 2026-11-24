@@ -28,8 +28,8 @@ const pdfViewerSizeCapBytes = 50 * 1024 * 1024;
 /// How many wrong passwords the viewer asks past before it gives up.
 const _passwordAttempts = 3;
 
-/// A file's download as the viewer shows and starts it. Kept by whoever
-/// opened the viewer, so a download outlives it.
+/// A file's download as the viewer shows and starts it. Its state lives with
+/// whoever opened the viewer, so a download outlives the viewer.
 class PdfDownload {
   const PdfDownload({required this.state, required this.start});
 
@@ -37,13 +37,14 @@ class PdfDownload {
   /// controls follow it.
   final DownloadFeedbackState Function() state;
 
-  /// Starts a download. The viewer calls it only while the state says one
-  /// may start.
-  final VoidCallback start;
+  /// Starts a download, asked from [context] inside the viewer: anything it
+  /// shows first, such as a confirm, opens over the viewer. The viewer calls
+  /// it only while the state says one may start.
+  final void Function(BuildContext context) start;
 }
 
-/// A PDF viewer: a header with the file's name, page, search, zoom and save
-/// controls, the document, and — while text is selected — *Ask about this*.
+/// A PDF viewer: a header with the file's name, page, search, zoom and
+/// download controls, the document, and — while text is selected — *Ask about this*.
 ///
 /// Fills whatever it is given: a pane beside the conversation, a dialog, or
 /// a page of its own. Opening another [source] replaces the document; a new
@@ -71,8 +72,9 @@ class PdfViewerPane extends StatefulWidget {
   /// *Ask about this* — where there is no conversation to ask in.
   final void Function(PdfSelectedText selection)? onAskAbout;
 
-  /// The file's download, shown on the viewer's Download controls. Null hides
-  /// Download.
+  /// The file's download, behind the viewer's Download controls and the
+  /// notice of a failed one. Null hides them, as does a file that cannot be
+  /// fetched at all (gone, or an address the client refuses).
   final PdfDownload? download;
 
   @override
@@ -118,9 +120,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   var _passwordTries = 0;
   var _searching = false;
 
-  /// The download failure the user dismissed from the notice under the
-  /// header, so that one stays hidden and the next shows.
-  DownloadFeedbackState? _dismissedFailure;
+  /// The download failure the user dismissed from the notice, so that one
+  /// stays hidden. Each failed attempt is a failure of its own, so the next
+  /// shows.
+  DownloadFailed? _dismissedFailure;
   final _query = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'PDF search');
 
@@ -187,7 +190,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             // exceptions carry status codes, hosts, paths and the server's
             // own reason, as the token travels in a header the transport
             // does not quote, and its ArgumentError holds the id, name or
-            // path it refused, which `source` names anyway. None is a
+            // path it refused, which `source` names anyway; a RangeError,
+            // also an ArgumentError, holds only a number. None is a
             // credential.
             _logger.warning(
               'Fetching a PDF failed',
@@ -332,26 +336,14 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     setState(() => _searching = false);
   }
 
-  /// Download, where there is one and the file can be fetched at all. A
-  /// start from the viewer forgets a dismissed failure, so a failure that
-  /// repeats word for word still shows.
-  PdfDownload? get _download {
-    final download = widget.download;
-    return switch (_phase) {
-      _Failed(kind: _FailureKind.gone || _FailureKind.badAddress) => null,
-      _ when download == null => null,
-      _ => PdfDownload(
-          state: download.state,
-          start: () {
-            setState(() => _dismissedFailure = null);
-            download.start();
-          },
-        ),
-    };
-  }
+  /// Download, where there is one and the file can be fetched at all.
+  PdfDownload? get _download => switch (_phase) {
+        _Failed(kind: _FailureKind.gone || _FailureKind.badAddress) => null,
+        _ => widget.download,
+      };
 
   /// Whether the page itself offers Download, with a failure's reason under
-  /// it, so the notice under the header would say it twice.
+  /// it, so the notice above the document would say it twice.
   bool get _pageOffersDownload => switch (_phase) {
         _TooLarge() ||
         _Failed(kind: _FailureKind.notPdf || _FailureKind.protected) =>
@@ -480,10 +472,9 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
           ),
         if (kind == _FailureKind.notPdf || kind == _FailureKind.protected)
           if (_download case final download?)
-            _DownloadButton(
-              key: ValueKey(widget.source.cacheKey),
-              download: download,
-            ),
+            // Unkeyed: opening another file always replaces this page, so no
+            // other file's download reaches this button.
+            _DownloadButton(download: download),
       ],
     );
   }
@@ -797,12 +788,12 @@ class _Message extends StatelessWidget {
   }
 }
 
-/// The header's Download, beside Close: the download's outcome shows in its
-/// icon, as a file row's does.
+/// The header's Download, among its actions: the download's outcome shows in
+/// its icon, as a file row's does.
 ///
-/// Keyed by the open file wherever it is built: another file's download can
-/// read another signal, and a `Watch` given a builder that reads a new signal
-/// stays subscribed to the signal its first builder read.
+/// Keyed by the open file: another file's download can read another signal,
+/// and a `Watch` rebuilt with a builder that reads a different signal shows
+/// its value once but stays subscribed to the signals it last tracked.
 class _HeaderDownload extends StatelessWidget {
   const _HeaderDownload({super.key, required this.download});
 
@@ -815,22 +806,24 @@ class _HeaderDownload extends StatelessWidget {
       final state = download.state();
       final (icon, label) = state.affordance;
       return IconButton(
-        // A spinner in the icon's place keeps the button's size, so Close
-        // does not move; the tooltip already names it to a screen reader.
+        // A spinner in the icon's place keeps the button's size, so the
+        // actions after it do not move; the tooltip already names it to a
+        // screen reader.
         icon: state is DownloadRunning
             ? ExcludeSemantics(child: ProgressRing(label: label))
             : Icon(icon, color: state.outcomeColor(colorScheme)),
         tooltip: label,
-        onPressed: state.canStart ? download.start : null,
+        onPressed: state.canStart ? () => download.start(context) : null,
       );
     });
   }
 }
 
-/// Under the header, why the download failed, with a retry: the header's
-/// icon shows a failure, but says why only on hover. Shown until the
-/// download starts again or it is dismissed; announced to a screen reader.
-/// Keyed by the open file, for the reason [_HeaderDownload] gives.
+/// Above the document, under the header (and the search bar while it is
+/// open), why the download failed, with a retry: the header's icon shows a
+/// failure but says why only in its tooltip. Shown until the download starts
+/// again or it is dismissed; announced to a screen reader. Keyed by the open
+/// file, for the reason [_HeaderDownload] gives.
 class _DownloadFailureNotice extends StatelessWidget {
   const _DownloadFailureNotice({
     super.key,
@@ -840,8 +833,8 @@ class _DownloadFailureNotice extends StatelessWidget {
   });
 
   final PdfDownload download;
-  final DownloadFeedbackState? dismissed;
-  final ValueChanged<DownloadFeedbackState> onDismiss;
+  final DownloadFailed? dismissed;
+  final ValueChanged<DownloadFailed> onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -861,7 +854,7 @@ class _DownloadFailureNotice extends StatelessWidget {
             foreground: colorScheme.onErrorContainer,
             message: 'Download failed: ${state.reason}',
             actionLabel: 'Retry',
-            onAction: download.start,
+            onAction: () => download.start(context),
             onDismiss: () => onDismiss(state),
           ),
         ),
@@ -871,8 +864,9 @@ class _DownloadFailureNotice extends StatelessWidget {
 }
 
 /// A labelled Download in the viewer's body, loading while the download
-/// runs, and under it why a failed one failed. Keyed by the open file, for
-/// the reason [_HeaderDownload] gives.
+/// runs, and under it why a failed one failed. Keyed by the open file where
+/// another file can replace it in place, for the reason [_HeaderDownload]
+/// gives.
 class _DownloadButton extends StatelessWidget {
   const _DownloadButton({super.key, required this.download});
 
@@ -888,7 +882,7 @@ class _DownloadButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SoliplexButton.outlined(
-            onPressed: state.canStart ? download.start : null,
+            onPressed: state.canStart ? () => download.start(context) : null,
             isLoading: state is DownloadRunning,
             icon: Icon(icon),
             child: Text(label),

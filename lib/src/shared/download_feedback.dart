@@ -36,7 +36,7 @@ final class DownloadFailed implements DownloadOutcome, DownloadFeedbackState {
 }
 
 /// Shared icon, label and color for each [DownloadFeedbackState]. An icon
-/// action (a file row's, the preview title bar's) uses [affordance] as it
+/// action (a file row's, a viewer's title bar's) uses [affordance] as it
 /// is; a labelled button uses [buttonAffordance], which differs while
 /// downloading and on a failure. Centralizing the mapping here keeps the
 /// affordances from drifting apart.

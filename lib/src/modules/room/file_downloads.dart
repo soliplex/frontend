@@ -79,8 +79,11 @@ class FileDownloads {
         _set(path, const DownloadIdle());
       case DownloadSaved():
         _showSaved(path, outcome);
-      case DownloadFailed():
-        _set(path, outcome);
+      // A failure of its own per attempt, even when the download reported a
+      // const one: a failure dismissed by its identity must not hide the
+      // next.
+      case DownloadFailed(:final reason):
+        _set(path, DownloadFailed(reason));
     }
   }
 

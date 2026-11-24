@@ -162,26 +162,29 @@ custom fonts actually display by visual inspection.
 
 ## Where feedback goes
 
-Feedback about something the user did appears where they did it. One rule
-everywhere, so there is one place to look:
+Feedback about something the user did appears where they did it, so there
+is one place to look. New code follows these rules; code from before them
+still has error snackbars and notices that are not live regions, which come
+in line as they are touched.
 
 1. **A control still on screen shows its own outcome.** A long action shows
-   progress in the control (`isLoading`), then its result there: done, or
-   failed with the reason and a way to retry. File downloads in the room work
-   this way (`DownloadFeedbackState`).
+   progress in the control (`isLoading` on a button, a `ProgressRing` in an
+   icon's place), then its result there: done, or failed with a way to retry.
+   A labelled control says why under it; an icon action says why in its
+   tooltip. File downloads work this way (`DownloadFeedbackState`).
 2. **Prevent rather than report.** An action that cannot succeed shows
    disabled, with the reason, before it is tried.
-3. **An outcome no control on screen owns** (it finished in the background,
-   or its control is gone) goes to that surface's one notice area: in the
-   room, the band above the composer, beside the send-error, upload and
-   workspace notices; in the PDF viewer, under its header; in the lobby, the
-   top of the pane.
+3. **An outcome no control on screen can explain** (it finished in the
+   background, its control is gone, or its control is an icon that can say
+   why only in a tooltip) goes to that surface's one notice area: in the
+   room, the band above the composer, beside the notices already there; in
+   the PDF viewer, above the document.
 4. **An error stays until it is resolved or dismissed.** A confirmation may
    dismiss itself.
 5. **A snackbar is only for a brief confirmation, with at most one action,**
    never for an error, and never where it covers the composer or another
    primary control. A snackbar is announced to screen readers; a notice
-   that takes its place must be too (`Semantics(liveRegion: true)`).
+   must be too (`Semantics(liveRegion: true)`).
 
 ## Hard rules
 

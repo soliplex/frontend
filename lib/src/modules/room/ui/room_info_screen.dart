@@ -537,7 +537,8 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
             onClose: close,
             download: PdfDownload(
               state: () => _downloads.stateOf(file),
-              start: () => unawaited(startDownload(context, _downloads, file)),
+              start: (context) =>
+                  unawaited(startDownload(context, _downloads, file)),
             ),
           ),
         ),

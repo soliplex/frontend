@@ -14,8 +14,10 @@ import 'package:soliplex_frontend/src/modules/room/pdf/quoted_context.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_row_download_action.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/start_download.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
+import 'package:soliplex_frontend/src/shared/notice_pill.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_viewer_pane.dart';
 import 'package:soliplex_frontend/src/stores/document_selections.dart';
@@ -67,6 +69,9 @@ void main() {
   late FakePdfDocumentViews views;
   late List<String> saved;
 
+  /// Whether a save throws, as a platform save dialog can.
+  late bool saveFails;
+
   setUp(() {
     api = _PdfApi()
       ..nextRooms = [Room(id: 'room-1', name: 'Test Room')]
@@ -97,9 +102,11 @@ void main() {
     servers = Signal({entry.serverId: entry});
     uploadRegistry = UploadTrackerRegistry(servers: servers);
     saved = [];
+    saveFails = false;
     downloadRegistry = FileDownloadsRegistry(
       servers: servers,
       saveFile: ({required String fileName, required Uint8List bytes}) async {
+        if (saveFails) throw Exception('disk full');
         saved.add(fileName);
         return '/tmp/$fileName';
       },
@@ -396,6 +403,102 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
+    testWidgets('saves the file it shows, not another listed one',
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      api
+        ..nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          acceptsRoomUploads: true,
+        )
+        ..nextRoomUploads = [
+          FileUpload(
+            filename: 'first.pdf',
+            url: Uri.parse('https://example.com/first.pdf'),
+          ),
+          FileUpload(
+            filename: 'second.pdf',
+            url: Uri.parse('https://example.com/second.pdf'),
+          ),
+        ];
+      await pump(tester);
+      await tester.tap(find.byIcon(Icons.folder));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('second.pdf'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(inViewer(find.byTooltip('Download')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(saved, ['second.pdf']);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets(
+        "asks first for a listed thread upload this device's memory "
+        'may not hold', (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      api
+        ..nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          acceptsThreadUploads: true,
+        )
+        ..nextThreadUploads = [
+          FileUpload(
+            filename: 'big.pdf',
+            url: Uri.parse('https://example.com/big.pdf'),
+            sizeBytes: largeDownloadWarningBytes + 1,
+          ),
+        ]
+        ..threadUploadBytes[('thread-1', 'big.pdf')] = _pdf;
+      await pump(tester);
+      await tester.tap(find.byIcon(Icons.folder));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('big.pdf'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(inViewer(find.byTooltip('Download')));
+      await tester.pumpAndSettle();
+      expect(find.text('Download big.pdf?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(saved, isEmpty);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets(
+        'a failure dismissed in the viewer shows again when a retry from '
+        'its row fails the same way', (tester) async {
+      await openBriefFromFiles(tester);
+      saveFails = true;
+      const notice = "Download failed: Couldn't save the file";
+
+      await tester.tap(inViewer(find.byTooltip('Download')));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(NoticePill, notice), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.widgetWithText(NoticePill, notice),
+          matching: find.byTooltip('Dismiss'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(NoticePill, notice), findsNothing);
+
+      await tester.tap(
+        inRow(
+          find.byTooltip("Download failed: Couldn't save the file. "
+              'Tap to retry.'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(NoticePill, notice), findsOneWidget);
+    });
+
     testWidgets('that fails after the viewer closed shows on its row',
         (tester) async {
       await openBriefFromFiles(tester);
@@ -461,6 +564,33 @@ void main() {
 
       expect(api.fetched, ['room-1/brief.pdf']);
       expect(views.last.bytes, isNotNull);
+    });
+
+    testWidgets("a link to an upload no list here holds still offers Download",
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      final upload = entry.serverUrl.resolve(
+        '/api/v1/uploads/room-2/file/elsewhere.pdf',
+      );
+      api.nextThreadHistory = ThreadHistory(
+        messages: [answer('[elsewhere.pdf]($upload)')],
+      );
+      await pump(tester);
+      await tester.tap(find.text('elsewhere.pdf', findRichText: true));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PdfViewerPane),
+          matching: find.byTooltip('Download'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(saved, ['elsewhere.pdf']);
+      expect(api.fetched.last, 'room-2/elsewhere.pdf');
+      await tester.pump(const Duration(seconds: 2));
     });
   });
 
