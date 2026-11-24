@@ -373,7 +373,7 @@ void main() {
     test("a thread's uploads and its workspace keep separate downloads",
         () async {
       final fetch = Completer<Uint8List>();
-      when(() => api.getThreadUpload('room-1', 't-1', 'a.txt'))
+      when(() => api.getThreadUploadFile('room-1', 't-1', 'a.txt'))
           .thenAnswer((_) => fetch.future);
       final uploads = registry.downloadsFor(
         entry: entry,

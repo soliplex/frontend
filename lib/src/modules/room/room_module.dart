@@ -16,6 +16,7 @@ import '../../stores/run_registry.dart';
 import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
 import 'file_downloads_registry.dart';
+import 'pdf/pending_quotes.dart';
 import 'upload_tracker_registry.dart';
 import 'user_switch_teardown.dart';
 
@@ -35,7 +36,8 @@ class RoomAppModule extends AppModule {
   })  : _messageExpansions = MessageExpansions(),
         _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers),
         _downloadRegistry =
-            FileDownloadsRegistry(servers: serverManager.servers) {
+            FileDownloadsRegistry(servers: serverManager.servers),
+        _pendingQuotes = PendingQuotesRegistry(servers: serverManager.servers) {
     _userSwitchTeardown = UserSwitchTeardown(
       servers: serverManager.servers,
       runtimeManager: runtimeManager,
@@ -44,6 +46,7 @@ class RoomAppModule extends AppModule {
       downloadRegistry: _downloadRegistry,
       documentSelections: documentSelections,
       databaseSelections: databaseSelections,
+      pendingQuotes: _pendingQuotes,
     );
   }
 
@@ -80,6 +83,7 @@ class RoomAppModule extends AppModule {
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
   final FileDownloadsRegistry _downloadRegistry;
+  final PendingQuotesRegistry _pendingQuotes;
   late final UserSwitchTeardown _userSwitchTeardown;
 
   @override
@@ -145,6 +149,7 @@ class RoomAppModule extends AppModule {
             databaseSelections: databaseSelections,
             roomReadMarkers: roomReadMarkers,
             serverReadMarkers: serverReadMarkers,
+            pendingQuotes: _pendingQuotes,
           ),
         );
       },
@@ -157,5 +162,6 @@ class RoomAppModule extends AppModule {
     await runtimeManager.dispose();
     _uploadRegistry.dispose();
     _downloadRegistry.dispose();
+    _pendingQuotes.dispose();
   }
 }

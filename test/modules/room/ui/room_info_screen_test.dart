@@ -13,6 +13,8 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/shared/content/code_view.dart';
 import 'package:soliplex_frontend/src/shared/content/json_viewer.dart';
+import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
+import 'package:soliplex_frontend/src/shared/pdf/pdf_viewer_pane.dart';
 import 'package:soliplex_frontend/src/shared/selectable_content.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads_registry.dart';
@@ -26,6 +28,7 @@ import '../../../helpers/fake_platform_file.dart';
 import '../../../helpers/fakes.dart';
 import '../../../helpers/held_file_picker.dart';
 import '../../../helpers/test_server_entry.dart';
+import '../../../shared/pdf/fake_pdf_document.dart';
 
 const _refusedNote = "You can't add files to this room.";
 const _unconfirmedNote =
@@ -66,6 +69,7 @@ Widget _buildScreen({
   FakeSoliplexApi? api,
   Future<ToolRegistry> Function(String)? toolRegistryResolver,
   FileSortPreference? fileSort,
+  PdfDocumentViewFactory? pdfDocumentViewFactory,
 }) {
   final fakeApi = api ?? FakeSoliplexApi();
   fakeApi.nextRoom ??= room ?? _testRoom;
@@ -84,6 +88,8 @@ Widget _buildScreen({
       downloadRegistry: _downloadRegistry(entry),
       fileSort: fileSort ?? FileSortPreference(),
       appName: 'Soliplex',
+      pdfDocumentViewFactory:
+          pdfDocumentViewFactory ?? FakePdfDocumentViews().call,
     ),
   );
 }
@@ -198,8 +204,13 @@ void main() {
         WidgetTester tester,
         FakeSoliplexApi api, {
         Room? room,
+        PdfDocumentViewFactory? pdfDocumentViewFactory,
       }) async {
-        await tester.pumpWidget(_buildScreen(api: api, room: room));
+        await tester.pumpWidget(_buildScreen(
+          api: api,
+          room: room,
+          pdfDocumentViewFactory: pdfDocumentViewFactory,
+        ));
         await tester.pumpAndSettle();
         await tester.scrollUntilVisible(
           // Not the exact string: the card titles itself 'UPLOADED FILES (n)'
@@ -245,6 +256,25 @@ void main() {
           ),
           findsOneWidget,
         );
+      });
+
+      testWidgets('a room upload that is a PDF opens in the PDF viewer',
+          (tester) async {
+        final views = FakePdfDocumentViews();
+        final api = FakeSoliplexApi()
+          ..nextRoomUploads = [
+            FileUpload(
+              filename: 'shared.pdf',
+              url: Uri.parse('https://example.com/shared.pdf'),
+            ),
+          ];
+        await pumpAs(tester, api, pdfDocumentViewFactory: views.call);
+
+        await tester.tap(find.text('shared.pdf'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PdfViewerPane), findsOneWidget);
+        expect(find.byType(FilePreviewPage), findsNothing);
       });
 
       testWidgets('a reported write permission offers the controls',

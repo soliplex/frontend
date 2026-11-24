@@ -4,12 +4,15 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart' show FileUpload;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_preview/file_preview_page.dart'
+    show FilePreviewPage;
 import 'package:soliplex_frontend/src/modules/room/ui/upload_entry_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_name.dart'
     show FileName;
@@ -239,10 +242,19 @@ void main() {
 
   testWidgets('a stored upload the app cannot show offers only Download',
       (tester) async {
-    await pumpRow(tester, stored());
+    await pumpRow(tester, stored(filename: 'archive.zip'));
 
     expect(find.byTooltip('Preview'), findsNothing);
     expect(find.byTooltip('Download'), findsOneWidget);
+  });
+
+  testWidgets('a stored PDF offers Preview, which the PDF viewer shows',
+      (tester) async {
+    await pumpRow(tester, stored());
+
+    await tester.tap(find.byTooltip('Preview'));
+
+    expect(previewed, ['report.pdf']);
   });
 
   testWidgets('tapping a stored upload opens its preview', (tester) async {
@@ -485,5 +497,74 @@ void main() {
     // or no index, opens another file.
     expect(findPreviewTitle('z.md'), findsOneWidget);
     expect(findPreviewTitle('2 / 3'), findsOneWidget);
+  });
+
+  group('an uploaded PDF', () {
+    PersistedUpload upload(String name) => PersistedUpload(
+          FileUpload(
+            filename: name,
+            url: Uri.parse('https://example.com/$name'),
+          ),
+        );
+
+    Future<BuildContext> pumpHost(WidgetTester tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: (c) {
+          context = c;
+          return const Scaffold(body: SizedBox.shrink());
+        }),
+      ));
+      return context;
+    }
+
+    testWidgets('opens in the PDF viewer, not the pager', (tester) async {
+      final context = await pumpHost(tester);
+      final pdf = upload('b.pdf');
+      final sentToViewer = <String>[];
+
+      unawaited(showUploadPreview(
+        context: context,
+        rows: [upload('a.md'), pdf],
+        opened: pdf,
+        api: FakeSoliplexApi(),
+        source: const RoomUploadSource(roomId: 'room-1'),
+        downloads: testDownloads(),
+        onOpenPdf: (file) => sentToViewer.add(file.filename),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(sentToViewer, ['b.pdf']);
+      expect(find.byType(FilePreviewPage), findsNothing);
+    });
+
+    testWidgets('swiped onto in the pager, offers the PDF viewer',
+        (tester) async {
+      final context = await pumpHost(tester);
+      final api = FakeSoliplexApi();
+      api.roomUploadBytes['a.md'] = Uint8List.fromList(utf8.encode('a'));
+      final md = upload('a.md');
+      final sentToViewer = <String>[];
+
+      unawaited(showUploadPreview(
+        context: context,
+        rows: [md, upload('b.pdf')],
+        opened: md,
+        api: api,
+        source: const RoomUploadSource(roomId: 'room-1'),
+        downloads: testDownloads(),
+        onOpenPdf: (file) => sentToViewer.add(file.filename),
+      ));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open in PDF viewer'));
+      await tester.pumpAndSettle();
+
+      expect(sentToViewer, ['b.pdf']);
+      expect(find.byType(FilePreviewPage), findsNothing,
+          reason: 'the pager closes for the viewer');
+    });
   });
 }

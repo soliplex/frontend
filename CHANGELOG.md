@@ -10,12 +10,29 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- A PDF viewer. It opens room and thread uploads (from the files panel and
+  room info), workspace PDFs, and `.pdf` links in answers. A link to the
+  server's own uploads is fetched with your login; any other link is loaded
+  without credentials. On a wide window it opens in a resizable pane beside
+  the chat; otherwise as a dialog, or as a full page on a phone. It has
+  search, zoom, Download, a password prompt, and a 50 MB limit.
+- **Ask about this:** select text in a PDF and use the button or the context
+  menu. The selection becomes a chip above the composer and is sent ahead of
+  your message as a quote, which shows as a card in the sent message. Tapping
+  a chip or a card reopens the PDF at its page.
+- Highlight colours for marks on a document page (`PaperHighlights` in
+  `soliplex_design`), kept legible on the always-white page in both themes.
+- **Library consumers:** the viewer renders with PDFium, which on the web is
+  `assets/packages/pdfrx/assets/pdfium.wasm` (about 5 MB, fetched the first
+  time a PDF opens). A fork's web server must serve it as `application/wasm`;
+  `nginx/nginx.conf` shows the caching and compression we use.
 - Uploaded files, room and thread, can be previewed and downloaded from the
   files panel, and room uploads from the room info screen, as workspace files
-  can: tap a file to preview it, or use its Preview and Download actions.
-- `soliplex_client`: `SoliplexApi.getRoomUpload` and `getThreadUpload` fetch
-  an uploaded file's bytes, and `ServedFile` is the interface `FileUpload` and
-  `WorkdirFile` share (name, directory, size).
+  can: tap a file to preview it (a PDF opens in the PDF viewer), or use its
+  Preview and Download actions.
+- `soliplex_client`: `SoliplexApi.getRoomUploadFile` and `getThreadUploadFile`
+  fetch an uploaded file's bytes, and `ServedFile` is the interface
+  `FileUpload` and `WorkdirFile` share (name, directory, size).
 
 ### Changed
 

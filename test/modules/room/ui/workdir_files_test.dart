@@ -133,6 +133,7 @@ WorkspaceFilesSection _workspace({
   Future<DownloadOutcome> Function(ServedFile file)? onDownload,
   FileDownloads? downloads,
   FileSort sort = FileSort.foldersAToZ,
+  void Function(ServedFile file)? onOpenPdf,
 }) =>
     WorkspaceFilesSection(
       status: status,
@@ -142,6 +143,7 @@ WorkspaceFilesSection _workspace({
       onFetchBytes: onFetchBytes,
       folderToggles: const {},
       onFolderToggled: (_, {required expanded}) {},
+      onOpenPdf: onOpenPdf,
     );
 
 Widget _wrap(Widget child) =>
@@ -385,7 +387,7 @@ void main() {
       "a row that can preview shows its kind's icon and an eye; one that "
       "can't, the file icon and no eye", (tester) async {
     await tester.pumpWidget(_wrap(_workspace(
-      status: WorkdirFilesLoaded([_file('plot.png'), _file('report.pdf')]),
+      status: WorkdirFilesLoaded([_file('plot.png'), _file('archive.zip')]),
       onRetry: () {},
       onDownload: (_) async => const DownloadSaved(),
       onFetchBytes: (_) async => _tinyPng,
@@ -2026,6 +2028,68 @@ void main() {
         ));
         expect(title.height, lessThanOrEqualTo(450 * 0.85 / 3));
       });
+    });
+  });
+
+  group('PDFs', () {
+    testWidgets('a PDF row shows the PDF icon and an eye', (tester) async {
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('report.pdf')]),
+        onRetry: () {},
+        onFetchBytes: (_) async => _tinyPng,
+      )));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.picture_as_pdf_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+    });
+
+    testWidgets('tapping a PDF row opens it in the PDF viewer, not the pager',
+        (tester) async {
+      final opened = <ServedFile>[];
+      var fetches = 0;
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('a.md'), _file('report.pdf')]),
+        onRetry: () {},
+        onFetchBytes: (_) async {
+          fetches++;
+          return _tinyPng;
+        },
+        onOpenPdf: opened.add,
+      )));
+      await tester.pump();
+
+      await tester.tap(findFileName('report.pdf'));
+      await tester.pumpAndSettle();
+
+      expect(opened.single.filename, 'report.pdf');
+      expect(fetches, 0);
+      expect(find.byType(FilePreviewPage), findsNothing);
+    });
+
+    testWidgets('a PDF swiped onto in the pager offers the PDF viewer',
+        (tester) async {
+      final opened = <ServedFile>[];
+      await tester.pumpWidget(_wrap(_workspace(
+        status: WorkdirFilesLoaded([_file('a.md'), _file('report.pdf')]),
+        onRetry: () {},
+        onFetchBytes: (_) async => Uint8List.fromList(utf8.encode('body')),
+        onOpenPdf: opened.add,
+      )));
+      await tester.pump();
+      await tester.tap(findFileName('a.md'));
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(
+          _inPreview(find.text('PDFs open in the PDF viewer')), findsOneWidget);
+
+      await tester.tap(find.text('Open in PDF viewer'));
+      await tester.pumpAndSettle();
+      expect(opened.single.filename, 'report.pdf');
+      expect(find.byType(FilePreviewPage), findsNothing,
+          reason: 'the pager closes for the viewer');
     });
   });
 }

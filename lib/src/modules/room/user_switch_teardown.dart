@@ -7,6 +7,7 @@ import '../../stores/database_selections.dart';
 import '../../stores/document_selections.dart';
 import '../../stores/run_registry.dart';
 import 'file_downloads_registry.dart';
+import 'pdf/pending_quotes.dart';
 import 'upload_tracker_registry.dart';
 
 final Logger _logger =
@@ -22,9 +23,10 @@ final Logger _logger =
 /// stable `serverId`, and [UploadTrackerRegistry] and [FileDownloadsRegistry]
 /// by the `ServerEntry`, which re-auth also reuses; and [DocumentSelections]
 /// and [DatabaseSelections] hold document filters and database selections in
-/// shared maps that are not partitioned by user. Without this the next user
-/// would reattach to the prior user's runtime, runs, uploads, downloads,
-/// document filters and database selections. A seventh, `AdminStatus`, hangs
+/// shared maps that are not partitioned by user; [PendingQuotesRegistry]
+/// holds passages quoted from the prior user's documents. Without this the
+/// next user would reattach to the prior user's runtime, runs, uploads,
+/// downloads, document filters, database selections and quotes. A seventh, `AdminStatus`, hangs
 /// off the `ServerEntry` and holds an authorization answer, so it is evicted
 /// here too; `ServerManager` additionally clears it when a session ends,
 /// which reaches the sign-out path on the `null`-identity servers this class
@@ -66,12 +68,14 @@ class UserSwitchTeardown {
     required FileDownloadsRegistry downloadRegistry,
     required DocumentSelections documentSelections,
     required DatabaseSelections databaseSelections,
+    required PendingQuotesRegistry pendingQuotes,
   })  : _runtimeManager = runtimeManager,
         _registry = registry,
         _uploadRegistry = uploadRegistry,
         _downloadRegistry = downloadRegistry,
         _documentSelections = documentSelections,
-        _databaseSelections = databaseSelections {
+        _databaseSelections = databaseSelections,
+        _pendingQuotes = pendingQuotes {
     _dispose = effect(() {
       for (final MapEntry(key: serverId, value: entry)
           in servers.value.entries) {
@@ -94,6 +98,7 @@ class UserSwitchTeardown {
   final FileDownloadsRegistry _downloadRegistry;
   final DocumentSelections _documentSelections;
   final DatabaseSelections _databaseSelections;
+  final PendingQuotesRegistry _pendingQuotes;
   // Baseline identity per server. An entry for a removed server is left in
   // place: the map is bounded by servers seen this process, and a stale
   // baseline only ever fires a harmless no-op eviction if that id is re-added,
@@ -123,6 +128,7 @@ class UserSwitchTeardown {
       'database selections',
       serverId,
     );
+    _step(() => _pendingQuotes.evictServer(serverId), 'quotes', serverId);
     _step(() => entry.adminStatus.clear(), 'admin status', serverId);
   }
 

@@ -224,6 +224,26 @@ class SoliplexRadii {
 
 const soliplexRadii = SoliplexRadii(sm: 6, md: 12, lg: 16, xl: 24);
 
+// ---------- Paper highlights ----------
+//
+// Marks drawn on a document page (selection, search match, cited passage).
+// Fixed across themes: a page is white paper in light and dark mode alike.
+// Each value assumes the blend mode noted; see README "Paper highlights".
+
+class PaperHighlights {
+  /// Normal blending, over ink and paper.
+  static const selection = Color(0x4D0B57D0);
+
+  /// Multiply.
+  static const match = Color(0xFFFDE68A);
+
+  /// Multiply, outlined with [activeMatchOutline].
+  static const activeMatch = Color(0xFFFCD34D);
+
+  /// 2 px stroke, normal blending.
+  static const activeMatchOutline = Color(0xFFB45309);
+}
+
 // ---------- Breakpoints ----------
 
 class SoliplexBreakpoints {

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/core/ui/confirm_dialog.dart';
-import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_client/soliplex_client.dart'
+    show ServedFile, SoliplexApi;
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_source.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
@@ -38,7 +39,7 @@ class UploadEntryRow extends StatelessWidget {
   final FileDownloads downloads;
 
   /// Opens the preview at a stored file: tapping its row invokes it, and so
-  /// does the eye icon a previewable file shows.
+  /// does the eye icon a file that opens in a viewer shows.
   final void Function(PersistedUpload entry) onOpenPreview;
 
   /// Deletes a stored room upload by filename, once the user confirms. Null
@@ -137,7 +138,7 @@ class UploadEntryRow extends StatelessWidget {
       ),
       actions: [
         if (available != null) ...[
-          if (PreviewKind.from(available.filename).canRender)
+          if (PreviewKind.from(available.filename).opensInViewer)
             FileRowAction(
               icon: Icons.visibility_outlined,
               tooltip: 'Preview',
@@ -179,7 +180,9 @@ class UploadEntryRow extends StatelessWidget {
 }
 
 /// Opens the preview at [opened], paging through the stored, not-deleting
-/// files of [rows] in the order they show, fetched from [source].
+/// files of [rows] in the order they show, fetched from [source]. A PDF
+/// goes to [onOpenPdf] instead, as does one the pager is swiped onto; with
+/// no [onOpenPdf] it stays in the pager, which cannot show it.
 Future<void> showUploadPreview({
   required BuildContext context,
   required List<DisplayUpload> rows,
@@ -187,7 +190,13 @@ Future<void> showUploadPreview({
   required SoliplexApi api,
   required FileSource source,
   required FileDownloads downloads,
-}) {
+  void Function(ServedFile file)? onOpenPdf,
+}) async {
+  if (onOpenPdf != null &&
+      PreviewKind.from(opened.filename) == PreviewKind.pdf) {
+    onOpenPdf(opened.file);
+    return;
+  }
   final files = [
     for (final row in rows)
       if (row case PersistedUpload(isDeleting: false)) row.file,
@@ -198,5 +207,6 @@ Future<void> showUploadPreview({
     initialIndex: files.indexWhere((f) => f.filename == opened.filename),
     fetchBytes: (file) => fetchFileBytes(api, source, file),
     downloads: downloads,
+    onOpenPdf: onOpenPdf,
   );
 }

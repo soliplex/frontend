@@ -75,7 +75,7 @@ void main() {
 
     test("fetches a room upload from the room's uploads", () async {
       final bytes = Uint8List.fromList([2]);
-      when(() => api.getRoomUpload('room-1', 'a.pdf'))
+      when(() => api.getRoomUploadFile('room-1', 'a.pdf'))
           .thenAnswer((_) async => bytes);
 
       final out = await fetchFileBytes(
@@ -89,7 +89,7 @@ void main() {
 
     test("fetches a thread upload from the thread's uploads", () async {
       final bytes = Uint8List.fromList([3]);
-      when(() => api.getThreadUpload('room-1', 't-1', 'a.pdf'))
+      when(() => api.getThreadUploadFile('room-1', 't-1', 'a.pdf'))
           .thenAnswer((_) async => bytes);
 
       final out = await fetchFileBytes(
@@ -111,7 +111,7 @@ void main() {
       });
 
       test('rethrows NotFoundException without a warning', () async {
-        when(() => api.getRoomUpload(any(), any())).thenThrow(
+        when(() => api.getRoomUploadFile(any(), any())).thenThrow(
           const NotFoundException(message: 'gone', resource: '/x'),
         );
 
@@ -128,7 +128,7 @@ void main() {
 
       test('rethrows other errors, warning with the source and the file',
           () async {
-        when(() => api.getThreadUpload(any(), any(), any()))
+        when(() => api.getThreadUploadFile(any(), any(), any()))
             .thenThrow(const NetworkException(message: 'down'));
 
         await expectLater(

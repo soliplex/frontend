@@ -160,6 +160,25 @@ Conventions:
 | lg   | 16 px | Larger cards                      |
 | xl   | 24 px | Sheets, splash surfaces           |
 
+### Paper highlights
+
+Marks drawn on a document page — a PDF's text selection, search matches, and
+cited passages. A page is white paper with dark ink in both themes, so these
+are fixed values (`PaperHighlights` in Flutter, `--sp-paper-*` in CSS), not
+theme tokens. Each holds its contrast only when painted with the blend mode
+listed.
+
+| Token                | Value              | Painted with                | Contrast held                                      |
+|----------------------|--------------------|-----------------------------|----------------------------------------------------|
+| `selection`          | `#0B57D0` at 30 %  | normal blend, over ink      | ink ≥ 4.5:1; handles (70 % and opaque) ≥ 3:1       |
+| `match`              | `#FDE68A`          | multiply                    | ink ≥ 4.5:1                                        |
+| `activeMatch`        | `#FCD34D`          | multiply, plus the outline  | ink ≥ 4.5:1                                        |
+| `activeMatchOutline` | `#B45309`          | 2 px stroke, normal blend   | ≥ 3:1 against paper and against `match`            |
+
+The fills are deliberately pale: under multiply the ink stays dark. That also
+means they are too faint to find by shape alone, which is what the active
+match's outline is for.
+
 ### Breakpoints
 | Name    | Min width | Layout                                 |
 |---------|-----------|----------------------------------------|

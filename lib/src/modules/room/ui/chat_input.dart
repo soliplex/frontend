@@ -9,6 +9,8 @@ import '../../../shared/document_display.dart';
 import '../attachable_images.dart';
 import '../pick_file.dart' show PickFileException;
 import '../pick_image.dart';
+import '../pdf/pdf_quote.dart';
+import '../pdf/quote_cards.dart';
 import 'document_label.dart';
 import 'inline_image_composer_controller.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -67,6 +69,9 @@ class ChatInput extends StatefulWidget {
     this.openImagePicker,
     this.composerScope,
     this.contextUsage,
+    this.quotes = const [],
+    this.onQuoteRemoved,
+    this.onQuoteTap,
   });
 
   final void Function(List<MessagePart> parts) onSend;
@@ -129,6 +134,16 @@ class ChatInput extends StatefulWidget {
   /// composer with no thread behind it should do — there is nothing yet to
   /// measure.
   final ReadonlySignal<ContextUsage>? contextUsage;
+
+  /// Passages quoted from a PDF to go with the next message, shown as chips
+  /// above the field. The caller sends them: [onSend] receives only what was
+  /// typed. With any waiting, a send needs no text — the quotes are the
+  /// question.
+  final List<PdfQuote> quotes;
+  final void Function(PdfQuote quote)? onQuoteRemoved;
+
+  /// Reopens the PDF a quote came from, at its page.
+  final void Function(PdfQuote quote)? onQuoteTap;
 
   @override
   State<ChatInput> createState() => _ChatInputState();
@@ -223,12 +238,23 @@ class _ChatInputState extends State<ChatInput> {
     if (!_acceptsInput) {
       return;
     }
-    final parts = _controller.sendableParts();
+    final parts = _sendableParts();
     if (parts == null) return;
     widget.onSend(parts);
     _controller.clear();
     setState(() => _attachNotice = null);
     _focusNode.requestFocus();
+  }
+
+  /// What a send would carry: the draft's parts, or nothing at all when quotes
+  /// alone are waiting. A draft the controller refuses — one holding an image
+  /// it no longer has — is refused here too, quotes or not: sending the quotes
+  /// alone would drop the text typed around that image.
+  List<MessagePart>? _sendableParts() {
+    final parts = _controller.sendableParts();
+    if (parts != null) return parts;
+    if (widget.quotes.isEmpty || _controller.hasPlaceholderImage) return null;
+    return _controller.text.trim().isEmpty ? const [] : null;
   }
 
   /// Runs one pick, and owns everything that can go wrong with it.
@@ -544,6 +570,12 @@ class _ChatInputState extends State<ChatInput> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.quotes.isNotEmpty)
+              QuoteChipRow(
+                quotes: widget.quotes,
+                onRemoved: disabled ? null : widget.onQuoteRemoved,
+                onTap: widget.onQuoteTap,
+              ),
             if (widget.databaseNames.length > 1)
               _DatabaseChips(
                 names: widget.databaseNames,
@@ -705,7 +737,7 @@ class _ChatInputState extends State<ChatInput> {
                     builder: (context, value, child) => IconButton(
                       icon: const Icon(Icons.send),
                       onPressed:
-                          disabled || !_controller.canSend ? null : _send,
+                          disabled || _sendableParts() == null ? null : _send,
                     ),
                   ),
               ],

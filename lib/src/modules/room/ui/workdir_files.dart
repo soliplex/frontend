@@ -37,7 +37,7 @@ class WorkdirFileRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final kind = PreviewKind.from(file.filename);
-    final canPreview = kind.canRender;
+    final canPreview = kind.opensInViewer;
     // Rows that can't preview show the generic file icon so the leading
     // icon doesn't imply their content can be shown.
     final leadingIcon =

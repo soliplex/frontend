@@ -51,7 +51,7 @@ final class RoomUploadSource extends FileSource {
 
   @override
   Future<Uint8List> fetch(SoliplexApi api, String filename) =>
-      api.getRoomUpload(roomId, filename);
+      api.getRoomUploadFile(roomId, filename);
 
   @override
   Map<String, Object> get _sourceAttributes =>
@@ -72,7 +72,7 @@ final class ThreadUploadSource extends FileSource {
 
   @override
   Future<Uint8List> fetch(SoliplexApi api, String filename) =>
-      api.getThreadUpload(roomId, threadId, filename);
+      api.getThreadUploadFile(roomId, threadId, filename);
 
   @override
   Map<String, Object> get _sourceAttributes =>

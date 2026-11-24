@@ -1757,7 +1757,7 @@ class SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
-    _requireOneSegment(filename);
+    _requireUploadName(filename);
 
     await _transport.request<void>(
       'DELETE',
@@ -1766,17 +1766,21 @@ class SoliplexApi {
     );
   }
 
-  /// Downloads one file from a room's shared upload directory.
+  /// Downloads a file uploaded to a room.
   ///
   /// Buffers the entire response in memory, so a large file costs its whole
   /// size in memory before the caller sees a byte.
   ///
-  /// [filename] is sent as one encoded path segment; a name that is not one
-  /// segment is refused, as [deleteRoomUpload] refuses it.
+  /// Built from the room and the name rather than taken from
+  /// [FileUpload.url]: the server forms that URL from the request it
+  /// answered, which behind a proxy can name another scheme or host — one
+  /// this client's credentials must not be sent to.
   ///
   /// Parameters:
-  /// - [roomId]: The room ID (must not be empty)
-  /// - [filename]: The uploaded file's name (must not be empty)
+  /// - [roomId]: The room's ID (must not be empty)
+  /// - [filename]: The uploaded file's name, as the listing gave it (one path
+  ///   segment)
+  /// - [timeout]: Overrides the transport's default for this request
   ///
   /// Returns the raw file bytes.
   ///
@@ -1791,33 +1795,36 @@ class SoliplexApi {
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
-  Future<Uint8List> getRoomUpload(
+  Future<Uint8List> getRoomUploadFile(
     String roomId,
     String filename, {
+    Duration? timeout,
     CancelToken? cancelToken,
   }) {
     _requireNonEmpty(roomId, 'roomId');
-    _requireOneSegment(filename);
+    _requireUploadName(filename);
 
     return _transport.requestBytes(
       'GET',
       _urlBuilder.build(pathSegments: ['uploads', roomId, 'file', filename]),
+      timeout: timeout,
       cancelToken: cancelToken,
     );
   }
 
-  /// Downloads one file from a thread's upload directory.
+  /// Downloads a file uploaded to a thread.
   ///
-  /// Buffers the entire response in memory, so a large file costs its whole
-  /// size in memory before the caller sees a byte.
+  /// Buffers the entire response in memory, as [getRoomUploadFile] does.
   ///
-  /// [filename] is sent as one encoded path segment; a name that is not one
-  /// segment is refused.
+  /// Built from its parts rather than taken from [FileUpload.url], for the
+  /// reason [getRoomUploadFile] gives.
   ///
   /// Parameters:
-  /// - [roomId]: The room ID (must not be empty)
-  /// - [threadId]: The thread ID (must not be empty)
-  /// - [filename]: The uploaded file's name (must not be empty)
+  /// - [roomId]: The room's ID (must not be empty)
+  /// - [threadId]: The thread's ID (must not be empty)
+  /// - [filename]: The uploaded file's name, as the listing gave it (one path
+  ///   segment)
+  /// - [timeout]: Overrides the transport's default for this request
   ///
   /// Returns the raw file bytes.
   ///
@@ -1832,23 +1839,39 @@ class SoliplexApi {
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
-  Future<Uint8List> getThreadUpload(
+  Future<Uint8List> getThreadUploadFile(
     String roomId,
     String threadId,
     String filename, {
+    Duration? timeout,
     CancelToken? cancelToken,
   }) {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(threadId, 'threadId');
-    _requireOneSegment(filename);
+    _requireUploadName(filename);
 
     return _transport.requestBytes(
       'GET',
       _urlBuilder.build(
         pathSegments: ['uploads', roomId, 'thread', threadId, 'file', filename],
       ),
+      timeout: timeout,
       cancelToken: cancelToken,
     );
+  }
+
+  /// Rejects an upload name that is empty or more than one path segment.
+  /// Uploads live flat in their directory, so a name with a `/`, or one of
+  /// `.` and `..`, can only be a mistake or an attempt to reach elsewhere.
+  void _requireUploadName(String filename) {
+    _requireNonEmpty(filename, 'filename');
+    if (filename.contains('/') || filename == '.' || filename == '..') {
+      throw ArgumentError.value(
+        filename,
+        'filename',
+        'must be one path segment',
+      );
+    }
   }
 
   /// Uploads a file to a thread's upload directory.
@@ -2034,20 +2057,6 @@ class SoliplexApi {
   void _requireNonEmpty(String value, String name) {
     if (value.isEmpty) {
       throw ArgumentError.value(value, name, 'must not be empty');
-    }
-  }
-
-  /// Validates that [filename] is a non-empty, single path segment. A name
-  /// holding `/`, or `.` or `..`, would address another path: the URL builder
-  /// splits on `/`, and a dot segment collapses.
-  void _requireOneSegment(String filename) {
-    _requireNonEmpty(filename, 'filename');
-    if (filename.contains('/') || filename == '.' || filename == '..') {
-      throw ArgumentError.value(
-        filename,
-        'filename',
-        'must be one path segment',
-      );
     }
   }
 
