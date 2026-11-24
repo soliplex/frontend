@@ -2,4 +2,4 @@
 ///
 /// Generated from pubspec.yaml. Run `dart run tool/update_version.dart` after
 /// changing the version in pubspec.yaml.
-const String soliplexVersion = '0.119.1+109';
+const String soliplexVersion = '0.120.0+110';
