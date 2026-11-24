@@ -6,6 +6,7 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
+import 'package:soliplex_frontend/src/shared/download_feedback.dart';
 
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));

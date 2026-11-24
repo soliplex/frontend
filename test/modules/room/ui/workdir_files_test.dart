@@ -29,6 +29,7 @@ import '../../../helpers/file_name_finder.dart';
 import '../../../helpers/preview_title_finder.dart';
 import '../../../helpers/selectable_finder.dart';
 import '../../../helpers/test_downloads.dart';
+import 'package:soliplex_frontend/src/shared/download_feedback.dart';
 
 /// Minimal 1x1 transparent PNG so [Image.memory] can decode in tests.
 final Uint8List _tinyPng = Uint8List.fromList(const [

@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_list_row.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
@@ -17,6 +16,7 @@ import 'package:soliplex_frontend/src/shared/local_time_format.dart';
 import '../../../helpers/file_name_finder.dart';
 import '../../../helpers/preview_title_finder.dart';
 import '../../../helpers/test_downloads.dart';
+import 'package:soliplex_frontend/src/shared/download_feedback.dart';
 
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/file_size.dart';
 import '../../../shared/local_time_format.dart';
 import '../../../shared/relative_time.dart';
+import '../../../shared/progress_ring.dart';
 
 /// The frame every entry of a file list shares: uploads, workspace files and
 /// workspace folders.
@@ -305,45 +305,6 @@ class FileRowActionProgress extends StatelessWidget {
         dimension: FileRowAction.extent,
         child: Center(child: ProgressRing(label: label)),
       ),
-    );
-  }
-}
-
-/// A progress ring in a 16 px icon slot, drawn the size of an icon's shape
-/// rather than its box, so it weighs as much as the icons beside it, and
-/// named by [label] to a screen reader. Indeterminate when [value] is null.
-class ProgressRing extends StatelessWidget {
-  const ProgressRing({super.key, required this.label, this.value});
-
-  final String label;
-  final double? value;
-
-  @override
-  Widget build(BuildContext context) {
-    final value = this.value;
-    final ring = SizedBox.square(
-      dimension: 16,
-      child: Center(
-        child: SizedBox.square(
-          dimension: 12,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            value: value,
-            semanticsLabel: label,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-    if (value != null) return ring;
-    // A status, which a browser announces; a spinner's own role carries the
-    // label to no reader there.
-    return Semantics(
-      container: true,
-      role: SemanticsRole.status,
-      label: label,
-      excludeSemantics: true,
-      child: ring,
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ServedFile;
 import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
+import 'package:soliplex_frontend/src/shared/download_feedback.dart';
 
 /// Downloads that save through [save], succeeding by default, disposed when
 /// the test ends.

@@ -18,6 +18,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../helpers/fakes.dart' show FakeTokenRefreshService;
 import '../../helpers/test_server_entry.dart' show testAccessToken;
+import 'package:soliplex_frontend/src/shared/download_feedback.dart';
 
 class _FakeHttpClient extends Fake implements SoliplexHttpClient {}
 

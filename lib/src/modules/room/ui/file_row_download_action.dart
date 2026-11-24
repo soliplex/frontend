@@ -7,7 +7,7 @@ import 'package:soliplex_client/soliplex_client.dart' show ServedFile;
 import '../file_downloads.dart';
 import 'file_list_row.dart';
 import 'start_download.dart';
-import 'file_preview/download_feedback.dart';
+import '../../../shared/download_feedback.dart';
 
 /// A file row's download action for [file]: its icon and tooltip follow the
 /// file's download in [downloads], and a spinner takes its place while one

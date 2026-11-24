@@ -1,6 +1,39 @@
 import 'package:flutter/material.dart';
 
-import '../../file_downloads.dart';
+/// Result of a file download attempt.
+sealed class DownloadOutcome {}
+
+/// Where a file's download stands. An outcome that shows, [DownloadSaved] or
+/// [DownloadFailed], is a state as it is.
+sealed class DownloadFeedbackState {}
+
+/// No download runs, and no outcome shows.
+final class DownloadIdle implements DownloadFeedbackState {
+  const DownloadIdle();
+}
+
+final class DownloadRunning implements DownloadFeedbackState {
+  const DownloadRunning();
+}
+
+/// The file was saved, or on the web handed to the browser.
+final class DownloadSaved implements DownloadOutcome, DownloadFeedbackState {
+  const DownloadSaved();
+}
+
+/// Nothing was saved and nothing failed: the user cancelled the save, or
+/// nobody was left to want the file. Kept apart from [DownloadFailed] so
+/// the UI shows no error for it.
+final class DownloadCancelled implements DownloadOutcome {
+  const DownloadCancelled();
+}
+
+final class DownloadFailed implements DownloadOutcome, DownloadFeedbackState {
+  const DownloadFailed(this.reason);
+
+  /// Why, in words for the user: fixed text, never the error's own.
+  final String reason;
+}
 
 /// Shared icon, label and color for each [DownloadFeedbackState]. An icon
 /// action (a file row's, the preview title bar's) uses [affordance] as it
@@ -25,6 +58,13 @@ extension DownloadFeedbackAffordance on DownloadFeedbackState {
         DownloadIdle() || DownloadRunning() => null,
         DownloadSaved() => colors.onSurfaceVariant,
         DownloadFailed() => colors.error,
+      };
+
+  /// Whether a download may start: none runs, and no save shows. A failed
+  /// one may, as a retry.
+  bool get canStart => switch (this) {
+        DownloadIdle() || DownloadFailed() => true,
+        DownloadRunning() || DownloadSaved() => false,
       };
 
   /// [affordance] for a button, which shows a download under way by loading:
