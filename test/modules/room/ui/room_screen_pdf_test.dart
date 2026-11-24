@@ -14,6 +14,7 @@ import 'package:soliplex_frontend/src/modules/room/pdf/quoted_context.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_row_download_action.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workspace_files_section.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_viewer_pane.dart';
@@ -347,6 +348,52 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       expect(inViewer(find.byTooltip('Download')), findsOneWidget);
       expect(inRow(find.byTooltip('Download')), findsOneWidget);
+    });
+
+    testWidgets("is a workspace file's row's download", (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      api.nextWorkdirFiles = [
+        WorkdirFile(
+          filename: 'big.pdf',
+          url: Uri.parse('https://example.com/big.pdf'),
+          sizeBytes: pdfViewerSizeCapBytes + 1,
+        ),
+      ];
+      api
+        ..nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          acceptsRoomUploads: true,
+        )
+        ..nextRoomUploads = [
+          FileUpload(
+            filename: 'big.pdf',
+            url: Uri.parse('https://example.com/big.pdf'),
+          ),
+        ];
+      await pump(tester);
+      await tester.tap(find.byIcon(Icons.folder));
+      await tester.pumpAndSettle();
+      // The room's big.pdf first, then the workspace's, in the same viewer.
+      await tester.tap(find.text('big.pdf').first);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(WorkspaceFilesSection),
+          matching: find.text('big.pdf'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(inViewer(find.text('Too large to open here')), findsOneWidget);
+
+      await tester.tap(inViewer(find.byTooltip('Download')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(saved, ['big.pdf']);
+      expect(inViewer(find.byTooltip('Saved')), findsOneWidget);
+      expect(inRow(find.byTooltip('Saved')), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
     });
 
     testWidgets('that fails after the viewer closed shows on its row',
