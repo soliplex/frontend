@@ -33,6 +33,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - `soliplex_client`: `SoliplexApi.getRoomUploadFile` and `getThreadUploadFile`
   fetch an uploaded file's bytes, and `ServedFile` is the interface
   `FileUpload` and `WorkdirFile` share (name, directory, size).
+- **Reload room configs:** a server's administrators can reload its room
+  configs from the lobby, so added, removed and edited rooms take effect
+  without a restart. The lobby then refreshes the server's rooms and says
+  what changed. A server running several workers can't reload in place and
+  is reported as needing a restart. A reload started before opening a room
+  still reports how it went.
+- `soliplex_client`: `SoliplexApi.reloadRoomConfigs` reloads the
+  installation's room configs and answers the rooms it added, removed and
+  changed as a `RoomConfigsReloaded`.
 
 ### Changed
 
