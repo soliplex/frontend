@@ -14,8 +14,8 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.downloads');
 /// stays to read. A save the user cancels goes straight back to idle.
 ///
 /// Every affordance that downloads a file reads its state here and starts it
-/// here, so a file row and the preview show one download, and a file starts
-/// no second one while one runs or its save shows.
+/// here, so a file row, the preview and the PDF viewer show one download,
+/// and a file starts no second one while one runs or its save shows.
 class FileDownloads {
   FileDownloads(this._download);
 
@@ -35,7 +35,8 @@ class FileDownloads {
   bool _isDisposed = false;
 
   /// [file]'s state; read inside a `Watch`, it rebuilds when any file's
-  /// download changes.
+  /// download changes. Each failed attempt reads as a [DownloadFailed] of
+  /// its own.
   DownloadFeedbackState stateOf(ServedFile file) =>
       _states.value[file.filename] ?? const DownloadIdle();
 
@@ -79,9 +80,9 @@ class FileDownloads {
         _set(path, const DownloadIdle());
       case DownloadSaved():
         _showSaved(path, outcome);
-      // A failure of its own per attempt, even when the download reported a
-      // const one: a failure dismissed by its identity must not hide the
-      // next.
+      // A new instance per attempt, even when the download returned a const
+      // one: the PDF viewer hides a dismissed failure by identity, so a
+      // reused instance would hide the next failure too.
       case DownloadFailed(:final reason):
         _set(path, DownloadFailed(reason));
     }
