@@ -62,4 +62,43 @@ void main() {
     final (path, _) = canvas.draws.single;
     expect(path.getBounds(), a.inflate(1));
   });
+
+  group('paintPaperPassage', () {
+    test('draws nothing without boxes', () {
+      final canvas = _RecordingCanvas();
+      paintPaperPassage(canvas, context: const [], anchor: const []);
+      expect(canvas.draws, isEmpty);
+    });
+
+    test('washes the context, then fills and outlines the anchor', () {
+      final canvas = _RecordingCanvas();
+      paintPaperPassage(canvas, context: const [b], anchor: const [a]);
+
+      expect(canvas.draws, hasLength(3));
+      final (contextPath, wash) = canvas.draws[0];
+      final (anchorPath, fill) = canvas.draws[1];
+      final (outlinePath, outline) = canvas.draws[2];
+      expect(wash.color.toARGB32(), PaperHighlights.context.toARGB32());
+      expect(wash.blendMode, BlendMode.multiply);
+      expect(contextPath.contains(b.center), isTrue);
+      expect(fill.color.toARGB32(), PaperHighlights.activeMatch.toARGB32());
+      expect(fill.blendMode, BlendMode.multiply);
+      expect(anchorPath.contains(a.center), isTrue);
+      expect(anchorPath.contains(b.center), isFalse);
+      expect(outline.style, PaintingStyle.stroke);
+      expect(
+        outline.color.toARGB32(),
+        PaperHighlights.activeMatchOutline.toARGB32(),
+      );
+      expect(identical(outlinePath, anchorPath), isTrue);
+    });
+
+    test('a passage with only context has no outline', () {
+      final canvas = _RecordingCanvas();
+      paintPaperPassage(canvas, context: const [b], anchor: const []);
+
+      final (_, wash) = canvas.draws.single;
+      expect(wash.color.toARGB32(), PaperHighlights.context.toARGB32());
+    });
+  });
 }

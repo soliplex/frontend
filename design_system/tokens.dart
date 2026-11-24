@@ -240,6 +240,9 @@ class PaperHighlights {
   /// Multiply, outlined with [activeMatchOutline].
   static const activeMatch = Color(0xFFFCD34D);
 
+  /// Multiply; a cited passage's surrounding context.
+  static const context = Color(0xFFFEF3C7);
+
   /// 2 px stroke, normal blending.
   static const activeMatchOutline = Color(0xFFB45309);
 }

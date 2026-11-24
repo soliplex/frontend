@@ -9,6 +9,20 @@ import 'package:soliplex_frontend/src/shared/pdf/pdf_source.dart';
 
 class _MockApi extends Mock implements SoliplexApi {}
 
+SourceReference _cited(
+  String chunkId, {
+  String documentId = 'doc-1',
+  String database = 'notes',
+}) =>
+    SourceReference(
+      documentId: documentId,
+      documentUri: 'file:///srv/notes.pdf',
+      content: 'Passage $chunkId',
+      chunkId: chunkId,
+      documentTitle: 'notes.pdf',
+      database: database,
+    );
+
 void main() {
   final server = Uri.parse('https://chat.example.com');
 
@@ -124,6 +138,19 @@ void main() {
       expect(await (source.load as PdfLoadBytes).fetch(), bytes);
     });
 
+    test("fetches a cited document from the room's RAG database", () async {
+      when(() => api.getRagDocumentFile('r', 'doc-1', database: 'notes'))
+          .thenAnswer((_) async => bytes);
+      final source = pdfViewerSourceFor(
+        CitationPdfTarget(roomId: 'r', citations: [_cited('c1')]),
+        api,
+      );
+      expect(source.title, 'notes.pdf');
+      expect(source.origin, 'Cited document');
+      expect(source.cacheKey, 'rag-document:r/notes/doc-1');
+      expect(await (source.load as PdfLoadBytes).fetch(), bytes);
+    });
+
     test('fetches a thread upload through the API', () async {
       when(() => api.getThreadUploadFile('r', 't', 'a.pdf'))
           .thenAnswer((_) async => bytes);
@@ -214,6 +241,43 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('citationTargetFor', () {
+    test("gathers the thread's citations of the document, each chunk once", () {
+      final target = citationTargetFor(
+        _cited('c2'),
+        [
+          _cited('c1'),
+          _cited('c9', documentId: 'doc-2'),
+          _cited('c8', database: 'other'),
+          _cited('c2'),
+          _cited('c1'),
+        ],
+        roomId: 'r',
+      );
+
+      expect(target.citations.map((ref) => ref.chunkId), ['c1', 'c2']);
+      expect(target.active, 1);
+      expect(target.isThreadScoped, isTrue);
+      expect(target.documentId, 'doc-1');
+      expect(target.database, 'notes');
+    });
+
+    test('keeps a citation the thread does not list yet', () {
+      final target = citationTargetFor(_cited('c3'), [], roomId: 'r');
+
+      expect(target.citations.single.chunkId, 'c3');
+      expect(target.active, 0);
+    });
+
+    test('every citation of a document opens the same file', () {
+      final first = citationTargetFor(_cited('c1'), [], roomId: 'r');
+      final second = citationTargetFor(_cited('c2'), [], roomId: 'r');
+
+      expect(first, second);
+      expect(first.key, second.key);
     });
   });
 }

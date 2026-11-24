@@ -201,11 +201,14 @@ class CitationExtractor {
     // path can hold empty headings, which would show as an empty level.
     final isMerged = (c.chunkIds?.length ?? 0) > 1;
     final path = isMerged ? c.chunkMeta.headings : c.headings ?? [];
+    // A citation that does not list its chunks stands for its own alone.
+    final mergedIds = c.chunkIds ?? const <String>[];
     return SourceReference(
       documentId: c.documentId,
       documentUri: c.documentUri,
       content: c.content,
       chunkId: c.chunkId,
+      chunkIds: mergedIds.isEmpty ? [c.chunkId] : mergedIds,
       documentTitle: c.documentTitle,
       sourceUrl: sourceUrlFromMetadata(c.documentMeta),
       headings: path.where((h) => h.isNotEmpty).toList(),
