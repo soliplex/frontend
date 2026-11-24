@@ -84,6 +84,14 @@ void main() {
       expect(rest, text);
     });
 
+    test('leaves a block whose page runs past nine digits in the text', () {
+      final text = '${formatQuotedContext([first])}'
+          '> long\n> — big.pdf, p. 1234567890\nhi';
+      final (:quotes, :rest) = parseQuotedContext(text);
+      expect(quotes, [first]);
+      expect(rest, '> long\n> — big.pdf, p. 1234567890\nhi');
+    });
+
     test('leaves a block whose page does not fit an int in the text', () {
       final text = '${formatQuotedContext([first])}'
           '> overflow\n> — big.pdf, p. 99999999999999999999\nhi';

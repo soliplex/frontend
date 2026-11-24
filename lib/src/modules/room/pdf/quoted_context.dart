@@ -9,7 +9,10 @@ String collapseWhitespace(String text) =>
 
 /// The line that closes each quote block: `> — <file>, p. <page>`. The file
 /// is matched greedily, so a title that itself holds ", p. " still parses.
-final _attribution = RegExp(r'^> — (.+), p\. (\d+)$');
+/// The page is at most nine digits, past any real document, so it parses
+/// exactly everywhere: a long enough run overflows an `int` on native and
+/// loses precision on the web.
+final _attribution = RegExp(r'^> — (.+), p\. (\d{1,9})$');
 
 /// [quotes] as markdown quote blocks, each closed by an attribution line
 /// naming its file and page and followed by a blank line; empty for none.
@@ -37,8 +40,8 @@ String formatQuotedContext(List<PdfQuote> quotes) {
 /// Splits a sent message into the quote blocks [formatQuotedContext] put at
 /// its start and the text after them.
 ///
-/// Only a block closed by an attribution line whose page fits an `int`
-/// counts, so a quote the user typed themselves stays in the text.
+/// Only a block closed by an attribution line counts, so a quote the user
+/// typed themselves stays in the text.
 ({List<PdfQuote> quotes, String rest}) parseQuotedContext(String message) {
   final lines = message.split('\n');
   final quotes = <PdfQuote>[];
@@ -56,13 +59,11 @@ String formatQuotedContext(List<PdfQuote> quotes) {
         ? _attribution.firstMatch(lines[cursor])
         : null;
     if (match == null) break;
-    final page = int.tryParse(match.group(2)!);
-    if (page == null) break;
     quotes.add(
       PdfQuote(
         text: body.join(' '),
         documentTitle: match.group(1)!,
-        pageNumber: page,
+        pageNumber: int.parse(match.group(2)!),
       ),
     );
     index = cursor + 1;

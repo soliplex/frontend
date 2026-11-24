@@ -83,7 +83,7 @@ final class _TooLarge extends _Phase {
   final Uint8List? bytes;
 }
 
-enum _FailureKind { gone, brokenLink, retryable, external, notPdf, protected }
+enum _FailureKind { gone, badAddress, retryable, external, notPdf, protected }
 
 final class _Failed extends _Phase {
   const _Failed(this.kind, {this.bytes});
@@ -164,14 +164,17 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
           bytes = await fetch();
         } on Object catch (error, stackTrace) {
           if (!mounted || generation != _generation) return;
-          _logFailure('Fetching a PDF failed', error, stackTrace);
+          _logFailure('Fetching a PDF failed', source, error, stackTrace);
           _setPhase(
             _Failed(
               switch (error) {
                 NotFoundException() => _FailureKind.gone,
-                // The client refuses a name it cannot ask the server for,
-                // as a link can carry; asking again cannot help.
-                ArgumentError() => _FailureKind.brokenLink,
+                // The API client refuses an address it cannot request — an
+                // empty ID, or a name that is not one path segment — before
+                // sending anything; asking again cannot help. A RangeError is
+                // an ArgumentError too, but means a bug, not an address.
+                RangeError() => _FailureKind.retryable,
+                ArgumentError() => _FailureKind.badAddress,
                 _ => _FailureKind.retryable,
               },
             ),
@@ -267,7 +270,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   /// never fetched.
   Future<void> _download() async {
     final onSave = widget.onSave;
-    final load = widget.source.load;
+    final source = widget.source;
+    final load = source.load;
     if (onSave == null || load is! PdfLoadBytes) return;
     final phase = _phase;
     final held = switch (phase) {
@@ -277,18 +281,23 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
       _Fetching() => null,
     };
     try {
-      await onSave(held ?? await load.fetch(), widget.source.title);
+      await onSave(held ?? await load.fetch(), source.title);
     } on Object catch (error, stackTrace) {
-      _logFailure('Saving a PDF failed', error, stackTrace);
+      _logFailure('Saving a PDF failed', source, error, stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text("Couldn't save ${widget.source.title}.")),
+        SnackBar(content: Text("Couldn't save ${source.title}.")),
       );
     }
   }
 
-  void _logFailure(String message, Object error, StackTrace stackTrace) {
-    final attributes = {'source': widget.source.cacheKey};
+  void _logFailure(
+    String message,
+    PdfViewerSource source,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    final attributes = {'source': source.cacheKey};
     if (error is Exception) {
       // Exceptions here come from the API client — status codes, hosts,
       // paths and the server's own reason — or from saving a file, which
@@ -301,8 +310,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         attributes: attributes,
       );
     } else {
-      // An Error can carry the value it rejected, such as a name taken from
-      // a link; only its shape is kept.
+      // Anything else — an Error above all — can carry the value it
+      // rejected, such as a name taken from a link; only its shape is kept.
       _logger.warning(
         message,
         stackTrace: stackTrace,
@@ -402,9 +411,9 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
           'This file is no longer available',
           '$title was removed or renamed.',
         ),
-      _FailureKind.brokenLink => (
+      _FailureKind.badAddress => (
           "Couldn't open $title",
-          'The link to it is broken.',
+          "Its address isn't one this app can request.",
         ),
       _FailureKind.retryable => (
           "Couldn't load $title",
