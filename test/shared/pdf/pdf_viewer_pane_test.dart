@@ -4,11 +4,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show ApiException, NotFoundException;
+    show ApiException, CancelledException, NotFoundException;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_source.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_viewer_pane.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../helpers/selectable_finder.dart';
 import 'fake_pdf_document.dart';
@@ -32,9 +33,10 @@ void main() {
     Future<Uint8List> Function()? fetch,
     int? sizeBytes,
     String key = 'thread-upload:r/t/report.pdf',
+    String title = 'report.pdf',
   }) =>
       PdfViewerSource(
-        title: 'report.pdf',
+        title: title,
         origin: 'Thread upload',
         cacheKey: key,
         sizeBytes: sizeBytes,
@@ -176,6 +178,72 @@ void main() {
       expect(fetches, 1);
       expect(saved.single.$1, same(big));
     });
+
+    for (final (name, error) in [
+      ('refused', ArgumentError.value('a/b.pdf', 'filename')),
+      ('cancelled', const CancelledException(reason: 'HTTP client closed')),
+    ]) {
+      testWidgets(
+          'reports a failed save when the fetch for a download is '
+          '$name', (tester) async {
+        await pump(
+          tester,
+          bytesSource(
+            sizeBytes: pdfViewerSizeCapBytes + 1,
+            fetch: () async => throw error,
+          ),
+        );
+
+        await tester.tap(find.text('Download'));
+        await tester.pump();
+
+        expect(find.text("Couldn't save report.pdf."), findsOneWidget);
+        expect(saved, isEmpty);
+      });
+    }
+
+    group('a download that outlives its file', () {
+      late Completer<Uint8List> pending;
+
+      Future<void> startDownloadThenSwitch(WidgetTester tester) async {
+        pending = Completer<Uint8List>();
+        await pump(
+          tester,
+          bytesSource(
+            title: 'first.pdf',
+            key: 'room-upload:r/first.pdf',
+            sizeBytes: pdfViewerSizeCapBytes + 1,
+            fetch: () => pending.future,
+          ),
+        );
+        await tester.tap(find.text('Download'));
+        await tester.pump();
+        await pump(tester, bytesSource());
+        await tester.pump();
+      }
+
+      testWidgets('saves under the name it started with', (tester) async {
+        await startDownloadThenSwitch(tester);
+
+        final bytes = Uint8List.fromList([1, 2, 3]);
+        pending.complete(bytes);
+        await tester.pump();
+
+        expect(saved.single, (bytes, 'first.pdf'));
+      });
+
+      testWidgets('names the file it started with when it fails',
+          (tester) async {
+        await startDownloadThenSwitch(tester);
+
+        pending.completeError(
+          const ApiException(message: 'boom', statusCode: 500),
+        );
+        await tester.pump();
+
+        expect(find.text("Couldn't save first.pdf."), findsOneWidget);
+      });
+    });
   });
 
   group('failures', () {
@@ -216,6 +284,81 @@ void main() {
       expect(views.last.bytes, _pdf);
     });
 
+    testWidgets('a fetch refused for its address offers no retry',
+        (tester) async {
+      await pump(
+        tester,
+        bytesSource(
+          fetch: () async => throw ArgumentError.value(
+            'a/b.pdf',
+            'filename',
+            'must be one path segment',
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text("Couldn't open report.pdf"), findsOneWidget);
+      expect(
+        find.text("Its address isn't one this app can request."),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Download'), findsNothing);
+    });
+
+    testWidgets('a range error from the fetch offers a retry', (tester) async {
+      await pump(
+        tester,
+        bytesSource(fetch: () async => throw RangeError.range(5, 0, 3)),
+      );
+      await tester.pump();
+
+      expect(find.text("Couldn't load report.pdf"), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
+    testWidgets('a cancelled fetch offers a retry', (tester) async {
+      await pump(
+        tester,
+        bytesSource(
+          fetch: () async =>
+              throw const CancelledException(reason: 'HTTP client closed'),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text("Couldn't load report.pdf"), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
+    testWidgets('a fetch that finishes after the file changed is dropped',
+        (tester) async {
+      final stale = Completer<Uint8List>();
+      await pump(tester, bytesSource(fetch: () => stale.future));
+      await pump(tester, bytesSource(key: 'thread-upload:r/t/other.pdf'));
+      await tester.pump();
+
+      stale.complete(Uint8List.fromList([1, 2, 3]));
+      await tester.pump();
+
+      expect(views.last.bytes, _pdf);
+    });
+
+    testWidgets('a fetch that fails after the file changed is ignored',
+        (tester) async {
+      final stale = Completer<Uint8List>();
+      await pump(tester, bytesSource(fetch: () => stale.future));
+      await pump(tester, bytesSource(key: 'thread-upload:r/t/other.pdf'));
+      await tester.pump();
+
+      stale.completeError(const ApiException(message: 'late', statusCode: 500));
+      await tester.pump();
+
+      expect(find.textContaining("Couldn't"), findsNothing);
+      expect(views.last.bytes, _pdf);
+    });
+
     testWidgets(
         'a link that fails to load offers the browser, not a '
         'download', (tester) async {
@@ -253,6 +396,103 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining("Couldn't"), findsNothing);
+    });
+  });
+
+  group('logging', () {
+    late MemorySink sink;
+
+    setUp(() {
+      sink = MemorySink();
+      LogManager.instance.addSink(sink);
+    });
+
+    tearDown(LogManager.instance.reset);
+
+    LogRecord recordOf(String message) =>
+        sink.records.where((record) => record.message == message).single;
+
+    testWidgets('keeps the whole of an address the client refuses',
+        (tester) async {
+      final refused = ArgumentError.value(
+        'a/b.pdf',
+        'filename',
+        'must be one path segment',
+      );
+      await pump(
+        tester,
+        bytesSource(
+          key: 'room-upload:r/a/b.pdf',
+          fetch: () async => throw refused,
+        ),
+      );
+      await tester.pump();
+
+      final record = recordOf('Fetching a PDF failed');
+      expect(record.error, same(refused));
+      expect(
+          record.attributes, containsPair('source', 'room-upload:r/a/b.pdf'));
+    });
+
+    testWidgets('keeps only the type of any other Error', (tester) async {
+      await pump(
+        tester,
+        bytesSource(
+          fetch: () async => throw StateError('text its thrower wrote'),
+        ),
+      );
+      await tester.pump();
+
+      final record = recordOf('Fetching a PDF failed');
+      expect(record.error, isNull);
+      expect(record.stackTrace, isNotNull);
+      expect(record.attributes, containsPair('failure', 'StateError'));
+      expect(
+        '${record.message} ${record.attributes}',
+        isNot(contains('text its thrower wrote')),
+      );
+    });
+
+    testWidgets('keeps the whole of an API exception from a fetch',
+        (tester) async {
+      const error = ApiException(message: 'boom', statusCode: 500);
+      await pump(tester, bytesSource(fetch: () async => throw error));
+      await tester.pump();
+
+      final record = recordOf('Fetching a PDF failed');
+      expect(record.error, same(error));
+      expect(
+        record.attributes,
+        containsPair('source', 'thread-upload:r/t/report.pdf'),
+      );
+    });
+
+    testWidgets(
+        'a download that fails after the viewer closed is logged, as the '
+        'file it started on', (tester) async {
+      const error = ApiException(message: 'boom', statusCode: 500);
+      final pending = Completer<Uint8List>();
+      await pump(
+        tester,
+        bytesSource(
+          key: 'room-upload:r/first.pdf',
+          sizeBytes: pdfViewerSizeCapBytes + 1,
+          fetch: () => pending.future,
+        ),
+      );
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+      await pump(tester, bytesSource());
+      await tester.pumpWidget(const SizedBox());
+
+      pending.completeError(error);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      final record = recordOf('Saving a PDF failed');
+      expect(record.error, same(error));
+      expect(
+          record.attributes, containsPair('source', 'room-upload:r/first.pdf'));
     });
   });
 

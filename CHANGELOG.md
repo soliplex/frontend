@@ -44,6 +44,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A preview that fails to load says why, in the words a failed download uses,
   and a 403, like a 404, offers no Retry.
 
+### Fixed
+
+- `soliplex_client`: `SoliplexApi.getRoomPolicy` and `getThreadWorkdirFile`
+  report an invalid argument through the `Future` they return, as every
+  other `SoliplexApi` method does, instead of throwing before returning one.
+
 ## [0.119.1+109] - 2026-11-20
 
 ### Changed

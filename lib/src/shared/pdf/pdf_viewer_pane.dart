@@ -3,8 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_client/soliplex_client.dart'
-    show CancelledException, NotFoundException;
+import 'package:soliplex_client/soliplex_client.dart' show NotFoundException;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -84,7 +83,7 @@ final class _TooLarge extends _Phase {
   final Uint8List? bytes;
 }
 
-enum _FailureKind { gone, retryable, external, notPdf, protected }
+enum _FailureKind { gone, badAddress, retryable, external, notPdf, protected }
 
 final class _Failed extends _Phase {
   const _Failed(this.kind, {this.bytes});
@@ -163,24 +162,22 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         final Uint8List bytes;
         try {
           bytes = await fetch();
-        } on CancelledException {
-          return;
-        } on Exception catch (error, stackTrace) {
+        } on Object catch (error, stackTrace) {
           if (!mounted || generation != _generation) return;
-          // The API client's exceptions carry status codes, hosts, paths
-          // and the server's own reason, never a credential: the token
-          // travels in a header the transport does not quote.
-          _logger.warning(
-            'Fetching a PDF failed',
-            error: error,
-            stackTrace: stackTrace,
-            attributes: {'source': source.cacheKey},
-          );
+          _logFailure('Fetching a PDF failed', source, error, stackTrace);
           _setPhase(
             _Failed(
-              error is NotFoundException
-                  ? _FailureKind.gone
-                  : _FailureKind.retryable,
+              switch (error) {
+                NotFoundException() => _FailureKind.gone,
+                // The API client refuses an address it cannot request — an
+                // empty ID, or a file name or path with a segment it will not
+                // send — before sending anything; asking again cannot help. A
+                // RangeError is an ArgumentError too, but means a bug, not an
+                // address, so it takes the default.
+                RangeError() => _FailureKind.retryable,
+                ArgumentError() => _FailureKind.badAddress,
+                _ => _FailureKind.retryable,
+              },
             ),
           );
           return;
@@ -274,7 +271,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   /// never fetched.
   Future<void> _download() async {
     final onSave = widget.onSave;
-    final load = widget.source.load;
+    final source = widget.source;
+    final load = source.load;
     if (onSave == null || load is! PdfLoadBytes) return;
     final phase = _phase;
     final held = switch (phase) {
@@ -284,20 +282,45 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
       _Fetching() => null,
     };
     try {
-      await onSave(held ?? await load.fetch(), widget.source.title);
-    } on CancelledException {
-      return;
-    } on Exception catch (error, stackTrace) {
-      // As in _load: the API client's errors carry no credential.
-      _logger.warning(
-        'Saving a PDF failed',
-        error: error,
-        stackTrace: stackTrace,
-        attributes: {'source': widget.source.cacheKey},
-      );
+      await onSave(held ?? await load.fetch(), source.title);
+    } on Object catch (error, stackTrace) {
+      _logFailure('Saving a PDF failed', source, error, stackTrace);
+      // Once the viewer has closed there is nobody here to tell; the record
+      // keeps the failure.
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text("Couldn't save ${widget.source.title}.")),
+        SnackBar(content: Text("Couldn't save ${source.title}.")),
+      );
+    }
+  }
+
+  void _logFailure(
+    String message,
+    PdfViewerSource source,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    final attributes = {'source': source.cacheKey};
+    if (error is Exception || error is ArgumentError) {
+      // The fetches pdf_targets.dart builds call the API client: its
+      // exceptions carry status codes, hosts, paths and the server's own
+      // reason, as the token travels in a header the transport does not
+      // quote, and its ArgumentError holds the id, name or path it refused,
+      // which `source` names anyway. Saving fails with paths and platform
+      // codes. None is a credential.
+      _logger.warning(
+        message,
+        error: error,
+        stackTrace: stackTrace,
+        attributes: attributes,
+      );
+    } else {
+      // Anything else, an Error above all, holds text written by whoever
+      // threw it, which nothing here can vouch for; only its type is kept.
+      _logger.warning(
+        message,
+        stackTrace: stackTrace,
+        attributes: {...attributes, 'failure': describeFailure(error)},
       );
     }
   }
@@ -392,6 +415,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
       _FailureKind.gone => (
           'This file is no longer available',
           '$title was removed or renamed.',
+        ),
+      _FailureKind.badAddress => (
+          "Couldn't open $title",
+          "Its address isn't one this app can request.",
         ),
       _FailureKind.retryable => (
           "Couldn't load $title",
