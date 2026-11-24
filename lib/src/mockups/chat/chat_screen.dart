@@ -80,6 +80,7 @@ import '../../modules/room/upload_tracker_registry.dart';
 import '../../shared/selectable_content.dart';
 import '../../shared/type_to_focus.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import '../../shared/download_feedback.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.room_screen');

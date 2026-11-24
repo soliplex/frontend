@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart' show WorkdirFile;
-import 'package:soliplex_frontend/src/modules/room/file_downloads.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/file_row_download_action.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/start_download.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../helpers/test_downloads.dart';
+import 'package:soliplex_frontend/src/shared/download_feedback.dart';
 
 /// The native platforms that ask before a large download.
 final _mobile =

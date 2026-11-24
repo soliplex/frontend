@@ -16,13 +16,13 @@ import '../../../../shared/zoomable_image.dart';
 import '../../file_downloads.dart';
 import '../../file_source.dart' show fileFetchFailureReason;
 import '../content_viewer/content_viewer.dart';
-import '../file_list_row.dart';
 import '../markdown/flutter_markdown_plus_renderer.dart';
 import '../pager_dots.dart';
 import '../start_download.dart';
-import 'download_feedback.dart';
 import 'preview_kind.dart';
 import 'too_large_preview.dart';
+import '../../../../shared/download_feedback.dart';
+import '../../../../shared/progress_ring.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.file_preview');
 

@@ -4,42 +4,9 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ServedFile;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../shared/download_feedback.dart';
+
 final _logger = LogManager.instance.getLogger('soliplex_frontend.downloads');
-
-/// Result of a file download attempt.
-sealed class DownloadOutcome {}
-
-/// Where a file's download stands in [FileDownloads]. An outcome that
-/// shows, [DownloadSaved] or [DownloadFailed], is a state as it is.
-sealed class DownloadFeedbackState {}
-
-/// No download runs, and no outcome shows.
-final class DownloadIdle implements DownloadFeedbackState {
-  const DownloadIdle();
-}
-
-final class DownloadRunning implements DownloadFeedbackState {
-  const DownloadRunning();
-}
-
-/// The file was saved, or on the web handed to the browser.
-final class DownloadSaved implements DownloadOutcome, DownloadFeedbackState {
-  const DownloadSaved();
-}
-
-/// Nothing was saved and nothing failed: the user cancelled the save, or
-/// nobody was left to want the file. Kept apart from [DownloadFailed] so
-/// the UI shows no error for it.
-final class DownloadCancelled implements DownloadOutcome {
-  const DownloadCancelled();
-}
-
-final class DownloadFailed implements DownloadOutcome, DownloadFeedbackState {
-  const DownloadFailed(this.reason);
-
-  /// Why, in words for the user: fixed text, never the error's own.
-  final String reason;
-}
 
 /// Each file's download from one `FileSource`: idle, under way, then its
 /// outcome. A save shows for 2 s before the file is idle again; a failure
@@ -75,10 +42,7 @@ class FileDownloads {
   /// Whether [start] would download [file]: it is idle, or its download
   /// failed, which a new one retries. Read inside a `Watch`, it rebuilds as
   /// [stateOf] does.
-  bool canStart(ServedFile file) => switch (stateOf(file)) {
-        DownloadIdle() || DownloadFailed() => true,
-        DownloadRunning() || DownloadSaved() => false,
-      };
+  bool canStart(ServedFile file) => stateOf(file).canStart;
 
   /// Downloads [file], unless its download runs or its save shows.
   /// Starts nothing once disposed, when nobody is left to want the file.

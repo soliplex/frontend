@@ -15,6 +15,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/file_preview/file_preview_
 import 'package:soliplex_frontend/src/modules/room/ui/file_preview/preview_kind.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_frontend/src/shared/file_size.dart';
+import '../../../shared/progress_ring.dart';
 
 /// One row of an upload list: the file's state or type, its name, its time
 /// and size or why it failed, and the actions its state allows. A stored

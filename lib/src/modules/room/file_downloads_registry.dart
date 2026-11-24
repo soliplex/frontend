@@ -11,6 +11,7 @@ import '../auth/server_entry.dart';
 import 'file_downloads.dart';
 import 'per_server_cache.dart';
 import 'file_source.dart';
+import '../../shared/download_feedback.dart';
 
 final _logger = LogManager.instance.getLogger('room_files');
 
