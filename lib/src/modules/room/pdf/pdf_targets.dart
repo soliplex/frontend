@@ -19,6 +19,17 @@ PdfOpenTarget pdfTargetFor(FileSource source, ServedFile file) =>
         WorkdirPdf(roomId: roomId, threadId: threadId, file: file),
     };
 
+/// The list [target]'s file is in, so the viewer's download of it is its
+/// row's; null for a link, which no list holds.
+FileSource? fileSourceOf(PdfOpenTarget target) => switch (target) {
+      RoomUploadPdf(:final roomId) => RoomUploadSource(roomId: roomId),
+      ThreadUploadPdf(:final roomId, :final threadId) =>
+        ThreadUploadSource(roomId: roomId, threadId: threadId),
+      WorkdirPdf(:final roomId, :final threadId) =>
+        WorkspaceFileSource(roomId: roomId, threadId: threadId),
+      LinkPdf() => null,
+    };
+
 /// How the viewer opens [target]: room files through [api], with this
 /// client's credentials; a link as itself, with none.
 PdfViewerSource pdfViewerSourceFor(PdfOpenTarget target, SoliplexApi api) =>

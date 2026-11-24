@@ -277,6 +277,40 @@ void main() {
         expect(find.byType(FilePreviewPage), findsNothing);
       });
 
+      testWidgets("the PDF viewer offers the upload's download",
+          (tester) async {
+        final views = FakePdfDocumentViews();
+        final api = FakeSoliplexApi()
+          ..nextRoomUploads = [
+            FileUpload(
+              filename: 'shared.pdf',
+              url: Uri.parse('https://example.com/shared.pdf'),
+            ),
+          ]
+          ..roomUploadBytes['shared.pdf'] = Uint8List.fromList([1, 2, 3]);
+        await pumpAs(tester, api, pdfDocumentViewFactory: views.call);
+        await tester.tap(find.text('shared.pdf'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(PdfViewerPane),
+            matching: find.byTooltip('Download'),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        expect(
+          find.descendant(
+            of: find.byType(PdfViewerPane),
+            matching: find.byTooltip('Saved'),
+          ),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(seconds: 2));
+      });
+
       testWidgets('a reported write permission offers the controls',
           (tester) async {
         // A user with the room's write permission need not administer the

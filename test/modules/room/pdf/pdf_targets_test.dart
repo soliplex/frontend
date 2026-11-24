@@ -143,6 +143,28 @@ void main() {
     });
   });
 
+  group('fileSourceOf', () {
+    final file = WorkdirFile(
+      filename: 'out/a.pdf',
+      url: Uri.parse('https://x/out/a.pdf'),
+      sizeBytes: 7,
+    );
+
+    for (final source in const <FileSource>[
+      RoomUploadSource(roomId: 'r'),
+      ThreadUploadSource(roomId: 'r', threadId: 't'),
+      WorkspaceFileSource(roomId: 'r', threadId: 't'),
+    ]) {
+      test('finds the ${source.runtimeType} a file opened from', () {
+        expect(fileSourceOf(pdfTargetFor(source, file)), source);
+      });
+    }
+
+    test('finds none for a link', () {
+      expect(fileSourceOf(LinkPdf(Uri.parse('https://x/a.pdf'))), isNull);
+    });
+  });
+
   group('pdfViewerSourceFor', () {
     late _MockApi api;
     final bytes = Uint8List.fromList([1]);

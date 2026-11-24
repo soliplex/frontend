@@ -7,8 +7,10 @@ import 'package:soliplex_client/soliplex_client.dart' show NotFoundException;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../download_feedback.dart';
 import '../file_size.dart';
 import '../markdown/launch_markdown_link.dart';
+import '../progress_ring.dart';
 import '../reduced_url.dart';
 import '../selectable_content.dart';
 import 'pdf_document_view.dart';
@@ -25,6 +27,20 @@ const pdfViewerSizeCapBytes = 50 * 1024 * 1024;
 /// How many wrong passwords the viewer asks past before it gives up.
 const _passwordAttempts = 3;
 
+/// A file's download as the viewer shows and starts it. Kept by whoever
+/// opened the viewer, so a download outlives it.
+class PdfDownload {
+  const PdfDownload({required this.state, required this.start});
+
+  /// Where the download stands; read inside a `Watch`, so the viewer's
+  /// controls follow it.
+  final DownloadFeedbackState Function() state;
+
+  /// Starts a download. The viewer calls it only while the state says one
+  /// may start.
+  final VoidCallback start;
+}
+
 /// A PDF viewer: a header with the file's name, page, search, zoom and save
 /// controls, the document, and — while text is selected — *Ask about this*.
 ///
@@ -39,7 +55,7 @@ class PdfViewerPane extends StatefulWidget {
     required this.onClose,
     this.initialPage = 1,
     this.onAskAbout,
-    this.onSave,
+    this.download,
   });
 
   /// Narrower than this, the header's controls stop fitting.
@@ -54,8 +70,9 @@ class PdfViewerPane extends StatefulWidget {
   /// *Ask about this* — where there is no conversation to ask in.
   final void Function(PdfSelectedText selection)? onAskAbout;
 
-  /// Saves a fetched document to the device. Null hides Download.
-  final Future<void> Function(Uint8List bytes, String filename)? onSave;
+  /// The file's download, shown on the viewer's Download controls. Null hides
+  /// Download.
+  final PdfDownload? download;
 
   @override
   State<PdfViewerPane> createState() => _PdfViewerPaneState();
@@ -77,22 +94,17 @@ final class _Ready extends _Phase {
 }
 
 final class _TooLarge extends _Phase {
-  const _TooLarge(this.sizeBytes, {this.bytes});
+  const _TooLarge(this.sizeBytes);
 
   final int sizeBytes;
-  final Uint8List? bytes;
 }
 
 enum _FailureKind { gone, badAddress, retryable, external, notPdf, protected }
 
 final class _Failed extends _Phase {
-  const _Failed(this.kind, {this.bytes});
+  const _Failed(this.kind);
 
   final _FailureKind kind;
-
-  /// What was fetched before the document failed to open, so it can still
-  /// be saved.
-  final Uint8List? bytes;
 }
 
 class _PdfViewerPaneState extends State<PdfViewerPane> {
@@ -164,7 +176,30 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
           bytes = await fetch();
         } on Object catch (error, stackTrace) {
           if (!mounted || generation != _generation) return;
-          _logFailure('Fetching a PDF failed', source, error, stackTrace);
+          final attributes = {'source': source.cacheKey};
+          if (error is Exception || error is ArgumentError) {
+            // The fetches pdf_targets.dart builds call the API client: its
+            // exceptions carry status codes, hosts, paths and the server's
+            // own reason, as the token travels in a header the transport
+            // does not quote, and its ArgumentError holds the id, name or
+            // path it refused, which `source` names anyway. None is a
+            // credential.
+            _logger.warning(
+              'Fetching a PDF failed',
+              error: error,
+              stackTrace: stackTrace,
+              attributes: attributes,
+            );
+          } else {
+            // Anything else, an Error above all, holds text written by
+            // whoever threw it, which nothing here can vouch for; only its
+            // type is kept.
+            _logger.warning(
+              'Fetching a PDF failed',
+              stackTrace: stackTrace,
+              attributes: {...attributes, 'failure': describeFailure(error)},
+            );
+          }
           _setPhase(
             _Failed(
               switch (error) {
@@ -185,7 +220,7 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         if (!mounted || generation != _generation) return;
         _setPhase(
           bytes.length > pdfViewerSizeCapBytes
-              ? _TooLarge(bytes.length, bytes: bytes)
+              ? _TooLarge(bytes.length)
               : _Ready(bytes: bytes),
         );
     }
@@ -241,7 +276,7 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         },
       );
     }
-    setState(() => _phase = _Failed(kind, bytes: bytes));
+    setState(() => _phase = _Failed(kind));
   }
 
   Future<void> _askAbout() async {
@@ -264,64 +299,6 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
         );
       case final PdfSelectedText selection:
         onAskAbout(selection);
-    }
-  }
-
-  /// The bytes in hand, or fetched again — a file too large to view was
-  /// never fetched.
-  Future<void> _download() async {
-    final onSave = widget.onSave;
-    final source = widget.source;
-    final load = source.load;
-    if (onSave == null || load is! PdfLoadBytes) return;
-    final phase = _phase;
-    final held = switch (phase) {
-      _Ready(:final bytes) => bytes,
-      _TooLarge(:final bytes) => bytes,
-      _Failed(:final bytes) => bytes,
-      _Fetching() => null,
-    };
-    try {
-      await onSave(held ?? await load.fetch(), source.title);
-    } on Object catch (error, stackTrace) {
-      _logFailure('Saving a PDF failed', source, error, stackTrace);
-      // Once the viewer has closed there is nobody here to tell; the record
-      // keeps the failure.
-      if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text("Couldn't save ${source.title}.")),
-      );
-    }
-  }
-
-  void _logFailure(
-    String message,
-    PdfViewerSource source,
-    Object error,
-    StackTrace stackTrace,
-  ) {
-    final attributes = {'source': source.cacheKey};
-    if (error is Exception || error is ArgumentError) {
-      // The fetches pdf_targets.dart builds call the API client: its
-      // exceptions carry status codes, hosts, paths and the server's own
-      // reason, as the token travels in a header the transport does not
-      // quote, and its ArgumentError holds the id, name or path it refused,
-      // which `source` names anyway. Saving fails with paths and platform
-      // codes. None is a credential.
-      _logger.warning(
-        message,
-        error: error,
-        stackTrace: stackTrace,
-        attributes: attributes,
-      );
-    } else {
-      // Anything else, an Error above all, holds text written by whoever
-      // threw it, which nothing here can vouch for; only its type is kept.
-      _logger.warning(
-        message,
-        stackTrace: stackTrace,
-        attributes: {...attributes, 'failure': describeFailure(error)},
-      );
     }
   }
 
@@ -350,8 +327,11 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     setState(() => _searching = false);
   }
 
-  bool get _canDownload =>
-      widget.onSave != null && widget.source.load is PdfLoadBytes;
+  /// Download, where there is one and the file can be fetched at all.
+  PdfDownload? get _download => switch (_phase) {
+        _Failed(kind: _FailureKind.gone || _FailureKind.badAddress) => null,
+        _ => widget.download,
+      };
 
   bool get _canOpenExternally => widget.source.load is PdfLoadUri;
 
@@ -371,7 +351,7 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             onSearch: _toggleSearch,
             onZoomIn: document == null ? null : () => document.zoomIn(),
             onZoomOut: document == null ? null : () => document.zoomOut(),
-            onDownload: _canDownload ? _download : null,
+            download: _download,
             onOpenExternally: _canOpenExternally ? _openExternally : null,
             onClose: widget.onClose,
           ),
@@ -401,7 +381,8 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
           detail: '$title is ${formatFileSize(sizeBytes)}; the viewer opens '
               'files up to ${formatFileSize(pdfViewerSizeCapBytes)}.',
           actions: [
-            if (_canDownload) _DownloadButton(onPressed: _download),
+            if (_download case final download?)
+              _DownloadButton(download: download),
           ],
         ),
       _Failed(:final kind) => _buildFailure(kind),
@@ -460,9 +441,9 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
             icon: const Icon(Icons.open_in_new),
             child: const Text('Open in browser'),
           ),
-        if ((kind == _FailureKind.notPdf || kind == _FailureKind.protected) &&
-            _canDownload)
-          _DownloadButton(onPressed: _download),
+        if (kind == _FailureKind.notPdf || kind == _FailureKind.protected)
+          if (_download case final download?)
+            _DownloadButton(download: download),
       ],
     );
   }
@@ -524,7 +505,7 @@ class _Header extends StatelessWidget {
     required this.onSearch,
     required this.onZoomIn,
     required this.onZoomOut,
-    required this.onDownload,
+    required this.download,
     required this.onOpenExternally,
     required this.onClose,
   });
@@ -536,7 +517,7 @@ class _Header extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
-  final VoidCallback? onDownload;
+  final PdfDownload? download;
   final VoidCallback? onOpenExternally;
   final VoidCallback onClose;
 
@@ -550,8 +531,6 @@ class _Header extends StatelessWidget {
     final menu = <(String, IconData, VoidCallback)>[
       if (onZoomIn case final zoomIn?) ('Zoom in', Icons.zoom_in, zoomIn),
       if (onZoomOut case final zoomOut?) ('Zoom out', Icons.zoom_out, zoomOut),
-      if (onDownload case final download?)
-        ('Download', Icons.download_outlined, download),
       if (onOpenExternally case final open?)
         ('Open in browser', Icons.open_in_new, open),
     ];
@@ -615,6 +594,8 @@ class _Header extends StatelessWidget {
             icon: const Icon(Icons.search),
             onPressed: canSearch ? onSearch : null,
           ),
+          if (download case final download?)
+            _HeaderDownload(download: download),
           if (menu.isNotEmpty)
             PopupMenuButton<VoidCallback>(
               tooltip: 'More',
@@ -773,15 +754,68 @@ class _Message extends StatelessWidget {
   }
 }
 
-class _DownloadButton extends StatelessWidget {
-  const _DownloadButton({required this.onPressed});
+/// The header's Download, beside Close: the download's outcome shows in its
+/// icon, as a file row's does.
+class _HeaderDownload extends StatelessWidget {
+  const _HeaderDownload({required this.download});
 
-  final Future<void> Function() onPressed;
+  final PdfDownload download;
 
   @override
-  Widget build(BuildContext context) => SoliplexButton.outlined(
-        onPressed: () => unawaited(onPressed()),
-        icon: const Icon(Icons.download_outlined),
-        child: const Text('Download'),
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Watch((context) {
+      final state = download.state();
+      final (icon, label) = state.affordance;
+      return IconButton(
+        // A spinner in the icon's place keeps the button's size, so Close
+        // does not move; the tooltip already names it to a screen reader.
+        icon: state is DownloadRunning
+            ? ExcludeSemantics(child: ProgressRing(label: label))
+            : Icon(icon, color: state.outcomeColor(colorScheme)),
+        tooltip: label,
+        onPressed: state.canStart ? download.start : null,
       );
+    });
+  }
+}
+
+/// A labelled Download in the viewer's body, loading while the download
+/// runs, and under it why a failed one failed.
+class _DownloadButton extends StatelessWidget {
+  const _DownloadButton({required this.download});
+
+  final PdfDownload download;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Watch((context) {
+      final state = download.state();
+      final (icon, label) = state.buttonAffordance;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SoliplexButton.outlined(
+            onPressed: state.canStart ? download.start : null,
+            isLoading: state is DownloadRunning,
+            icon: Icon(icon),
+            child: Text(label),
+          ),
+          // Always laid out, empty but for a failure, so the message around
+          // it, centred, does not move when a reason comes and goes.
+          const SizedBox(height: SoliplexSpacing.s2),
+          Text(
+            switch (state) {
+              DownloadFailed(:final reason) => reason,
+              DownloadIdle() || DownloadRunning() || DownloadSaved() => '',
+            },
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.error),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    });
+  }
 }
