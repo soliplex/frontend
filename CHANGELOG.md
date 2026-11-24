@@ -52,6 +52,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   the too-large page straight away.
 - A preview that fails to load says why, in the words a failed download uses,
   and a 403, like a 404, offers no Retry.
+- The room's upload and workspace notices above the composer wrap to a
+  second line rather than cut off a long message, such as a file's name.
 
 ### Fixed
 
