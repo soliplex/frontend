@@ -48,9 +48,8 @@ class LobbyAppModule extends AppModule {
   /// there.
   final GlobalThreadsState threadsState;
 
-  /// Room config reloads. Held here rather than by the screen, which is
-  /// rebuilt each time the user comes back from a room: a reload started
-  /// before leaving still reports how it went, and still holds off a second.
+  /// Room config reloads. Held here rather than by the screen so they outlive
+  /// it; see [RoomReloads].
   final RoomReloads roomReloads;
 
   @override

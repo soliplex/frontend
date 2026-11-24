@@ -43,8 +43,8 @@ final class RoomReloadSignedOut extends RoomReloadOutcome {
   const RoomReloadSignedOut();
 }
 
-/// The reload endpoint answered 404, so the server cannot reload in place;
-/// only a restart picks up room changes.
+/// The reload endpoint answered 404, as a backend without it does, so the
+/// server cannot reload in place; only a restart picks up room changes.
 final class RoomReloadUnsupported extends RoomReloadOutcome {
   const RoomReloadUnsupported();
 }
@@ -58,7 +58,9 @@ final class RoomReloadUnreadable extends RoomReloadOutcome {
 /// The reload could not be confirmed (a network failure, an unexpected
 /// status, or a client error). The request may have reached the server, or a
 /// proxy may have given up while the server carried on, so the reload may
-/// have happened. The failure is logged.
+/// have happened. A room config that fails to load comes back as a server
+/// error with nothing reloaded, but the client cannot tell that from a proxy
+/// that gave up. The failure is logged.
 final class RoomReloadFailed extends RoomReloadOutcome {
   const RoomReloadFailed();
 }
@@ -101,7 +103,8 @@ class RoomReloads {
   ///
   /// Administrators only; the server enforces that. While a reload for
   /// [serverId] is in flight, a second call sends nothing and answers the
-  /// same outcome as the first.
+  /// same outcome as the first. Throws [StateError] if [serverId] names no
+  /// server.
   Future<RoomReloadOutcome> reload(String serverId) {
     final entry = _entryResolver(serverId);
     if (entry == null) {

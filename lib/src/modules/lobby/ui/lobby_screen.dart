@@ -88,9 +88,9 @@ class LobbyScreen extends StatefulWidget {
   /// tests, where the screen makes and disposes its own.
   final GlobalThreadsState? threadsState;
 
-  /// Room config reloads. The lobby module owns them so a reload started
-  /// before opening a room still reports how it went and keeps the control
-  /// busy on return. Null in tests, where the screen makes its own.
+  /// Room config reloads, owned by the lobby module so they outlive this
+  /// screen (see [RoomReloads]). Null in tests, where the screen makes its
+  /// own.
   final RoomReloads? roomReloads;
 
   @override
@@ -289,34 +289,40 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   Future<void> _onReloadRooms(String serverId) async {
-    // The app's messenger outlives this screen, so a reload that ends after
-    // the user has opened a room still reports how it went.
-    final messenger = ScaffoldMessenger.of(context);
     // Named in the message because it may end after the admin has switched
     // to another server.
-    final server =
-        widget.serverManager.servers.value[serverId]?.listLabel ?? serverId;
-    RoomReloadOutcome outcome;
+    var server = serverId;
+    ScaffoldMessengerState? messenger;
     try {
-      outcome = await _roomReloads.reload(serverId);
+      // The app's messenger outlives this screen, so a reload that ends after
+      // the user has opened a room still reports how it went.
+      messenger = ScaffoldMessenger.of(context);
+      server =
+          widget.serverManager.servers.value[serverId]?.listLabel ?? serverId;
+      final outcome = await _roomReloads.reload(serverId);
+      // Queued rather than replacing the current one, which may be another
+      // screen's message.
+      messenger.showSnackBar(
+        SnackBar(content: Text(roomReloadMessage(server, outcome))),
+      );
     } catch (e, st) {
-      // A reload answers an outcome for every failure of its request, so this
-      // is a fault before or after it (a server gone from the list, an
-      // effect of marking the session expired); whether the reload happened
-      // is unknown. What it carries is not this code's to vouch for, so only its
-      // shape is logged.
+      // Every failure of the request becomes an outcome, so what lands here
+      // is a fault around it: no entry for the server, an effect of marking
+      // the session expired, or a fault once the request had ended. This
+      // catch cannot tell them apart, and after the last the rooms may have
+      // reloaded, so it reports the reload as unconfirmed. A fault here may
+      // carry anything, so only its shape is logged.
       _logger.error(
         'A room reload ended without an outcome',
         stackTrace: st,
         attributes: {'serverId': serverId, 'failure': describeFailure(e)},
       );
-      outcome = const RoomReloadFailed();
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(roomReloadMessage(server, const RoomReloadFailed())),
+        ),
+      );
     }
-    // Queued rather than replacing the current one, which may be another
-    // screen's message.
-    messenger.showSnackBar(
-      SnackBar(content: Text(roomReloadMessage(server, outcome))),
-    );
   }
 
   @override

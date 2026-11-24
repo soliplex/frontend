@@ -1462,7 +1462,8 @@ class SoliplexApi {
   /// Reloads the installation's room configs from disk, so added, removed and
   /// edited room configs take effect without restarting the server.
   ///
-  /// Administrators only. Each call writes an audit record server-side.
+  /// Administrators only. Each authenticated call writes an audit record
+  /// server-side.
   ///
   /// Throws:
   /// - [PermissionDeniedException] if the caller is not an administrator
@@ -1488,10 +1489,19 @@ class SoliplexApi {
 
     List<String> ids(String field) {
       final value = response[field];
-      if (value is! List || value.any((id) => id is! String)) {
+      if (value is! List) {
         throw MalformedResponseException(
-          message: 'room reload response has no "$field" list of room ids',
+          message: 'room reload response: expected "$field" as a list of '
+              'room ids, got ${value.runtimeType}',
         );
+      }
+      for (final id in value) {
+        if (id is! String) {
+          throw MalformedResponseException(
+            message: 'room reload response: "$field" holds a '
+                '${id.runtimeType}, not a room id',
+          );
+        }
       }
       return List.unmodifiable(value.cast<String>());
     }

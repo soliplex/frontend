@@ -26,7 +26,9 @@ const _noChange = RoomConfigsReloaded(added: [], removed: [], changed: []);
 
 /// Pumps the lobby with one connected server whose administrator check
 /// answers [isAdmin]. The reloads outlive the lobby, as the module's do, and
-/// `/elsewhere` stands in for a room the user can leave the lobby for.
+/// `/elsewhere` stands in for a room the user can leave the lobby for. Without
+/// [reloadsFindServer] the reloads see no server, so a reload throws instead
+/// of answering.
 Future<(FakeSoliplexApi, GoRouter)> _pumpLobby(
   WidgetTester tester, {
   bool isAdmin = true,

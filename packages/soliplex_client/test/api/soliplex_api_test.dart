@@ -9058,22 +9058,32 @@ void main() {
         'removed': <String>[],
         'changed': <String>[],
       };
-      for (final body in <Map<String, dynamic>>[
+      for (final (body, arrived) in <(Map<String, dynamic>, String)>[
         for (final field in valid.keys) ...[
-          {...valid}..remove(field),
-          {...valid, field: 'room'},
-          {
-            ...valid,
-            field: [1],
-          },
+          ({...valid}..remove(field), 'got Null'),
+          ({...valid, field: 'room'}, 'got String'),
+          (
+            {
+              ...valid,
+              field: [1],
+            },
+            'holds a int'
+          ),
         ],
       ]) {
-        test('rejects a malformed delta ($body)', () async {
+        test('rejects a malformed delta, naming what arrived ($body)',
+            () async {
           stubReload(body);
 
           expect(
             () => api.reloadRoomConfigs(),
-            throwsA(isA<MalformedResponseException>()),
+            throwsA(
+              isA<MalformedResponseException>().having(
+                (e) => e.message,
+                'message',
+                contains(arrived),
+              ),
+            ),
           );
         });
       }
