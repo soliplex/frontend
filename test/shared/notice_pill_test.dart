@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/notice_pill.dart';
+import 'package:soliplex_frontend/src/shared/notice_pill.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
       theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),

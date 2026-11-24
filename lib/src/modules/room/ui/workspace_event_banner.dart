@@ -8,7 +8,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../workdir_files_status.dart';
-import 'notice_pill.dart';
+import '../../../shared/notice_pill.dart';
 
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.workspace_event_banner');

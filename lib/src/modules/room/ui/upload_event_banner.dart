@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import 'notice_pill.dart';
+import '../../../shared/notice_pill.dart';
 
 /// Transient inline notifications that announce upload transitions the
 /// user may have missed while focused on the composer.
