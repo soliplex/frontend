@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show ApiException, CancelledException, NotFoundException;
+import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_frontend/src/shared/download_feedback.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_source.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_viewer_pane.dart';
@@ -19,13 +21,15 @@ final _pdf = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
 void main() {
   late FakePdfDocumentViews views;
   late int fetches;
-  late List<(Uint8List, String)> saved;
+  late Signal<DownloadFeedbackState> downloadState;
+  late int starts;
   late List<PdfSelectedText> asked;
 
   setUp(() {
     views = FakePdfDocumentViews();
     fetches = 0;
-    saved = [];
+    downloadState = Signal<DownloadFeedbackState>(const DownloadIdle());
+    starts = 0;
     asked = [];
   });
 
@@ -61,7 +65,7 @@ void main() {
     PdfViewerSource source, {
     int initialPage = 1,
     bool canAsk = true,
-    bool canSave = true,
+    bool canDownload = true,
   }) =>
       tester.pumpWidget(
         MaterialApp(
@@ -73,8 +77,11 @@ void main() {
               documentViewFactory: views.call,
               onClose: () {},
               onAskAbout: canAsk ? asked.add : null,
-              onSave: canSave
-                  ? (bytes, name) async => saved.add((bytes, name))
+              download: canDownload
+                  ? PdfDownload(
+                      state: () => downloadState.value,
+                      start: () => starts++,
+                    )
                   : null,
             ),
           ),
@@ -153,96 +160,121 @@ void main() {
 
       await tester.tap(find.text('Download'));
       await tester.pump();
-      expect(fetches, 1, reason: 'downloading fetches it then');
-      expect(saved.single.$2, 'report.pdf');
+      expect(starts, 1);
+      expect(fetches, 0, reason: 'its download fetches it, not the viewer');
     });
 
-    testWidgets(
-        'turns away a fetched file over the cap, and saves what it '
-        'fetched', (tester) async {
-      final big = Uint8List(pdfViewerSizeCapBytes + 1);
+    testWidgets('turns away a fetched file over the cap, offering its download',
+        (tester) async {
       await pump(
         tester,
-        bytesSource(
-          fetch: () async {
-            fetches++;
-            return big;
-          },
-        ),
+        bytesSource(fetch: () async => Uint8List(pdfViewerSizeCapBytes + 1)),
       );
       await tester.pump();
 
       expect(find.text('Too large to open here'), findsOneWidget);
       await tester.tap(find.text('Download'));
       await tester.pump();
-      expect(fetches, 1);
-      expect(saved.single.$1, same(big));
+      expect(starts, 1);
+    });
+  });
+
+  group('Download', () {
+    Future<void> pumpTooLarge(WidgetTester tester) =>
+        pump(tester, bytesSource(sizeBytes: pdfViewerSizeCapBytes + 1));
+
+    SoliplexButton bodyButton(WidgetTester tester, String label) =>
+        tester.widget<SoliplexButton>(
+          find.ancestor(
+            of: find.text(label),
+            matching: find.byType(SoliplexButton),
+          ),
+        );
+
+    testWidgets('sits in the header, not the menu, and starts the download',
+        (tester) async {
+      await pump(tester, bytesSource());
+      await tester.pump();
+      views.ready();
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      expect(find.text('Download'), findsNothing);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Download'));
+      await tester.pump();
+      expect(starts, 1);
     });
 
-    for (final (name, error) in [
-      ('refused', ArgumentError.value('a/b.pdf', 'filename')),
-      ('cancelled', const CancelledException(reason: 'HTTP client closed')),
-    ]) {
-      testWidgets(
-          'reports a failed save when the fetch for a download is '
-          '$name', (tester) async {
+    testWidgets('shows a running download on its controls, which wait',
+        (tester) async {
+      await pumpTooLarge(tester);
+      downloadState.value = const DownloadRunning();
+      await tester.pump();
+
+      expect(bodyButton(tester, 'Download').isLoading, isTrue);
+      expect(find.byTooltip('Downloading'), findsOneWidget);
+      await tester.tap(find.byTooltip('Downloading'));
+      await tester.pump();
+      expect(starts, 0);
+    });
+
+    testWidgets('shows a saved download in the header', (tester) async {
+      await pumpTooLarge(tester);
+      downloadState.value = const DownloadSaved();
+      await tester.pump();
+
+      expect(find.byTooltip('Saved'), findsOneWidget);
+      await tester.tap(find.byTooltip('Saved'));
+      await tester.pump();
+      expect(starts, 0, reason: 'a save that shows starts no second one');
+    });
+
+    testWidgets('shows why a download failed, and retries it', (tester) async {
+      await pumpTooLarge(tester);
+      downloadState.value =
+          const DownloadFailed('Server is temporarily unavailable');
+      await tester.pump();
+
+      expect(find.text('Server is temporarily unavailable'), findsOneWidget);
+      expect(
+        find.byTooltip(
+          'Download failed: Server is temporarily unavailable. Tap to retry.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Retry download'));
+      await tester.pump();
+      expect(starts, 1);
+    });
+
+    testWidgets('is not offered where the file cannot be fetched',
+        (tester) async {
+      for (final error in [
+        const NotFoundException(message: 'gone'),
+        ArgumentError.value('a/b.pdf', 'filename'),
+      ]) {
         await pump(
           tester,
           bytesSource(
-            sizeBytes: pdfViewerSizeCapBytes + 1,
+            key: 'room-upload:r/${error.runtimeType}',
             fetch: () async => throw error,
           ),
         );
-
-        await tester.tap(find.text('Download'));
         await tester.pump();
 
-        expect(find.text("Couldn't save report.pdf."), findsOneWidget);
-        expect(saved, isEmpty);
-      });
-    }
-
-    group('a download that outlives its file', () {
-      late Completer<Uint8List> pending;
-
-      Future<void> startDownloadThenSwitch(WidgetTester tester) async {
-        pending = Completer<Uint8List>();
-        await pump(
-          tester,
-          bytesSource(
-            title: 'first.pdf',
-            key: 'room-upload:r/first.pdf',
-            sizeBytes: pdfViewerSizeCapBytes + 1,
-            fetch: () => pending.future,
-          ),
-        );
-        await tester.tap(find.text('Download'));
-        await tester.pump();
-        await pump(tester, bytesSource());
-        await tester.pump();
+        expect(find.byTooltip('Download'), findsNothing,
+            reason: '${error.runtimeType}');
       }
+    });
 
-      testWidgets('saves under the name it started with', (tester) async {
-        await startDownloadThenSwitch(tester);
+    testWidgets('is not offered without a download to start', (tester) async {
+      await pump(tester, linkSource, canDownload: false);
 
-        final bytes = Uint8List.fromList([1, 2, 3]);
-        pending.complete(bytes);
-        await tester.pump();
-
-        expect(saved.single, (bytes, 'first.pdf'));
-      });
-
-      testWidgets('names the file it started with when it fails',
-          (tester) async {
-        await startDownloadThenSwitch(tester);
-
-        pending.completeError(
-          const ApiException(message: 'boom', statusCode: 500),
-        );
-        await tester.pump();
-
-        expect(find.text("Couldn't save first.pdf."), findsOneWidget);
-      });
+      expect(find.byTooltip('Download'), findsNothing);
     });
   });
 
@@ -362,7 +394,7 @@ void main() {
     testWidgets(
         'a link that fails to load offers the browser, not a '
         'download', (tester) async {
-      await pump(tester, linkSource);
+      await pump(tester, linkSource, canDownload: false);
       views.last.onLoadFailed(Exception('CORS'), null);
       await tester.pump();
 
@@ -371,7 +403,7 @@ void main() {
       expect(find.text('Download'), findsNothing);
     });
 
-    testWidgets('fetched bytes that do not open can still be saved',
+    testWidgets('a file that does not open offers its download',
         (tester) async {
       await pump(tester, bytesSource());
       await tester.pump();
@@ -381,8 +413,7 @@ void main() {
       expect(find.text("Couldn't open report.pdf"), findsOneWidget);
       await tester.tap(find.text('Download'));
       await tester.pump();
-      expect(fetches, 1, reason: 'the bytes already held are saved');
-      expect(saved.single.$1, _pdf);
+      expect(starts, 1);
     });
 
     testWidgets('a failure from a superseded load is ignored', (tester) async {
@@ -465,34 +496,6 @@ void main() {
         record.attributes,
         containsPair('source', 'thread-upload:r/t/report.pdf'),
       );
-    });
-
-    testWidgets(
-        'a download that fails after the viewer closed is logged, as the '
-        'file it started on', (tester) async {
-      const error = ApiException(message: 'boom', statusCode: 500);
-      final pending = Completer<Uint8List>();
-      await pump(
-        tester,
-        bytesSource(
-          key: 'room-upload:r/first.pdf',
-          sizeBytes: pdfViewerSizeCapBytes + 1,
-          fetch: () => pending.future,
-        ),
-      );
-      await tester.tap(find.text('Download'));
-      await tester.pump();
-      await pump(tester, bytesSource());
-      await tester.pumpWidget(const SizedBox());
-
-      pending.completeError(error);
-      await tester.pump();
-
-      expect(tester.takeException(), isNull);
-      final record = recordOf('Saving a PDF failed');
-      expect(record.error, same(error));
-      expect(
-          record.attributes, containsPair('source', 'room-upload:r/first.pdf'));
     });
   });
 
@@ -675,19 +678,18 @@ void main() {
       expect(views.document.calls, ['zoomIn', 'zoomOut']);
     });
 
-    testWidgets('offers Download for fetched files and the browser for links',
-        (tester) async {
+    testWidgets('offers the browser for links only', (tester) async {
       await pump(tester, bytesSource());
+      await tester.pump();
+      views.ready();
       await tester.pump();
       await tester.tap(find.byTooltip('More'));
       await tester.pumpAndSettle();
-      expect(find.text('Download'), findsOneWidget);
       expect(find.text('Open in browser'), findsNothing);
-      await tester.tap(find.text('Download'));
+      await tester.tapAt(Offset.zero);
       await tester.pumpAndSettle();
-      expect(saved.single.$1, _pdf);
 
-      await pump(tester, linkSource);
+      await pump(tester, linkSource, canDownload: false);
       await tester.tap(find.byTooltip('More'));
       await tester.pumpAndSettle();
       expect(find.text('Download'), findsNothing);

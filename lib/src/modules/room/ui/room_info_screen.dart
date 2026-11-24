@@ -29,6 +29,7 @@ import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
 import 'file_sort_bar.dart';
+import 'start_download.dart';
 import 'upload_entry_row.dart';
 import '../pdf/pdf_targets.dart';
 import '../../../shared/pdf/pdf_document_view.dart';
@@ -523,7 +524,7 @@ enum _UploadPermission {
 
 class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   /// Opens an uploaded PDF over the room's details. There is no composer
-  /// here, so no Ask about this.
+  /// here, so no Ask about this. Its Download is the file's row's.
   void _openPdf(ServedFile file) => unawaited(
         presentPdfViewer(
           context,
@@ -534,6 +535,10 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
             ),
             documentViewFactory: widget.pdfDocumentViewFactory,
             onClose: close,
+            download: PdfDownload(
+              state: () => _downloads.stateOf(file),
+              start: () => unawaited(startDownload(context, _downloads, file)),
+            ),
           ),
         ),
       );

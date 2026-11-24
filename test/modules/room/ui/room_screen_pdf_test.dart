@@ -12,6 +12,7 @@ import 'package:soliplex_frontend/src/modules/room/pdf/pending_quotes.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/quote_cards.dart';
 import 'package:soliplex_frontend/src/modules/room/pdf/quoted_context.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/file_row_download_action.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
@@ -29,6 +30,9 @@ final _pdf = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
 class _PdfApi extends FakeSoliplexApi {
   final fetched = <String>[];
 
+  /// Thrown by every room upload fetch from now on, when set.
+  Object? fetchError;
+
   @override
   Future<Uint8List> getRoomUploadFile(
     String roomId,
@@ -37,6 +41,7 @@ class _PdfApi extends FakeSoliplexApi {
     CancelToken? cancelToken,
   }) async {
     fetched.add('$roomId/$filename');
+    if (fetchError case final error?) throw error;
     return _pdf;
   }
 }
@@ -297,6 +302,73 @@ void main() {
 
       expect(find.byType(PdfViewerPane), findsOneWidget);
       expect(api.fetched, ['room-1/brief.pdf']);
+    });
+  });
+
+  group("the viewer's Download", () {
+    Future<void> openBriefFromFiles(WidgetTester tester) async {
+      setWindow(tester, const Size(1600, 900));
+      api
+        ..nextRoom = const Room(
+          id: 'room-1',
+          name: 'Attachable',
+          acceptsRoomUploads: true,
+          acceptsThreadUploads: true,
+        )
+        ..nextRoomUploads = [
+          FileUpload(
+            filename: 'brief.pdf',
+            url: Uri.parse('https://example.com/brief.pdf'),
+          ),
+        ];
+      await pump(tester);
+      await tester.tap(find.byIcon(Icons.folder));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('brief.pdf'));
+      await tester.pumpAndSettle();
+    }
+
+    Finder inViewer(Finder finder) =>
+        find.descendant(of: find.byType(PdfViewerPane), matching: finder);
+    Finder inRow(Finder finder) => find.descendant(
+        of: find.byType(FileRowDownloadAction), matching: finder);
+
+    testWidgets("is the file row's download", (tester) async {
+      await openBriefFromFiles(tester);
+
+      await tester.tap(inViewer(find.byTooltip('Download')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(saved, ['brief.pdf']);
+      expect(inViewer(find.byTooltip('Saved')), findsOneWidget);
+      expect(inRow(find.byTooltip('Saved')), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(inViewer(find.byTooltip('Download')), findsOneWidget);
+      expect(inRow(find.byTooltip('Download')), findsOneWidget);
+    });
+
+    testWidgets('that fails after the viewer closed shows on its row',
+        (tester) async {
+      await openBriefFromFiles(tester);
+      api.fetchError = const ApiException(message: 'boom', statusCode: 500);
+
+      await tester.tap(inViewer(find.byTooltip('Download')));
+      await tester.tap(inViewer(find.byTooltip('Close')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PdfViewerPane), findsNothing);
+      expect(saved, isEmpty);
+      expect(
+        inRow(
+          find.byTooltip(
+            'Download failed: Server is temporarily unavailable. '
+            'Tap to retry.',
+          ),
+        ),
+        findsOneWidget,
+      );
     });
   });
 

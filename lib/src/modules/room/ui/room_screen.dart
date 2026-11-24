@@ -14,6 +14,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         AuthException,
         CancelToken,
         FeedbackType,
+        FileUpload,
         MalformedResponseException,
         PermissionDeniedException,
         RagDatabaseScope,
@@ -23,6 +24,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnected,
         Reconnecting,
         Room,
+        ServedFile,
         TextPart,
         ThreadHistory,
         WorkdirFile;
@@ -75,6 +77,7 @@ import 'async_action_dialog.dart';
 import 'room_rail.dart';
 import 'room_welcome.dart';
 import 'send_error_banner.dart';
+import 'start_download.dart';
 import 'thread_sidebar.dart';
 import 'thread_state_warning_banner.dart';
 import 'upload_entry_row.dart';
@@ -2272,10 +2275,48 @@ class _RoomScreenState extends State<RoomScreen> {
           );
           onQuoteAdded?.call();
         },
-        onSave: (bytes, name) async {
-          await widget.downloadRegistry.saveFile(fileName: name, bytes: bytes);
-        },
+        download: _pdfDownloadFor(target),
       );
+
+  /// [target]'s download, the one its row in the files panel shows. Null for
+  /// a link, and for an upload the room's lists do not hold (yet).
+  PdfDownload? _pdfDownloadFor(PdfOpenTarget target) {
+    final source = fileSourceOf(target);
+    final file = _listedFile(target);
+    if (source == null || file == null) return null;
+    final downloads = widget.downloadRegistry.downloadsFor(
+      entry: widget.serverEntry,
+      source: source,
+    );
+    return PdfDownload(
+      state: () => downloads.stateOf(file),
+      start: () => unawaited(startDownload(context, downloads, file)),
+    );
+  }
+
+  /// [target]'s file as its list reports it, which a download needs for its
+  /// name and size. An upload target carries only its name, so it is looked
+  /// up.
+  ServedFile? _listedFile(PdfOpenTarget target) {
+    FileUpload? listed(UploadsStatus status, String filename) =>
+        switch (status) {
+          UploadsLoaded(:final uploads) => [
+              for (final upload in uploads)
+                if (upload is PersistedUpload && upload.filename == filename)
+                  upload.file,
+            ].firstOrNull,
+          _ => null,
+        };
+    final tracker = _state.uploadTracker;
+    return switch (target) {
+      WorkdirPdf(:final file) => file,
+      RoomUploadPdf(:final roomId, :final filename) =>
+        listed(tracker.roomUploads(roomId).peek(), filename),
+      ThreadUploadPdf(:final roomId, :final threadId, :final filename) =>
+        listed(tracker.threadUploads(roomId, threadId).peek(), filename),
+      LinkPdf() => null,
+    };
+  }
 
   /// Shows the open PDF over the conversation, where the content area is too
   /// narrow for it beside: a dialog on a wide window, a page of its own on a
