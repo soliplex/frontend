@@ -151,6 +151,19 @@ void main() {
       expect(await (source.load as PdfLoadBytes).fetch(), bytes);
     });
 
+    test("fetches a listed document from the room's RAG database", () async {
+      when(() => api.getRagDocumentFile('r', 'doc-1'))
+          .thenAnswer((_) async => bytes);
+      final source = pdfViewerSourceFor(
+        const RagDocumentPdf(roomId: 'r', documentId: 'doc-1', title: 'a.pdf'),
+        api,
+      );
+      expect(source.title, 'a.pdf');
+      expect(source.origin, 'Room document');
+      expect(source.whenGone?.heading, 'No PDF of this document is available');
+      expect(await (source.load as PdfLoadBytes).fetch(), bytes);
+    });
+
     test('fetches a thread upload through the API', () async {
       when(() => api.getThreadUploadFile('r', 't', 'a.pdf'))
           .thenAnswer((_) async => bytes);
@@ -278,6 +291,111 @@ void main() {
 
       expect(first, second);
       expect(first.key, second.key);
+    });
+  });
+
+  group('RAG documents', () {
+    test('a listed document equals a citation of it in the same database', () {
+      expect(
+        const RagDocumentPdf(
+          roomId: 'r',
+          documentId: 'doc-1',
+          title: 'notes.pdf',
+          database: 'notes',
+        ),
+        CitationPdfTarget(roomId: 'r', citations: [_cited('c1')]),
+      );
+      expect(
+        const RagDocumentPdf(roomId: 'r', documentId: 'doc-1', title: 'x')
+            .isThreadScoped,
+        isFalse,
+      );
+    });
+
+    test('isPdfDocument trusts the recorded content type over the name', () {
+      expect(
+        isPdfDocument(const RagDocument(
+          id: '1',
+          title: null,
+          uri: 'file:///a.bin',
+          metadata: {'content_type': 'application/pdf'},
+        )),
+        isTrue,
+      );
+      expect(
+        isPdfDocument(const RagDocument(
+          id: '2',
+          title: null,
+          uri: 'file:///a.pdf',
+          metadata: {'content_type': 'image/png'},
+        )),
+        isFalse,
+      );
+    });
+
+    test('isPdfDocument goes by the path where no type is recorded', () {
+      expect(
+        isPdfDocument(const RagDocument(
+          id: '1',
+          title: null,
+          uri: 'https://e.com/A.PDF?v=2',
+        )),
+        isTrue,
+      );
+      expect(
+        isPdfDocument(
+          const RagDocument(id: '2', title: null, uri: 'file:///a.docx'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('ragDocumentPdf names the document as the lists do, or is null', () {
+      final target = ragDocumentPdf(
+        const RagDocument(
+          id: 'doc-1',
+          title: 'Notes',
+          uri: 'file:///srv/notes.pdf',
+        ),
+        roomId: 'r',
+      );
+      expect(target?.documentId, 'doc-1');
+      expect(target?.title, 'notes.pdf');
+      expect(target?.database, isNull);
+      expect(
+        ragDocumentPdf(
+          const RagDocument(id: 'd', title: null, uri: 'file:///a.docx'),
+          roomId: 'r',
+        ),
+        isNull,
+      );
+    });
+
+    test('loadIndexedText maps the server blocks to the viewer', () async {
+      final api = _MockApi();
+      when(() => api.getDocumentText('r', 'doc-1', database: 'notes'))
+          .thenAnswer(
+        (_) async => DocumentText(
+          documentId: 'doc-1',
+          blocks: const [
+            DocumentTextBlock(
+              box: PassageBox(page: 2, left: 1, top: 9, right: 5, bottom: 3),
+              text: 'Hello',
+              label: 'text',
+            ),
+          ],
+        ),
+      );
+      final blocks = await loadIndexedText(
+        api,
+        roomId: 'r',
+        documentId: 'doc-1',
+        database: 'notes',
+      );
+      expect(blocks, hasLength(1));
+      expect(blocks.single.text, 'Hello');
+      expect(blocks.single.box.page, 2);
+      expect(blocks.single.box.top, 9);
     });
   });
 }

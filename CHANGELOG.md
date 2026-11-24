@@ -41,6 +41,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   says so. Text is recovered a paragraph at a time, so it is not selected by
   dragging across the page. This needs a server with the document text
   route.
+- **Open** (eye icon) on the room's documents, in **Filter documents** and in
+  room info, opens a document indexed from a PDF in the viewer, with its OCR
+  text and **Show indexed text**. A document the server keeps no PDF of says
+  so.
 - Highlight colours for marks on a document page (`PaperHighlights` in
   `soliplex_design`), kept legible on the always-white page in both themes.
 - **Library consumers:** the viewer renders with PDFium, which on the web is

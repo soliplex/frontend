@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' show FilePickerPlatform;
 import 'package:flutter/material.dart';
@@ -16,11 +17,15 @@ import 'package:soliplex_frontend/src/modules/room/file_sort.dart';
 import 'package:soliplex_frontend/src/modules/room/file_sort_preference.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
+import 'package:soliplex_frontend/src/shared/pdf/pdf_document_view.dart';
+import 'package:soliplex_frontend/src/shared/pdf/pdf_viewer_pane.dart';
+import 'package:soliplex_frontend/src/shared/pdf/pdfrx_document_view.dart';
 
 import '../../../helpers/fake_platform_file.dart';
 import '../../../helpers/fakes.dart';
 import '../../../helpers/held_file_picker.dart';
 import '../../../helpers/test_server_entry.dart';
+import '../../../shared/pdf/fake_pdf_document.dart';
 
 const _refusedNote = "You can't add files to this room.";
 const _unconfirmedNote =
@@ -61,6 +66,7 @@ Widget _buildScreen({
   FakeSoliplexApi? api,
   Future<ToolRegistry> Function(String)? toolRegistryResolver,
   FileSortPreference? fileSort,
+  PdfDocumentViewFactory? pdfDocumentViewFactory,
 }) {
   final fakeApi = api ?? FakeSoliplexApi();
   fakeApi.nextRoom ??= room ?? _testRoom;
@@ -78,8 +84,37 @@ Widget _buildScreen({
       uploadRegistry: uploadRegistry,
       fileSort: fileSort ?? FileSortPreference(),
       appName: 'Soliplex',
+      pdfDocumentViewFactory: pdfDocumentViewFactory ?? pdfrxDocumentView,
     ),
   );
+}
+
+/// Serves the RAG documents' PDFs and indexed text, and records the asks.
+class _DocumentFilesApi extends FakeSoliplexApi {
+  final asked = <String>[];
+
+  @override
+  Future<Uint8List> getRagDocumentFile(
+    String roomId,
+    String documentId, {
+    String? database,
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) async {
+    asked.add('file:$roomId/$documentId');
+    return Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
+  }
+
+  @override
+  Future<DocumentText> getDocumentText(
+    String roomId,
+    String documentId, {
+    String? database,
+    CancelToken? cancelToken,
+  }) async {
+    asked.add('text:$roomId/$documentId');
+    return DocumentText(documentId: documentId, blocks: const []);
+  }
 }
 
 /// Build variant that hands back the [ServerEntry] and
@@ -1051,6 +1086,34 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('DOCUMENTS (1)'), findsOneWidget);
+    });
+
+    testWidgets('opens a PDF document in the viewer, with its text',
+        (tester) async {
+      final api = _DocumentFilesApi()
+        ..nextRoom = _testRoom
+        ..nextDocuments = const [
+          RagDocument(id: 'd1', title: 'Report', uri: '/docs/report.pdf'),
+        ];
+      final views = FakePdfDocumentViews();
+      await tester.pumpWidget(
+        _buildScreen(api: api, pdfDocumentViewFactory: views.call),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.byTooltip('Open'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byTooltip('Open'));
+      await tester.pumpAndSettle();
+      views.ready();
+      views.document.report(const PdfViewStatus(textlessPages: {1}));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PdfViewerPane), findsOneWidget);
+      expect(api.asked, ['file:room-1/d1', 'text:room-1/d1']);
     });
 
     testWidgets('shows retry button on documents error', (tester) async {

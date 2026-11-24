@@ -9,6 +9,7 @@ class PdfViewerSource {
     required this.cacheKey,
     required this.load,
     this.sizeBytes,
+    this.whenGone,
   });
 
   /// The file name the header shows.
@@ -27,6 +28,11 @@ class PdfViewerSource {
   /// The size the server listed, when it listed one, so a file too large to
   /// view is turned away before it is fetched.
   final int? sizeBytes;
+
+  /// What to say when the server has no such file, where the usual "removed
+  /// or renamed" would be wrong: a document can be listed and still have no
+  /// PDF to show.
+  final ({String heading, String detail})? whenGone;
 }
 
 /// How a [PdfViewerSource]'s bytes are obtained.

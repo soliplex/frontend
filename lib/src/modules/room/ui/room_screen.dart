@@ -954,6 +954,7 @@ class _RoomScreenState extends State<RoomScreen> {
           widget.serverEntry.connection.api.getDocuments(roomId),
       selected: _documentSelections.get(
           serverId: _serverId, roomId: roomId, threadId: threadId),
+      onOpen: _presentDocument,
     );
     if (result != null && mounted) {
       setState(() {
@@ -965,6 +966,29 @@ class _RoomScreenState extends State<RoomScreen> {
         );
       });
     }
+  }
+
+  /// Opens a document of the room's in the viewer over the document picker,
+  /// which stays open beneath it.
+  void _presentDocument(RagDocument document) {
+    final target = ragDocumentPdf(document, roomId: widget.roomId);
+    if (target == null) return;
+    _openedPdfs.add(target);
+    unawaited(
+      presentPdfViewer(
+        context,
+        build: (viewerContext, close) => _buildPdfPane(
+          target,
+          page: 1,
+          onClose: close,
+          onQuoteAdded: () => ScaffoldMessenger.of(viewerContext)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(content: Text('Added to your message')),
+            ),
+        ),
+      ),
+    );
   }
 
   /// Feeds the thread's last-run filter to the hydrator on history load.
@@ -2328,6 +2352,16 @@ class _RoomScreenState extends State<RoomScreen> {
       page: page,
       onClose: onClose,
       onQuoteAdded: onQuoteAdded,
+      loadIndexedText: switch (target) {
+        RagDocumentPdf(:final roomId, :final documentId, :final database) =>
+          () => loadIndexedText(
+                api,
+                roomId: roomId,
+                documentId: documentId,
+                database: database,
+              ),
+        _ => null,
+      },
     );
   }
 

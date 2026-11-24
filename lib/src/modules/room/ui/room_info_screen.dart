@@ -197,6 +197,28 @@ class _RoomInfoBody extends StatelessWidget {
   final FileSortPreference fileSort;
   final PdfDocumentViewFactory pdfDocumentViewFactory;
 
+  /// Opens a document of the room's in the PDF viewer, with its indexed
+  /// text. There is no composer here, so no Ask about this.
+  void _openDocument(BuildContext context, RagDocument document) {
+    final target = ragDocumentPdf(document, roomId: roomId);
+    if (target == null) return;
+    unawaited(
+      presentPdfViewer(
+        context,
+        build: (_, close) => PdfViewerPane(
+          source: pdfViewerSourceFor(target, api),
+          loadIndexedText: () => loadIndexedText(
+            api,
+            roomId: roomId,
+            documentId: target.documentId,
+          ),
+          documentViewFactory: pdfDocumentViewFactory,
+          onClose: close,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -292,6 +314,7 @@ class _RoomInfoBody extends StatelessWidget {
             DocumentsCard(
               documentsFuture: documentsFuture,
               onRetry: onRetryDocuments,
+              onOpen: (document) => _openDocument(context, document),
             ),
             ChunkLookupCard(api: api, roomId: roomId),
           ],

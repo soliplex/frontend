@@ -372,4 +372,58 @@ void main() {
       expect(result, isNull);
     });
   });
+
+  group('open', () {
+    testWidgets('opens a PDF document and leaves the selection alone',
+        (tester) async {
+      final opened = <RagDocument>[];
+      Set<RagDocument>? changed;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocumentPicker(
+              documents: _docs,
+              selected: const {},
+              onChanged: (s) => changed = s,
+              onOpen: opened.add,
+            ),
+          ),
+        ),
+      );
+
+      // Only Report.pdf was indexed from a PDF.
+      expect(find.byTooltip('Open'), findsOneWidget);
+      await tester.tap(find.byTooltip('Open'));
+      await tester.pump();
+
+      expect(opened, [_docs.first]);
+      expect(changed, isNull);
+    });
+
+    testWidgets('showDocumentPicker passes the open through', (tester) async {
+      final opened = <RagDocument>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showDocumentPicker(
+                context: context,
+                fetchDocuments: () => Future.value(_docs),
+                selected: const {},
+                onOpen: opened.add,
+              ),
+              child: const Text('Open picker'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open picker'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Open'));
+      await tester.pump();
+
+      expect(opened, [_docs.first]);
+    });
+  });
 }

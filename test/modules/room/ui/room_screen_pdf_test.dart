@@ -224,7 +224,11 @@ void main() {
     addTearDown(tester.view.reset);
   }
 
-  RoomScreen screen({String? threadId = 'thread-1'}) => RoomScreen(
+  RoomScreen screen({
+    String? threadId = 'thread-1',
+    bool enableDocumentFilter = false,
+  }) =>
+      RoomScreen(
         appName: 'Test App',
         serverEntry: entry,
         roomId: 'room-1',
@@ -237,14 +241,21 @@ void main() {
         documentSelections: DocumentSelections(),
         pendingQuotes: quotes,
         pdfDocumentViewFactory: views.call,
+        enableDocumentFilter: enableDocumentFilter,
       );
 
-  Future<void> pump(WidgetTester tester,
-      {String? threadId = 'thread-1'}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    String? threadId = 'thread-1',
+    bool enableDocumentFilter = false,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: soliplexLightTheme(),
-        home: screen(threadId: threadId),
+        home: screen(
+          threadId: threadId,
+          enableDocumentFilter: enableDocumentFilter,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -613,6 +624,44 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(PdfViewerPane), findsOneWidget);
       expect(views.last.initialPage, 7);
+    });
+  });
+
+  group('from the document filter', () {
+    testWidgets('a PDF document opens over the picker, with its text',
+        (tester) async {
+      setWindow(tester, const Size(1600, 900));
+      api.nextDocuments = const [
+        RagDocument(
+          id: 'doc-9',
+          title: null,
+          uri: 'file:///srv/manual.pdf',
+          metadata: {'content_type': 'application/pdf'},
+        ),
+        RagDocument(id: 'doc-8', title: null, uri: 'file:///srv/a.docx'),
+      ];
+      await pump(tester, enableDocumentFilter: true);
+
+      await tester.tap(find.byTooltip('Filter documents'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Open'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Open'));
+      await tester.pumpAndSettle();
+      views.ready();
+      views.document.report(const PdfViewStatus(textlessPages: {2}));
+      await tester.pumpAndSettle();
+
+      expect(api.fetched, ['room-1/null/doc-9']);
+      expect(api.textAsked, ['room-1/null/doc-9']);
+      expect(find.byType(PdfViewerPane), findsOneWidget);
+      // Only the citation viewer offers cited pages.
+      expect(views.document.onlyPages, [null]);
+
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PdfViewerPane), findsNothing);
+      expect(find.text('Select documents (2)'), findsOneWidget);
     });
   });
 

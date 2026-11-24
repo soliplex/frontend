@@ -563,4 +563,46 @@ void main() {
       expect(find.text('Tree'), findsOneWidget);
     });
   });
+
+  group('open', () {
+    const scan = RagDocument(
+      id: 'id-s',
+      title: null,
+      uri: 'file:///docs/scan.bin',
+      metadata: {'content_type': 'application/pdf'},
+    );
+    const sheet = RagDocument(id: 'id-x', title: null, uri: '/files/a.xlsx');
+
+    testWidgets('opens a PDF document without expanding its row',
+        (tester) async {
+      final opened = <RagDocument>[];
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [scan, sheet]),
+          onRetry: () {},
+          onOpen: opened.add,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Open'), findsOneWidget);
+      await tester.tap(find.byTooltip('Open'));
+      await tester.pump();
+
+      expect(opened, [scan]);
+      expect(find.text('id-s'), findsNothing);
+    });
+
+    testWidgets('offers no open without a way to open', (tester) async {
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [scan]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Open'), findsNothing);
+    });
+  });
 }

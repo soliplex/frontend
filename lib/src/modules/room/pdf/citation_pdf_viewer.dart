@@ -157,31 +157,6 @@ class _CitationPdfViewerState extends State<CitationPdfViewer> {
     );
   }
 
-  /// The document's text as the server indexed it — by OCR, for a scan —
-  /// for the viewer to offer where the PDF has none, and to show what the
-  /// LLM can find.
-  Future<List<PdfTextBlock>> _loadIndexedText() async {
-    final target = widget.target;
-    final text = await widget.api.getDocumentText(
-      target.roomId,
-      target.documentId,
-      database: target.database,
-    );
-    return [
-      for (final block in text.blocks)
-        PdfTextBlock(
-          box: PdfPassageBox(
-            page: block.box.page,
-            left: block.box.left,
-            top: block.box.top,
-            right: block.box.right,
-            bottom: block.box.bottom,
-          ),
-          text: block.text,
-        ),
-    ];
-  }
-
   /// The source, its fetch watched for a server without the file.
   PdfViewerSource _source() {
     final source = pdfViewerSourceFor(widget.target, widget.api);
@@ -228,7 +203,12 @@ class _CitationPdfViewerState extends State<CitationPdfViewer> {
       _source(),
       page: passage?.firstPage ?? page,
       passage: passage,
-      loadIndexedText: _loadIndexedText,
+      loadIndexedText: () => loadIndexedText(
+        widget.api,
+        roomId: widget.target.roomId,
+        documentId: widget.target.documentId,
+        database: widget.target.database,
+      ),
       citedPages: _citedPages,
       banner: _CitationStrip(
         citation: citation,
