@@ -10,6 +10,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../download_feedback.dart';
 import '../file_size.dart';
 import '../markdown/launch_markdown_link.dart';
+import '../notice_pill.dart';
 import '../progress_ring.dart';
 import '../reduced_url.dart';
 import '../selectable_content.dart';
@@ -116,6 +117,10 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
   PdfDocumentController? _document;
   var _passwordTries = 0;
   var _searching = false;
+
+  /// The download failure the user dismissed from the notice under the
+  /// header, so that one stays hidden and the next shows.
+  DownloadFeedbackState? _dismissedFailure;
   final _query = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'PDF search');
 
@@ -327,10 +332,31 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
     setState(() => _searching = false);
   }
 
-  /// Download, where there is one and the file can be fetched at all.
-  PdfDownload? get _download => switch (_phase) {
-        _Failed(kind: _FailureKind.gone || _FailureKind.badAddress) => null,
-        _ => widget.download,
+  /// Download, where there is one and the file can be fetched at all. A
+  /// start from the viewer forgets a dismissed failure, so a failure that
+  /// repeats word for word still shows.
+  PdfDownload? get _download {
+    final download = widget.download;
+    return switch (_phase) {
+      _Failed(kind: _FailureKind.gone || _FailureKind.badAddress) => null,
+      _ when download == null => null,
+      _ => PdfDownload(
+          state: download.state,
+          start: () {
+            setState(() => _dismissedFailure = null);
+            download.start();
+          },
+        ),
+    };
+  }
+
+  /// Whether the page itself offers Download, with a failure's reason under
+  /// it, so the notice under the header would say it twice.
+  bool get _pageOffersDownload => switch (_phase) {
+        _TooLarge() ||
+        _Failed(kind: _FailureKind.notPdf || _FailureKind.protected) =>
+          true,
+        _ => false,
       };
 
   bool get _canOpenExternally => widget.source.load is PdfLoadUri;
@@ -360,6 +386,14 @@ class _PdfViewerPaneState extends State<PdfViewerPane> {
               query: _query,
               focusNode: _searchFocus,
               document: document,
+            ),
+          if (_download case final download? when !_pageOffersDownload)
+            _DownloadFailureNotice(
+              key: ValueKey(widget.source.cacheKey),
+              download: download,
+              dismissed: _dismissedFailure,
+              onDismiss: (failure) =>
+                  setState(() => _dismissedFailure = failure),
             ),
           const Divider(height: 1),
           Expanded(child: _buildBody(context)),
@@ -788,6 +822,49 @@ class _HeaderDownload extends StatelessWidget {
             : Icon(icon, color: state.outcomeColor(colorScheme)),
         tooltip: label,
         onPressed: state.canStart ? download.start : null,
+      );
+    });
+  }
+}
+
+/// Under the header, why the download failed, with a retry: the header's
+/// icon shows a failure, but says why only on hover. Shown until the
+/// download starts again or it is dismissed; announced to a screen reader.
+/// Keyed by the open file, for the reason [_HeaderDownload] gives.
+class _DownloadFailureNotice extends StatelessWidget {
+  const _DownloadFailureNotice({
+    super.key,
+    required this.download,
+    required this.dismissed,
+    required this.onDismiss,
+  });
+
+  final PdfDownload download;
+  final DownloadFeedbackState? dismissed;
+  final ValueChanged<DownloadFeedbackState> onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Watch((context) {
+      final state = download.state();
+      if (state is! DownloadFailed || identical(state, dismissed)) {
+        return const SizedBox.shrink();
+      }
+      final colorScheme = Theme.of(context).colorScheme;
+      return Semantics(
+        liveRegion: true,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: NoticePill(
+            icon: Icons.error_outline,
+            background: colorScheme.errorContainer,
+            foreground: colorScheme.onErrorContainer,
+            message: 'Download failed: ${state.reason}',
+            actionLabel: 'Retry',
+            onAction: download.start,
+            onDismiss: () => onDismiss(state),
+          ),
+        ),
       );
     });
   }
