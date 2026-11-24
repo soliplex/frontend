@@ -101,4 +101,42 @@ void main() {
       expect(wash.color.toARGB32(), PaperHighlights.context.toARGB32());
     });
   });
+
+  group('paintPaperTextBlocks', () {
+    test('draws nothing without blocks', () {
+      final canvas = _RecordingCanvas();
+      paintPaperTextBlocks(canvas, blocks: const []);
+      expect(canvas.draws, isEmpty);
+    });
+
+    test('frames every block with a hairline', () {
+      final canvas = _RecordingCanvas();
+      paintPaperTextBlocks(canvas, blocks: const [a, b]);
+
+      final (path, frame) = canvas.draws.single;
+      expect(frame.style, PaintingStyle.stroke);
+      expect(frame.strokeWidth, 1);
+      expect(
+        frame.color.toARGB32(),
+        PaperHighlights.activeMatchOutline.toARGB32(),
+      );
+      expect(path.getBounds(), a.expandToInclude(b).inflate(1));
+    });
+
+    test('fills and outlines the selected block instead', () {
+      final canvas = _RecordingCanvas();
+      paintPaperTextBlocks(canvas, blocks: const [a, b], selected: b);
+
+      expect(canvas.draws, hasLength(3));
+      final (fillPath, fill) = canvas.draws[0];
+      final (_, outline) = canvas.draws[1];
+      final (framePath, frame) = canvas.draws[2];
+      expect(fill.color.toARGB32(), PaperHighlights.context.toARGB32());
+      expect(fill.blendMode, BlendMode.multiply);
+      expect(fillPath.getBounds(), b.inflate(1));
+      expect(outline.strokeWidth, 2);
+      expect(frame.strokeWidth, 1);
+      expect(framePath.getBounds(), a.inflate(1));
+    });
+  });
 }
