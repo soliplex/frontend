@@ -43,10 +43,18 @@ Transcript applyTranscriptEvent(Transcript transcript, BaseEvent event) {
     ToolCallArgsEvent(:final toolCallId, :final delta) =>
       _appendToolCallArgs(transcript, toolCallId, delta),
     ToolCallEndEvent(:final toolCallId) => _endToolCall(transcript, toolCallId),
-    ToolCallResultEvent(:final messageId, :final toolCallId, :final content) =>
+    ToolCallResultEvent(
+      :final messageId,
+      :final toolCallId,
+      :final messageContent,
+    ) =>
       appendToolResult(
         transcript,
-        ToolMessage(id: messageId, toolCallId: toolCallId, content: content),
+        ToolMessage.fromContent(
+          id: messageId,
+          toolCallId: toolCallId,
+          messageContent: messageContent,
+        ),
       ),
     ReasoningEncryptedValueEvent() => _setEncryptedValue(transcript, event),
     ActivitySnapshotEvent() => _applyActivitySnapshot(transcript, event),
@@ -54,8 +62,9 @@ Transcript applyTranscriptEvent(Transcript transcript, BaseEvent event) {
     // Listed so a new event type is a compile error here. Nothing in these
     // reaches the history: lifecycle, state, steps, raw and custom events,
     // reasoning (whose round trip is github.com/soliplex/frontend/issues/117),
-    // chunk events no supported backend sends, and a messages snapshot, which
-    // nothing emits and which would let the history shrink.
+    // chunk events no supported backend sends, a messages snapshot, which
+    // nothing emits and which would let the history shrink, and subagent
+    // lifecycle events, which carry no message.
     TextMessageEndEvent() ||
     RunStartedEvent() ||
     RunFinishedEvent() ||
@@ -75,20 +84,9 @@ Transcript applyTranscriptEvent(Transcript transcript, BaseEvent event) {
     ReasoningMessageContentEvent() ||
     ReasoningMessageEndEvent() ||
     ReasoningMessageChunkEvent() ||
-    ThinkingStartEvent() ||
-    ThinkingEndEvent() ||
-    // Deprecated upstream; see agui_event_processor.dart's header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageStartEvent() ||
-    // Deprecated upstream; see agui_event_processor.dart's header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageContentEvent() ||
-    // Deprecated upstream; see agui_event_processor.dart's header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageEndEvent() ||
-    // Deprecated upstream; see agui_event_processor.dart's header.
-    // ignore: deprecated_member_use
-    ThinkingContentEvent() =>
+    SubagentStartedEvent() ||
+    SubagentFinishedEvent() ||
+    SubagentErrorEvent() =>
       transcript,
   };
 }
@@ -141,11 +139,7 @@ Transcript _applyActivitySnapshot(
   Transcript transcript,
   ActivitySnapshotEvent event,
 ) {
-  // `processEvent`'s display step throws on a snapshot whose content is not
-  // an object, so the event reaches neither projection; this return is never
-  // taken.
   final content = event.content;
-  if (content is! Map<String, dynamic>) return transcript;
   final index = _indexOf(transcript, event.messageId);
   if (index < 0) {
     return transcript.withAppendedMessage(

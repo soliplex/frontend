@@ -4553,7 +4553,7 @@ void main() {
       ),
       const ToolCallArgsEvent(toolCallId: 'call_0', delta: '{}'),
       const ToolCallEndEvent(toolCallId: 'call_0'),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'r',
         toolCallId: 'call_0',
         content: 'evidence',

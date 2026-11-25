@@ -258,8 +258,8 @@ Let me check.
           UserMessage.multimodal(
             id: 'u1',
             parts: const [
-              TextInputContent('what is this?'),
-              ImageInputContent(
+              AguiTextPart('what is this?'),
+              AguiImagePart(
                 source: UrlSource(value: 'https://example.com/cat.png'),
               ),
             ],
@@ -386,7 +386,7 @@ Let me check.
 
       final input = input0(
         messages: [
-          const ToolMessage(
+          ToolMessage(
             id: 't1',
             content: '72°F, sunny',
             toolCallId: 'tc-1',

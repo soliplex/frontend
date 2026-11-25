@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:ag_ui/ag_ui.dart';
+import 'package:ag_ui/ag_ui.dart' hide ImagePart, TextPart;
 import 'package:soliplex_client/src/api/agui_message_mapper.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
@@ -16,7 +16,7 @@ void main() {
 
   group('appendUserMessage', () {
     group('message parts', () {
-      // Every part maps to its AG-UI `InputContent` with an inline `data`
+      // Every part maps to its AG-UI `ContentPart` with an inline `data`
       // source and camelCase keys. Two images of different types pin the
       // per-part mime; the leading space in ' then tell me' pins that text
       // runs reach the wire untrimmed.

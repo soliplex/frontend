@@ -8,7 +8,6 @@ import 'package:soliplex_client/src/application/streaming_state.dart'
 import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
-import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
@@ -1256,7 +1255,7 @@ void main() {
             equals(ToolCallStatus.pending),
           );
 
-          const resultEvent = ToolCallResultEvent(
+          final resultEvent = ToolCallResultEvent(
             messageId: 'msg-1',
             toolCallId: 'tc-1',
             content: 'The answer is 42',
@@ -1293,7 +1292,7 @@ void main() {
             equals(ToolCallStatus.streaming),
           );
 
-          const resultEvent = ToolCallResultEvent(
+          final resultEvent = ToolCallResultEvent(
             messageId: 'msg-1',
             toolCallId: 'tc-1',
             content: 'Server result',
@@ -1320,7 +1319,7 @@ void main() {
               result: 'original result',
             ),
           );
-          const resultEvent = ToolCallResultEvent(
+          final resultEvent = ToolCallResultEvent(
             messageId: 'msg-1',
             toolCallId: 'tc-1',
             content: 'new result',
@@ -1703,59 +1702,6 @@ void main() {
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.messageId, 'rag:call_x');
-      });
-
-      test('non-object content throws so the caller mints a drop tile', () {
-        // AG-UI types `content` as `Object?`, but a non-object payload has
-        // nowhere to go in `ActivityRecord.content` — the activity is lost.
-        // Throwing is what makes that visible: both callers wrap
-        // `processEvent` and turn a throw into a `DropSource.eventProcessing`
-        // tile. Skipping instead would lose the activity with nothing on
-        // screen saying the event arrived.
-        const event = ActivitySnapshotEvent(
-          messageId: 'rag:call_bad',
-          activityType: 'skill_tool_call',
-          content: 42,
-          timestamp: 9,
-        );
-
-        expect(
-          () => processEvent(conversation, streaming, event, createdAt: null),
-          throwsA(
-            isA<MalformedResponseException>().having(
-              (e) => e.message,
-              'message',
-              allOf(contains('int'), contains('rag:call_bad')),
-            ),
-          ),
-        );
-      });
-
-      test('non-object content on a result snapshot also throws', () {
-        // A replacing snapshot is the case that strands a row: the prior
-        // record survives at its earlier content, so without a throw the row
-        // keeps disclosing the superseded state with nothing saying so.
-        final seeded = conversation.copyWith(
-          activities: [
-            const ActivityRecord(
-              messageId: 'rag:call_1',
-              activityType: 'skill_tool_call',
-              content: {'tool_name': 'ask'},
-              timestamp: 100,
-            ),
-          ],
-        );
-        const event = ActivitySnapshotEvent(
-          messageId: 'rag:call_1',
-          activityType: 'skill_tool_result',
-          content: 'not-a-map',
-          timestamp: 200,
-        );
-
-        expect(
-          () => processEvent(seeded, streaming, event, createdAt: null),
-          throwsA(isA<MalformedResponseException>()),
-        );
       });
     });
 

@@ -1,16 +1,3 @@
-// AG-UI replaced its five THINKING_* events with REASONING_* and removes them
-// in 1.0.0. ag_ui's own 1.0.0 removal list names four types, which it marks
-// deprecated: THINKING_TEXT_MESSAGE_{START,CONTENT,END} and the Dart-only
-// THINKING_CONTENT. `ThinkingStartEvent` and `ThinkingEndEvent` carry no
-// @Deprecated, so their cases carry no ignore.
-// No supported backend emits any THINKING_* event live — pydantic-ai emits
-// REASONING_* for ag-ui-protocol 0.1.11 and later — so all of them fall to
-// the pass-through arms, which keep the switches over sealed `BaseEvent` in
-// `_processForDisplay` and `applyTranscriptEvent` exhaustive. A thread an
-// older backend stored may still replay them; its reasoning is not shown.
-// Suppressed per line so the 1.0.0 sweep can enumerate them and an unrelated
-// deprecation here still raises.
-
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/activity_events.dart';
@@ -21,7 +8,6 @@ import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/application/transcript_events.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
-import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _logger =
@@ -125,11 +111,13 @@ EventProcessingResult _processForDisplay(
       _processThinkingContent(conversation, streaming, delta),
 
     // Text message streaming events
+    // AG-UI 1.0 gives the role no default; absent reads as the assistant, as
+    // it did when the protocol defaulted it.
     TextMessageStartEvent(:final messageId, :final role) => _processTextStart(
         conversation,
         streaming,
         messageId,
-        role,
+        role ?? TextMessageRole.assistant,
       ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
@@ -201,20 +189,9 @@ EventProcessingResult _processForDisplay(
 
     // Unhandled event types — pass through unchanged.
     // Explicit cases ensure a compile error if ag_ui adds new event types.
-    ThinkingStartEvent() ||
-    ThinkingEndEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageStartEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageContentEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageEndEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingContentEvent() ||
+    SubagentStartedEvent() ||
+    SubagentFinishedEvent() ||
+    SubagentErrorEvent() ||
     TextMessageChunkEvent() ||
     ToolCallChunkEvent() ||
     StepStartedEvent() ||
@@ -523,21 +500,6 @@ EventProcessingResult _processActivitySnapshot(
   StreamingState streaming,
   ActivitySnapshotEvent event,
 ) {
-  // `content` is `Object?` upstream, but `ActivityRecord.content` is a
-  // `Map<String, dynamic>`, so a non-object payload has nowhere to go. Thrown
-  // so the caller mints a drop tile, which is the only thing on screen saying
-  // the event arrived at all. It does not settle the row the event belonged to:
-  // a dropped snapshot leaves the record at whatever a prior one stored, and
-  // nothing later rewrites it.
-  final content = event.content;
-  if (content is! Map<String, dynamic>) {
-    throw MalformedResponseException(
-      message: 'ActivitySnapshotEvent content must be a JSON object, got '
-          '${content.runtimeType} (messageId: ${event.messageId}, '
-          'activityType: ${event.activityType})',
-    );
-  }
-
   final updatedActivities = applyActivityEvent(
     conversation.activities,
     event,

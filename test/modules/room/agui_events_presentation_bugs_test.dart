@@ -36,7 +36,7 @@ void main() {
             runId: 'run-1',
             userMessageId: 'user-1',
             prompt: 'Q',
-            events: const [
+            events: [
               TextMessageStartEvent(messageId: 'asst-1'),
               TextMessageContentEvent(messageId: 'asst-1', delta: 'Here.'),
               ToolCallStartEvent(

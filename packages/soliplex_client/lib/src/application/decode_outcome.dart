@@ -53,10 +53,42 @@ class DecodeFailed extends DecodeOutcome {
   final StackTrace? stackTrace;
 }
 
+/// A payload naming an event type AG-UI 1.0 retired, read and set aside.
+///
+/// The five `THINKING_*` events were replaced by `REASONING_*`; `ag_ui` 1.0
+/// no longer decodes them. No supported backend emits them live, but a thread
+/// an older backend stored can still replay them. This client never showed
+/// their content, so they are skipped without a drop tile, as they were
+/// before.
+@immutable
+class RetiredEvent extends DecodeOutcome {
+  /// Records that a payload of the retired [type] was skipped.
+  const RetiredEvent(this.type);
+
+  /// The payload's `type`, such as `THINKING_START`.
+  final String type;
+}
+
+/// The `type` values AG-UI 1.0 retired, which [decodeMapSafely] reads as a
+/// [RetiredEvent].
+const Set<String> retiredEventTypes = {
+  'THINKING_START',
+  'THINKING_END',
+  'THINKING_TEXT_MESSAGE_START',
+  'THINKING_TEXT_MESSAGE_CONTENT',
+  'THINKING_TEXT_MESSAGE_END',
+  // Never part of the protocol; an earlier `ag_ui` decoded it.
+  'THINKING_CONTENT',
+};
+
 /// Decodes a single JSON object into a [DecodeOutcome]. Captures the
 /// stack trace alongside the error so the drop-tile log carries a
 /// breadcrumb back to the throwing decoder arm.
 DecodeOutcome decodeMapSafely(Map<String, dynamic> map) {
+  final type = map['type'];
+  if (type is String && retiredEventTypes.contains(type)) {
+    return RetiredEvent(type);
+  }
   try {
     // The AG-UI schema allows a `RUN_ERROR` with an empty `message`, and the
     // backend sends one for an error whose text is empty, but `ag_ui`'s

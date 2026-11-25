@@ -49,22 +49,22 @@ void main() {
     test('keeps a response with text and a call in event order', () {
       // pydantic-ai: text, then a call parented on it, then a new text
       // message for text after the call, then the result once the call ran.
-      final t = _apply(const [
-        TextMessageStartEvent(messageId: 'm1'),
-        TextMessageContentEvent(messageId: 'm1', delta: 'Look'),
-        TextMessageContentEvent(messageId: 'm1', delta: 'ing'),
-        TextMessageEndEvent(messageId: 'm1'),
-        ToolCallStartEvent(
+      final t = _apply([
+        const TextMessageStartEvent(messageId: 'm1'),
+        const TextMessageContentEvent(messageId: 'm1', delta: 'Look'),
+        const TextMessageContentEvent(messageId: 'm1', delta: 'ing'),
+        const TextMessageEndEvent(messageId: 'm1'),
+        const ToolCallStartEvent(
           toolCallId: 'call_0',
           toolCallName: 'search',
           parentMessageId: 'm1',
         ),
-        ToolCallArgsEvent(toolCallId: 'call_0', delta: '{"q":'),
-        ToolCallArgsEvent(toolCallId: 'call_0', delta: '"x"}'),
-        ToolCallEndEvent(toolCallId: 'call_0'),
-        TextMessageStartEvent(messageId: 'm2'),
-        TextMessageContentEvent(messageId: 'm2', delta: 'Done'),
-        TextMessageEndEvent(messageId: 'm2'),
+        const ToolCallArgsEvent(toolCallId: 'call_0', delta: '{"q":'),
+        const ToolCallArgsEvent(toolCallId: 'call_0', delta: '"x"}'),
+        const ToolCallEndEvent(toolCallId: 'call_0'),
+        const TextMessageStartEvent(messageId: 'm2'),
+        const TextMessageContentEvent(messageId: 'm2', delta: 'Done'),
+        const TextMessageEndEvent(messageId: 'm2'),
         ToolCallResultEvent(
           messageId: 'r1',
           toolCallId: 'call_0',
@@ -116,16 +116,16 @@ void main() {
     test('a reused id whose new call never ends takes no result', () {
       // call_0 ended with no result yet; a later call reuses the id and is
       // cut off. The earlier end must not vouch for the new call.
-      final t = _apply(const [
-        TextMessageStartEvent(messageId: 'p1'),
-        ToolCallStartEvent(
+      final t = _apply([
+        const TextMessageStartEvent(messageId: 'p1'),
+        const ToolCallStartEvent(
           toolCallId: 'call_0',
           toolCallName: 'search',
           parentMessageId: 'p1',
         ),
-        ToolCallEndEvent(toolCallId: 'call_0'),
-        TextMessageStartEvent(messageId: 'p2'),
-        ToolCallStartEvent(
+        const ToolCallEndEvent(toolCallId: 'call_0'),
+        const TextMessageStartEvent(messageId: 'p2'),
+        const ToolCallStartEvent(
           toolCallId: 'call_0',
           toolCallName: 'search',
           parentMessageId: 'p2',
@@ -148,13 +148,13 @@ void main() {
     test('a call whose parent is not an assistant message takes no result', () {
       // The id a call names is already a user message's.
       final t = _apply(
-        const [
-          ToolCallStartEvent(
+        [
+          const ToolCallStartEvent(
             toolCallId: 'c1',
             toolCallName: 'search',
             parentMessageId: 'u1',
           ),
-          ToolCallEndEvent(toolCallId: 'c1'),
+          const ToolCallEndEvent(toolCallId: 'c1'),
           ToolCallResultEvent(messageId: 'r1', toolCallId: 'c1', content: 'R'),
         ],
         const Transcript().withAppendedMessage(
@@ -167,22 +167,22 @@ void main() {
     });
 
     group('a call that already has its result', () {
-      final answered = _apply(const [
-        TextMessageStartEvent(messageId: 'p'),
-        ToolCallStartEvent(
+      final answered = _apply([
+        const TextMessageStartEvent(messageId: 'p'),
+        const ToolCallStartEvent(
           toolCallId: 'a',
           toolCallName: 'search',
           parentMessageId: 'p',
         ),
-        ToolCallEndEvent(toolCallId: 'a'),
+        const ToolCallEndEvent(toolCallId: 'a'),
         ToolCallResultEvent(messageId: 'r1', toolCallId: 'a', content: 'RA'),
       ]);
 
       test('skips a result it does not already hold', () {
         // A different message for the call, and the same message for another.
         final t = [
-          const ToolMessage(id: 'r2', toolCallId: 'a', content: 'RB'),
-          const ToolMessage(id: 'r1', toolCallId: 'b', content: 'RA'),
+          ToolMessage(id: 'r2', toolCallId: 'a', content: 'RB'),
+          ToolMessage(id: 'r1', toolCallId: 'b', content: 'RA'),
         ].fold(answered, appendToolResult);
 
         expect(t, same(answered));
@@ -193,7 +193,7 @@ void main() {
         // A resumed run's input re-sends the results its events carried.
         final t = appendToolResult(
           answered,
-          const ToolMessage(id: 'r1', toolCallId: 'a', content: 'RA'),
+          ToolMessage(id: 'r1', toolCallId: 'a', content: 'RA'),
         );
 
         expect(t, same(answered));
@@ -211,7 +211,7 @@ void main() {
         ];
         final first = appendToolResult(
           _apply(round),
-          const ToolMessage(
+          ToolMessage(
             id: 'tool_result_call_0',
             toolCallId: 'call_0',
             content: 'Sunny',
@@ -361,20 +361,20 @@ void main() {
       test('for a tool result goes out with that result', () {
         // pydantic-ai marks a failed result this way, right after it.
         const outcome = '{"pydantic_ai":{"outcome":"failed"}}';
-        final t = _apply(const [
-          TextMessageStartEvent(messageId: 'p'),
-          ToolCallStartEvent(
+        final t = _apply([
+          const TextMessageStartEvent(messageId: 'p'),
+          const ToolCallStartEvent(
             toolCallId: 'c1',
             toolCallName: 'search',
             parentMessageId: 'p',
           ),
-          ToolCallEndEvent(toolCallId: 'c1'),
+          const ToolCallEndEvent(toolCallId: 'c1'),
           ToolCallResultEvent(
             messageId: 'r1',
             toolCallId: 'c1',
             content: 'Search failed',
           ),
-          ReasoningEncryptedValueEvent(
+          const ReasoningEncryptedValueEvent(
             subtype: ReasoningEncryptedValueSubtype.message,
             entityId: 'r1',
             encryptedValue: outcome,

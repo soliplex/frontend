@@ -3369,7 +3369,7 @@ void main() {
               parentMessageId: 'm1',
             ),
             const ToolCallEndEvent(toolCallId: 'c1'),
-            const ToolCallResultEvent(
+            ToolCallResultEvent(
               messageId: 'tr-c1',
               toolCallId: 'c1',
               content: 'ok',

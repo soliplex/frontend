@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -104,7 +107,15 @@ class _BandWatch {
   }
 }
 
-Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
+Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) =>
+    _liveJson([for (final event in sequence) event.toJson()], burst: burst);
+
+/// [_live] over [sequence] as the backend sends it, after a send of [prompt].
+Future<_Inputs> _liveJson(
+  List<Map<String, dynamic>> sequence, {
+  String prompt = 'Q',
+  bool burst = false,
+}) async {
   final (
     session: _,
     :orchestrator,
@@ -112,18 +123,18 @@ Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
     :events,
     sent: _,
     parents: _
-  ) = startLiveSession(key: _key, runId: _runId);
+  ) = startLiveSession(key: _key, runId: _runId, prompt: prompt);
   final watch = _BandWatch();
   await Future<void>.delayed(Duration.zero);
   for (final (index, event) in sequence.indexed) {
-    events.add(event.toJson());
+    events.add(event);
     // A real stream does not pause between events. Yielding after each one
     // hides anything that depends on them arriving one at a time.
     if (burst) continue;
     await Future<void>.delayed(Duration.zero);
     watch.check(
       _layOutNow(orchestrator.currentState, ext.trackers),
-      'after event $index (${event.runtimeType})',
+      'after event $index (${event['type']})',
     );
   }
   await events.close();
@@ -153,16 +164,21 @@ Future<_Inputs> _live(List<BaseEvent> sequence, {bool burst = false}) async {
   );
 }
 
-Future<_Inputs> _reloaded(List<BaseEvent> sequence) async {
-  final replay = ExecutionBands.replayed();
-  final history = await storedHistory(observer: replay, [
-    (
+Future<_Inputs> _reloaded(List<BaseEvent> sequence) => _reloadedJson((
       runId: _runId,
-      userMessageId: _storedUserMessageId,
-      prompt: 'Q',
-      events: sequence,
-    ),
-  ]);
+      parentRunId: null,
+      runInput: {
+        'messages': [
+          {'role': 'user', 'id': _storedUserMessageId, 'content': 'Q'},
+        ],
+      },
+      events: [for (final event in sequence) event.toJson()],
+    ));
+
+/// What reloading a thread holding only [run] reaches `layOutTimeline` with.
+Future<_Inputs> _reloadedJson(StoredRunJson run) async {
+  final replay = ExecutionBands.replayed();
+  final history = await storedHistoryFromJson(observer: replay, [run]);
   return (
     messages: history.messages,
     messageStates: history.messageStates,
@@ -511,7 +527,7 @@ void main() {
       ..._reasoning('r2', 'one more lookup'),
       const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
       const ToolCallEndEvent(toolCallId: 'c2'),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c2',
         toolCallId: 'c2',
         content: 'ok',
@@ -548,12 +564,12 @@ void main() {
       const ToolCallEndEvent(toolCallId: 'c1'),
       const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
       const ToolCallEndEvent(toolCallId: 'c2'),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c1',
         toolCallId: 'c1',
         content: 'ok',
       ),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c2',
         toolCallId: 'c2',
         content: 'ok',
@@ -580,7 +596,7 @@ void main() {
         parentMessageId: 'm1',
       ),
       const ToolCallEndEvent(toolCallId: 'c1'),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c1',
         toolCallId: 'c1',
         content: 'ok',
@@ -652,7 +668,7 @@ void main() {
       const ToolCallEndEvent(toolCallId: 'c1'),
       const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
       const ToolCallEndEvent(toolCallId: 'c2'),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c1',
         toolCallId: 'c1',
         content: 'ok',
@@ -660,7 +676,7 @@ void main() {
       const StateDeltaEvent(delta: [
         {'op': 'add', 'path': '/k', 'value': 1},
       ]),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c2',
         toolCallId: 'c2',
         content: 'ok',
@@ -679,7 +695,7 @@ void main() {
       const ToolCallEndEvent(toolCallId: 'c1'),
       const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
       const ToolCallEndEvent(toolCallId: 'c2'),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c1',
         toolCallId: 'c1',
         content: 'ok',
@@ -713,7 +729,7 @@ void main() {
       const ToolCallEndEvent(toolCallId: 'c1'),
       const ToolCallStartEvent(toolCallId: 'c2', toolCallName: 'fetch'),
       const ToolCallEndEvent(toolCallId: 'c2'),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c1',
         toolCallId: 'c1',
         content: 'ok',
@@ -723,7 +739,7 @@ void main() {
         activityType: 'progress',
         content: {'fetched': 1},
       ),
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         messageId: 'tr-c2',
         toolCallId: 'c2',
         content: 'ok',
@@ -1045,5 +1061,64 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(live.parents, ['run-2']);
+  });
+
+  group('as recorded from a backend on AG-UI 1.0', () {
+    // One run per file, recorded from a soliplex backend: a thread created in
+    // the room, one run posted with the prompt its input holds, and the run
+    // read back once the backend marked it finished. The events it stored
+    // were the ones it streamed, so the live path is fed them too. Only the
+    // ids of the thread and the run are swapped for this file's, so that the
+    // two paths agree on them; everything else reaches the client as sent.
+    final dir = Directory('test/fixtures/agui_1_0');
+    final files = dir.listSync().whereType<File>().toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+
+    test('there are recordings to read', () {
+      expect(files, isNotEmpty);
+    });
+
+    for (final file in files) {
+      final recording =
+          jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final stored = recording['run'] as Map<String, dynamic>;
+      final normalized = jsonDecode(
+        jsonEncode(stored)
+            .replaceAll(stored['thread_id'] as String, _key.threadId)
+            .replaceAll(stored['run_id'] as String, _runId),
+      ) as Map<String, dynamic>;
+      final runInput = normalized['run_input'] as Map<String, dynamic>;
+      final events = [
+        for (final event in normalized['events'] as List<dynamic>)
+          event as Map<String, dynamic>,
+      ];
+      final prompt = ((runInput['messages'] as List<dynamic>).single
+          as Map<String, dynamic>)['content'] as String;
+
+      test('the ${recording['room']} room', () async {
+        final live = await _liveJson(events, prompt: prompt);
+        final reloaded = await _reloadedJson((
+          runId: _runId,
+          parentRunId: null,
+          runInput: runInput,
+          events: events,
+        ));
+
+        for (final (path, inputs) in [('live', live), ('reloaded', reloaded)]) {
+          expect(
+            inputs.messages.whereType<DroppedEventMessage>(),
+            isEmpty,
+            reason: '$path: an event the backend sent was dropped',
+          );
+        }
+        // Two paths that both lose the reply agree; the reply has to be there.
+        final reply = live.messages.last;
+        expect(reply, isA<TextMessage>());
+        reply as TextMessage;
+        expect(reply.user, ChatUser.assistant);
+        expect(reply.text.trim(), isNotEmpty);
+        _expectSameInputs(live, reloaded);
+      });
+    }
   });
 }

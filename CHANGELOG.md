@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Changed
+
+- The client speaks AG-UI protocol 1.0, through the `ag_ui` 1.0 SDK, and
+  still works with a backend on protocol 0.x. A tool result may arrive as a
+  list of parts, and the thread history keeps those parts when it sends them
+  back.
+- An activity snapshot whose content is not a JSON object now fails when it
+  is decoded, rather than when it is applied. It still shows as a dropped
+  event.
+
+### Removed
+
+- The retired `THINKING_*` events are no longer decoded. A thread an older
+  backend stored with them replays without them and without an error, as
+  before: their reasoning was never shown.
+
 ## [0.120.0+110] - 2026-11-24
 
 ### Added

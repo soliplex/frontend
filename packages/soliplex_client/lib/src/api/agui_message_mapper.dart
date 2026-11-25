@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:ag_ui/ag_ui.dart';
+// AG-UI names its wire parts TextPart and ImagePart, as the domain names its
+// own; the wire ones are reached through the `agui` prefix.
+import 'package:ag_ui/ag_ui.dart' hide ImagePart, TextPart;
+import 'package:ag_ui/ag_ui.dart' as agui show ImagePart, TextPart;
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
@@ -51,19 +54,19 @@ Conversation appendUserMessage(
 ///
 /// An image with no number is sent unlabelled, which is what it is: nothing has
 /// ever told the model a name for it.
-List<InputContent>? _multimodalParts(List<MessagePart>? parts) {
+List<ContentPart>? _multimodalParts(List<MessagePart>? parts) {
   if (parts == null) return null;
 
-  final content = <InputContent>[];
+  final content = <ContentPart>[];
   var hasSendablePart = false;
   for (final part in parts) {
     switch (part) {
       case TextPart(:final text):
         if (text.isEmpty) continue;
-        content.add(TextInputContent(text));
+        content.add(agui.TextPart(text));
       case ImagePart(:final number):
         hasSendablePart = true;
-        if (number != null) content.add(TextInputContent(_imageLabel(number)));
+        if (number != null) content.add(agui.TextPart(_imageLabel(number)));
         content.add(_imageContent(part, number));
       case MissingAttachmentPart():
         // Sends nothing, not even a note that it is gone. A label is absolute,
@@ -96,8 +99,7 @@ String _imageLabel(int number) => 'Image $number:';
 /// called. Only this client ever reads it back.
 const String _imageNumberKey = 'soliplex_image_number';
 
-ImageInputContent _imageContent(ImagePart part, int? number) =>
-    ImageInputContent(
+agui.ImagePart _imageContent(ImagePart part, int? number) => agui.ImagePart(
       source: DataSource(
         value: base64Encode(part.bytes),
         mimeType: part.mimeType,
@@ -190,8 +192,10 @@ void _dropLabelFor(
 /// **One element costs no more than itself.** Every element is decoded on its
 /// own, so a part this version cannot read leaves its siblings — text and
 /// images alike — intact. Content the domain cannot hold becomes a
-/// [MissingAttachmentPart] in the slot it occupied: a URL image source, audio,
-/// video, a document, binary content, or bytes that will not decode. The
+/// [MissingAttachmentPart] in the slot it occupied: a URL or provider-file
+/// image source, audio, video, a document, or bytes that will not decode. A
+/// legacy `binary` part, which protocol 1.0 no longer describes, does not
+/// decode at all and takes the same slot. The
 /// message keeps its shape and reports the gap, rather than dropping the
 /// attachments silently and reading as though it never had any.
 ///
@@ -277,19 +281,18 @@ void _dropLabelFor(
       continue;
     }
     switch (decoded) {
-      case TextInputContent(:final text):
+      case agui.TextPart(:final text):
         parts.add(TextPart(text));
-      case ImageInputContent(:final source, :final metadata):
+      case agui.ImagePart(:final source, :final metadata):
         final number = _imageNumberOf(metadata);
         _dropLabelFor(parts, number, logContext);
         parts.add(_readImageSource(source, i, logContext, number));
       // Explicit arms rather than a default: a new content type upstream should
       // be a compile error here, not a silently dropped attachment. The media
-      // kinds are grouped because they carry their type the same way; binary
-      // declares one directly.
-      case AudioInputContent(:final source) ||
-            VideoInputContent(:final source) ||
-            DocumentInputContent(:final source):
+      // kinds are grouped because they carry their type the same way.
+      case AudioPart(:final source) ||
+            VideoPart(:final source) ||
+            DocumentPart(:final source):
         parts.add(
           _unsupportedAttachment(
             decoded.type,
@@ -297,10 +300,6 @@ void _dropLabelFor(
             i,
             logContext,
           ),
-        );
-      case BinaryInputContent(:final mimeType):
-        parts.add(
-          _unsupportedAttachment(decoded.type, mimeType, i, logContext),
         );
     }
   }
@@ -313,10 +312,11 @@ void _dropLabelFor(
 }
 
 /// The MIME type [source] declared, or null when it named none. Required on a
-/// [DataSource] and optional on a [UrlSource], so only the latter can be null.
-String? _sourceMimeType(InputContentSource source) => switch (source) {
+/// [DataSource] and optional on the other sources.
+String? _sourceMimeType(PartSource source) => switch (source) {
       DataSource(:final mimeType) => mimeType,
       UrlSource(:final mimeType) => mimeType,
+      FileSource(:final mimeType) => mimeType,
     };
 
 /// The placeholder for a part that decoded cleanly but has no domain
@@ -345,9 +345,9 @@ MissingAttachmentPart _unsupportedAttachment(
 /// it cannot be decoded.
 ///
 /// Decoded one element at a time rather than through
-/// `UserMessageContent.fromJson`, which is all-or-nothing: a single unknown
+/// `MessageContent.fromJson`, which is all-or-nothing: a single unknown
 /// part type there discards the whole list, taking the message's text with it.
-InputContent? _decodeContentPart(Object? raw, int index, String logContext) {
+ContentPart? _decodeContentPart(Object? raw, int index, String logContext) {
   if (raw is! Map<String, dynamic>) {
     _logger.warning(
       'Content[$index] of $logContext is ${raw.runtimeType}, not an object; '
@@ -356,7 +356,7 @@ InputContent? _decodeContentPart(Object? raw, int index, String logContext) {
     return null;
   }
   try {
-    return InputContent.fromJson(raw);
+    return ContentPart.fromJson(raw);
   } on AGUIValidationError catch (error) {
     // Shape drift in someone else's data — an unknown part type, or a known one
     // missing a required field.
@@ -380,7 +380,7 @@ InputContent? _decodeContentPart(Object? raw, int index, String logContext) {
 /// The [ImagePart] for the image content [source] at [index], or a
 /// [MissingAttachmentPart] when the source is one the domain cannot hold.
 MessagePart _readImageSource(
-  InputContentSource source,
+  PartSource source,
   int index,
   String logContext,
   int? number,
@@ -423,6 +423,18 @@ MessagePart _readImageSource(
       _logger.warning(
         'Content[$index] of $logContext is an image given as a URL, which has '
         'no domain part; showing it as a missing attachment.',
+      );
+      return MissingAttachmentPart(
+        reason: MissingAttachmentReason.remoteSource,
+        mimeType: mimeType,
+        number: number,
+      );
+    case FileSource(:final mimeType):
+      // A handle a model provider issued for bytes uploaded to it. Only that
+      // provider can resolve it, so the bytes are as far away as a URL's.
+      _logger.warning(
+        'Content[$index] of $logContext is an image given as a provider file '
+        'handle, which has no domain part; showing it as a missing attachment.',
       );
       return MissingAttachmentPart(
         reason: MissingAttachmentReason.remoteSource,

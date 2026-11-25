@@ -39,24 +39,6 @@ List<ActivityRecord> _applySnapshot(
   ActivitySnapshotEvent event,
   Logger log,
 ) {
-  // `content` is `Object?` upstream, but `ActivityRecord.content` is a
-  // `Map<String, dynamic>`. This fold stays non-throwing, so it warns and
-  // leaves the list untouched. A caller that needs a non-object payload
-  // surfaced to the user checks `content` before folding.
-  final eventContent = event.content;
-  if (eventContent is! Map<String, dynamic>) {
-    log.warning(
-      'ActivitySnapshotEvent dropped: content is '
-      '${eventContent.runtimeType}, not a Map<String, dynamic> '
-      '(messageId: ${event.messageId}, activityType: ${event.activityType})',
-      attributes: {
-        'messageId': event.messageId,
-        'activityType': event.activityType,
-        'contentType': eventContent.runtimeType.toString(),
-      },
-    );
-    return current;
-  }
   final resolvedTimestamp =
       event.timestamp ?? DateTime.now().millisecondsSinceEpoch;
   final idx = current.indexWhere((a) => a.messageId == event.messageId);
@@ -80,7 +62,7 @@ List<ActivityRecord> _applySnapshot(
     return [...current]..[idx] = ActivityRecord(
         messageId: event.messageId,
         activityType: event.activityType,
-        content: eventContent,
+        content: event.content,
         timestamp: resolvedTimestamp,
       );
   }
@@ -89,7 +71,7 @@ List<ActivityRecord> _applySnapshot(
     ActivityRecord(
       messageId: event.messageId,
       activityType: event.activityType,
-      content: eventContent,
+      content: event.content,
       timestamp: resolvedTimestamp,
     ),
   ];

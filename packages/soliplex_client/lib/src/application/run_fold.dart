@@ -155,11 +155,14 @@ class RunFold {
       );
 
   /// Folds [outcome] in. `processed` is the event when it reached the
-  /// conversation, null when it became a drop tile instead.
+  /// conversation, null when it became a drop tile instead or was a
+  /// [RetiredEvent], which is skipped without one.
   ({RunFold fold, BaseEvent? processed}) apply(DecodeOutcome outcome) {
     final index = _eventIndex;
     final next = _copyWith(eventIndex: index + 1);
     switch (outcome) {
+      case RetiredEvent():
+        return (fold: next, processed: null);
       case DecodeFailed(:final error, :final rawData, :final stackTrace):
         return (
           fold: next._dropped(

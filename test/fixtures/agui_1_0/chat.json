@@ -1,0 +1,214 @@
+{
+  "recorded_from": "soliplex/soliplex#1536 at fb550ecf, ag-ui-protocol 1.0.0, model gpt-oss:latest, 2026-11-25",
+  "room": "chat",
+  "run": {
+    "thread_id": "fb54bb1e-25f6-4f95-b8a3-d0f14ac62db4",
+    "run_id": "eb55c678-7ce4-4143-add4-6c6d9c48c278",
+    "parent_run_id": null,
+    "run_input": {
+      "threadId": "fb54bb1e-25f6-4f95-b8a3-d0f14ac62db4",
+      "runId": "eb55c678-7ce4-4143-add4-6c6d9c48c278",
+      "state": {},
+      "messages": [
+        {
+          "id": "55a31d91-26b8-4602-8163-c768393a2aaa",
+          "role": "user",
+          "content": "What is 17 * 23? Think it through."
+        }
+      ],
+      "tools": [],
+      "context": [],
+      "forwardedProps": {}
+    },
+    "created": "2026-11-25T14:08:59.954421",
+    "finished": "2026-11-25T14:09:03.646585",
+    "events": [
+      {
+        "type": "RUN_STARTED",
+        "timestamp": 1795615739993,
+        "threadId": "fb54bb1e-25f6-4f95-b8a3-d0f14ac62db4",
+        "runId": "eb55c678-7ce4-4143-add4-6c6d9c48c278",
+        "protocolVersion": "1.0"
+      },
+      {
+        "type": "REASONING_START",
+        "timestamp": 1795615740715,
+        "messageId": "f11c0076-c55e-4395-8c3c-587e302f492f"
+      },
+      {
+        "type": "REASONING_MESSAGE_START",
+        "timestamp": 1795615740740,
+        "messageId": "f11c0076-c55e-4395-8c3c-587e302f492f",
+        "role": "reasoning"
+      },
+      {
+        "type": "REASONING_MESSAGE_CONTENT",
+        "timestamp": 1795615740772,
+        "messageId": "f11c0076-c55e-4395-8c3c-587e302f492f",
+        "delta": "The user asks: \"What is 17 * 23? Think it through.\" We need to supply the answer 391. It's a simple arithmetic question. According to protocol: For simple calculation, we can do execute_code → answer.\n\nWe should use execute_code tool: compute 17*23 and return result. Since it's a corpus-level computation? It's not referencing documents. So we call cite with empty list before responding. We must ensure to call cite first. The policy says \"When your answer is a corpus-level computation that doesn't draw on specific chunks — counts, aggregations, listings, averages across documents — call `cite` with an empty list.\" This matches exactly. Thus:\n\nCall execute_code: print 17*23.\n\nThen call cite([]).\n\nThen answer: the result.\n\nLet's do that."
+      },
+      {
+        "type": "REASONING_MESSAGE_END",
+        "timestamp": 1795615742127,
+        "messageId": "f11c0076-c55e-4395-8c3c-587e302f492f"
+      },
+      {
+        "type": "REASONING_ENCRYPTED_VALUE",
+        "timestamp": 1795615742178,
+        "subtype": "message",
+        "entityId": "f11c0076-c55e-4395-8c3c-587e302f492f",
+        "encryptedValue": "{\"id\": \"reasoning\", \"provider_name\": \"ollama\"}"
+      },
+      {
+        "type": "REASONING_END",
+        "timestamp": 1795615742201,
+        "messageId": "f11c0076-c55e-4395-8c3c-587e302f492f"
+      },
+      {
+        "type": "TEXT_MESSAGE_START",
+        "timestamp": 1795615742229,
+        "messageId": "9ab90d77-73f1-49e5-9d8b-c524b172988b",
+        "role": "assistant"
+      },
+      {
+        "type": "TEXT_MESSAGE_END",
+        "timestamp": 1795615742253,
+        "messageId": "9ab90d77-73f1-49e5-9d8b-c524b172988b"
+      },
+      {
+        "type": "TOOL_CALL_START",
+        "timestamp": 1795615742275,
+        "toolCallId": "call_l1bxrx6l",
+        "toolCallName": "execute_code",
+        "parentMessageId": "9ab90d77-73f1-49e5-9d8b-c524b172988b"
+      },
+      {
+        "type": "TOOL_CALL_ARGS",
+        "timestamp": 1795615742298,
+        "toolCallId": "call_l1bxrx6l",
+        "delta": "{\"code\":\"print(17 * 23)\"}"
+      },
+      {
+        "type": "TOOL_CALL_END",
+        "timestamp": 1795615742298,
+        "toolCallId": "call_l1bxrx6l"
+      },
+      {
+        "type": "TOOL_CALL_RESULT",
+        "timestamp": 1795615742363,
+        "messageId": "409736cb-88b4-479e-8957-6fa01d9fabf7",
+        "toolCallId": "call_l1bxrx6l",
+        "content": "391\n",
+        "role": "tool"
+      },
+      {
+        "type": "TEXT_MESSAGE_START",
+        "timestamp": 1795615742866,
+        "messageId": "3d3a5f20-60ac-4984-b02a-7b85075ba0f6",
+        "role": "assistant"
+      },
+      {
+        "type": "TEXT_MESSAGE_END",
+        "timestamp": 1795615742893,
+        "messageId": "3d3a5f20-60ac-4984-b02a-7b85075ba0f6"
+      },
+      {
+        "type": "TOOL_CALL_START",
+        "timestamp": 1795615742922,
+        "toolCallId": "call_0333axc2",
+        "toolCallName": "cite",
+        "parentMessageId": "3d3a5f20-60ac-4984-b02a-7b85075ba0f6"
+      },
+      {
+        "type": "TOOL_CALL_ARGS",
+        "timestamp": 1795615742945,
+        "toolCallId": "call_0333axc2",
+        "delta": "{\"chunk_ids\":[]}"
+      },
+      {
+        "type": "TOOL_CALL_END",
+        "timestamp": 1795615742945,
+        "toolCallId": "call_0333axc2"
+      },
+      {
+        "type": "TOOL_CALL_RESULT",
+        "timestamp": 1795615742992,
+        "messageId": "9bb1937d-7bd9-432c-b511-368fe64d8cb0",
+        "toolCallId": "call_0333axc2",
+        "content": "Recorded: this answer cites no knowledge-base evidence.",
+        "role": "tool"
+      },
+      {
+        "type": "TEXT_MESSAGE_START",
+        "timestamp": 1795615743415,
+        "messageId": "7d8b7dfe-cfce-4567-8efb-06f9505176d1",
+        "role": "assistant"
+      },
+      {
+        "type": "TEXT_MESSAGE_CONTENT",
+        "timestamp": 1795615743440,
+        "messageId": "7d8b7dfe-cfce-4567-8efb-06f9505176d1",
+        "delta": "The product of 17 and 23 is **391**."
+      },
+      {
+        "type": "TEXT_MESSAGE_END",
+        "timestamp": 1795615743521,
+        "messageId": "7d8b7dfe-cfce-4567-8efb-06f9505176d1"
+      },
+      {
+        "type": "STATE_SNAPSHOT",
+        "snapshot": {
+          "rag": {
+            "citation_index": {},
+            "citations": [],
+            "evidence": {
+              "occurrences": {},
+              "question": 0,
+              "in_progress": false,
+              "latest_evidence_epoch": 1,
+              "declaration": {
+                "question": 0,
+                "epoch": 3,
+                "refs": []
+              }
+            },
+            "document_filter": null,
+            "sources": null,
+            "searches": {},
+            "executions": [
+              {
+                "code": "print(17 * 23)",
+                "stdout": "391\n",
+                "stderr": "",
+                "success": true,
+                "search_calls": 0
+              }
+            ]
+          },
+          "citation_policy": {
+            "violations": []
+          }
+        }
+      },
+      {
+        "type": "RUN_FINISHED",
+        "timestamp": 1795615743597,
+        "threadId": "fb54bb1e-25f6-4f95-b8a3-d0f14ac62db4",
+        "runId": "eb55c678-7ce4-4143-add4-6c6d9c48c278",
+        "outcome": {
+          "type": "success"
+        }
+      }
+    ],
+    "metadata": null,
+    "usage": {
+      "input_tokens": 8163,
+      "output_tokens": 230,
+      "requests": 3,
+      "tool_calls": 2,
+      "final_input_tokens": 2816,
+      "resolved_model_name": "gpt-oss:latest",
+      "final_output_tokens": 18
+    }
+  }
+}

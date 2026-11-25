@@ -1,15 +1,3 @@
-// AG-UI replaced its five THINKING_* events with REASONING_* and removes them
-// in 1.0.0. ag_ui's own 1.0.0 removal list names four types, which it marks
-// deprecated: THINKING_TEXT_MESSAGE_{START,CONTENT,END} and the Dart-only
-// THINKING_CONTENT. `ThinkingStartEvent` and `ThinkingEndEvent` carry no
-// @Deprecated, so their cases carry no ignore.
-// No supported backend emits any THINKING_* event live — pydantic-ai emits
-// REASONING_* for ag-ui-protocol 0.1.11 and later — so all of them fall to the
-// `=> null` arm, which keeps `bridgeBaseEvent`'s switch over sealed `BaseEvent`
-// exhaustive. A thread an older backend stored may still replay them; its
-// reasoning is not shown. Suppressed per line so the 1.0.0 sweep can enumerate
-// them and an unrelated deprecation here still raises.
-
 import 'dart:async';
 
 import 'package:meta/meta.dart';
@@ -790,7 +778,7 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     ActivitySnapshotEvent(
       :final messageId,
       :final activityType,
-      content: final Map<String, dynamic> content,
+      :final content,
       :final timestamp,
       :final replace,
     ) =>
@@ -809,35 +797,15 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     // patch to `Conversation.activities`, and the tracker observes
     // activities reactively via the resulting signal. Bridging the
     // delta into an `ExecutionEvent` would duplicate that work.
-    //
-    // The bare `ActivitySnapshotEvent` reaches here only when `content` is not
-    // a `Map<String, dynamic>`, which AG-UI's `Object?` typing permits. Such a
-    // snapshot is dropped rather than synthesized into an empty one: the
-    // tracker must not hold an entry with no matching `ActivityRecord`.
-    // Neither path reaches this arm: `processEvent` throws on that shape, so
-    // the orchestrator does not republish the event and replay does not report
-    // it processed, and the drop tile `RunFold` mints is its one trace.
     RunStartedEvent() ||
     TextMessageStartEvent() ||
     TextMessageEndEvent() ||
-    ThinkingStartEvent() ||
-    ThinkingEndEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageStartEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageContentEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingTextMessageEndEvent() ||
-    // Deprecated upstream; see the file header.
-    // ignore: deprecated_member_use
-    ThinkingContentEvent() ||
+    SubagentStartedEvent() ||
+    SubagentFinishedEvent() ||
+    SubagentErrorEvent() ||
     ToolCallEndEvent() ||
     StateSnapshotEvent() ||
     StateDeltaEvent() ||
-    ActivitySnapshotEvent() ||
     StepStartedEvent() ||
     StepFinishedEvent() ||
     TextMessageChunkEvent() ||

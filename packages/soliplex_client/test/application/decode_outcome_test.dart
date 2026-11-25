@@ -40,6 +40,36 @@ void main() {
       expect(failed.stackTrace, isNotNull);
     });
 
+    test('sets aside an event type AG-UI 1.0 retired, without a drop tile', () {
+      for (final type in retiredEventTypes) {
+        final outcome = decodeMapSafely(<String, dynamic>{
+          'type': type,
+          'messageId': 'm1',
+          'delta': 'x',
+        });
+
+        expect(
+          outcome,
+          isA<RetiredEvent>().having((r) => r.type, 'type', type),
+          reason: type,
+        );
+      }
+    });
+
+    // A snapshot whose content is not an object has nowhere to go in an
+    // activity record. AG-UI 1.0 requires an object, so it fails here and
+    // becomes a drop tile, the one trace that the event arrived.
+    test('fails an activity snapshot whose content is not an object', () {
+      final raw = <String, dynamic>{
+        'type': 'ACTIVITY_SNAPSHOT',
+        'messageId': 'rag:call_1',
+        'activityType': 'skill_tool_call',
+        'content': 'not-a-map',
+      };
+
+      expect(decodeMapSafely(raw), isA<DecodeFailed>());
+    });
+
     // The AG-UI schema allows an empty `message`, and the backend sends one
     // for an error whose text is empty (`str(TimeoutError())`).
     test('decodes a RUN_ERROR whose message is empty', () {
