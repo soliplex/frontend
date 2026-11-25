@@ -4,6 +4,7 @@ import 'package:soliplex_agent/src/metering/draft_estimator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show
         ActivityMessage,
+        AguiTextPart,
         AssistantMessage,
         DeveloperMessage,
         Message,
@@ -11,7 +12,6 @@ import 'package:soliplex_client/soliplex_client.dart'
         ReasoningMessage,
         SystemMessage,
         TextContent,
-        TextInputContent,
         ToolCall,
         ToolMessage,
         UserMessage;
@@ -31,17 +31,17 @@ int estimateTranscriptTokens(Iterable<Message> messages) {
 /// Everything the request carries for it is counted: a tool call's name and
 /// arguments, a tool result's content and error, a pydantic-ai activity as
 /// the JSON it travels as, and each part of a user message that is not text
-/// (image, audio, video, document or binary, all of which pydantic-ai sends
-/// to the model) at a flat per-image cost.
+/// (image, audio, video or document, all of which pydantic-ai sends to the
+/// model) at a flat per-image cost.
 int estimateMessageTokens(Message message) => switch (message) {
       UserMessage(:final messageContent) => switch (messageContent) {
           TextContent(:final text) => estimateDraftTokens(text),
           MultimodalContent(:final parts) => estimateDraftTokens(
               [
                 for (final part in parts)
-                  if (part is TextInputContent) part.text,
+                  if (part is AguiTextPart) part.text,
               ].join('\n'),
-              images: parts.where((part) => part is! TextInputContent).length,
+              images: parts.where((part) => part is! AguiTextPart).length,
             ),
         },
       AssistantMessage(:final content, :final toolCalls) => estimateDraftTokens(

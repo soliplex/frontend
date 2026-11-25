@@ -8,7 +8,13 @@ environment:
   sdk: ^3.6.0
 
 dependencies:
-  ag_ui: ^0.3.0
+  # AG-UI protocol 1.0 (soliplex/frontend#694). Back to a hosted version once
+  # the SDK is published.
+  ag_ui:
+    git:
+      url: https://github.com/soliplex/ag-ui.git
+      ref: d073f900ee49c4f340ed943b4ba48abe33d292dd
+      path: sdks/community/dart
   collection: ^1.19.1
   http: ^1.2.0
   meta: ^1.9.0

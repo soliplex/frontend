@@ -1,0 +1,146 @@
+{
+  "recorded_from": "soliplex/soliplex#1536 at fb550ecf, ag-ui-protocol 1.0.0, model gpt-oss:latest, 2026-11-25",
+  "room": "faux",
+  "run": {
+    "thread_id": "c9e60b7a-7458-47f9-90bd-2289abd2be96",
+    "run_id": "d2d49a45-b9ae-4b9d-9e9f-6fd8c05985f0",
+    "parent_run_id": null,
+    "run_input": {
+      "threadId": "c9e60b7a-7458-47f9-90bd-2289abd2be96",
+      "runId": "d2d49a45-b9ae-4b9d-9e9f-6fd8c05985f0",
+      "state": {},
+      "messages": [
+        {
+          "id": "1777563f-414b-4249-b81f-edd91f3ec54b",
+          "role": "user",
+          "content": "Hello there."
+        }
+      ],
+      "tools": [],
+      "context": [],
+      "forwardedProps": {}
+    },
+    "created": "2026-11-25T14:08:37.282241",
+    "finished": "2026-11-25T14:08:45.177790",
+    "events": [
+      {
+        "type": "RUN_STARTED",
+        "timestamp": 1795615717327,
+        "threadId": "c9e60b7a-7458-47f9-90bd-2289abd2be96",
+        "runId": "d2d49a45-b9ae-4b9d-9e9f-6fd8c05985f0",
+        "protocolVersion": "1.0"
+      },
+      {
+        "type": "REASONING_START",
+        "timestamp": 1795615717349,
+        "messageId": "223157df-d6f1-4dde-bba8-44b88cb25a1e"
+      },
+      {
+        "type": "REASONING_MESSAGE_START",
+        "timestamp": 1795615717374,
+        "messageId": "223157df-d6f1-4dde-bba8-44b88cb25a1e",
+        "role": "reasoning"
+      },
+      {
+        "type": "REASONING_MESSAGE_CONTENT",
+        "timestamp": 1795615717402,
+        "messageId": "223157df-d6f1-4dde-bba8-44b88cb25a1e",
+        "delta": "I'm thinking\n\nHmm, you asked Hello there."
+      },
+      {
+        "type": "REASONING_MESSAGE_END",
+        "timestamp": 1795615720652,
+        "messageId": "223157df-d6f1-4dde-bba8-44b88cb25a1e"
+      },
+      {
+        "type": "REASONING_END",
+        "timestamp": 1795615720698,
+        "messageId": "223157df-d6f1-4dde-bba8-44b88cb25a1e"
+      },
+      {
+        "type": "TEXT_MESSAGE_START",
+        "timestamp": 1795615720726,
+        "messageId": "2ebe585c-76ea-4565-8105-30ff425b84a3",
+        "role": "assistant"
+      },
+      {
+        "type": "TEXT_MESSAGE_END",
+        "timestamp": 1795615720752,
+        "messageId": "2ebe585c-76ea-4565-8105-30ff425b84a3"
+      },
+      {
+        "type": "TOOL_CALL_START",
+        "timestamp": 1795615720774,
+        "toolCallId": "pyd_ai_04e6b6013ac0477f89d5ed82bd00e921",
+        "toolCallName": "faux_tool",
+        "parentMessageId": "2ebe585c-76ea-4565-8105-30ff425b84a3"
+      },
+      {
+        "type": "TOOL_CALL_END",
+        "timestamp": 1795615722016,
+        "toolCallId": "pyd_ai_04e6b6013ac0477f89d5ed82bd00e921"
+      },
+      {
+        "type": "TOOL_CALL_RESULT",
+        "timestamp": 1795615722045,
+        "messageId": "263339bb-990d-4e6a-8213-f740894e57f6",
+        "toolCallId": "pyd_ai_04e6b6013ac0477f89d5ed82bd00e921",
+        "content": "something random",
+        "role": "tool"
+      },
+      {
+        "type": "STATE_DELTA",
+        "timestamp": 1795615722069,
+        "delta": [
+          {
+            "op": "add",
+            "path": "/faux",
+            "value": "Hello there."
+          }
+        ]
+      },
+      {
+        "type": "TEXT_MESSAGE_START",
+        "timestamp": 1795615725023,
+        "messageId": "16f2502a-faf7-45eb-a64a-2c99badc3f85",
+        "role": "assistant"
+      },
+      {
+        "type": "TEXT_MESSAGE_CONTENT",
+        "timestamp": 1795615725056,
+        "messageId": "16f2502a-faf7-45eb-a64a-2c99badc3f85",
+        "delta": "I don't know!"
+      },
+      {
+        "type": "TEXT_MESSAGE_END",
+        "timestamp": 1795615725056,
+        "messageId": "16f2502a-faf7-45eb-a64a-2c99badc3f85"
+      },
+      {
+        "type": "STATE_SNAPSHOT",
+        "snapshot": {
+          "faux": "Hello there."
+        }
+      },
+      {
+        "type": "RUN_FINISHED",
+        "timestamp": 1795615725125,
+        "threadId": "c9e60b7a-7458-47f9-90bd-2289abd2be96",
+        "runId": "d2d49a45-b9ae-4b9d-9e9f-6fd8c05985f0",
+        "outcome": {
+          "type": "success"
+        }
+      }
+    ],
+    "metadata": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "requests": 0,
+      "tool_calls": 0,
+      "final_input_tokens": null,
+      "resolved_model_name": null,
+      "final_output_tokens": null
+    }
+  }
+}

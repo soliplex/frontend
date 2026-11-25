@@ -337,7 +337,7 @@ void main() {
     );
     await emit(const ToolCallEndEvent(toolCallId: 'c1'));
     await emit(
-      const ToolCallResultEvent(
+      ToolCallResultEvent(
         toolCallId: 'c1',
         content: 'ok',
         messageId: 'tool-1',

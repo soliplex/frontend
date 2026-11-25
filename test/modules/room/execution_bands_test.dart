@@ -99,7 +99,7 @@ void main() {
             toolCallName: 'search',
             timestamp: 3500,
           ),
-          const ToolCallResultEvent(
+          ToolCallResultEvent(
             messageId: 'res-1',
             toolCallId: 'tc-1',
             content: 'ok',
@@ -167,7 +167,7 @@ void main() {
             parentMessageId: 'parent-1',
           ),
           const ToolCallEndEvent(toolCallId: 'tc-1'),
-          const ToolCallResultEvent(
+          ToolCallResultEvent(
             toolCallId: 'tc-1',
             content: 'ok',
             messageId: 'tool-msg-1',

@@ -14,8 +14,8 @@ void main() {
       final message = UserMessage.multimodal(
         id: 'u1',
         parts: [
-          const TextInputContent('look at this'),
-          const ImageInputContent(
+          const AguiTextPart('look at this'),
+          const AguiImagePart(
             source: DataSource(value: 'AAAA', mimeType: 'image/png'),
           ),
         ],
@@ -31,11 +31,11 @@ void main() {
       final message = UserMessage.multimodal(
         id: 'u1',
         parts: [
-          const TextInputContent('listen and read'),
-          const AudioInputContent(
+          const AguiTextPart('listen and read'),
+          const AudioPart(
             source: DataSource(value: 'AAAA', mimeType: 'audio/wav'),
           ),
-          const DocumentInputContent(
+          const DocumentPart(
             source: DataSource(value: 'AAAA', mimeType: 'application/pdf'),
           ),
         ],
@@ -66,7 +66,7 @@ void main() {
     });
 
     test('a tool result costs its content and its error', () {
-      const message = ToolMessage(
+      final message = ToolMessage(
         id: 'r1',
         toolCallId: 'call_0',
         content: 'evidence',
@@ -109,7 +109,7 @@ void main() {
   test('a transcript costs the sum of its messages', () {
     final messages = [
       UserMessage(id: 'u1', content: 'hello there'),
-      const ToolMessage(id: 'r1', toolCallId: 'c', content: 'evidence'),
+      ToolMessage(id: 'r1', toolCallId: 'c', content: 'evidence'),
     ];
 
     expect(

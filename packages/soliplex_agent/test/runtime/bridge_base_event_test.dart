@@ -50,20 +50,6 @@ void main() {
       expect(bridgeBaseEvent(event), isNull);
     });
 
-    test('ActivitySnapshotEvent with non-object content returns null', () {
-      // AG-UI types `content` as `Object?`; `ActivitySnapshot.content` is
-      // a map, so a non-object payload does not bridge. This arm logs nothing:
-      // `processEvent` throws on that shape, so neither path reports the event
-      // processed, and the drop tile `RunFold` mints is its one trace.
-      const event = ActivitySnapshotEvent(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_call',
-        content: 'not-a-map',
-      );
-
-      expect(bridgeBaseEvent(event), isNull);
-    });
-
     test('ActivitySnapshotEvent with object content bridges', () {
       const event = ActivitySnapshotEvent(
         messageId: 'rag:call_1',

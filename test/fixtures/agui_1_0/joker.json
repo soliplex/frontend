@@ -1,0 +1,180 @@
+{
+  "recorded_from": "soliplex/soliplex#1536 at fb550ecf, ag-ui-protocol 1.0.0, model gpt-oss:latest, 2026-11-25",
+  "room": "joker",
+  "run": {
+    "thread_id": "3a497c2f-5a50-4ae6-b393-3aeb8e5f821c",
+    "run_id": "900618b7-3f82-40c2-94f1-224d29714d9b",
+    "parent_run_id": null,
+    "run_input": {
+      "threadId": "3a497c2f-5a50-4ae6-b393-3aeb8e5f821c",
+      "runId": "900618b7-3f82-40c2-94f1-224d29714d9b",
+      "state": {},
+      "messages": [
+        {
+          "id": "8548cd3d-3d44-4204-99dd-36514032ba9f",
+          "role": "user",
+          "content": "Tell me a joke about compilers."
+        }
+      ],
+      "tools": [],
+      "context": [],
+      "forwardedProps": {}
+    },
+    "created": "2026-11-25T14:08:45.403320",
+    "finished": "2026-11-25T14:08:59.729098",
+    "events": [
+      {
+        "type": "RUN_STARTED",
+        "timestamp": 1795615725444,
+        "threadId": "3a497c2f-5a50-4ae6-b393-3aeb8e5f821c",
+        "runId": "900618b7-3f82-40c2-94f1-224d29714d9b",
+        "protocolVersion": "1.0"
+      },
+      {
+        "type": "REASONING_START",
+        "timestamp": 1795615734723,
+        "messageId": "73c63637-4d4a-4754-891e-3a1c73a3fabb"
+      },
+      {
+        "type": "REASONING_MESSAGE_START",
+        "timestamp": 1795615734749,
+        "messageId": "73c63637-4d4a-4754-891e-3a1c73a3fabb",
+        "role": "reasoning"
+      },
+      {
+        "type": "REASONING_MESSAGE_CONTENT",
+        "timestamp": 1795615734772,
+        "messageId": "73c63637-4d4a-4754-891e-3a1c73a3fabb",
+        "delta": "We need to use the function joke_factory, passing count and topic. Then we generate jokes, then pick best one. The user asks: \"Tell me a joke about compilers.\"\n\nSo I will call the function with {count: maybe 3, topic:\"compilers\"}? But specification says use the `joke_factory` to generate some jokes, then choose the best. So presumably we should call it once? It expects count and topic. The instructions say \"use the joke_factory to generate some jokes\". Maybe multiple ones. It's unspecified how many. We'll call with count: 3. Then get an array of jokes. Choose the best one. Return a single joke.\n\nThus produce:\n\ncall function: joke_factory({count: 3, topic:\"compilers\"}). Once we receive results in callback? The system will handle the function. We must output a function call. Then final response is single joke.\n\nWe have no knowledge of what exactly the jokes look like in the result structure. I'll just assume it returns an array or maybe object. Usually it returns an array of strings.\n\nWe need to pick best from them. If we can't, we might just return one. The instructions: \"Use the joke_factory to generate some jokes, then choose the best.\" So I should call function first. Then after getting response, choose best and output that joke text only.\n\nThus step 1: call function.\n\n"
+      },
+      {
+        "type": "REASONING_MESSAGE_END",
+        "timestamp": 1795615737017,
+        "messageId": "73c63637-4d4a-4754-891e-3a1c73a3fabb"
+      },
+      {
+        "type": "REASONING_ENCRYPTED_VALUE",
+        "timestamp": 1795615737065,
+        "subtype": "message",
+        "entityId": "73c63637-4d4a-4754-891e-3a1c73a3fabb",
+        "encryptedValue": "{\"id\": \"reasoning\", \"provider_name\": \"ollama\"}"
+      },
+      {
+        "type": "REASONING_END",
+        "timestamp": 1795615737091,
+        "messageId": "73c63637-4d4a-4754-891e-3a1c73a3fabb"
+      },
+      {
+        "type": "TEXT_MESSAGE_START",
+        "timestamp": 1795615737115,
+        "messageId": "e635d7af-2c94-4876-ac23-0b82b3e24478",
+        "role": "assistant"
+      },
+      {
+        "type": "TEXT_MESSAGE_END",
+        "timestamp": 1795615737138,
+        "messageId": "e635d7af-2c94-4876-ac23-0b82b3e24478"
+      },
+      {
+        "type": "TOOL_CALL_START",
+        "timestamp": 1795615737164,
+        "toolCallId": "call_8ysuifug",
+        "toolCallName": "joke_factory",
+        "parentMessageId": "e635d7af-2c94-4876-ac23-0b82b3e24478"
+      },
+      {
+        "type": "TOOL_CALL_ARGS",
+        "timestamp": 1795615737189,
+        "toolCallId": "call_8ysuifug",
+        "delta": "{\"count\":3,\"topic\":\"compilers\"}"
+      },
+      {
+        "type": "TOOL_CALL_END",
+        "timestamp": 1795615737189,
+        "toolCallId": "call_8ysuifug"
+      },
+      {
+        "type": "TOOL_CALL_RESULT",
+        "timestamp": 1795615738670,
+        "messageId": "3a045dee-ac28-4aff-8640-a81c992c685d",
+        "toolCallId": "call_8ysuifug",
+        "content": "[\"Why did the compiler go to therapy? Because it had too many unresolved issues!\",\"Did you hear about the compiler that tried yoga? It ended up being fully optimized for flexibility, but still couldn't unwind its loops.\",\"Why was the developer upset with the compiler's comments? They weren't JavaScript—they were a C-!\"]",
+        "role": "tool"
+      },
+      {
+        "type": "REASONING_START",
+        "timestamp": 1795615739108,
+        "messageId": "d4e46b3d-321f-40af-bf12-66366e34c73d"
+      },
+      {
+        "type": "REASONING_MESSAGE_START",
+        "timestamp": 1795615739133,
+        "messageId": "d4e46b3d-321f-40af-bf12-66366e34c73d",
+        "role": "reasoning"
+      },
+      {
+        "type": "REASONING_MESSAGE_CONTENT",
+        "timestamp": 1795615739155,
+        "messageId": "d4e46b3d-321f-40af-bf12-66366e34c73d",
+        "delta": "Now choose best. Let's pick funniest: maybe first one. Or second? The first: \"Why did the compiler go to therapy? Because it had too many unresolved issues!\" That's good. I'll output just that joke.\n\n"
+      },
+      {
+        "type": "REASONING_MESSAGE_END",
+        "timestamp": 1795615739474,
+        "messageId": "d4e46b3d-321f-40af-bf12-66366e34c73d"
+      },
+      {
+        "type": "REASONING_ENCRYPTED_VALUE",
+        "timestamp": 1795615739524,
+        "subtype": "message",
+        "entityId": "d4e46b3d-321f-40af-bf12-66366e34c73d",
+        "encryptedValue": "{\"id\": \"reasoning\", \"provider_name\": \"ollama\"}"
+      },
+      {
+        "type": "REASONING_END",
+        "timestamp": 1795615739551,
+        "messageId": "d4e46b3d-321f-40af-bf12-66366e34c73d"
+      },
+      {
+        "type": "TEXT_MESSAGE_START",
+        "timestamp": 1795615739574,
+        "messageId": "0198091e-5d8d-4d36-8406-a8337854b20d",
+        "role": "assistant"
+      },
+      {
+        "type": "TEXT_MESSAGE_CONTENT",
+        "timestamp": 1795615739596,
+        "messageId": "0198091e-5d8d-4d36-8406-a8337854b20d",
+        "delta": "Why did the compiler go to therapy? Because it had too many unresolved issues!"
+      },
+      {
+        "type": "TEXT_MESSAGE_END",
+        "timestamp": 1795615739601,
+        "messageId": "0198091e-5d8d-4d36-8406-a8337854b20d"
+      },
+      {
+        "type": "STATE_SNAPSHOT",
+        "snapshot": {}
+      },
+      {
+        "type": "RUN_FINISHED",
+        "timestamp": 1795615739677,
+        "threadId": "3a497c2f-5a50-4ae6-b393-3aeb8e5f821c",
+        "runId": "900618b7-3f82-40c2-94f1-224d29714d9b",
+        "outcome": {
+          "type": "success"
+        }
+      }
+    ],
+    "metadata": null,
+    "usage": {
+      "input_tokens": 837,
+      "output_tokens": 531,
+      "requests": 3,
+      "tool_calls": 1,
+      "final_input_tokens": 550,
+      "resolved_model_name": "gpt-oss:latest",
+      "final_output_tokens": 70
+    }
+  }
+}

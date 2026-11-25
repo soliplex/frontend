@@ -285,7 +285,7 @@ void main() {
                 ),
               ],
             ),
-            const ToolMessage(
+            ToolMessage(
               id: 't1',
               toolCallId: 'tc_1',
               content: 'Found 5 results',
@@ -336,8 +336,8 @@ void main() {
             UserMessage.multimodal(
               id: 'u1',
               parts: const [
-                TextInputContent('what is this?'),
-                ImageInputContent(
+                AguiTextPart('what is this?'),
+                AguiImagePart(
                   source: UrlSource(value: 'https://example.com/cat.png'),
                 ),
               ],

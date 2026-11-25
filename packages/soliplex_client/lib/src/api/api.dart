@@ -3,6 +3,7 @@
 // is withheld here rather than at the top-level barrel so every path out of the
 // package is covered by the one restriction.
 export 'agui_message_mapper.dart' hide readUserMessageContent;
+export 'agui_parts.dart';
 export 'fetch_auth_providers.dart';
 export 'fetch_server_info.dart';
 export 'soliplex_api.dart';

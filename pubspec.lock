@@ -12,11 +12,12 @@ packages:
   ag_ui:
     dependency: transitive
     description:
-      name: ag_ui
-      sha256: f963810252e5c080af0ff779b03949ac8d45362042bf2ec2b7c711737d3e6457
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.0"
+      path: "sdks/community/dart"
+      ref: d073f900ee49c4f340ed943b4ba48abe33d292dd
+      resolved-ref: d073f900ee49c4f340ed943b4ba48abe33d292dd
+      url: "https://github.com/soliplex/ag-ui.git"
+    source: git
+    version: "1.0.0"
   analyzer:
     dependency: transitive
     description:
